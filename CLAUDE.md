@@ -40,3 +40,18 @@ preguntar antes de inventar.
 3. NO crear migraciones SQL sin avisar.
 4. NO modificar políticas RLS existentes sin avisar.
 5. Si una tarea es ambigua, preguntar antes de asumir.
+
+## Requisitos pendientes para Sprint 3 (Reservas)
+
+- **DURACIÓN DE TURNO POR FRANJA, CONFIGURABLE POR CADA CLUB**: cada club
+  debe poder configurar manualmente, según sus necesidades, que distintas
+  franjas horarias tengan turnos de duración distinta. Caso real: turnos
+  de 60 min por la mañana (clases) y de 90 min el resto del día (partidos).
+  Filosofía: igual que tarifas, lo define cada club (desde un caso simple
+  de duración única hasta franjas múltiples), nada hardcodeado. NO es un
+  único `duracion_turno_default`; es una regla por franja, estructuralmente
+  similar al modelo de tarifas (franja horaria → valor asociado). Diseñar
+  e implementar en Sprint 3 junto con la grilla de Reservas, definiendo el
+  modelo de datos (probablemente una tabla de franjas de duración). El
+  `duracion_turno_default` actual queda como fallback cuando el club no
+  configuró franjas.

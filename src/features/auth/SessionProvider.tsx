@@ -32,7 +32,8 @@ const initialState: SessionState = {
  */
 const USUARIO_WITH_CLUB_SELECT =
   'id, club_id, nombre, rol, activo, fecha_alta, ' +
-  'clubes(id, nombre, slug, direccion, ciudad, provincia, telefono, email, plan, activo, fecha_alta, config)';
+  'clubes(id, nombre, slug, direccion, ciudad, provincia, telefono, email, plan, activo, fecha_alta, config, ' +
+  'hora_apertura, hora_cierre, duracion_turno_default)';
 
 type UsuarioConClub = Usuario & { clubes: Club };
 

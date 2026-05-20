@@ -1,8 +1,15 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import { LoginPage, ProtectedRoute } from '@/features/auth';
 import { AppShell } from '@/components/layout/AppShell';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import {
+  ConfiguracionLayout,
+  CanchasPage,
+  HorariosPage,
+  TarifasPage,
+} from '@/features/configuracion';
+import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
 
 export function App() {
   return (
@@ -20,7 +27,24 @@ export function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route
+          index
+          element={
+            <OnboardingGate>
+              <DashboardPage />
+            </OnboardingGate>
+          }
+        />
+
+        <Route path="onboarding" element={<OnboardingPage />} />
+
+        <Route path="configuracion" element={<ConfiguracionLayout />}>
+          <Route index element={<Navigate to="canchas" replace />} />
+          <Route path="canchas" element={<CanchasPage />} />
+          <Route path="horarios" element={<HorariosPage />} />
+          <Route path="tarifas" element={<TarifasPage />} />
+        </Route>
+
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

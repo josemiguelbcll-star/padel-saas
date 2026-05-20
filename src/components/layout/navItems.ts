@@ -18,9 +18,12 @@ export interface NavItem {
 }
 
 /**
- * Items del menú lateral. En el Sprint 1 sólo Dashboard está habilitado;
- * el resto queda visible como hueco a llenar, con badge "Próx." para
- * indicar que viene en próximos sprints.
+ * Items del menú lateral.
+ *
+ * Dashboard y Configuración están habilitados; el resto se va a habilitar
+ * a medida que entren los módulos correspondientes (Reservas en sprint 3,
+ * Caja/Buffet/etc. más adelante). Los disabled muestran un badge "Próx."
+ * para que se vea que vienen pero todavía no se pueden tocar.
  */
 export const navItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
@@ -30,5 +33,5 @@ export const navItems: NavItem[] = [
   { label: 'Inventario', to: '/inventario', icon: Package, disabled: true },
   { label: 'Gastos', to: '/gastos', icon: Receipt, disabled: true },
   { label: 'Alarmas', to: '/alarmas', icon: Bell, disabled: true },
-  { label: 'Configuración', to: '/configuracion', icon: Settings, disabled: true },
+  { label: 'Configuración', to: '/configuracion', icon: Settings },
 ];

@@ -1,0 +1,63 @@
+import { NavLink, Outlet } from 'react-router-dom';
+import { cn } from '@/lib/utils';
+
+interface ConfigTab {
+  label: string;
+  to: string;
+}
+
+const tabs: ConfigTab[] = [
+  { label: 'Canchas', to: '/configuracion/canchas' },
+  { label: 'Horarios', to: '/configuracion/horarios' },
+  { label: 'Tarifas', to: '/configuracion/tarifas' },
+];
+
+/**
+ * Layout de la sección Configuración. Provee header común (título +
+ * descripción) y una barra de tabs horizontales. La página activa se
+ * renderiza en <Outlet />.
+ *
+ * El gating por rol (qué puede mutar el vendedor vs. el admin) vive en
+ * cada página hija, no acá: la sección entera es legible por cualquier
+ * authenticated del club.
+ */
+export function ConfiguracionLayout() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Configuración
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Configurá las canchas, los horarios de operación y las tarifas del club.
+        </p>
+      </div>
+
+      <nav className="border-b border-border" aria-label="Secciones de configuración">
+        <ul className="flex flex-wrap gap-1">
+          {tabs.map((tab) => (
+            <li key={tab.to}>
+              <NavLink
+                to={tab.to}
+                end
+                className={({ isActive }) =>
+                  cn(
+                    '-mb-px inline-flex items-center border-b-2 px-3 py-2 text-sm transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    isActive
+                      ? 'border-primary font-medium text-foreground'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                  )
+                }
+              >
+                {tab.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <Outlet />
+    </div>
+  );
+}
