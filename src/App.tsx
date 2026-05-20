@@ -10,6 +10,7 @@ import {
   TarifasPage,
   ProfesoresPage,
   ClasesPage,
+  ProductosPage,
 } from '@/features/configuracion';
 import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
 import { ReservasPage } from '@/features/reservas';
@@ -50,6 +51,7 @@ export function App() {
           <Route path="tarifas" element={<TarifasPage />} />
           <Route path="profesores" element={<ProfesoresPage />} />
           <Route path="clases" element={<ClasesPage />} />
+          <Route path="productos" element={<ProductosPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

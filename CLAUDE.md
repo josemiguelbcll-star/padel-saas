@@ -137,3 +137,75 @@ está preparado (`reserva_jugadores` = participantes, `reserva_pagos` con
 **REQUISITO para el turno** (a sumar cuando se construya): poder indicar
 la CANTIDAD de jugadores del partido (no asumir 4), porque la división
 depende de eso.
+
+## Requisitos pendientes para Buffet (Capa 1)
+
+- **ANULAR / CORREGIR UNA VENTA DESDE LA UI** (admin): hoy la venta es
+  inmutable desde la app — si hay un error de cobro la única manera de
+  corregirlo es SQL manual, lo que no es viable para uso diario real.
+  Falta una acción de admin que anule una venta y, atómicamente, revierta
+  los movimientos de stock que generó (movimientos compensatorios
+  positivos con fuente nueva tipo `'anulacion_venta'` o similar, NO
+  borrado de filas históricas). Decidir si es "anular completa" o
+  "anular ítem por ítem", la fuente exacta del movimiento compensatorio
+  y los mensajes/confirmación. No se construye en Capa 1, pero queda
+  registrado como necesario antes del uso diario real del módulo.
+
+## Visión de producto: Buffet (a futuro)
+
+- **REPOSICIÓN DE STOCK POR FACTURAS DE COMPRA VÍA BOT DE WHATSAPP**: a
+  futuro, el club quiere poder subir las facturas de compra de
+  proveedores a través de un bot de WhatsApp, que lea la factura y
+  actualice/reponga el stock de los productos del buffet automáticamente.
+  Es un módulo grande propio (integración WhatsApp + parsing de facturas
+  + movimientos de stock). **REQUISITO DE DISEÑO** para el buffet base:
+  modelar el stock de forma que los movimientos (entradas por compra,
+  salidas por venta) se puedan registrar y auditar, dejando lugar para
+  que las entradas vengan después de una fuente externa (las facturas)
+  sin migración destructiva.
+
+- **CONTABILIDAD / COMPROBANTES FISCALES**: las ventas del buffet hoy son
+  registro interno (sin ticket fiscal). A futuro, el club quiere meterse
+  en la contabilidad formal (comprobantes, facturación). **REQUISITO DE
+  DISEÑO**: que el registro de ventas quede preparado para sumar
+  numeración de comprobantes y datos fiscales más adelante, sin rehacer
+  el modelo.
+
+## Visión de producto: rentabilidad y EERR por unidad de negocio
+
+**OBJETIVO**: el club quiere ver su rentabilidad completa en un Estado de
+Resultados (EERR) desglosado, con análisis POR UNIDAD DE NEGOCIO.
+
+**UNIDADES DE NEGOCIO**: Alquileres (reservas), Clases, Buffet. Cada
+ingreso y cada gasto debe poder etiquetarse con su unidad (o "general"
+si es transversal), para calcular rentabilidad por unidad.
+
+**ESTRUCTURA DEL EERR**:
+
+- Ingresos por unidad: Alquileres (pagos de reservas), Clases
+  (clase_cobros), Buffet (ventas).
+- Costos directos: SOLO el buffet tiene costo directo (costo de mercadería
+  vendida = costo del producto × cantidad). Alquileres y Clases NO tienen
+  costo directo (no se paga a profesores; el club solo cobra alquiler).
+- Margen por unidad = ingresos − costo directo.
+- Gastos fijos del club (alquiler local, servicios, sueldos, mantenimiento,
+  impuestos): se restan del margen total. Opcionalmente prorrateables por
+  unidad a futuro; por ahora globales.
+- Resultado neto = suma de márgenes − gastos fijos.
+
+**DECISIONES TOMADAS**:
+
+- Costo de productos: MANUAL (campo en el producto) + ÚLTIMO COSTO
+  CONOCIDO (no promedio ponderado por ahora). El margen de cada venta =
+  precio − costo al momento de la venta (snapshot, como ya hacemos con el
+  precio).
+- Rentabilidad POR UNIDAD DE NEGOCIO (no solo global).
+- Clases = ingreso puro (sin costo de profesor).
+
+**ORDEN DE CONSTRUCCIÓN DEFINIDO**:
+
+1. Costo en productos (cerrar buffet con su margen).
+2. Módulo Gastos (gastos fijos categorizados + etiquetables por unidad).
+3. Módulo Caja (unifica todos los ingresos + gastos en un flujo de
+   dinero).
+4. Reportes / EERR por unidad de negocio.

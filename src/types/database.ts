@@ -279,3 +279,119 @@ export interface ClaseCobro {
   /** TIMESTAMPTZ del momento del cobro. */
   fecha_hora: string;
 }
+
+// ============================================================================
+// Migración 0009 — Buffet Capa 1 (productos, stock, ventas)
+// ============================================================================
+
+/** Categoría del producto. CHECK enum en la DB; ampliar requiere migración. */
+export type CategoriaProducto = 'bebida' | 'snack' | 'otro';
+
+/**
+ * Origen de un movimiento de stock. El bot de carga de facturas vía
+ * WhatsApp (visión a futuro en CLAUDE.md) usará `compra_bot_whatsapp`
+ * cuando se construya; la Capa 1 sólo emite `compra_manual` y `venta`.
+ * `ajuste` queda reservado para correcciones de inventario (admin, RPC
+ * futura).
+ */
+export type FuenteMovimientoStock =
+  | 'compra_manual'
+  | 'venta'
+  | 'ajuste'
+  | 'compra_bot_whatsapp';
+
+export interface Producto {
+  id: number;
+  club_id: number;
+  nombre: string;
+  categoria: CategoriaProducto;
+  /** DECIMAL(12,2). >= 0 por CHECK. */
+  precio: number;
+  /**
+   * DECIMAL(12,2) NULLABLE. Último costo conocido (lo que le cuesta al
+   * club comprarlo). NULL = no cargado — la UI debe mostrar "—" y los
+   * reportes deben excluirlo del cálculo de margen (NO asumir 0, eso
+   * inflaría el EERR). Agregado en la migración 0010.
+   */
+  costo: number | null;
+  /**
+   * Umbral de alerta visual "stock bajo" en la pantalla de productos.
+   * 0 = sin alerta. Cuando stock_actual > 0 AND stock_actual < stock_minimo,
+   * el row se marca en ámbar.
+   */
+  stock_minimo: number;
+  activo: boolean;
+  fecha_alta: string;
+}
+
+/**
+ * Producto + stock actual calculado por la vista `vw_productos_con_stock`
+ * (SUM de movimientos_stock). Usado en listados visuales: Configuración →
+ * Productos y catálogo del buffet.
+ */
+export interface ProductoConStock extends Producto {
+  /** INT, suma de movimientos. Puede ser 0 (sin movimientos) o negativo si
+   *  hay algún error de inventario que ningún CHECK pudo prevenir (no debería). */
+  stock_actual: number;
+}
+
+export interface MovimientoStock {
+  id: number;
+  club_id: number;
+  producto_id: number;
+  /**
+   * INT, distinto de 0. Positivo = entrada, negativo = salida.
+   * El CHECK estricto `mov_stock_coherencia_fuente` en la 0009 garantiza
+   * coherencia con `fuente` y `venta_id` (ej. venta obliga negativo y
+   * venta_id no nulo).
+   */
+  cantidad: number;
+  fuente: FuenteMovimientoStock;
+  /** NOT NULL sólo cuando fuente='venta'; NULL en compras y ajustes. */
+  venta_id: number | null;
+  observaciones: string | null;
+  usuario_id: string;
+  fecha_hora: string;
+}
+
+export interface Venta {
+  id: number;
+  club_id: number;
+  /** DECIMAL(12,2). Snapshot del total al cierre = SUM(venta_items.subtotal). */
+  monto_total: number;
+  medio_pago: MedioPago;
+  observaciones: string | null;
+  usuario_id: string;
+  fecha_hora: string;
+  /**
+   * Reservados para la Capa fiscal/contable futura. La Capa 1 los deja
+   * NULL siempre; cuando se conecte facturación, se llenan vía UPDATE
+   * sin migración destructiva.
+   */
+  comprobante_tipo: string | null;
+  comprobante_numero: string | null;
+  /** DATE 'YYYY-MM-DD'. */
+  comprobante_fecha: string | null;
+}
+
+export interface VentaItem {
+  id: number;
+  club_id: number;
+  venta_id: number;
+  producto_id: number;
+  /** Snapshot del nombre al momento de la venta. Sobrevive renombrados o borrados. */
+  producto_nombre: string;
+  /** INT > 0. */
+  cantidad: number;
+  /** DECIMAL(12,2). Snapshot del precio cobrado, no del precio actual. */
+  precio_unitario: number;
+  /**
+   * DECIMAL(12,2) NULLABLE. Snapshot del costo al momento de la venta.
+   * NULL = el producto no tenía costo cargado en ese momento; el margen
+   * de esta línea es "no calculable" (los reportes deben excluirla del
+   * cálculo de margen, NO asumir 0). Agregado en la migración 0010.
+   */
+  costo_unitario: number | null;
+  /** DECIMAL(12,2). cantidad × precio_unitario al cierre. */
+  subtotal: number;
+}
