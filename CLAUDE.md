@@ -56,6 +56,23 @@ preguntar antes de inventar.
   `duracion_turno_default` actual queda como fallback cuando el club no
   configuró franjas.
 
+- **FLEXIBILIDAD DE HORARIO DE INICIO DE TURNOS**: por ahora los turnos
+  son encadenados (arrancan 8:00, 9:30, 11:00... en bloques de 90 fijos
+  desde la apertura). A futuro, el club podría querer permitir que el
+  cliente elija cualquier hora de inicio (cada 30 min), no solo los
+  bloques encadenados. Pendiente de definir e implementar; afecta el
+  algoritmo de generación de bloques "Disponible" en la grilla.
+
+- **BUG DE LAYOUT EN LA GRILLA** (pendiente de arreglar): tras el
+  rediseño visual, algunos bloques de reserva se solapan entre sí o con
+  los "Disponible", y los "Disponible" no calzan exactamente con los
+  huecos libres. Causa probable: desfase del cálculo de posición
+  vertical tras bajar la altura de slot de 40 a 36px, o
+  reservas/clases/disponibles usando bases de cálculo distintas.
+  Pendiente: que todos los bloques usen el mismo sistema de posición
+  (minutos desde apertura × altura de slot). El usuario va a mandar los
+  bloques finales para resolverlo.
+
 ## Visión de producto: el turno como cuenta (tipo mesa de restaurante)
 
 Cada turno/reserva debe funcionar conceptualmente como la mesa de un

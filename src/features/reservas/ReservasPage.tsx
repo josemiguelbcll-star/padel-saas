@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Clock, LayoutGrid } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { Cancha } from '@/types/database';
+import type { Cancha, ClaseCobro } from '@/types/database';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
 import {
   useClases,
   type ClaseConProfesor,
 } from '@/features/configuracion/hooks/useClases';
 import { useHorariosClub } from '@/features/configuracion/hooks/useHorariosClub';
+import { DetalleClaseDialog } from './DetalleClaseDialog';
 import { DetalleReservaDialog } from './DetalleReservaDialog';
 import { GrillaDia } from './GrillaDia';
 import { NavegacionFecha } from './NavegacionFecha';
@@ -15,6 +16,7 @@ import {
   NuevaReservaDialog,
   type NuevoReservaSlot,
 } from './NuevaReservaDialog';
+import { useCobrosDelDia } from './hooks/useCobrosDelDia';
 import {
   useReservasDelDia,
   type ReservaConTitular,
@@ -61,6 +63,7 @@ export function ReservasPage() {
   const canchasQuery = useCanchas();
   const reservasQuery = useReservasDelDia(fecha);
   const clasesQuery = useClases();
+  const cobrosQuery = useCobrosDelDia(fecha);
 
   const canchasActivas = useMemo(
     () => (canchasQuery.data ?? []).filter((c) => c.activa),
@@ -77,6 +80,21 @@ export function ReservasPage() {
     );
   }, [clasesQuery.data, fecha]);
 
+  // Indexamos los cobros por clase_id. La fecha es implícita (= la del
+  // día mostrado, que es el filtro de la query). Una ocurrencia puede
+  // tener 0/1/N pagos (desde la 0008), así que cada entrada es una lista.
+  // Para el bloque de la grilla alcanza con `list.length > 0`; el dialog
+  // recibe la lista completa para mostrar el historial.
+  const cobrosPorClase = useMemo(() => {
+    const m = new Map<number, ClaseCobro[]>();
+    for (const c of cobrosQuery.data ?? []) {
+      const list = m.get(c.clase_id);
+      if (list) list.push(c);
+      else m.set(c.clase_id, [c]);
+    }
+    return m;
+  }, [cobrosQuery.data]);
+
   // Estado del modal de nueva reserva.
   const [nuevoSlot, setNuevoSlot] = useState<NuevoReservaSlot | null>(null);
 
@@ -86,6 +104,17 @@ export function ReservasPage() {
   const [selectedDetalle, setSelectedDetalle] = useState<{
     reserva: ReservaConTitular;
     cancha: Cancha;
+  } | null>(null);
+
+  // Estado del modal de detalle de clase: guarda clase + cancha + fecha +
+  // lista de pagos iniciales (snapshot del momento del click). El dialog
+  // tiene state local propio para reflejar agregar/borrar pagos sin
+  // esperar a que cierre y se reabra.
+  const [selectedClase, setSelectedClase] = useState<{
+    clase: ClaseConProfesor;
+    cancha: Cancha;
+    fecha: string;
+    pagosIniciales: ClaseCobro[];
   } | null>(null);
 
   function handleSlotClick(canchaId: number, hora: string): void {
@@ -98,6 +127,13 @@ export function ReservasPage() {
     const cancha = canchasActivas.find((c) => c.id === reserva.cancha_id);
     if (!cancha) return;
     setSelectedDetalle({ reserva, cancha });
+  }
+
+  function handleClaseClick(clase: ClaseConProfesor): void {
+    const cancha = canchasActivas.find((c) => c.id === clase.cancha_id);
+    if (!cancha) return;
+    const pagosIniciales = cobrosPorClase.get(clase.id) ?? [];
+    setSelectedClase({ clase, cancha, fecha, pagosIniciales });
   }
 
   return (
@@ -126,8 +162,11 @@ export function ReservasPage() {
         canchasActivas={canchasActivas}
         reservas={reservasQuery.data ?? []}
         clases={clasesDelDia}
+        cobrosPorClase={cobrosPorClase}
+        fecha={fecha}
         onSlotClick={handleSlotClick}
         onReservaClick={handleReservaClick}
+        onClaseClick={handleClaseClick}
       />
 
       <NuevaReservaDialog
@@ -146,6 +185,17 @@ export function ReservasPage() {
         reserva={selectedDetalle?.reserva ?? null}
         cancha={selectedDetalle?.cancha ?? null}
       />
+
+      <DetalleClaseDialog
+        open={selectedClase !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedClase(null);
+        }}
+        clase={selectedClase?.clase ?? null}
+        cancha={selectedClase?.cancha ?? null}
+        fecha={selectedClase?.fecha ?? null}
+        pagosIniciales={selectedClase?.pagosIniciales ?? []}
+      />
     </div>
   );
 }
@@ -162,8 +212,11 @@ interface ReservasBodyProps {
   canchasActivas: Cancha[];
   reservas: ReservaConTitular[];
   clases: ClaseConProfesor[];
+  cobrosPorClase: Map<number, ClaseCobro[]>;
+  fecha: string;
   onSlotClick: (canchaId: number, hora: string) => void;
   onReservaClick: (reserva: ReservaConTitular) => void;
+  onClaseClick: (clase: ClaseConProfesor) => void;
 }
 
 function ReservasBody({
@@ -178,8 +231,11 @@ function ReservasBody({
   canchasActivas,
   reservas,
   clases,
+  cobrosPorClase,
+  fecha,
   onSlotClick,
   onReservaClick,
+  onClaseClick,
 }: ReservasBodyProps) {
   // Loading inicial (horarios y canchas) — sin ellos no podemos siquiera
   // dibujar el armazón de la grilla. Reservas puede cargar después.
@@ -231,11 +287,14 @@ function ReservasBody({
       canchas={canchasActivas}
       reservas={reservas}
       clases={clases}
+      cobrosPorClase={cobrosPorClase}
       horaApertura={horaApertura}
       horaCierre={horaCierre}
+      fecha={fecha}
       loading={loadingReservas}
       onSlotClick={onSlotClick}
       onReservaClick={onReservaClick}
+      onClaseClick={onClaseClick}
     />
   );
 }

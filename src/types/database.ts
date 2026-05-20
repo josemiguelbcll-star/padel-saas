@@ -251,3 +251,31 @@ export interface Clase {
   activa: boolean;
   fecha_alta: string;
 }
+
+// ============================================================================
+// Migración 0007 — Cobro de clases (por ocurrencia)
+// ============================================================================
+
+/**
+ * Cobro de una ocurrencia puntual de clase (clase recurrente X dictada
+ * el día Y). Una fila por cada vez que el club cobra el alquiler al
+ * profesor. La tabla tiene UNIQUE (clase_id, fecha) para impedir doble
+ * cobro de la misma ocurrencia.
+ */
+export interface ClaseCobro {
+  id: number;
+  club_id: number;
+  clase_id: number;
+  /** DATE 'YYYY-MM-DD'. Coincide con un día de clases.dias_semana. */
+  fecha: string;
+  /**
+   * DECIMAL(12,2). Default sugerido en la UI = clases.precio, pero
+   * editable por si el club acuerda un valor distinto.
+   */
+  monto: number;
+  medio_pago: MedioPago;
+  observaciones: string | null;
+  usuario_id: string;
+  /** TIMESTAMPTZ del momento del cobro. */
+  fecha_hora: string;
+}

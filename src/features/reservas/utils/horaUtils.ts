@@ -69,3 +69,28 @@ export function generarSlots(
   }
   return slots;
 }
+
+/**
+ * Convierte 'HH:MM' o 'HH:MM:SS' a minutos desde 00:00.
+ * '08:30' → 510. '10:00:00' → 600. Útil para aritmética de intervalos.
+ */
+export function horaToMinutos(hora: string): number {
+  const parts = hora.split(':');
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) {
+    throw new Error(`Hora inválida: ${hora}`);
+  }
+  return h * 60 + m;
+}
+
+/**
+ * Convierte minutos desde 00:00 a 'HH:MM:SS'. 510 → '08:30:00'.
+ * Hace wrap a 24h si el valor supera 1440.
+ */
+export function minutosToHora(minutos: number): string {
+  const total = ((minutos % 1440) + 1440) % 1440;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+}

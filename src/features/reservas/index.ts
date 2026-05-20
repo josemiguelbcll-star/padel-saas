@@ -36,6 +36,18 @@ export {
   useCobrarReserva,
   type CobrarReservaInput,
 } from './hooks/useCobrarReserva';
+export {
+  useCobrosDelDia,
+  CLASE_COBROS_QUERY_KEY_BASE,
+} from './hooks/useCobrosDelDia';
+export {
+  useCobrarClase,
+  type CobrarClaseInput,
+} from './hooks/useCobrarClase';
+export {
+  useBorrarCobroClase,
+  type BorrarCobroClaseInput,
+} from './hooks/useBorrarCobroClase';
 
 // Utils
 export {
