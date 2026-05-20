@@ -27,7 +27,7 @@ export interface NavItem {
  */
 export const navItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
-  { label: 'Reservas', to: '/reservas', icon: CalendarDays, disabled: true },
+  { label: 'Reservas', to: '/reservas', icon: CalendarDays },
   { label: 'Caja', to: '/caja', icon: Wallet, disabled: true },
   { label: 'Buffet', to: '/buffet', icon: Coffee, disabled: true },
   { label: 'Inventario', to: '/inventario', icon: Package, disabled: true },

@@ -74,6 +74,12 @@ const config: Config = {
             foreground: 'hsl(var(--estado-cancelada-foreground) / <alpha-value>)',
           },
         },
+        // Bloques de CLASE en la grilla (violeta). Distinto del set de
+        // estados de reserva — las clases conceptualmente no son reservas.
+        clase: {
+          DEFAULT: 'hsl(var(--clase) / <alpha-value>)',
+          foreground: 'hsl(var(--clase-foreground) / <alpha-value>)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius-lg)',

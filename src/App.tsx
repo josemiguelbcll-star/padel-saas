@@ -8,8 +8,11 @@ import {
   CanchasPage,
   HorariosPage,
   TarifasPage,
+  ProfesoresPage,
+  ClasesPage,
 } from '@/features/configuracion';
 import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
+import { ReservasPage } from '@/features/reservas';
 
 export function App() {
   return (
@@ -38,11 +41,15 @@ export function App() {
 
         <Route path="onboarding" element={<OnboardingPage />} />
 
+        <Route path="reservas" element={<ReservasPage />} />
+
         <Route path="configuracion" element={<ConfiguracionLayout />}>
           <Route index element={<Navigate to="canchas" replace />} />
           <Route path="canchas" element={<CanchasPage />} />
           <Route path="horarios" element={<HorariosPage />} />
           <Route path="tarifas" element={<TarifasPage />} />
+          <Route path="profesores" element={<ProfesoresPage />} />
+          <Route path="clases" element={<ClasesPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

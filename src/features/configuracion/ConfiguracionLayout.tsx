@@ -10,6 +10,8 @@ const tabs: ConfigTab[] = [
   { label: 'Canchas', to: '/configuracion/canchas' },
   { label: 'Horarios', to: '/configuracion/horarios' },
   { label: 'Tarifas', to: '/configuracion/tarifas' },
+  { label: 'Profesores', to: '/configuracion/profesores' },
+  { label: 'Clases', to: '/configuracion/clases' },
 ];
 
 /**
@@ -29,7 +31,7 @@ export function ConfiguracionLayout() {
           Configuración
         </h1>
         <p className="text-sm text-muted-foreground">
-          Configurá las canchas, los horarios de operación y las tarifas del club.
+          Configurá las canchas, horarios, tarifas, profesores y clases del club.
         </p>
       </div>
 

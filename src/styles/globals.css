@@ -78,6 +78,13 @@
 
     --estado-cancelada: 0 72% 51%;
     --estado-cancelada-foreground: 0 0% 100%;
+
+    /* Color de los bloques de clase. Violeta para distinguirlas
+       claramente de los 5 estados de reserva (en particular del azul
+       'jugada' que comparte tono con --primary). Las clases NO son
+       reservas: el color refleja esa diferencia conceptual. */
+    --clase: 270 65% 55%;
+    --clase-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -123,6 +130,9 @@
 
     --estado-cancelada: 0 62% 50%;
     --estado-cancelada-foreground: 0 0% 100%;
+
+    --clase: 270 60% 60%;
+    --clase-foreground: 0 0% 100%;
   }
 }
 
