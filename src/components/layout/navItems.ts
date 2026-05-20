@@ -29,7 +29,7 @@ export const navItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   { label: 'Reservas', to: '/reservas', icon: CalendarDays },
   { label: 'Caja', to: '/caja', icon: Wallet, disabled: true },
-  { label: 'Buffet', to: '/buffet', icon: Coffee, disabled: true },
+  { label: 'Buffet', to: '/buffet', icon: Coffee },
   { label: 'Inventario', to: '/inventario', icon: Package, disabled: true },
   { label: 'Gastos', to: '/gastos', icon: Receipt, disabled: true },
   { label: 'Alarmas', to: '/alarmas', icon: Bell, disabled: true },
