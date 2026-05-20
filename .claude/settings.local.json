@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Read(//tmp/**)",
+      "Bash(python *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

@@ -7,3 +7,7 @@ dist/
 .vercel/
 .supabase/
 coverage/
+.vite/
+*.tsbuildinfo
+docs/_maestro_extract.txt
+Clave Padel Saas suprabase.txt
