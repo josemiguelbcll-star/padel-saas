@@ -18,6 +18,7 @@ import type {
   Reserva,
   ReservaPago,
 } from '@/types/database';
+import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
 import {
@@ -128,7 +129,17 @@ export function DetalleReservaDialog({
 }: DetalleReservaDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      {/*
+        Layout sticky-header + scroll-body + sticky-footer:
+        - `max-h-[90vh]` cap la altura al viewport (en mobile da margen
+          para el browser chrome).
+        - `flex flex-col` + `gap-0 p-0` reescriben el grid+padding del
+          DialogContent default — el padding lo maneja cada zona (header,
+          body, footer) para que la línea border-t/-b llegue al borde.
+        - `overflow-hidden` evita que el contenido se desborde fuera del
+          rounded-lg del modal.
+      */}
+      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
         {reserva && cancha && (
           <DetalleReservaBody
             // Remount al cambiar de reserva: state interno (cobrandoMode,
@@ -232,7 +243,8 @@ function DetalleReservaBody({
 
   return (
     <>
-      <DialogHeader>
+      {/* Header fijo arriba */}
+      <DialogHeader className="shrink-0 border-b border-border px-6 pb-4 pt-6">
         <DialogTitle>
           Reserva — {formatearFechaAmigable(reserva.fecha)}
         </DialogTitle>
@@ -242,7 +254,8 @@ function DetalleReservaBody({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-5">
+      {/* Body scrolleable */}
+      <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
         {/* Estado */}
         <div>
           <span
@@ -288,6 +301,15 @@ function DetalleReservaBody({
           </div>
         </section>
 
+        {/* Consumos del turno (paso 2 del módulo cuenta del turno).
+            Vive aparte de la Cuenta del alquiler — la suma "alquiler +
+            consumos" se muestra como chip informativo dentro de la
+            sección, pero NO se unifica el saldo cobrable (eso es paso 4). */}
+        <ConsumosTurnoSection
+          reservaId={reserva.id}
+          montoAlquiler={reserva.monto_total}
+        />
+
         {/* Pagos */}
         <section className="space-y-2">
           <Label>Pagos</Label>
@@ -307,19 +329,18 @@ function DetalleReservaBody({
           }}
         />
 
-        {/* Cobrar inline */}
-        {cobrandoMode && (
-          <CobrarInline
-            saldoSugerido={saldo}
-            onCancel={() => setCobrandoMode(false)}
-            onConfirm={(input) =>
-              handleCobrar({ ...input, reserva_id: reserva.id })
-            }
-            pending={cobrarMutation.isPending}
-          />
-        )}
+      </div>
 
-        {/* Banner de error global para acciones (jugada/cancelar) */}
+      {/*
+        Footer fijo: nunca queda fuera del viewport. Cambia su contenido
+        según el modo:
+          - cobrandoMode      → mini-form de cobrar saldo (CobrarInline)
+          - confirmingCancel  → alerta de confirmación + Sí/No
+          - default           → 3 botones de acción (Cobrar / Jugada / Cancelar)
+        El `accionError` queda siempre visible arriba del contenido del
+        footer cuando está seteado (errores de marcar jugada / cancelar).
+      */}
+      <div className="shrink-0 space-y-3 border-t border-border px-6 py-4">
         {accionError && (
           <div
             role="alert"
@@ -329,8 +350,16 @@ function DetalleReservaBody({
           </div>
         )}
 
-        {/* Confirmación de cancelación inline */}
-        {confirmingCancel && (
+        {cobrandoMode ? (
+          <CobrarInline
+            saldoSugerido={saldo}
+            onCancel={() => setCobrandoMode(false)}
+            onConfirm={(input) =>
+              handleCobrar({ ...input, reserva_id: reserva.id })
+            }
+            pending={cobrarMutation.isPending}
+          />
+        ) : confirmingCancel ? (
           <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
             <div className="flex items-start gap-2">
               <AlertTriangle
@@ -371,12 +400,9 @@ function DetalleReservaBody({
               </Button>
             </div>
           </div>
-        )}
-
-        {/* Acciones */}
-        {!confirmingCancel && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-            {puedeCobrar && !cobrandoMode && (
+        ) : (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {puedeCobrar && (
               <Button
                 type="button"
                 onClick={() => {

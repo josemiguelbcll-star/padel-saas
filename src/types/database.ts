@@ -343,17 +343,31 @@ export interface ClaseCobro {
 export type CategoriaProducto = 'bebida' | 'snack' | 'otro';
 
 /**
- * Origen de un movimiento de stock. El bot de carga de facturas vía
- * WhatsApp (visión a futuro en CLAUDE.md) usará `compra_bot_whatsapp`
- * cuando se construya; la Capa 1 sólo emite `compra_manual` y `venta`.
- * `ajuste` queda reservado para correcciones de inventario (admin, RPC
- * futura).
+ * Origen de un movimiento de stock.
+ *
+ *   - 'compra_manual':       entrada via fn_registrar_movimiento_stock (admin).
+ *   - 'venta':               salida por venta de mostrador (fn_cerrar_venta).
+ *   - 'consumo_turno':       salida por consumo cargado a la cuenta del
+ *                            turno (fn_cargar_consumo_turno) — agregado en
+ *                            la 0013.
+ *   - 'reposicion_consumo':  entrada por quitado de un consumo del turno
+ *                            (fn_quitar_consumo_turno) — agregado en la
+ *                            0013. La fuente es explícita (vs un 'ajuste'
+ *                            genérico) para que los reportes puedan
+ *                            cuantificar el flujo de "stock movido por
+ *                            quitados de turno" aparte.
+ *   - 'ajuste':              correcciones manuales de inventario (admin,
+ *                            RPC futura).
+ *   - 'compra_bot_whatsapp': futura integración con bot de WhatsApp para
+ *                            cargar facturas de compra (ver CLAUDE.md).
  */
 export type FuenteMovimientoStock =
   | 'compra_manual'
   | 'venta'
   | 'ajuste'
-  | 'compra_bot_whatsapp';
+  | 'compra_bot_whatsapp'
+  | 'consumo_turno'
+  | 'reposicion_consumo';
 
 export interface Producto {
   id: number;
@@ -402,9 +416,49 @@ export interface MovimientoStock {
    */
   cantidad: number;
   fuente: FuenteMovimientoStock;
-  /** NOT NULL sólo cuando fuente='venta'; NULL en compras y ajustes. */
+  /** NOT NULL sólo cuando fuente='venta'; NULL en compras, ajustes y consumos de turno. */
   venta_id: number | null;
+  /**
+   * FK al consumo del turno que originó este movimiento. NOT NULL al
+   * INSERT para fuente='consumo_turno' (lo pone fn_cargar_consumo_turno),
+   * pero pasa a NULL si el consumo se borra (ON DELETE SET NULL — Modelo
+   * B de la 0013, preserva el movimiento de salida como evidencia
+   * histórica). Para fuente='reposicion_consumo' es NULL siempre (la
+   * reposición no apunta al consumo, su contexto va en observaciones).
+   * Agregado en la migración 0013.
+   */
+  reserva_consumo_id: number | null;
   observaciones: string | null;
+  usuario_id: string;
+  fecha_hora: string;
+}
+
+/**
+ * Consumo de buffet cargado a la cuenta del turno (paso 2 del módulo
+ * cuenta del turno — migración 0013). Cada fila es un producto vendido
+ * como parte del turno (NO de una venta de mostrador). Snapshots de
+ * nombre/precio/costo para que el total del turno y los reportes de
+ * margen sean fieles aunque el producto cambie después.
+ */
+export interface ReservaConsumo {
+  id: number;
+  club_id: number;
+  reserva_id: number;
+  producto_id: number;
+  /** Snapshot del nombre al momento de la carga. */
+  producto_nombre: string;
+  /** DECIMAL(12,2). Snapshot del precio al momento de la carga. */
+  precio_unitario: number;
+  /**
+   * DECIMAL(12,2) NULLABLE. Snapshot del costo al momento de la carga.
+   * NULL = el producto no tenía costo cargado en ese momento (ver
+   * decisión de la 0010); margen "no calculable" para esta línea.
+   */
+  costo_unitario: number | null;
+  /** INT > 0. */
+  cantidad: number;
+  /** DECIMAL(12,2). cantidad × precio_unitario al cargar. */
+  subtotal: number;
   usuario_id: string;
   fecha_hora: string;
 }
