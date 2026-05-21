@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { AlertTriangle, Pencil, Star } from 'lucide-react';
+import { AlertTriangle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,12 +18,12 @@ import type {
   Reserva,
   ReservaPago,
 } from '@/types/database';
+import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
 import {
   useCobrarReserva,
   type CobrarReservaInput,
 } from './hooks/useCobrarReserva';
-import { useReservaJugadores } from './hooks/useReservaJugadores';
 import { useReservaPagos } from './hooks/useReservaPagos';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import { formatearFechaAmigable } from './utils/fechaUtils';
@@ -160,7 +160,6 @@ function DetalleReservaBody({
   // que se cierre y re-abra el dialog.
   const [reserva, setReserva] = useState<ReservaConTitular>(initialReserva);
 
-  const jugadoresQuery = useReservaJugadores(reserva.id);
   const pagosQuery = useReservaPagos(reserva.id);
   const actualizarMutation = useActualizarReserva();
   const cobrarMutation = useCobrarReserva();
@@ -256,11 +255,8 @@ function DetalleReservaBody({
           </span>
         </div>
 
-        {/* Jugadores */}
-        <section className="space-y-2">
-          <Label>Jugadores</Label>
-          <JugadoresList query={jugadoresQuery} />
-        </section>
+        {/* Personas del turno (jugadores + invitados, editable) */}
+        <PersonasTurnoSection reservaId={reserva.id} />
 
         {/* Cuenta */}
         <section className="space-y-2">
@@ -426,55 +422,6 @@ function DetalleReservaBody({
 // ─────────────────────────────────────────────────────────────────────
 // Sub-componentes
 // ─────────────────────────────────────────────────────────────────────
-
-function JugadoresList({
-  query,
-}: {
-  query: ReturnType<typeof useReservaJugadores>;
-}) {
-  if (query.isLoading) {
-    return (
-      <div className="h-12 animate-pulse rounded-md border border-border bg-muted/40" />
-    );
-  }
-  if (query.error) {
-    return (
-      <p className="text-xs text-destructive" role="alert">
-        {query.error.message}
-      </p>
-    );
-  }
-  const jugadores = query.data ?? [];
-  if (jugadores.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">Sin jugadores cargados.</p>
-    );
-  }
-  return (
-    <ul className="space-y-1 text-sm">
-      {jugadores.map((j) => {
-        const nombre = j.jugador?.nombre ?? j.nombre_libre ?? '—';
-        const esLibre = j.jugador_id === null && j.nombre_libre !== null;
-        return (
-          <li key={j.id} className="flex items-center gap-2">
-            {j.es_titular ? (
-              <Star
-                className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400"
-                aria-label="Titular"
-              />
-            ) : (
-              <span className="inline-block h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            )}
-            <span className="text-foreground">{nombre}</span>
-            {esLibre && (
-              <span className="text-xs text-muted-foreground">(sin ficha)</span>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 function PagosList({
   query,

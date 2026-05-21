@@ -200,15 +200,36 @@ export interface Reserva {
   fecha_alta: string;
 }
 
+/**
+ * Rol de una persona en el turno (columna `reserva_jugadores.tipo` desde
+ * la migración 0012):
+ *   - 'jugador': juega + pesa para dividir el alquiler (paso 3).
+ *   - 'invitado': sólo consume buffet, estrictamente anónimo.
+ */
+export type TipoPersonaTurno = 'jugador' | 'invitado';
+
 export interface ReservaJugador {
   id: number;
   club_id: number;
   reserva_id: number;
-  /** ID del jugador registrado en la tabla `jugadores`. NULL si todavía no se registró (ver nombre_libre). */
+  /**
+   * ID del jugador registrado en la tabla `jugadores`. NULL si todavía
+   * no se registró (ver nombre_libre) o si es un jugador anónimo
+   * ("Jugador N", numerado client-side).
+   */
   jugador_id: number | null;
-  /** Nombre del acompañante "suelto" que aún no es un jugador registrado. NULL cuando jugador_id está seteado. */
+  /**
+   * Nombre del acompañante "suelto" que aún no es un jugador registrado.
+   * NULL cuando jugador_id está seteado o cuando es anónimo (jugador
+   * "Jugador N" o invitado "Invitado N").
+   */
   nombre_libre: string | null;
   es_titular: boolean;
+  /**
+   * Migración 0012. Para `'invitado'` el CHECK exige
+   * jugador_id=NULL, nombre_libre=NULL, es_titular=false.
+   */
+  tipo: TipoPersonaTurno;
 }
 
 export interface ReservaPago {
