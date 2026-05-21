@@ -8,7 +8,10 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { PRODUCTOS_CON_STOCK_QUERY_KEY } from '@/features/configuracion/hooks/useProductosConStock';
-import type { ReservaConsumo } from '@/types/database';
+import type {
+  ReservaConsumo,
+  TipoRepartoConsumo,
+} from '@/types/database';
 
 export const RESERVA_CONSUMOS_QUERY_KEY_BASE = 'reserva_consumos';
 
@@ -55,6 +58,14 @@ export interface CargarConsumoTurnoInput {
   producto_id: number;
   /** INT > 0. La RPC valida que haya stock suficiente. */
   cantidad: number;
+  /**
+   * Cómo se reparte el consumo entre las personas del turno.
+   * Agregado en la 0015 — REQUIRED (la RPC no tiene default).
+   *   - 'partido': sólo entre jugadores (ej. tarro de pelotas).
+   *   - 'general': entre todos (default operativo del catálogo —
+   *     bebidas, snacks).
+   */
+  tipo_reparto: TipoRepartoConsumo;
 }
 
 /**
@@ -89,6 +100,7 @@ export function useCargarConsumoTurno(): UseMutationResult<
         p_reserva_id: input.reserva_id,
         p_producto_id: input.producto_id,
         p_cantidad: input.cantidad,
+        p_tipo_reparto: input.tipo_reparto,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {

@@ -9,7 +9,7 @@ import {
   useQuitarConsumoTurno,
   useReservaConsumos,
 } from './hooks/useReservaConsumos';
-import type { ReservaConsumo } from '@/types/database';
+import type { ReservaConsumo, TipoRepartoConsumo } from '@/types/database';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -59,20 +59,25 @@ export function ConsumosTurnoSection({
     [consumosQuery.data],
   );
 
-  // Consolidación por producto_id. La lista entra ordenada por fecha_hora
-  // ASC (oldest first), así que el último id del array de cada grupo es
-  // el más reciente — ese es el que × quita.
+  // Consolidación por (producto_id, tipo_reparto). Desde la 0015 el
+  // mismo producto puede aparecer en dos grupos separados si se cargó
+  // como 'partido' y como 'general' — son consumos con reparto distinto
+  // y no se mezclan en la UI. La lista entra ordenada por fecha_hora
+  // ASC, así que el último id del array de cada grupo es el más
+  // reciente — ese es el que × quita (del combo específico).
   const grupos = useMemo<ConsumoGrupo[]>(() => {
-    const map = new Map<number, ConsumoGrupo>();
+    const map = new Map<string, ConsumoGrupo>();
     for (const c of consumos) {
-      const existing = map.get(c.producto_id);
+      const key = `${c.producto_id}|${c.tipo_reparto}`;
+      const existing = map.get(key);
       if (existing) {
         existing.cantidad_total += c.cantidad;
         existing.subtotal_total += c.subtotal;
         existing.consumos.push(c);
       } else {
-        map.set(c.producto_id, {
+        map.set(key, {
           producto_id: c.producto_id,
+          tipo_reparto: c.tipo_reparto,
           producto_nombre: c.producto_nombre,
           precio_unitario: c.precio_unitario,
           cantidad_total: c.cantidad,
@@ -92,13 +97,17 @@ export function ConsumosTurnoSection({
   const totalTurno = montoAlquiler + totalConsumos;
   const anyPending = cargar.isPending || quitar.isPending;
 
-  async function handleAgregar(productoId: number): Promise<void> {
+  async function handleAgregar(
+    productoId: number,
+    tipoReparto: TipoRepartoConsumo,
+  ): Promise<void> {
     setError(null);
     try {
       await cargar.mutateAsync({
         reserva_id: reservaId,
         producto_id: productoId,
         cantidad: 1,
+        tipo_reparto: tipoReparto,
       });
     } catch (err) {
       setError(
@@ -175,7 +184,9 @@ export function ConsumosTurnoSection({
           <ul className="space-y-1.5 text-sm">
             {grupos.map((g) => (
               <ConsumoGrupoRow
-                key={g.producto_id}
+                // (producto_id, tipo_reparto) — el mismo producto puede
+                // aparecer en dos grupos si se cargó con ambos tipos.
+                key={`${g.producto_id}-${g.tipo_reparto}`}
                 grupo={g}
                 onQuitarUno={() => {
                   void handleQuitarUltimoDelGrupo(g);
@@ -255,6 +266,8 @@ export function ConsumosTurnoSection({
 
 interface ConsumoGrupo {
   producto_id: number;
+  /** Combo (producto_id, tipo_reparto) — los grupos no mezclan tipos. */
+  tipo_reparto: TipoRepartoConsumo;
   producto_nombre: string;
   precio_unitario: number;
   cantidad_total: number;
@@ -272,6 +285,8 @@ function ConsumoGrupoRow({
   onQuitarUno: () => void;
   disabled: boolean;
 }) {
+  const esPartido = grupo.tipo_reparto === 'partido';
+
   return (
     <li className="flex items-baseline gap-2">
       <span
@@ -283,6 +298,14 @@ function ConsumoGrupoRow({
       <span className="min-w-0 flex-1 truncate text-foreground">
         {grupo.producto_nombre}
       </span>
+      {esPartido && (
+        <span
+          className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+          title="Consumo del partido — sólo entre jugadores"
+        >
+          partido
+        </span>
+      )}
       <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
         {currencyFmt.format(grupo.precio_unitario)} c/u
       </span>

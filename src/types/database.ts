@@ -459,6 +459,20 @@ export interface MovimientoStock {
 }
 
 /**
+ * Cómo se reparte un consumo entre las personas del turno (migración
+ * 0015):
+ *   - 'partido': sólo entre JUGADORES (caso típico: un tarro de
+ *     pelotas — los invitados no lo pagan).
+ *   - 'general': entre TODAS las personas (jugadores + invitados).
+ *     Default — la mayoría de los consumos (bebidas, snacks).
+ *
+ * La distinción es SOLO para repartir la cuenta entre personas. NO
+ * cambia la atribución contable: todo el consumo sigue siendo línea
+ * "Buffet" en el EERR (reserva_pagos.monto_consumo es el agregado).
+ */
+export type TipoRepartoConsumo = 'partido' | 'general';
+
+/**
  * Consumo de buffet cargado a la cuenta del turno (paso 2 del módulo
  * cuenta del turno — migración 0013). Cada fila es un producto vendido
  * como parte del turno (NO de una venta de mostrador). Snapshots de
@@ -484,6 +498,14 @@ export interface ReservaConsumo {
   cantidad: number;
   /** DECIMAL(12,2). cantidad × precio_unitario al cargar. */
   subtotal: number;
+  /**
+   * Cómo se reparte este consumo entre las personas del turno.
+   * Definido al cargar; no editable después (si se equivocó: quitar
+   * + cargar de nuevo). Agregado en la migración 0015 con DEFAULT
+   * 'general' (los consumos pre-0015 se repartían entre todos, así
+   * que el backfill al default es semánticamente correcto).
+   */
+  tipo_reparto: TipoRepartoConsumo;
   usuario_id: string;
   fecha_hora: string;
 }

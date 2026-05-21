@@ -163,9 +163,21 @@ export function PersonasTurnoSection({
     [personas],
   );
 
-  const totalConsumos = useMemo(
+  // Dos bolsas de consumo, separadas por tipo_reparto (0015). Mismo
+  // criterio que fn_cobrar_persona_turno — ver tabla de sincronización
+  // en el header de la migración.
+  const totalConsumosPartido = useMemo(
     () =>
-      (consumosQuery.data ?? []).reduce((sum, c) => sum + c.subtotal, 0),
+      (consumosQuery.data ?? [])
+        .filter((c) => c.tipo_reparto === 'partido')
+        .reduce((sum, c) => sum + c.subtotal, 0),
+    [consumosQuery.data],
+  );
+  const totalConsumosGeneral = useMemo(
+    () =>
+      (consumosQuery.data ?? [])
+        .filter((c) => c.tipo_reparto === 'general')
+        .reduce((sum, c) => sum + c.subtotal, 0),
     [consumosQuery.data],
   );
 
@@ -174,10 +186,17 @@ export function PersonasTurnoSection({
       calcularDesgloseCuenta({
         montoAlquiler,
         cantidadJugadores: jugadores.length,
-        totalConsumos,
+        totalConsumosPartido,
+        totalConsumosGeneral,
         cantidadPersonas: personas.length,
       }),
-    [montoAlquiler, jugadores.length, totalConsumos, personas.length],
+    [
+      montoAlquiler,
+      jugadores.length,
+      totalConsumosPartido,
+      totalConsumosGeneral,
+      personas.length,
+    ],
   );
 
   const pagos = useMemo(() => pagosQuery.data ?? [], [pagosQuery.data]);
@@ -382,7 +401,8 @@ export function PersonasTurnoSection({
   const muestraToggleCalculo =
     !esLegacyPagada &&
     (desglose.parteAlquilerPorJugador > 0 ||
-      desglose.parteConsumoPorPersona > 0);
+      desglose.parteConsumoPartidoPorJugador > 0 ||
+      desglose.parteConsumoGeneralPorPersona > 0);
 
   return (
     <section className="space-y-3">
@@ -690,8 +710,16 @@ function BarraProgreso({
 
 function DesgloseHint({ desglose }: { desglose: DesgloseCuenta }) {
   const muestraAlquiler = desglose.parteAlquilerPorJugador > 0;
-  const muestraConsumos = desglose.parteConsumoPorPersona > 0;
-  if (!muestraAlquiler && !muestraConsumos) return null;
+  const muestraConsumosPartido = desglose.parteConsumoPartidoPorJugador > 0;
+  const muestraConsumosGeneral = desglose.parteConsumoGeneralPorPersona > 0;
+  if (!muestraAlquiler && !muestraConsumosPartido && !muestraConsumosGeneral) {
+    return null;
+  }
+
+  // Si sólo hay general (caso común), la palabra "Consumos" alcanza.
+  // Si hay ambos, distinguimos "Consumos del partido" vs "Consumos
+  // generales" para que se entienda el reparto distinto.
+  const distinguirEtiquetas = muestraConsumosPartido && muestraConsumosGeneral;
 
   return (
     <div className="space-y-0.5 rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
@@ -708,15 +736,28 @@ function DesgloseHint({ desglose }: { desglose: DesgloseCuenta }) {
           por jugador
         </p>
       )}
-      {muestraConsumos && (
+      {muestraConsumosPartido && (
         <p>
-          Consumos{' '}
+          {distinguirEtiquetas ? 'Consumos del partido' : 'Consumos'}{' '}
           <span className="tabular-nums">
-            {fmtMoney(desglose.totalConsumos)}
+            {fmtMoney(desglose.totalConsumosPartido)}
+          </span>{' '}
+          ÷ {desglose.cantidadJugadores} ={' '}
+          <span className="font-medium tabular-nums text-foreground">
+            {fmtMoney(desglose.parteConsumoPartidoPorJugador)}
+          </span>{' '}
+          por jugador
+        </p>
+      )}
+      {muestraConsumosGeneral && (
+        <p>
+          {distinguirEtiquetas ? 'Consumos generales' : 'Consumos'}{' '}
+          <span className="tabular-nums">
+            {fmtMoney(desglose.totalConsumosGeneral)}
           </span>{' '}
           ÷ {desglose.cantidadPersonas} ={' '}
           <span className="font-medium tabular-nums text-foreground">
-            {fmtMoney(desglose.parteConsumoPorPersona)}
+            {fmtMoney(desglose.parteConsumoGeneralPorPersona)}
           </span>{' '}
           por persona
         </p>

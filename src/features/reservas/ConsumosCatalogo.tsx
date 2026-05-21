@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
@@ -7,7 +7,11 @@ import {
   CATEGORIAS_PRODUCTO,
   CATEGORIA_LABEL,
 } from '@/features/configuracion/productos/productoSchema';
-import type { CategoriaProducto, ProductoConStock } from '@/types/database';
+import type {
+  CategoriaProducto,
+  ProductoConStock,
+  TipoRepartoConsumo,
+} from '@/types/database';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -16,11 +20,24 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 });
 
+// Tokens warning para resaltar el modo "del partido". Mismo patrón
+// (inline style con hsl(var(...) / X)) que ya usamos en
+// PersonasTurnoSection para evitar el bug de cache de Tailwind con
+// utilidades dinámicas.
+const COLOR_WARN = 'hsl(var(--estado-senada))';
+const COLOR_WARN_FG = 'hsl(var(--estado-senada-foreground))';
+const COLOR_WARN_BG = 'hsl(var(--estado-senada) / 0.12)';
+const COLOR_WARN_BORDER = 'hsl(var(--estado-senada) / 0.40)';
+
 type FiltroCategoria = 'todas' | CategoriaProducto;
 
 interface ConsumosCatalogoProps {
-  /** Click en una card → suma 1 unidad del producto al turno. */
-  onAdd: (productoId: number) => void;
+  /**
+   * Click en una card → suma 1 unidad del producto al turno con el
+   * tipo de reparto activo en el catálogo (general por default; partido
+   * cuando la vendedora cambió el segmented control).
+   */
+  onAdd: (productoId: number, tipoReparto: TipoRepartoConsumo) => void;
   /** Deshabilita toda interacción mientras hay una mutación en curso. */
   disabled?: boolean;
 }
@@ -49,6 +66,13 @@ export function ConsumosCatalogo({ onAdd, disabled }: ConsumosCatalogoProps) {
 
   const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>('todas');
   const [busqueda, setBusqueda] = useState('');
+  // Reparto del próximo click. Default 'general' (caso común). El
+  // state se resetea naturalmente al cerrar el catálogo (el componente
+  // se desmonta cuando ConsumosTurnoSection pone showCatalogo=false).
+  const [tipoReparto, setTipoReparto] =
+    useState<TipoRepartoConsumo>('general');
+
+  const isPartido = tipoReparto === 'partido';
 
   const productosActivos = useMemo(
     () => productos.filter((p) => p.activo),
@@ -90,7 +114,88 @@ export function ConsumosCatalogo({ onAdd, disabled }: ConsumosCatalogoProps) {
   }
 
   return (
-    <div className="space-y-2">
+    <div
+      // Border ámbar suave cuando el modo es "del partido" — refuerzo
+      // visual del segmented control + banner. La vendedora no debería
+      // poder dejar el modo "del partido" puesto y cargar consumos
+      // generales sin notarlo.
+      className={cn(
+        'space-y-2',
+        isPartido && 'rounded-md border-2 p-2',
+      )}
+      style={
+        isPartido
+          ? {
+              borderColor: COLOR_WARN_BORDER,
+              backgroundColor: COLOR_WARN_BG,
+            }
+          : undefined
+      }
+    >
+      {/* Toggle del reparto + banner cuando "del partido" */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            Reparto:
+          </span>
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            <button
+              type="button"
+              onClick={() => setTipoReparto('general')}
+              disabled={disabled}
+              aria-pressed={!isPartido}
+              className={cn(
+                'px-2.5 py-1 text-[11px] font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                !isPartido
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted',
+              )}
+            >
+              Para todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipoReparto('partido')}
+              disabled={disabled}
+              aria-pressed={isPartido}
+              className={cn(
+                'px-2.5 py-1 text-[11px] font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                !isPartido && 'bg-background text-muted-foreground hover:bg-muted',
+              )}
+              style={
+                isPartido
+                  ? { backgroundColor: COLOR_WARN, color: COLOR_WARN_FG }
+                  : undefined
+              }
+            >
+              Del partido
+            </button>
+          </div>
+        </div>
+
+        {isPartido && (
+          <div
+            role="status"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium"
+            style={{ backgroundColor: COLOR_WARN_BG, color: COLOR_WARN }}
+          >
+            <AlertTriangle
+              className="h-3.5 w-3.5 shrink-0"
+              aria-hidden="true"
+            />
+            <span>
+              Los próximos clicks cargan como{' '}
+              <span className="uppercase">consumo del partido</span> (sólo
+              entre jugadores).
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Filtros por categoría */}
       <div className="flex flex-wrap gap-1">
         <CategoriaPill
@@ -138,7 +243,9 @@ export function ConsumosCatalogo({ onAdd, disabled }: ConsumosCatalogoProps) {
             <ProductoCard
               key={p.id}
               producto={p}
-              onAdd={onAdd}
+              // Cierro el tipoReparto por closure — el ProductoCard
+              // queda agnóstico de la feature 0015.
+              onAdd={(productoId) => onAdd(productoId, tipoReparto)}
               disabled={disabled}
             />
           ))}

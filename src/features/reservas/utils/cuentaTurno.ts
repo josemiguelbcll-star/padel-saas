@@ -28,62 +28,106 @@ export interface CalcularDesgloseInput {
   montoAlquiler: number;
   /** count de reserva_jugadores con tipo='jugador'. >= 0. */
   cantidadJugadores: number;
-  /** SUM de reserva_consumos.subtotal. >= 0. */
-  totalConsumos: number;
+  /**
+   * SUM de reserva_consumos.subtotal WHERE tipo_reparto='partido'. >= 0.
+   * Estos consumos se reparten SÓLO entre jugadores (los invitados no
+   * los pagan). Agregado en la 0015.
+   */
+  totalConsumosPartido: number;
+  /**
+   * SUM de reserva_consumos.subtotal WHERE tipo_reparto='general'. >= 0.
+   * Estos consumos se reparten entre TODAS las personas (jugadores +
+   * invitados). Agregado en la 0015.
+   */
+  totalConsumosGeneral: number;
   /** count total de personas (jugadores + invitados). >= 0. */
   cantidadPersonas: number;
 }
 
 export interface DesgloseCuenta {
-  /** Parte del alquiler que le toca a cada jugador. Entero (redondeo ceil). */
+  /** Parte del alquiler que le toca a cada jugador. Entero (CEIL). */
   parteAlquilerPorJugador: number;
-  /** Parte de consumos que le toca a cada persona (jugador o invitado). Entero. */
-  parteConsumoPorPersona: number;
-  /** Total que paga cada jugador = parteAlquilerPorJugador + parteConsumoPorPersona. */
+  /**
+   * Parte de consumos PARTIDO por jugador. Entero (CEIL). Invitados
+   * no la pagan. Agregado en la 0015 (era parte de
+   * parteConsumoPorPersona).
+   */
+  parteConsumoPartidoPorJugador: number;
+  /**
+   * Parte de consumos GENERALES por persona (jugador o invitado).
+   * Entero (CEIL). Agregado en la 0015.
+   */
+  parteConsumoGeneralPorPersona: number;
+  /**
+   * Total que paga cada jugador =
+   *   parteAlquilerPorJugador
+   * + parteConsumoPartidoPorJugador
+   * + parteConsumoGeneralPorPersona.
+   */
   totalPorJugador: number;
-  /** Total que paga cada invitado = parteConsumoPorPersona (no paga alquiler). */
+  /** Total que paga cada invitado = sólo parteConsumoGeneralPorPersona. */
   totalPorInvitado: number;
   // Espejo de los inputs, útil para el hint visual del desglose.
   cantidadJugadores: number;
   cantidadPersonas: number;
   montoAlquiler: number;
-  totalConsumos: number;
+  totalConsumosPartido: number;
+  totalConsumosGeneral: number;
 }
 
+/**
+ * Equivalente exacto del cálculo de fn_cobrar_persona_turno (RPC del
+ * 0015). Si esta función y la RPC difieren, la validación cruzada
+ * `p_monto_esperado` rechaza cobros válidos con "la cuenta cambió".
+ *
+ * Tabla de sincronización (header de la 0015):
+ *   - parte alquiler / jugador       → CEIL(monto_total / cant_jug)
+ *   - parte consumo partido / jug    → CEIL(total_partido / cant_jug)
+ *   - parte consumo general / pers   → CEIL(total_general / cant_pers)
+ *   - parte total jugador            → suma de las 3
+ *   - parte total invitado           → sólo general
+ * Todos con guard `> 0` para evitar div/0.
+ */
 export function calcularDesgloseCuenta(
   input: CalcularDesgloseInput,
 ): DesgloseCuenta {
   const {
     montoAlquiler,
     cantidadJugadores,
-    totalConsumos,
+    totalConsumosPartido,
+    totalConsumosGeneral,
     cantidadPersonas,
   } = input;
 
-  // Redondeo ceil por cada parte INDIVIDUAL — no sobre el total.
-  // Si la división da decimales, cada uno paga el entero de arriba; la
-  // suma de las N partes queda >= monto total (a favor del club, nunca
-  // corto). El chequeo `> 0` evita Math.ceil(0/N)=0 inútil y deja la
-  // intención explícita.
   const parteAlquilerPorJugador =
     cantidadJugadores > 0 && montoAlquiler > 0
       ? Math.ceil(montoAlquiler / cantidadJugadores)
       : 0;
 
-  const parteConsumoPorPersona =
-    cantidadPersonas > 0 && totalConsumos > 0
-      ? Math.ceil(totalConsumos / cantidadPersonas)
+  const parteConsumoPartidoPorJugador =
+    cantidadJugadores > 0 && totalConsumosPartido > 0
+      ? Math.ceil(totalConsumosPartido / cantidadJugadores)
+      : 0;
+
+  const parteConsumoGeneralPorPersona =
+    cantidadPersonas > 0 && totalConsumosGeneral > 0
+      ? Math.ceil(totalConsumosGeneral / cantidadPersonas)
       : 0;
 
   return {
     parteAlquilerPorJugador,
-    parteConsumoPorPersona,
-    totalPorJugador: parteAlquilerPorJugador + parteConsumoPorPersona,
-    totalPorInvitado: parteConsumoPorPersona,
+    parteConsumoPartidoPorJugador,
+    parteConsumoGeneralPorPersona,
+    totalPorJugador:
+      parteAlquilerPorJugador +
+      parteConsumoPartidoPorJugador +
+      parteConsumoGeneralPorPersona,
+    totalPorInvitado: parteConsumoGeneralPorPersona,
     cantidadJugadores,
     cantidadPersonas,
     montoAlquiler,
-    totalConsumos,
+    totalConsumosPartido,
+    totalConsumosGeneral,
   };
 }
 
@@ -168,7 +212,16 @@ export function calcularSaldosPersonas(
 
     const parteAlquiler =
       persona.tipo === 'jugador' ? desglose.parteAlquilerPorJugador : 0;
-    const parteConsumo = desglose.parteConsumoPorPersona;
+    // Consumo agregado según tipo de persona (sin exponer las dos bolsas
+    // por separado en SaldoPersona — la UI muestra el monto total y el
+    // detalle vive en el hint colapsable del PersonasTurnoSection).
+    // Mismo split que fn_cobrar_persona_turno (RPC del 0015): jugadores
+    // pagan partido + general; invitados sólo general.
+    const parteConsumo =
+      persona.tipo === 'jugador'
+        ? desglose.parteConsumoPartidoPorJugador +
+          desglose.parteConsumoGeneralPorPersona
+        : desglose.parteConsumoGeneralPorPersona;
     const parteTotal = parteAlquiler + parteConsumo;
 
     const saldoAlquiler = Math.max(0, parteAlquiler - yaPagadoAlquiler);
