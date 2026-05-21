@@ -13,6 +13,7 @@ import {
   ProductosPage,
 } from '@/features/configuracion';
 import { BuffetPage } from '@/features/buffet';
+import { JugadoresPage } from '@/features/jugadores';
 import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
 import { ReservasPage } from '@/features/reservas';
 
@@ -44,6 +45,8 @@ export function App() {
         <Route path="onboarding" element={<OnboardingPage />} />
 
         <Route path="reservas" element={<ReservasPage />} />
+
+        <Route path="jugadores" element={<JugadoresPage />} />
 
         <Route path="buffet" element={<BuffetPage />} />
 

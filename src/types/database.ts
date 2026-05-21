@@ -119,15 +119,49 @@ export type MedioPago =
 /** Tipos de movimiento en reserva_pagos (CHECK en reserva_pagos.tipo). */
 export type TipoPago = 'sena' | 'pago' | 'reembolso';
 
+/** Género del jugador. NULL = no cargado. Enum cerrado en la DB (CHECK). */
+export type GeneroJugador = 'masculino' | 'femenino' | 'otro';
+
+/**
+ * Categoría del jugador en la escala oficial del pádel argentino (1ra a
+ * 8va). NULL = no cargado. Enum cerrado en la DB (CHECK).
+ */
+export type CategoriaJugador =
+  | 'octava'
+  | 'septima'
+  | 'sexta'
+  | 'quinta'
+  | 'cuarta'
+  | 'tercera'
+  | 'segunda'
+  | 'primera';
+
+/** Posición preferida en la cancha. NULL = no cargado. Enum cerrado (CHECK). */
+export type PosicionJugador = 'drive' | 'reves' | 'ambos';
+
 export interface Jugador {
   id: number;
   club_id: number;
   nombre: string;
   telefono: string | null;
   email: string | null;
-  /** Categoría/nivel del jugador (texto libre, ej. '3ra', '4ta', '5ta'). */
+  /**
+   * @deprecated Texto libre legacy de la migración 0004 (ej. '3ra', 'B',
+   * 'principiante'). Reemplazado conceptualmente por `categoria` (enum
+   * cerrado) en la migración 0011. La columna sigue en DB para no
+   * perder datos pre-0011; los UIs nuevos NO la leen ni escriben.
+   * Si en algún momento se quiere consolidar, mapeo manual desde
+   * Supabase Studio (no automatizable: los valores viejos pueden ser
+   * cualquier cosa).
+   */
   nivel: string | null;
   notas: string | null;
+  /** Migración 0011. NULL = no cargado. */
+  genero: GeneroJugador | null;
+  /** Migración 0011. NULL = no cargado. */
+  categoria: CategoriaJugador | null;
+  /** Migración 0011. NULL = no cargado. */
+  posicion: PosicionJugador | null;
   fecha_alta: string;
   activo: boolean;
 }

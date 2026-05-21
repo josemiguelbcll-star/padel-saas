@@ -89,3 +89,91 @@ export function useCreateJugador(): UseMutationResult<
     },
   });
 }
+
+/**
+ * Lista completa de jugadores del club (activos e inactivos), ordenada
+ * por nombre. La pantalla de Jugadores filtra client-side por el
+ * término del buscador (dataset esperado: decenas a cientos por club —
+ * server-side se vuelve necesario sólo si crece a miles).
+ *
+ * El autocomplete sigue usando `useJugadoresSearch` (server-side ILIKE
+ * con índice trgm) porque ahí sí se dispara con cada keystroke y
+ * queremos cortar la red ASAP.
+ */
+export const JUGADORES_LIST_QUERY_KEY = [
+  JUGADORES_QUERY_KEY_BASE,
+  'list',
+] as const;
+
+export function useJugadores(): UseQueryResult<Jugador[], Error> {
+  return useQuery<Jugador[], Error>({
+    queryKey: JUGADORES_LIST_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jugadores')
+        .select('*')
+        .order('nombre', { ascending: true });
+      if (error) throw new Error(mapPostgrestError(error));
+      return (data ?? []) as Jugador[];
+    },
+  });
+}
+
+interface UpdateJugadorArgs {
+  id: number;
+  changes: Partial<JugadorInput>;
+}
+
+export function useUpdateJugador(): UseMutationResult<
+  Jugador,
+  Error,
+  UpdateJugadorArgs
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<Jugador, Error, UpdateJugadorArgs>({
+    mutationFn: async ({ id, changes }) => {
+      const { data, error } = await supabase
+        .from('jugadores')
+        .update(changes)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw new Error(mapPostgrestError(error));
+      return data as Jugador;
+    },
+    onSuccess: () => {
+      // Invalida el base key: pega tanto en la lista de la pantalla
+      // como en cualquier autocomplete abierto (que cachea por término).
+      void queryClient.invalidateQueries({ queryKey: [JUGADORES_QUERY_KEY_BASE] });
+    },
+  });
+}
+
+/**
+ * Borrar un jugador.
+ *
+ * Dos defensas:
+ *   - RLS `jugadores_delete` (migración 0011): rechaza si el caller no
+ *     es admin del club (SQLSTATE 42501 → "No tenés permisos…").
+ *   - Trigger `trg_jugadores_no_borrar_con_referencias` (0011): rechaza
+ *     con P0001 + mensaje accionable si el jugador tiene reservas,
+ *     acompañantes o pagos asociados ("Desactivalo en su lugar…").
+ *
+ * `dbErrors` traduce ambos; los mensajes llegan al usuario tal cual.
+ * El frontend gatea el botón "Eliminar" con `useSession()` para no
+ * mostrarlo al vendedor, pero la seguridad real es la RLS.
+ */
+export function useDeleteJugador(): UseMutationResult<void, Error, number> {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, number>({
+    mutationFn: async (id) => {
+      const { error } = await supabase.from('jugadores').delete().eq('id', id);
+      if (error) throw new Error(mapPostgrestError(error));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [JUGADORES_QUERY_KEY_BASE] });
+    },
+  });
+}

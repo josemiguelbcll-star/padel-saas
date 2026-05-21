@@ -130,8 +130,15 @@ export function JugadorAutocomplete({
           nombre: trimmed,
           telefono: null,
           email: null,
+          // `nivel` queda en null (campo legacy, deprecado desde 0011).
           nivel: null,
           notas: null,
+          // Campos nuevos de la 0011: el autocomplete crea fichas
+          // "rápidas" con solo nombre — el resto se completa después
+          // desde la pantalla Jugadores.
+          genero: null,
+          categoria: null,
+          posicion: null,
           activo: true,
         });
         onChange({
