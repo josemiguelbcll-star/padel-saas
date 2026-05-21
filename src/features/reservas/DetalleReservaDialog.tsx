@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type {
@@ -21,10 +20,6 @@ import type {
 import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
-import {
-  useCobrarReserva,
-  type CobrarReservaInput,
-} from './hooks/useCobrarReserva';
 import { useReservaPagos } from './hooks/useReservaPagos';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import { formatearFechaAmigable } from './utils/fechaUtils';
@@ -33,14 +28,6 @@ import { formatearHora } from './utils/horaUtils';
 // ─────────────────────────────────────────────────────────────────────
 // Constantes y helpers locales
 // ─────────────────────────────────────────────────────────────────────
-
-const MEDIOS_PAGO_LIST: readonly MedioPago[] = [
-  'efectivo',
-  'transferencia',
-  'mp',
-  'tarjeta',
-  'otro',
-] as const;
 
 const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   efectivo: 'Efectivo',
@@ -173,17 +160,15 @@ function DetalleReservaBody({
 
   const pagosQuery = useReservaPagos(reserva.id);
   const actualizarMutation = useActualizarReserva();
-  const cobrarMutation = useCobrarReserva();
 
-  // State de las distintas zonas interactivas. Cada una con su error
-  // propio para que los mensajes aparezcan junto al control que falló.
-  const [cobrandoMode, setCobrandoMode] = useState(false);
+  // State de las acciones del footer (marcar jugada / cancelar).
+  // El cobro NO está acá — vive por persona en PersonasTurnoSection
+  // desde el paso 4 del módulo cuenta del turno.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [accionError, setAccionError] = useState<string | null>(null);
 
   const saldo = reserva.monto_total - reserva.monto_pagado;
   const tieneSaldo = saldo > 0;
-  const puedeCobrar = tieneSaldo && reserva.estado !== 'cancelada';
   const puedeMarcarJugada =
     reserva.estado !== 'jugada' && reserva.estado !== 'cancelada';
   const puedeCancelar = reserva.estado !== 'cancelada';
@@ -234,13 +219,6 @@ function DetalleReservaBody({
     }
   }
 
-  async function handleCobrar(input: CobrarReservaInput): Promise<void> {
-    // El error queda dentro del mini-form de cobrar; no usamos accionError.
-    const updated = await cobrarMutation.mutateAsync(input);
-    applyReservaUpdate(updated);
-    setCobrandoMode(false);
-  }
-
   return (
     <>
       {/* Header fijo arriba */}
@@ -268,38 +246,56 @@ function DetalleReservaBody({
           </span>
         </div>
 
-        {/* Personas del turno (jugadores + invitados, editable) */}
-        <PersonasTurnoSection reservaId={reserva.id} />
+        {/* Personas del turno: gestión de personas (paso 1b) + división
+            de la cuenta (paso 3) + COBRO por persona (paso 4). Cada
+            persona muestra su parte, su estado (debe / pagó / pagó
+            parcial) y, si debe, un botón de Cobrar con mini-form
+            inline. La RPC fn_cobrar_persona_turno valida el monto con
+            p_monto_esperado para protegerse de race con cambios
+            concurrentes. */}
+        <PersonasTurnoSection
+          reservaId={reserva.id}
+          montoAlquiler={reserva.monto_total}
+          fecha={reserva.fecha}
+          estadoReserva={reserva.estado}
+        />
 
-        {/* Cuenta */}
-        <section className="space-y-2">
-          <Label>Cuenta</Label>
-          <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Total</span>
-              <span className="font-medium tabular-nums text-foreground">
-                {fmtMoney(reserva.monto_total)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Pagado</span>
-              <span className="font-medium tabular-nums text-foreground">
-                {fmtMoney(reserva.monto_pagado)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-t border-border pt-1">
-              <span className="text-muted-foreground">Saldo</span>
-              <span
-                className={cn(
-                  'font-semibold tabular-nums',
-                  tieneSaldo ? 'text-foreground' : 'text-muted-foreground',
-                )}
-              >
-                {fmtMoney(saldo)}
-              </span>
-            </div>
-          </div>
-        </section>
+        {/* Cuenta del alquiler — referencia contable compacta.
+            Desde el paso 4, el cobro vive por persona en
+            PersonasTurnoSection (arriba). Este bloque queda como info
+            histórica del escalar monto_pagado del alquiler. Línea única,
+            sin Label, jerarquía visual baja para no competir con la
+            acción principal. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md border border-border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+          <span className="font-semibold uppercase tracking-wide">
+            Cuenta del alquiler
+          </span>
+          <span>
+            Total{' '}
+            <span className="font-medium tabular-nums text-foreground">
+              {fmtMoney(reserva.monto_total)}
+            </span>
+          </span>
+          <span>·</span>
+          <span>
+            Pagado{' '}
+            <span className="font-medium tabular-nums text-foreground">
+              {fmtMoney(reserva.monto_pagado)}
+            </span>
+          </span>
+          <span>·</span>
+          <span>
+            Saldo{' '}
+            <span
+              className={cn(
+                'font-semibold tabular-nums',
+                tieneSaldo ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {fmtMoney(saldo)}
+            </span>
+          </span>
+        </div>
 
         {/* Consumos del turno (paso 2 del módulo cuenta del turno).
             Vive aparte de la Cuenta del alquiler — la suma "alquiler +
@@ -332,13 +328,13 @@ function DetalleReservaBody({
       </div>
 
       {/*
-        Footer fijo: nunca queda fuera del viewport. Cambia su contenido
-        según el modo:
-          - cobrandoMode      → mini-form de cobrar saldo (CobrarInline)
-          - confirmingCancel  → alerta de confirmación + Sí/No
-          - default           → 3 botones de acción (Cobrar / Jugada / Cancelar)
-        El `accionError` queda siempre visible arriba del contenido del
-        footer cuando está seteado (errores de marcar jugada / cancelar).
+        Footer fijo. Desde el paso 4 del módulo cuenta del turno, el
+        cobro vive por persona en PersonasTurnoSection. Acá quedan dos
+        acciones globales:
+          - Marcar jugada (transición de estado)
+          - Cancelar reserva (con confirm inline)
+        El `accionError` queda arriba del contenido del footer cuando
+        hay un error en las acciones globales.
       */}
       <div className="shrink-0 space-y-3 border-t border-border px-6 py-4">
         {accionError && (
@@ -350,16 +346,7 @@ function DetalleReservaBody({
           </div>
         )}
 
-        {cobrandoMode ? (
-          <CobrarInline
-            saldoSugerido={saldo}
-            onCancel={() => setCobrandoMode(false)}
-            onConfirm={(input) =>
-              handleCobrar({ ...input, reserva_id: reserva.id })
-            }
-            pending={cobrarMutation.isPending}
-          />
-        ) : confirmingCancel ? (
+        {confirmingCancel ? (
           <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
             <div className="flex items-start gap-2">
               <AlertTriangle
@@ -402,17 +389,6 @@ function DetalleReservaBody({
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {puedeCobrar && (
-              <Button
-                type="button"
-                onClick={() => {
-                  setAccionError(null);
-                  setCobrandoMode(true);
-                }}
-              >
-                Cobrar saldo
-              </Button>
-            )}
             {puedeMarcarJugada && (
               <Button
                 type="button"
@@ -488,30 +464,43 @@ function PagoRow({ pago }: { pago: ReservaPago }) {
       : pago.tipo === 'reembolso'
         ? 'Reembolso'
         : 'Pago';
+
+  // Desglose mini (paso 4): si el pago tiene parte de consumo, muestro
+  // "alq + buf"; si no, sólo el de alquiler. Discreto, debajo de la
+  // línea principal.
+  const tieneConsumo = pago.monto_consumo > 0;
+
   return (
-    <li className="flex flex-wrap items-center gap-2">
-      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {tipoLabel}
-      </span>
-      <span className="font-medium tabular-nums text-foreground">
-        {fmtMoney(pago.monto)}
-      </span>
-      <span className="text-muted-foreground">·</span>
-      <span className="text-muted-foreground">
-        {MEDIO_PAGO_LABEL[pago.medio_pago]}
-      </span>
-      <span className="text-muted-foreground">·</span>
-      <span className="text-xs text-muted-foreground">
-        {fmtFechaHoraCorta(pago.fecha_hora)}
-      </span>
-      {pago.observaciones && (
-        <>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-xs italic text-muted-foreground">
-            {pago.observaciones}
-          </span>
-        </>
-      )}
+    <li className="space-y-0.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {tipoLabel}
+        </span>
+        <span className="font-medium tabular-nums text-foreground">
+          {fmtMoney(pago.monto)}
+        </span>
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground">
+          {MEDIO_PAGO_LABEL[pago.medio_pago]}
+        </span>
+        <span className="text-muted-foreground">·</span>
+        <span className="text-xs text-muted-foreground">
+          {fmtFechaHoraCorta(pago.fecha_hora)}
+        </span>
+        {pago.observaciones && (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-xs italic text-muted-foreground">
+              {pago.observaciones}
+            </span>
+          </>
+        )}
+      </div>
+      <div className="pl-1 text-[11px] tabular-nums text-muted-foreground">
+        {tieneConsumo
+          ? `${fmtMoney(pago.monto_alquiler)} alquiler + ${fmtMoney(pago.monto_consumo)} buffet`
+          : `${fmtMoney(pago.monto_alquiler)} alquiler`}
+      </div>
     </li>
   );
 }
@@ -617,144 +606,3 @@ function ObservacionesSection({ reserva, onSave }: ObservacionesSectionProps) {
   );
 }
 
-interface CobrarInlineProps {
-  saldoSugerido: number;
-  pending: boolean;
-  onCancel: () => void;
-  onConfirm: (input: Omit<CobrarReservaInput, 'reserva_id'>) => Promise<void>;
-}
-
-function CobrarInline({
-  saldoSugerido,
-  pending,
-  onCancel,
-  onConfirm,
-}: CobrarInlineProps) {
-  const [monto, setMonto] = useState<string>(saldoSugerido.toString());
-  const [medio, setMedio] = useState<MedioPago | null>('efectivo');
-  const [obs, setObs] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setError(null);
-
-    const m = Number(monto);
-    if (Number.isNaN(m) || m <= 0) {
-      setError('Ingresá un monto válido mayor a 0.');
-      return;
-    }
-    if (!medio) {
-      setError('Elegí un medio de pago.');
-      return;
-    }
-
-    try {
-      await onConfirm({
-        monto: m,
-        medio_pago: medio,
-        observaciones: obs.trim() === '' ? null : obs.trim(),
-      });
-    } catch (err) {
-      // Errores de la RPC (saldo cero, excede, etc.) ya vienen en castellano
-      // vía dbErrors. Los mostramos en el banner del mini-form.
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No pudimos registrar el cobro.',
-      );
-    }
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-3 rounded-md border border-border bg-muted/30 p-3"
-      noValidate
-    >
-      <h4 className="text-sm font-medium text-foreground">Cobrar</h4>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="cobrar-monto" className="text-xs">
-            Monto (pesos)
-          </Label>
-          <Input
-            id="cobrar-monto"
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-            disabled={pending}
-            autoFocus
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Medio de pago</Label>
-          <div className="flex flex-wrap gap-1">
-            {MEDIOS_PAGO_LIST.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMedio(m)}
-                disabled={pending}
-                aria-pressed={medio === m}
-                className={cn(
-                  'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  'disabled:cursor-not-allowed disabled:opacity-50',
-                  medio === m
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background text-foreground hover:bg-muted',
-                )}
-              >
-                {MEDIO_PAGO_LABEL[m]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="cobrar-obs" className="text-xs">
-          Observaciones del pago (opcional)
-        </Label>
-        <Input
-          id="cobrar-obs"
-          type="text"
-          value={obs}
-          onChange={(e) => setObs(e.target.value)}
-          disabled={pending}
-          maxLength={500}
-          placeholder="Ej: cobré el saldo del partido"
-        />
-      </div>
-
-      {error && (
-        <div
-          role="alert"
-          className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive"
-        >
-          {error}
-        </div>
-      )}
-
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onCancel}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? 'Cobrando…' : 'Confirmar cobro'}
-        </Button>
-      </div>
-    </form>
-  );
-}

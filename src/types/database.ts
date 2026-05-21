@@ -241,10 +241,35 @@ export interface ReservaPago {
   medio_pago: MedioPago;
   tipo: TipoPago;
   /**
-   * Para división de cuenta: jugador que pagó esta porción.
-   * NULL = pago grupal (default en sprint 3a; el flujo simple no asigna pagos a jugadores).
+   * FK histórica a la ficha global del jugador (`jugadores.id`). NULL
+   * cuando el pago no se atribuye a una ficha (cobro grupal legacy o
+   * persona sin ficha en el turno). Distinto de `reserva_jugador_id`:
+   * acá apuntamos a la ficha, allá a la persona del turno.
    */
   jugador_id: number | null;
+  /**
+   * FK a la persona del turno que pagó (`reserva_jugadores.id`).
+   * Agregado en la migración 0014 (paso 4 — pagos por persona).
+   * NULL en pagos huérfanos legacy (reservas sin titular en
+   * reserva_jugadores) o si la persona se quitó después del pago
+   * (ON DELETE SET NULL preserva el pago histórico). Los reportes
+   * EERR que requieran atribución a persona deben filtrar IS NOT NULL.
+   */
+  reserva_jugador_id: number | null;
+  /**
+   * DECIMAL(12,2). Porción del monto del pago que corresponde al
+   * ALQUILER de la cancha. Snapshot. Agregado en la 0014. El CHECK
+   * `reserva_pagos_desglose_check` garantiza
+   * `monto_alquiler + monto_consumo = monto`.
+   */
+  monto_alquiler: number;
+  /**
+   * DECIMAL(12,2). Porción del monto del pago que corresponde a
+   * CONSUMOS de buffet cargados al turno. Snapshot. Agregado en la 0014.
+   * Para reportes EERR de la unidad de negocio "Buffet" — estos pagos
+   * se suman a los de venta_items (mostrador) para el total de la unidad.
+   */
+  monto_consumo: number;
   observaciones: string | null;
   usuario_id: string;
   fecha_hora: string;

@@ -17,9 +17,23 @@ export interface CobrarReservaInput {
 }
 
 /**
- * Llama a la RPC fn_cobrar_reserva (migración 0006), que en una sola
- * transacción inserta el pago en reserva_pagos y actualiza los
- * escalares de la reserva (monto_pagado, monto_sena, estado).
+ * @deprecated Desde el paso 4 del módulo cuenta del turno (migración
+ * 0014). Reemplazado por `useCobrarPersonaTurno`, que cobra por persona
+ * con desglose alquiler/buffet para alimentar los reportes EERR por
+ * unidad de negocio. La RPC `fn_cobrar_reserva` (que este hook llama)
+ * sigue existiendo pero está deprecada — sus INSERTs atribuyen todo
+ * el monto al alquiler del titular (compat legacy).
+ *
+ * Mientras se completa la migración de la UI a la nueva forma (bloque 3
+ * del paso 4), este hook se mantiene para no romper el botón "Cobrar
+ * saldo" actual del DetalleReservaDialog. Cuando la UI termine de
+ * migrar, este hook + la RPC pueden eliminarse en una limpieza futura.
+ *
+ * Llama a la RPC fn_cobrar_reserva (migración 0006, actualizada en
+ * 0014), que en una sola transacción inserta el pago en reserva_pagos
+ * (ahora con desglose monto_alquiler=monto, monto_consumo=0 para
+ * cumplir el CHECK del 0014) y actualiza los escalares de la reserva
+ * (monto_pagado, monto_sena, estado).
  *
  * Errores que el usuario puede ver (todos mapeados por dbErrors):
  *   - "Esta reserva ya está paga, no hay saldo para cobrar."
