@@ -1,4 +1,6 @@
 export { ConfiguracionLayout } from './ConfiguracionLayout';
+export { MarcaPage } from './marca/MarcaPage';
+export { UsuariosPage } from './usuarios/UsuariosPage';
 export { CanchasPage } from './canchas/CanchasPage';
 export { HorariosPage } from './horarios/HorariosPage';
 export { TarifasPage } from './tarifas/TarifasPage';

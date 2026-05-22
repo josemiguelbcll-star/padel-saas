@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Bell, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -10,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSession } from '@/features/auth';
+import { getLogoClubUrl } from '@/lib/clubBrand';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -32,6 +34,18 @@ function rolLabel(rol: 'admin' | 'vendedor' | undefined): string {
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { user, club, signOut } = useSession();
 
+  // Logo: si el path falla cargar (archivo borrado, network, path
+  // stale tras un cleanup parcial), caemos elegante a "solo nombre"
+  // vía el onError del <img>. Cuando el path cambia (admin subió uno
+  // nuevo), reseteamos el flag para que la imagen nueva tenga su
+  // chance — un fallo anterior no debe bloquear un logo nuevo.
+  const logoUrl = getLogoClubUrl(club?.logo_path ?? null);
+  const [logoError, setLogoError] = useState(false);
+  useEffect(() => {
+    setLogoError(false);
+  }, [club?.logo_path]);
+  const muestraLogo = !!logoUrl && !logoError;
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-6">
       <Button
@@ -45,8 +59,22 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="flex min-w-0 flex-1 items-center">
-        <span className="truncate text-sm font-medium text-foreground">
+      {/* Identidad del club: logo (si existe) + nombre.
+          El logo cae al fallback "solo nombre" si la imagen falla
+          cargar (archivo borrado, path stale, network). El `key` sobre
+          el <img> resetea el state de error cuando el path cambia —
+          un logo nuevo siempre tiene una nueva chance. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {muestraLogo && (
+          <img
+            key={club?.logo_path ?? ''}
+            src={logoUrl ?? ''}
+            alt={`Logo de ${club?.nombre ?? 'el club'}`}
+            onError={() => setLogoError(true)}
+            className="h-7 w-7 shrink-0 rounded object-contain"
+          />
+        )}
+        <span className="truncate text-base font-semibold text-foreground">
           {club?.nombre ?? '—'}
         </span>
       </div>

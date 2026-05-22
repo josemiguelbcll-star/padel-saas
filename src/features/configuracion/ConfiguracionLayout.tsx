@@ -7,6 +7,13 @@ interface ConfigTab {
 }
 
 const tabs: ConfigTab[] = [
+  // Marca primero: identidad del club, lo más alto-nivel de la
+  // configuración y lo primero que un admin nuevo quiere tocar (0016).
+  { label: 'Marca', to: '/configuracion/marca' },
+  // Usuarios después de Marca: gestión de personas con acceso al
+  // sistema (admin/vendedor). Alta jerarquía — afecta quién puede
+  // tocar el resto de la config (0018).
+  { label: 'Usuarios', to: '/configuracion/usuarios' },
   { label: 'Canchas', to: '/configuracion/canchas' },
   { label: 'Horarios', to: '/configuracion/horarios' },
   { label: 'Tarifas', to: '/configuracion/tarifas' },

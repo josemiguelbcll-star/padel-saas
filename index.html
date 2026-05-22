@@ -6,6 +6,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>Padel SaaS</title>
+    <!--
+      Anti-flash del color de marca (0016 — etapa 1). Si el club tiene
+      un color guardado en localStorage (lo escribe SessionProvider al
+      cargar el club), lo aplicamos al token CSS --primary ANTES de que
+      React monte. Sin esto, en cada reload se vería un instante con el
+      azul default antes del color real del club.
+
+      La clave 'club_color_primario' debe mantenerse en sync con
+      LOCALSTORAGE_KEY_COLOR_MARCA en src/lib/clubBrand.ts (el script
+      inline no puede importar de TS).
+    -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem('club_color_primario');
+          if (v) document.documentElement.style.setProperty('--primary', v);
+        } catch (e) {
+          /* localStorage no disponible (modo privado, etc.) — sin preload. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

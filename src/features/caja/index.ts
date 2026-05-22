@@ -1,0 +1,1 @@
+export { CajaPage } from './CajaPage';

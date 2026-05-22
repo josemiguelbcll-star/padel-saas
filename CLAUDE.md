@@ -209,3 +209,13 @@ si es transversal), para calcular rentabilidad por unidad.
 3. Módulo Caja (unifica todos los ingresos + gastos en un flujo de
    dinero).
 4. Reportes / EERR por unidad de negocio.
+
+## Deudas de seguridad detectadas
+
+**DEUDA DE SEGURIDAD (no urgente)**: el rol authenticated recibe permisos de
+escritura (INSERT/UPDATE/DELETE) por DEFAULT sobre las tablas nuevas del
+schema public en este proyecto. La barrera efectiva siempre fue la RLS
+(policies), real y suficiente. Para defensa en capas, conviene auditar
+todas las tablas y REVOKE los permisos de escritura que no correspondan a
+authenticated. En la 0019 se revocó explícitamente en modulos/planes/
+plan_modulos/plataforma_admins.

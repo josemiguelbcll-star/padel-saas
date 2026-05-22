@@ -52,6 +52,163 @@ export interface Club {
   hora_cierre: string | null;
   // NOT NULL en la DB con DEFAULT 90 y CHECK IN (60, 90, 120, 150, 180, 240).
   duracion_turno_default: number;
+
+  /**
+   * Color de marca del club, en formato HSL triple sin wrap (convención
+   * shadcn). Ej: '221 83% 53%'. Agregado en la 0016. Se inyecta al
+   * iniciar sesión sobre el token CSS `--primary` del :root — el
+   * `--ring` se propaga gratis vía `var(--primary)`. Default en la DB
+   * es el valor actual de globals.css (los clubes existentes no notan
+   * cambio hasta que un admin elija otro color). La paleta curada vive
+   * en `src/lib/clubBrand.ts`.
+   */
+  color_primario_hsl: string;
+
+  /**
+   * Path interno del bucket `logos-clubes` (Supabase Storage). Formato:
+   * "{club_id}/{uuid}.{ext}". NULL = sin logo (muestra solo el nombre
+   * en el topbar). Agregado en la 0017. El cliente construye la URL
+   * pública con el helper `getLogoClubUrl(path)` de
+   * `src/lib/clubBrand.ts`.
+   */
+  logo_path: string | null;
+
+  /**
+   * Plan asignado al club (FK a `planes`). Agregado en la 0019.
+   * NOT NULL en la DB con backfill inicial a 'pro' para todos los
+   * clubes existentes (cero impacto funcional pre-0019). La lista de
+   * módulos del plan se trae aparte vía `plan_modulos`.
+   */
+  plan_id: number;
+
+  /**
+   * Estado del club desde la perspectiva de la plataforma. Agregado
+   * en la 0019. Backfill desde `activo`: TRUE→'activo', FALSE→'suspendido'.
+   *   - 'trial': período de prueba (free con fecha de fin).
+   *   - 'activo': pagando o gratis activo.
+   *   - 'suspendido': acceso bloqueado temporalmente (puede reactivarse).
+   *   - 'baja': baja definitiva (datos conservados pero sin acceso).
+   */
+  estado: EstadoClub;
+
+  /**
+   * Modalidad de caja del club (0022).
+   *   - 'por_dia': una sola caja abierta por club.
+   *   - 'por_vendedor': una caja abierta por (club, vendedor).
+   * Default 'por_dia' (Signo Padel arranca acá). Cambio sólo por SQL hoy.
+   */
+  modalidad_caja: ModalidadCaja;
+}
+
+/**
+ * Estado del club desde la perspectiva de la plataforma (0019).
+ */
+export type EstadoClub = 'trial' | 'activo' | 'suspendido' | 'baja';
+
+/**
+ * Modalidad de caja del club (0022).
+ */
+export type ModalidadCaja = 'por_dia' | 'por_vendedor';
+
+/**
+ * Tipo de un movimiento manual de caja (0022).
+ *   - 'retiro': el operador retira efectivo (sale).
+ *   - 'pago_proveedor': paga al proveedor en efectivo (sale).
+ *   - 'ajuste_positivo': sobrante encontrado durante operación (entra).
+ *   - 'ajuste_negativo': faltante encontrado durante operación (sale).
+ */
+export type TipoMovimientoCaja =
+  | 'retiro'
+  | 'pago_proveedor'
+  | 'ajuste_positivo'
+  | 'ajuste_negativo';
+
+/**
+ * Jornada de caja del club (0022). Apertura → cierre con arqueo.
+ * Si `cerrada_en` es NULL, la caja está abierta y los campos de cierre
+ * son NULL. Si está cerrada, todos los campos de cierre están seteados
+ * (CHECK turnos_caja_cierre_atomico de la migración).
+ *
+ * En modalidad 'por_dia', `vendedor_id` es NULL. En 'por_vendedor', es
+ * el UUID del vendedor dueño del cajón.
+ */
+export interface TurnoCaja {
+  id: number;
+  club_id: number;
+  fecha_jornada: string;
+  monto_apertura: number;
+  usuario_apertura: string;
+  abierta_en: string;
+  modalidad: ModalidadCaja;
+  vendedor_id: string | null;
+  cerrada_en: string | null;
+  usuario_cierre: string | null;
+  efectivo_esperado: number | null;
+  efectivo_contado: number | null;
+  diferencia: number | null;
+  observaciones_cierre: string | null;
+}
+
+/**
+ * Movimiento manual sobre una caja abierta (0022). Inmutable — corregir
+ * = registrar un movimiento compensatorio. El signo (suma o resta al
+ * esperado) lo determina `tipo`.
+ */
+export interface CajaMovimientoManual {
+  id: number;
+  club_id: number;
+  turno_caja_id: number;
+  tipo: TipoMovimientoCaja;
+  monto: number;
+  concepto: string;
+  observaciones: string | null;
+  usuario_id: string;
+  fecha_hora: string;
+}
+
+/**
+ * Módulo del sistema (0019). Catálogo configurable de funcionalidades
+ * que un plan puede incluir. `codigo` es el identificador estable
+ * usado en código (frontend y RLS).
+ */
+export interface Modulo {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+  activo: boolean;
+}
+
+/**
+ * Plan del SaaS (0019). Combinación de módulos a un precio. Cada club
+ * tiene asignado un plan (via `Club.plan_id`).
+ */
+export interface Plan {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  precio_mensual: number;
+  orden: number;
+  activo: boolean;
+}
+
+/**
+ * Superadmin de la plataforma (0019). Vive en la tabla
+ * `plataforma_admins`, aparte de `usuarios` — es del SaaS, no de un
+ * club. El SessionProvider lo expone vía `useSession().plataformaAdmin`.
+ *
+ * Un usuario puede tener fila en `plataforma_admins` Y en `usuarios`
+ * al mismo tiempo (caso del owner del SaaS que también era admin de
+ * un club). El SessionProvider chequea `plataforma_admins` PRIMERO:
+ * si es superadmin activo, entra como superadmin sin importar su
+ * fila en `usuarios`.
+ */
+export interface PlataformaAdmin {
+  id: string;
+  nombre: string;
+  email: string;
 }
 
 export interface Usuario {
@@ -61,6 +218,14 @@ export interface Usuario {
   rol: Rol;
   activo: boolean;
   fecha_alta: string;
+  /**
+   * Snapshot del email del usuario en `auth.users`. Agregado en la
+   * 0018 (denormalización — el front no puede leer `auth.users` sin
+   * service_role). La Edge Function `crear-vendedor` lo llena al
+   * crear. Backfill aplicado a usuarios pre-0018. Puede quedar NULL
+   * para casos edge (auth.users sin email).
+   */
+  email: string | null;
 }
 
 export interface Cancha {
