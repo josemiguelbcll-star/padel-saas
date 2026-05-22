@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type {
@@ -49,7 +50,17 @@ interface CatalogoProps {
  * El costo NO se muestra: es información interna del club.
  */
 export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
-  const [filtroLinea, setFiltroLinea] = useState<FiltroLinea>('todas');
+  // El filtro de línea vive en el querystring (?linea=buffet|shop)
+  // para que los sub-items del sidebar puedan deep-linkear al POS con
+  // un filtro pre-aplicado. Si el querystring no está o tiene un valor
+  // distinto, asumimos 'todas'.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filtroLineaRaw = searchParams.get('linea');
+  const filtroLinea: FiltroLinea =
+    filtroLineaRaw === 'buffet' || filtroLineaRaw === 'shop'
+      ? filtroLineaRaw
+      : 'todas';
+
   const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>('todas');
   const [busqueda, setBusqueda] = useState('');
 
@@ -67,10 +78,22 @@ export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
     return categoriasPermitidas(filtroLinea);
   }, [filtroLinea]);
 
-  // Cuando cambia el filtro de línea, reseteamos el filtro de categoría
-  // a 'todas' si la categoría actual ya no es válida para la nueva línea.
+  // Cuando cambia el filtro de línea, sincronizamos el querystring y
+  // reseteamos el filtro de categoría a 'todas' si la categoría actual
+  // ya no es válida para la nueva línea.
   function handleChangeLinea(next: FiltroLinea): void {
-    setFiltroLinea(next);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === 'todas') {
+          params.delete('linea');
+        } else {
+          params.set('linea', next);
+        }
+        return params;
+      },
+      { replace: true },
+    );
     if (filtroCategoria === 'todas') return;
     if (next === 'todas') return;
     if (!categoriasPermitidas(next).includes(filtroCategoria)) {

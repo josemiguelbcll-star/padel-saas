@@ -11,27 +11,48 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+/**
+ * Sub-item de un NavItem. Vive bajo el item padre, indentado en el
+ * sidebar. Hoy solo lo usa "Mostrador" para descomponer en Buffet/Shop
+ * — son sub-vistas del mismo POS, filtradas por querystring `?linea=`.
+ */
+export interface NavSubItem {
+  label: string;
+  /** Path + search (ej. '/buffet?linea=buffet'). El highlight activo
+   *  compara también el querystring, no solo el pathname. */
+  to: string;
+}
+
 export interface NavItem {
   label: string;
   to: string;
   icon: LucideIcon;
   disabled?: boolean;
+  /** Sub-items siempre expandidos debajo del padre. */
+  children?: NavSubItem[];
 }
 
 /**
  * Items del menú lateral.
  *
- * Dashboard y Configuración están habilitados; el resto se va a habilitar
- * a medida que entren los módulos correspondientes (Reservas en sprint 3,
- * Caja/Buffet/etc. más adelante). Los disabled muestran un badge "Próx."
- * para que se vea que vienen pero todavía no se pueden tocar.
+ * "Mostrador" se descompone visualmente en sub-items Buffet/Shop que
+ * llevan al mismo POS con un filtro de línea pre-aplicado vía
+ * querystring. El padre (sin querystring) muestra el POS sin filtrar.
  */
 export const navItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   { label: 'Reservas', to: '/reservas', icon: CalendarDays },
   { label: 'Jugadores', to: '/jugadores', icon: Users },
   { label: 'Caja', to: '/caja', icon: Wallet },
-  { label: 'Mostrador', to: '/buffet', icon: ShoppingCart },
+  {
+    label: 'Mostrador',
+    to: '/buffet',
+    icon: ShoppingCart,
+    children: [
+      { label: 'Buffet', to: '/buffet?linea=buffet' },
+      { label: 'Shop', to: '/buffet?linea=shop' },
+    ],
+  },
   { label: 'Inventario', to: '/inventario', icon: Package, disabled: true },
   { label: 'Gastos', to: '/gastos', icon: Receipt, disabled: true },
   { label: 'Alarmas', to: '/alarmas', icon: Bell, disabled: true },

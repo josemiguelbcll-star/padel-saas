@@ -1,6 +1,6 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { navItems, type NavItem } from './navItems';
+import { navItems, type NavItem, type NavSubItem } from './navItems';
 
 /**
  * Sidebar fijo de escritorio. En mobile (<md) no se renderiza y el
@@ -47,6 +47,7 @@ interface SidebarItemProps {
 
 function SidebarItem({ item, onNavigate }: SidebarItemProps) {
   const Icon = item.icon;
+  const location = useLocation();
 
   if (item.disabled) {
     return (
@@ -64,23 +65,89 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps) {
     );
   }
 
+  // Si el item tiene sub-items, lo renderizamos junto con ellos
+  // (sub-items siempre expandidos, indentados). El padre activo solo
+  // cuando estás en su ruta SIN querystring de sub-item (porque los
+  // sub-items usan querystrings para diferenciarse).
+  const tieneSubitems = !!item.children && item.children.length > 0;
+
+  return (
+    <>
+      <NavLink
+        to={item.to}
+        end
+        onClick={onNavigate}
+        className={({ isActive }) =>
+          cn(
+            'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            // Si tiene sub-items, el padre solo se marca activo cuando
+            // estamos en la ruta SIN querystring (sino los sub-items
+            // toman el highlight). isActive solo mira pathname, así que
+            // refinamos con location.search.
+            isActive && (!tieneSubitems || location.search === '')
+              ? 'bg-primary/10 font-medium text-primary'
+              : 'text-foreground hover:bg-muted',
+          )
+        }
+      >
+        <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">{item.label}</span>
+      </NavLink>
+
+      {tieneSubitems && (
+        <div className="mt-0.5 space-y-0.5 pl-7">
+          {item.children!.map((sub) => (
+            <SidebarSubItem
+              key={sub.label}
+              parentPath={item.to}
+              sub={sub}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+interface SidebarSubItemProps {
+  /** Pathname del padre (ej. '/buffet'). Para comparar el active. */
+  parentPath: string;
+  sub: NavSubItem;
+  onNavigate?: () => void;
+}
+
+function SidebarSubItem({
+  parentPath,
+  sub,
+  onNavigate,
+}: SidebarSubItemProps) {
+  const location = useLocation();
+
+  // El sub-item está activo cuando el pathname coincide con el padre
+  // (porque sub.to incluye el mismo pathname) Y el search del browser
+  // coincide con el querystring del sub. Comparamos los params
+  // parseados (no el string crudo) para tolerar diferencias triviales.
+  const subUrl = new URL(sub.to, window.location.origin);
+  const isActive =
+    location.pathname === parentPath &&
+    location.search === subUrl.search;
+
   return (
     <NavLink
-      to={item.to}
-      end
+      to={sub.to}
       onClick={onNavigate}
-      className={({ isActive }) =>
-        cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          isActive
-            ? 'bg-primary/10 font-medium text-primary'
-            : 'text-foreground hover:bg-muted',
-        )
-      }
+      end
+      className={cn(
+        'block rounded-md px-3 py-1.5 text-[13px] transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isActive
+          ? 'bg-primary/10 font-medium text-primary'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
     >
-      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span className="truncate">{item.label}</span>
+      {sub.label}
     </NavLink>
   );
 }
