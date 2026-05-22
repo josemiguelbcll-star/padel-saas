@@ -174,6 +174,47 @@ export function useCancelarTurnoFijo(): UseMutationResult<
   });
 }
 
+// ─── Eliminar (DELETE definitivo, libera el slot) ────────────────────
+
+export interface EliminarTurnoFijoInput {
+  id: number;
+}
+
+/**
+ * Borra (DELETE) un turno fijo via `fn_eliminar_turno_fijo` (0032).
+ * Distinto de cancelar: cancelar deja la fila inactiva, eliminar la
+ * borra y libera el slot del UNIQUE parcial. Las reservas pendientes
+ * futuras se cancelan automáticamente; las pagadas/jugadas se preservan
+ * (ON DELETE SET NULL en reservas.turno_fijo_id).
+ */
+export function useEliminarTurnoFijo(): UseMutationResult<
+  ResultadoCancelacionTurnoFijo,
+  Error,
+  EliminarTurnoFijoInput
+> {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ResultadoCancelacionTurnoFijo,
+    Error,
+    EliminarTurnoFijoInput
+  >({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc('fn_eliminar_turno_fijo', {
+        p_turno_fijo_id: input.id,
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      const row = Array.isArray(data) ? data[0] : data;
+      return (row ?? { reservas_canceladas: 0 }) as ResultadoCancelacionTurnoFijo;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: TURNOS_FIJOS_QUERY_KEY });
+      // Las pendientes futuras pueden haber cambiado a 'cancelada' y
+      // perdido el link al turno fijo — refrescar la grilla del día.
+      void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
+    },
+  });
+}
+
 // ─── Materializar ────────────────────────────────────────────────────
 
 export interface MaterializarInput {

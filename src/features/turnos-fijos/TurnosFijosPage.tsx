@@ -3,13 +3,23 @@ import {
   CalendarPlus,
   Clock,
   MapPin,
+  MoreVertical,
   Pencil,
   Plus,
   Power,
   Repeat,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
 import { useJugadores } from '@/features/reservas/hooks/useJugadores';
@@ -17,6 +27,7 @@ import { useMaterializarTurnosFijos, useTurnosFijos } from './hooks/useTurnosFij
 import { NuevoTurnoFijoDialog } from './NuevoTurnoFijoDialog';
 import { EditarTurnoFijoDialog } from './EditarTurnoFijoDialog';
 import { CancelarTurnoFijoDialog } from './CancelarTurnoFijoDialog';
+import { EliminarTurnoFijoDialog } from './EliminarTurnoFijoDialog';
 import { ResultadoMaterializacionDialog } from './ResultadoMaterializacionDialog';
 import type { ResultadoMaterializacion, TurnoFijo } from '@/types/database';
 
@@ -75,6 +86,7 @@ export function TurnosFijosPage() {
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [editarOpen, setEditarOpen] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);
+  const [eliminarOpen, setEliminarOpen] = useState(false);
   const [seleccionado, setSeleccionado] = useState<TurnoFijo | null>(null);
 
   const [resultadoMat, setResultadoMat] = useState<ResultadoMaterializacion | null>(
@@ -82,6 +94,9 @@ export function TurnosFijosPage() {
   );
   const [rangoMatLabel, setRangoMatLabel] = useState('');
   const [resultadoOpen, setResultadoOpen] = useState(false);
+
+  // Semanas a materializar — selector (default 12).
+  const [semanas, setSemanas] = useState<4 | 8 | 12 | 16>(12);
 
   const canchasById = useMemo(() => {
     const m = new Map<number, string>();
@@ -105,9 +120,14 @@ export function TurnosFijosPage() {
     setCancelarOpen(true);
   }
 
+  function openEliminar(t: TurnoFijo): void {
+    setSeleccionado(t);
+    setEliminarOpen(true);
+  }
+
   async function handleMaterializar(): Promise<void> {
     const desde = todayISO();
-    const hasta = addDaysISO(desde, 28); // 4 semanas
+    const hasta = addDaysISO(desde, semanas * 7);
     try {
       const r = await materializar.mutateAsync({
         fecha_desde: desde,
@@ -120,6 +140,13 @@ export function TurnosFijosPage() {
       // Errores ya mapeados a castellano por el hook. Los mostramos en alert.
       alert(err instanceof Error ? err.message : 'No pudimos materializar.');
     }
+  }
+
+  function nombreTitularDe(t: TurnoFijo): string {
+    if (t.jugador_id !== null) {
+      return jugadoresById.get(t.jugador_id) ?? `Jugador #${t.jugador_id}`;
+    }
+    return t.nombre_libre ?? '(sin titular)';
   }
 
   const turnos = turnosQuery.data ?? [];
@@ -159,11 +186,28 @@ export function TurnosFijosPage() {
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Generación de reservas
           </p>
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              Crea las reservas concretas a partir de los turnos fijos
-              activos. Idempotente — re-ejecutar no duplica.
-            </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Crea las reservas concretas a partir de los turnos fijos
+            activos. Idempotente — re-ejecutar no duplica.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Próximas</span>
+            <select
+              value={semanas}
+              onChange={(e) => setSemanas(Number(e.target.value) as 4 | 8 | 12 | 16)}
+              disabled={materializar.isPending}
+              className={cn(
+                'h-8 rounded-md border border-input bg-background px-2 text-xs',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+              aria-label="Cantidad de semanas a generar"
+            >
+              <option value={4}>4 semanas</option>
+              <option value={8}>8 semanas</option>
+              <option value={12}>12 semanas</option>
+              <option value={16}>16 semanas</option>
+            </select>
             <Button
               type="button"
               size="sm"
@@ -172,7 +216,7 @@ export function TurnosFijosPage() {
               disabled={materializar.isPending || turnos.length === 0}
             >
               <CalendarPlus className="h-3.5 w-3.5" />
-              {materializar.isPending ? 'Generando…' : 'Próximas 4 semanas'}
+              {materializar.isPending ? 'Generando…' : 'Generar'}
             </Button>
           </div>
         </div>
@@ -213,10 +257,7 @@ export function TurnosFijosPage() {
       {turnos.length > 0 && (
         <ul className="space-y-2">
           {turnos.map((t) => {
-            const nombreTitular =
-              t.jugador_id !== null
-                ? jugadoresById.get(t.jugador_id) ?? `Jugador #${t.jugador_id}`
-                : t.nombre_libre ?? '(sin titular)';
+            const nombreTitular = nombreTitularDe(t);
             const canchaNombre = canchasById.get(t.cancha_id) ?? `Cancha #${t.cancha_id}`;
 
             return (
@@ -256,7 +297,7 @@ export function TurnosFijosPage() {
                   </div>
 
                   {isAdmin && (
-                    <div className="flex shrink-0 gap-1.5">
+                    <div className="flex shrink-0 items-center gap-1.5">
                       <Button
                         type="button"
                         size="sm"
@@ -275,6 +316,43 @@ export function TurnosFijosPage() {
                         <Power className="h-3.5 w-3.5" />
                         Desactivar
                       </Button>
+
+                      {/* "Más acciones" — eliminar va acá para evitar
+                          clicks accidentales en una acción destructiva. */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            aria-label="Más acciones"
+                          >
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => openEditar(t)}
+                          >
+                            <Pencil className="mr-2 h-3.5 w-3.5" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => openCancelar(t)}
+                          >
+                            <Power className="mr-2 h-3.5 w-3.5" />
+                            Desactivar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => openEliminar(t)}
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   )}
                 </div>
@@ -294,6 +372,12 @@ export function TurnosFijosPage() {
         open={cancelarOpen}
         onOpenChange={setCancelarOpen}
         turno={seleccionado}
+      />
+      <EliminarTurnoFijoDialog
+        open={eliminarOpen}
+        onOpenChange={setEliminarOpen}
+        turno={seleccionado}
+        titularNombre={seleccionado ? nombreTitularDe(seleccionado) : undefined}
       />
       <ResultadoMaterializacionDialog
         open={resultadoOpen}
