@@ -210,6 +210,18 @@ si es transversal), para calcular rentabilidad por unidad.
    dinero).
 4. Reportes / EERR por unidad de negocio.
 
+## Deudas funcionales prioritarias
+
+**🔴 PRIORITARIO — Cancelar aumento programado de tarifa**: la migración 0029
+introduce el flujo "Cambiar precio" con aumentos a futuro (ej. "desde el 1/06
+sube a $52.000"). Si un admin lo carga por error, hoy la única forma de
+revertirlo es vía SQL manual (DELETE de la versión futura + UPDATE
+vigente_hasta=NULL de la versión actual). Un admin no técnico no debería
+tener que pasar por soporte para deshacer un aumento mal cargado. Construir
+`fn_cancelar_aumento_programado` + botón "Cancelar este aumento" en la
+pantalla de Tarifas como próxima iteración después del módulo de Turnos
+fijos. No es deuda que duerme.
+
 ## Deudas de seguridad detectadas
 
 **DEUDA DE SEGURIDAD (no urgente)**: el rol authenticated recibe permisos de

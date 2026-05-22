@@ -13,9 +13,12 @@ import {
   ProfesoresPage,
   ClasesPage,
   ProductosPage,
+  UnidadesPage,
+  CategoriasGastoPage,
 } from '@/features/configuracion';
 import { BuffetPage } from '@/features/buffet';
 import { CajaPage } from '@/features/caja';
+import { FinanzasPage, GastosPage, OtrosIngresosPage } from '@/features/finanzas';
 import { JugadoresPage } from '@/features/jugadores';
 import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
 import {
@@ -76,6 +79,10 @@ export function App() {
 
         <Route path="caja" element={<CajaPage />} />
 
+        <Route path="finanzas" element={<FinanzasPage />} />
+        <Route path="gastos" element={<GastosPage />} />
+        <Route path="otros-ingresos" element={<OtrosIngresosPage />} />
+
         <Route path="configuracion" element={<ConfiguracionLayout />}>
           <Route index element={<Navigate to="marca" replace />} />
           <Route path="marca" element={<MarcaPage />} />
@@ -86,6 +93,8 @@ export function App() {
           <Route path="profesores" element={<ProfesoresPage />} />
           <Route path="clases" element={<ClasesPage />} />
           <Route path="productos" element={<ProductosPage />} />
+          <Route path="unidades" element={<UnidadesPage />} />
+          <Route path="categorias-gasto" element={<CategoriasGastoPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

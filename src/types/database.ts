@@ -149,6 +149,116 @@ export interface TurnoCaja {
   observaciones_cierre: string | null;
 }
 
+// ============================================================================
+// Migración 0027 — Módulo Financiero (unidades, categorías, gastos,
+// otros_ingresos). Snapshots desnormalizados en gastos y otros_ingresos
+// (patrón venta_items/reserva_consumos) — el EERR histórico no se rompe
+// si el admin renombra una unidad o reasigna una categoría.
+// ============================================================================
+
+/**
+ * Tipo de unidad de negocio (0027). Determina de dónde se agregan los
+ * ingresos en el EERR:
+ *   - canchas:    reservas
+ *   - clases:     clase_cobros
+ *   - buffet:     ventas linea='buffet'
+ *   - shop:       ventas linea='shop'
+ *   - auspicios:  otros_ingresos (manual)
+ *   - membresias: otros_ingresos (manual)
+ *   - estructura: SIN ingresos asociados (gastos transversales)
+ *   - otro:       escape genérico
+ *
+ * Los 4 primeros tienen UNIQUE PARCIAL por club (uno por tipo);
+ * los otros 4 pueden tener varias unidades.
+ */
+export type TipoUnidad =
+  | 'canchas'
+  | 'clases'
+  | 'buffet'
+  | 'shop'
+  | 'auspicios'
+  | 'membresias'
+  | 'estructura'
+  | 'otro';
+
+export interface UnidadNegocio {
+  id: number;
+  club_id: number;
+  nombre: string;
+  tipo: TipoUnidad;
+  activa: boolean;
+  orden: number;
+  fecha_alta: string;
+}
+
+/**
+ * Categoría de gasto (0027). Pertenece a UNA unidad. Si Buffet y Shop
+ * tienen ambos "Mercadería", son dos filas distintas.
+ */
+export interface CategoriaGasto {
+  id: number;
+  club_id: number;
+  unidad_id: number;
+  nombre: string;
+  activa: boolean;
+  orden: number;
+  fecha_alta: string;
+}
+
+/**
+ * Gasto registrado en el módulo financiero (0027). Con snapshots de
+ * categoría y unidad para que el EERR histórico sea fiel a la
+ * clasificación al momento de cargar.
+ *
+ * Pago atómico: las 3 columnas (fecha_pago, medio_pago, turno_caja_id)
+ * se comportan como un grupo:
+ *   - Pendiente: las 3 NULL.
+ *   - Pagado: fecha_pago + medio_pago obligatorios.
+ *   - Si medio_pago='efectivo', turno_caja_id NOT NULL (regla de oro).
+ */
+export interface Gasto {
+  id: number;
+  club_id: number;
+  categoria_id: number;
+  categoria_nombre: string;
+  unidad_id: number;
+  unidad_nombre: string;
+  unidad_tipo: TipoUnidad;
+  monto: number;
+  fecha_gasto: string;
+  fecha_pago: string | null;
+  medio_pago: MedioPago | null;
+  turno_caja_id: number | null;
+  proveedor: string | null;
+  observaciones: string | null;
+  activo: boolean;
+  usuario_id: string;
+  fecha_alta: string;
+}
+
+/**
+ * Otro ingreso (0027). Auspicios, membresías, etc. Los ingresos
+ * operativos (reservas, ventas, clase_cobros) NO se duplican acá.
+ * Mismo patrón de pago atómico que Gasto.
+ */
+export interface OtroIngreso {
+  id: number;
+  club_id: number;
+  unidad_id: number;
+  unidad_nombre: string;
+  unidad_tipo: TipoUnidad;
+  concepto: string;
+  monto: number;
+  fecha: string;
+  fecha_cobro: string | null;
+  medio_pago: MedioPago | null;
+  turno_caja_id: number | null;
+  observaciones: string | null;
+  activo: boolean;
+  usuario_id: string;
+  fecha_alta: string;
+}
+
 /**
  * Movimiento manual sobre una caja abierta (0022). Inmutable — corregir
  * = registrar un movimiento compensatorio. El signo (suma o resta al

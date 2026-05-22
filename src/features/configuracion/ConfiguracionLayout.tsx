@@ -20,6 +20,11 @@ const tabs: ConfigTab[] = [
   { label: 'Profesores', to: '/configuracion/profesores' },
   { label: 'Clases', to: '/configuracion/clases' },
   { label: 'Productos', to: '/configuracion/productos' },
+  // Finanzas: ABM del catálogo financiero (unidades + categorías). Solo
+  // admin opera, pero todo el club puede leer (los selectores del form
+  // de gastos los necesitan).
+  { label: 'Unidades de negocio', to: '/configuracion/unidades' },
+  { label: 'Categorías de gasto', to: '/configuracion/categorias-gasto' },
 ];
 
 /**

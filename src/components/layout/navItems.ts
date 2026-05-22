@@ -5,22 +5,20 @@ import {
   Wallet,
   ShoppingCart,
   Package,
-  Receipt,
+  PieChart,
+  TrendingDown,
+  TrendingUp,
   Bell,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
 
-/**
- * Sub-item de un NavItem. Vive bajo el item padre, indentado en el
- * sidebar. Hoy solo lo usa "Mostrador" para descomponer en Buffet/Shop
- * — son sub-vistas del mismo POS, filtradas por querystring `?linea=`.
- */
 export interface NavSubItem {
   label: string;
-  /** Path + search (ej. '/buffet?linea=buffet'). El highlight activo
-   *  compara también el querystring, no solo el pathname. */
+  /** Path + search opcional (ej. '/buffet?linea=buffet'). El highlight
+   *  activo compara también el querystring. */
   to: string;
+  icon?: LucideIcon;
 }
 
 export interface NavItem {
@@ -35,9 +33,14 @@ export interface NavItem {
 /**
  * Items del menú lateral.
  *
- * "Mostrador" se descompone visualmente en sub-items Buffet/Shop que
- * llevan al mismo POS con un filtro de línea pre-aplicado vía
- * querystring. El padre (sin querystring) muestra el POS sin filtrar.
+ * "Mostrador" y "Finanzas" son padres con sub-items expandidos
+ * (acordeón visual). Cada uno descompone visualmente una zona del
+ * SaaS:
+ *   - Mostrador → Buffet / Shop (vistas filtradas del POS).
+ *   - Finanzas → Gastos / Otros ingresos (pantallas separadas).
+ *
+ * Gastos y Otros ingresos son cargables por admin Y vendedor (la RLS
+ * server-side aplica). No los gateamos en el sidebar.
  */
 export const navItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
@@ -53,8 +56,16 @@ export const navItems: NavItem[] = [
       { label: 'Shop', to: '/buffet?linea=shop' },
     ],
   },
+  {
+    label: 'Finanzas',
+    to: '/finanzas',
+    icon: PieChart,
+    children: [
+      { label: 'Gastos', to: '/gastos', icon: TrendingDown },
+      { label: 'Otros ingresos', to: '/otros-ingresos', icon: TrendingUp },
+    ],
+  },
   { label: 'Inventario', to: '/inventario', icon: Package, disabled: true },
-  { label: 'Gastos', to: '/gastos', icon: Receipt, disabled: true },
   { label: 'Alarmas', to: '/alarmas', icon: Bell, disabled: true },
   { label: 'Configuración', to: '/configuracion', icon: Settings },
 ];

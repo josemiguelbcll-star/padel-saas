@@ -40,6 +40,16 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
   );
 }
 
+/**
+ * ¿Coincide la URL actual con la `to` del sub-item? Compara pathname
+ * + search (lo que viene después de `?`). Sirve para que el padre se
+ * desactive cuando un sub-item está activo (y evitar doble highlight).
+ */
+function subItemMatches(currentPathname: string, currentSearch: string, subTo: string): boolean {
+  const url = new URL(subTo, window.location.origin);
+  return currentPathname === url.pathname && currentSearch === url.search;
+}
+
 interface SidebarItemProps {
   item: NavItem;
   onNavigate?: () => void;
@@ -65,11 +75,17 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps) {
     );
   }
 
-  // Si el item tiene sub-items, lo renderizamos junto con ellos
-  // (sub-items siempre expandidos, indentados). El padre activo solo
-  // cuando estás en su ruta SIN querystring de sub-item (porque los
-  // sub-items usan querystrings para diferenciarse).
   const tieneSubitems = !!item.children && item.children.length > 0;
+
+  // Si tiene sub-items, el padre solo se marca activo cuando ningún
+  // sub-item matchea la URL actual (sino tendríamos DOS items
+  // resaltados al mismo tiempo). Funciona tanto para sub-items que
+  // difieren por pathname como por querystring.
+  const algunSubItemActivo =
+    tieneSubitems &&
+    item.children!.some((sub) =>
+      subItemMatches(location.pathname, location.search, sub.to),
+    );
 
   return (
     <>
@@ -81,11 +97,7 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps) {
           cn(
             'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-            // Si tiene sub-items, el padre solo se marca activo cuando
-            // estamos en la ruta SIN querystring (sino los sub-items
-            // toman el highlight). isActive solo mira pathname, así que
-            // refinamos con location.search.
-            isActive && (!tieneSubitems || location.search === '')
+            isActive && !algunSubItemActivo
               ? 'bg-primary/10 font-medium text-primary'
               : 'text-foreground hover:bg-muted',
           )
@@ -100,7 +112,6 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps) {
           {item.children!.map((sub) => (
             <SidebarSubItem
               key={sub.label}
-              parentPath={item.to}
               sub={sub}
               onNavigate={onNavigate}
             />
@@ -112,27 +123,17 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps) {
 }
 
 interface SidebarSubItemProps {
-  /** Pathname del padre (ej. '/buffet'). Para comparar el active. */
-  parentPath: string;
   sub: NavSubItem;
   onNavigate?: () => void;
 }
 
-function SidebarSubItem({
-  parentPath,
-  sub,
-  onNavigate,
-}: SidebarSubItemProps) {
+function SidebarSubItem({ sub, onNavigate }: SidebarSubItemProps) {
   const location = useLocation();
+  const SubIcon = sub.icon;
 
-  // El sub-item está activo cuando el pathname coincide con el padre
-  // (porque sub.to incluye el mismo pathname) Y el search del browser
-  // coincide con el querystring del sub. Comparamos los params
-  // parseados (no el string crudo) para tolerar diferencias triviales.
-  const subUrl = new URL(sub.to, window.location.origin);
-  const isActive =
-    location.pathname === parentPath &&
-    location.search === subUrl.search;
+  // El sub-item está activo cuando pathname Y search coinciden con el
+  // sub.to. Comparamos los params parseados.
+  const isActive = subItemMatches(location.pathname, location.search, sub.to);
 
   return (
     <NavLink
@@ -140,14 +141,15 @@ function SidebarSubItem({
       onClick={onNavigate}
       end
       className={cn(
-        'block rounded-md px-3 py-1.5 text-[13px] transition-colors',
+        'flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         isActive
           ? 'bg-primary/10 font-medium text-primary'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
-      {sub.label}
+      {SubIcon && <SubIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+      <span className="truncate">{sub.label}</span>
     </NavLink>
   );
 }

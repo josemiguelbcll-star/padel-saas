@@ -7,3 +7,5 @@ export { TarifasPage } from './tarifas/TarifasPage';
 export { ProfesoresPage } from './profesores/ProfesoresPage';
 export { ClasesPage } from './clases/ClasesPage';
 export { ProductosPage } from './productos/ProductosPage';
+export { UnidadesPage } from './finanzas/UnidadesPage';
+export { CategoriasGastoPage } from './finanzas/CategoriasGastoPage';
