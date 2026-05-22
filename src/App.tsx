@@ -26,6 +26,7 @@ import {
   PlataformaPage,
 } from '@/features/plataforma';
 import { ReservasPage } from '@/features/reservas';
+import { TurnosFijosPage } from '@/features/turnos-fijos';
 
 export function App() {
   return (
@@ -72,6 +73,7 @@ export function App() {
         <Route path="onboarding" element={<OnboardingPage />} />
 
         <Route path="reservas" element={<ReservasPage />} />
+        <Route path="turnos-fijos" element={<TurnosFijosPage />} />
 
         <Route path="jugadores" element={<JugadoresPage />} />
 

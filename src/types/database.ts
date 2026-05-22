@@ -491,6 +491,13 @@ export interface Reserva {
   /** UUID del usuario que dio de alta la reserva. NULL si el usuario fue eliminado. */
   usuario_alta_id: string | null;
   fecha_alta: string;
+  /**
+   * Link al turno fijo del que nació esta reserva (materialización, 0030).
+   * NULL = reserva suelta (creada manualmente desde la grilla).
+   * ON DELETE SET NULL: si se borra físicamente el turno fijo (caso raro
+   * — normalmente se desactiva), la reserva histórica se preserva.
+   */
+  turno_fijo_id: number | null;
 }
 
 /**
@@ -880,4 +887,76 @@ export interface VentaItem {
    * fn_cerrar_venta lo escribe.
    */
   linea: Linea;
+}
+
+// ============================================================================
+// Migración 0030 — Turnos fijos (reservas recurrentes con clientes habituales)
+// ============================================================================
+
+/**
+ * Turno fijo: acuerdo recurrente cancha + día de la semana + hora con un
+ * cliente habitual. La materialización (fn_materializar_turnos_fijos)
+ * genera reservas concretas semana a semana a partir de esta definición.
+ *
+ * Las reservas materializadas tienen `reservas.turno_fijo_id = id` y se
+ * cobran/cancelan individualmente como cualquier reserva — el turno fijo
+ * sigue activo aunque se cancele una semana puntual.
+ */
+export interface TurnoFijo {
+  id: number;
+  club_id: number;
+  cancha_id: number;
+
+  /**
+   * Titular: jugador registrado (jugador_id) O nombre libre. CHECK
+   * server-side obliga uno de los dos.
+   */
+  jugador_id: number | null;
+  nombre_libre: string | null;
+
+  /** ISO: 1=lunes, 7=domingo. */
+  dia_semana: number;
+  /** 'HH:MM:SS'. */
+  hora_inicio: string;
+  /** 60 | 90 | 120 | 150 | 180 | 240. */
+  duracion_min: number;
+
+  /** 'YYYY-MM-DD'. Primera fecha desde la que se puede materializar. */
+  fecha_desde: string;
+  /** 'YYYY-MM-DD' o NULL = indefinido. */
+  fecha_hasta: string | null;
+
+  /**
+   * Soft-disable: cancelar un turno fijo lo pone en FALSE (las reservas
+   * ya materializadas se mantienen, las futuras NO se generan más).
+   */
+  activo: boolean;
+  observaciones: string | null;
+  usuario_alta_id: string;
+  fecha_alta: string;
+}
+
+/**
+ * Retorno de fn_materializar_turnos_fijos. 5 contadores para que el
+ * admin entienda exactamente qué pasó al generar:
+ *  - reservas_creadas: las que efectivamente se materializaron.
+ *  - slots_ocupados_por_reserva_suelta: el slot estaba tomado por una
+ *    reserva NO turno-fijo (EXCLUDE no_overlap_reservas). NO se pisa.
+ *  - slots_ocupados_por_clase: choque con clase activa.
+ *  - slots_sin_tarifa: NO hay tarifa vigente que cubra el slot+fecha.
+ *    NO se materializa para no ensuciar la proyección financiera.
+ *  - slots_ya_materializados: idempotencia (la fecha ya tenía reserva
+ *    de este turno fijo).
+ */
+export interface ResultadoMaterializacion {
+  reservas_creadas: number;
+  slots_ocupados_por_reserva_suelta: number;
+  slots_ocupados_por_clase: number;
+  slots_sin_tarifa: number;
+  slots_ya_materializados: number;
+}
+
+/** Retorno de fn_cancelar_turno_fijo. */
+export interface ResultadoCancelacionTurnoFijo {
+  reservas_canceladas: number;
 }

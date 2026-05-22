@@ -1,6 +1,8 @@
 import {
   LayoutDashboard,
   CalendarDays,
+  CalendarClock,
+  Repeat,
   Users,
   Wallet,
   ShoppingCart,
@@ -44,7 +46,15 @@ export interface NavItem {
  */
 export const navItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
-  { label: 'Reservas', to: '/reservas', icon: CalendarDays },
+  {
+    label: 'Reservas',
+    to: '/reservas',
+    icon: CalendarDays,
+    children: [
+      { label: 'Grilla del día', to: '/reservas', icon: CalendarClock },
+      { label: 'Turnos fijos', to: '/turnos-fijos', icon: Repeat },
+    ],
+  },
   { label: 'Jugadores', to: '/jugadores', icon: Users },
   { label: 'Caja', to: '/caja', icon: Wallet },
   {

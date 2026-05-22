@@ -71,6 +71,12 @@ export function mapPostgrestError(error: PostgrestError): string {
 
   // Violación de UNIQUE
   if (code === '23505') {
+    if (/turnos_fijos_no_overlap_activos/i.test(message)) {
+      return 'Ya hay otro turno fijo activo en esa cancha en ese día y hora. Desactivá el existente o elegí otro slot.';
+    }
+    if (/reservas_turno_fijo_fecha_unico/i.test(message)) {
+      return 'Esa fecha ya fue materializada para este turno fijo. Refrescá la grilla.';
+    }
     return 'Ya existe un registro con esos datos.';
   }
 
