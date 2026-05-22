@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { useActualizarMetadataTarifa } from '@/features/configuracion/hooks/useTarifas';
+import type { UseMutationResult } from '@tanstack/react-query';
+import type { ActualizarMetadataInput } from '@/features/configuracion/hooks/useTarifas';
 import type { TarifaLinaje } from './tarifaLineage';
 
 const DIAS_SEMANA = [
@@ -31,6 +32,15 @@ interface EditarMetadataDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   linaje: TarifaLinaje | null;
+  /**
+   * Hook que devuelve la mutation para actualizar metadata. Inyectado
+   * por el config del módulo (turnos o clases).
+   */
+  useActualizarMetadata: () => UseMutationResult<
+    number,
+    Error,
+    ActualizarMetadataInput
+  >;
 }
 
 interface FormState {
@@ -91,8 +101,9 @@ export function EditarMetadataDialog({
   open,
   onOpenChange,
   linaje,
+  useActualizarMetadata,
 }: EditarMetadataDialogProps) {
-  const actualizar = useActualizarMetadataTarifa();
+  const actualizar = useActualizarMetadata();
   const [state, setState] = useState<FormState>({
     nombre: '',
     desde_hora: '',

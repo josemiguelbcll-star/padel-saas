@@ -12,7 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCambiarPrecioTarifa } from '@/features/configuracion/hooks/useTarifas';
+import type { UseMutationResult } from '@tanstack/react-query';
+import type { Tarifa } from '@/types/database';
+import type { CambiarPrecioInput } from '@/features/configuracion/hooks/useTarifas';
 import type { TarifaLinaje } from './tarifaLineage';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
@@ -47,6 +49,11 @@ interface CambiarPrecioDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   linaje: TarifaLinaje | null;
+  /**
+   * Hook que devuelve la mutation para cambiar el precio. Inyectado por
+   * el config del módulo (turnos o clases).
+   */
+  useCambiarPrecio: () => UseMutationResult<Tarifa, Error, CambiarPrecioInput>;
 }
 
 const schema = z.object({
@@ -66,8 +73,9 @@ export function CambiarPrecioDialog({
   open,
   onOpenChange,
   linaje,
+  useCambiarPrecio,
 }: CambiarPrecioDialogProps) {
-  const cambiar = useCambiarPrecioTarifa();
+  const cambiar = useCambiarPrecio();
   const [montoStr, setMontoStr] = useState('');
   const [vigenteDesde, setVigenteDesde] = useState(todayISO());
   const [errors, setErrors] = useState<FieldErrors>({});

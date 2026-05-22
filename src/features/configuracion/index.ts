@@ -4,6 +4,7 @@ export { UsuariosPage } from './usuarios/UsuariosPage';
 export { CanchasPage } from './canchas/CanchasPage';
 export { HorariosPage } from './horarios/HorariosPage';
 export { TarifasPage } from './tarifas/TarifasPage';
+export { TarifasConfigPage } from './tarifas/TarifasConfigPage';
 export { ProfesoresPage } from './profesores/ProfesoresPage';
 export { ClasesPage } from './clases/ClasesPage';
 export { ProductosPage } from './productos/ProductosPage';

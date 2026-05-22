@@ -383,9 +383,9 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
             </p>
           </div>
 
-          {/* Precio */}
+          {/* Alquiler de cancha */}
           <div className="space-y-2">
-            <Label htmlFor="clase-precio">Precio (pesos)</Label>
+            <Label htmlFor="clase-precio">Alquiler de cancha por clase</Label>
             <Input
               id="clase-precio"
               type="number"
@@ -399,6 +399,10 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
               aria-invalid={errors.precio ? true : undefined}
               placeholder="0.00"
             />
+            <p className="text-xs text-muted-foreground">
+              Lo que el club cobra al profesor por usar la cancha; los alumnos
+              pagan al profesor directamente.
+            </p>
             {errors.precio && (
               <p className="text-xs text-destructive">{errors.precio}</p>
             )}

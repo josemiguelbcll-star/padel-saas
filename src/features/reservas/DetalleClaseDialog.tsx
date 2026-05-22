@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { AlertTriangle, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,10 +14,12 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth/useSession';
 import type { Cancha, ClaseCobro, MedioPago } from '@/types/database';
 import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases';
+import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
 import { useCobrarClase } from './hooks/useCobrarClase';
 import { formatearFechaAmigable } from './utils/fechaUtils';
 import { formatearHora, sumarMinutos } from './utils/horaUtils';
+import { resolverTarifa } from './utils/resolverTarifa';
 
 // ─────────────────────────────────────────────────────────────────────
 // Constantes y helpers locales
@@ -142,8 +144,9 @@ function DetalleClaseBody({
   const [pagos, setPagos] = useState<ClaseCobro[]>(pagosIniciales);
 
   // State del mini-form de agregar pago (oculto por default).
+  // Modelo B (0035): el monto YA NO se ingresa — se resuelve server-side
+  // desde la tarifa de clase vigente para (fecha, clase.hora_inicio).
   const [agregando, setAgregando] = useState(false);
-  const [monto, setMonto] = useState<string>(clase.precio.toString());
   const [medio, setMedio] = useState<MedioPago | null>('efectivo');
   const [obs, setObs] = useState<string>('');
   const [agregarError, setAgregarError] = useState<string | null>(null);
@@ -155,6 +158,24 @@ function DetalleClaseBody({
   const cobrarMutation = useCobrarClase();
   const borrarMutation = useBorrarCobroClase();
 
+  // Tarifa de clase resuelta client-side para (fecha, hora_clase).
+  // Es el monto que el server va a usar al cobrar. Lo mostramos como
+  // referencia + deshabilita el botón si no hay tarifa que cubra el slot.
+  // El server vuelve a resolver al cobrar (red última); este cálculo
+  // client-side solo guía la UX.
+  const tarifasClasesQuery = useTarifasClases();
+  const alquilerResuelto = useMemo(
+    () =>
+      resolverTarifa({
+        fecha,
+        hora: clase.hora_inicio,
+        tarifas: tarifasClasesQuery.data ?? [],
+      }),
+    [fecha, clase.hora_inicio, tarifasClasesQuery.data],
+  );
+  const tarifasLoading = tarifasClasesQuery.isLoading;
+  const sinTarifa = !tarifasLoading && alquilerResuelto.tarifa === null;
+
   const profesorNombre = clase.profesor?.nombre ?? 'Sin profesor';
   const horaInicio = formatearHora(clase.hora_inicio);
   const horaFin = formatearHora(
@@ -164,7 +185,6 @@ function DetalleClaseBody({
   const totalCobrado = pagos.reduce((sum, p) => sum + p.monto, 0);
 
   function resetMiniForm(): void {
-    setMonto(clase.precio.toString());
     setMedio('efectivo');
     setObs('');
     setAgregarError(null);
@@ -174,13 +194,18 @@ function DetalleClaseBody({
     event.preventDefault();
     setAgregarError(null);
 
-    const m = Number(monto);
-    if (Number.isNaN(m) || m <= 0) {
-      setAgregarError('Ingresá un monto válido mayor a 0.');
-      return;
-    }
     if (!medio) {
       setAgregarError('Elegí un medio de pago.');
+      return;
+    }
+    // Modelo B: el server resuelve el monto. Lo bloqueamos client-side
+    // solo si sabemos seguro que no hay tarifa (mejor UX). Si la query
+    // de tarifas todavía está cargando, dejamos pasar y que el server
+    // sea la verdad última.
+    if (sinTarifa) {
+      setAgregarError(
+        'No hay tarifa de clase configurada para este horario. Configurala en Configuración → Tarifas (pestaña Clases) antes de cobrar.',
+      );
       return;
     }
 
@@ -188,7 +213,6 @@ function DetalleClaseBody({
       const nuevoCobro = await cobrarMutation.mutateAsync({
         clase_id: clase.id,
         fecha,
-        monto: m,
         medio_pago: medio,
         observaciones: obs.trim() === '' ? null : obs.trim(),
       });
@@ -238,7 +262,16 @@ function DetalleClaseBody({
           <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3 text-sm">
             <Row label="Profesor" value={profesorNombre} />
             {clase.nombre && <Row label="Nombre" value={clase.nombre} />}
-            <Row label="Precio sugerido" value={fmtMoney(clase.precio)} />
+            <Row
+              label="Alquiler"
+              value={
+                tarifasLoading
+                  ? '—'
+                  : alquilerResuelto.tarifa
+                    ? fmtMoney(alquilerResuelto.monto)
+                    : 'Sin tarifa configurada'
+              }
+            />
           </div>
         </section>
 
@@ -300,9 +333,27 @@ function DetalleClaseBody({
           )}
         </section>
 
-        {/* Agregar pago: toggle + mini-form */}
+        {/* Agregar pago: toggle + mini-form. Modelo B: sin input de
+            monto — el server resuelve desde la tarifa de clase. El
+            botón Cobrar se deshabilita si no hay tarifa configurada. */}
         {!agregando && (
-          <div>
+          <div className="space-y-2">
+            {sinTarifa && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs"
+              >
+                <ShieldAlert
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-500"
+                  aria-hidden="true"
+                />
+                <p>
+                  No hay <strong>tarifa de clase</strong> configurada para este
+                  horario. Configurala en <em>Configuración → Tarifas
+                  (pestaña Clases)</em> antes de cobrar.
+                </p>
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -311,9 +362,10 @@ function DetalleClaseBody({
                 resetMiniForm();
                 setAgregando(true);
               }}
+              disabled={tarifasLoading || sinTarifa}
             >
               <Plus className="h-3.5 w-3.5" />
-              Agregar pago
+              {tarifasLoading ? 'Cargando tarifa…' : 'Agregar pago'}
             </Button>
           </div>
         )}
@@ -326,46 +378,48 @@ function DetalleClaseBody({
           >
             <h4 className="text-sm font-medium text-foreground">Nuevo pago</h4>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="cobrar-clase-monto" className="text-xs">
-                  Monto (pesos)
-                </Label>
-                <Input
-                  id="cobrar-clase-monto"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                  disabled={cobrarMutation.isPending}
-                  autoFocus
-                />
+            {/* Monto resuelto (read-only): el server usa este valor desde
+                la tarifa de clase vigente. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Alquiler de cancha</Label>
+              <div className="flex items-baseline justify-between rounded-md border border-border bg-background px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  Resuelto desde la tarifa de clase
+                </span>
+                <span className="text-base font-semibold tabular-nums text-foreground">
+                  {alquilerResuelto.tarifa
+                    ? fmtMoney(alquilerResuelto.monto)
+                    : '—'}
+                </span>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Medio de pago</Label>
-                <div className="flex flex-wrap gap-1">
-                  {MEDIOS_PAGO_LIST.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMedio(m)}
-                      disabled={cobrarMutation.isPending}
-                      aria-pressed={medio === m}
-                      className={cn(
-                        'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                        'disabled:cursor-not-allowed disabled:opacity-50',
-                        medio === m
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-background text-foreground hover:bg-muted',
-                      )}
-                    >
-                      {MEDIO_PAGO_LABEL[m]}
-                    </button>
-                  ))}
-                </div>
+              <p className="text-[11px] text-muted-foreground">
+                El monto lo define la tarifa de clase vigente para{' '}
+                {formatearFechaAmigable(fecha)} a las {horaInicio}.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Medio de pago</Label>
+              <div className="flex flex-wrap gap-1">
+                {MEDIOS_PAGO_LIST.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMedio(m)}
+                    disabled={cobrarMutation.isPending}
+                    aria-pressed={medio === m}
+                    className={cn(
+                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                      medio === m
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background text-foreground hover:bg-muted',
+                    )}
+                  >
+                    {MEDIO_PAGO_LABEL[m]}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -409,9 +463,9 @@ function DetalleClaseBody({
               <Button
                 type="submit"
                 size="sm"
-                disabled={cobrarMutation.isPending}
+                disabled={cobrarMutation.isPending || sinTarifa}
               >
-                {cobrarMutation.isPending ? 'Agregando…' : 'Agregar pago'}
+                {cobrarMutation.isPending ? 'Cobrando…' : 'Cobrar'}
               </Button>
             </div>
           </form>

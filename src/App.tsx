@@ -9,7 +9,7 @@ import {
   UsuariosPage,
   CanchasPage,
   HorariosPage,
-  TarifasPage,
+  TarifasConfigPage,
   ProfesoresPage,
   ClasesPage,
   ProductosPage,
@@ -91,7 +91,7 @@ export function App() {
           <Route path="usuarios" element={<UsuariosPage />} />
           <Route path="canchas" element={<CanchasPage />} />
           <Route path="horarios" element={<HorariosPage />} />
-          <Route path="tarifas" element={<TarifasPage />} />
+          <Route path="tarifas" element={<TarifasConfigPage />} />
           <Route path="profesores" element={<ProfesoresPage />} />
           <Route path="clases" element={<ClasesPage />} />
           <Route path="productos" element={<ProductosPage />} />

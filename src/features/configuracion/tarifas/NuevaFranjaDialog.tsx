@@ -12,7 +12,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { useCrearTarifa } from '@/features/configuracion/hooks/useTarifas';
+import type { UseMutationResult } from '@tanstack/react-query';
+import type { Tarifa } from '@/types/database';
+import type { CrearTarifaInput } from '@/features/configuracion/hooks/useTarifas';
 
 const DIAS_SEMANA = [
   { value: 1, label: 'LUN', full: 'Lunes' },
@@ -32,6 +34,12 @@ function todayISO(): string {
 interface NuevaFranjaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Hook que devuelve la mutation para crear una franja. Inyectado por
+   * el config del módulo (turnos o clases). Permite reusar este dialog
+   * sin acoplarlo a una RPC específica.
+   */
+  useCrear: () => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
 }
 
 interface FormState {
@@ -97,13 +105,15 @@ type FieldErrors = Partial<Record<keyof FormState | 'form', string>>;
  * nombre, monto inicial, opcionalmente franja horaria y días, prioridad,
  * y la fecha desde la que rige el precio (default hoy, permite futuro).
  *
- * El alta inicial usa fn_crear_tarifa server-side (patrón autoreferente).
+ * El hook de creación se inyecta por prop — funciona igual para
+ * tarifas de turnos (fn_crear_tarifa) o de clases (fn_crear_tarifa_clase).
  */
 export function NuevaFranjaDialog({
   open,
   onOpenChange,
+  useCrear,
 }: NuevaFranjaDialogProps) {
-  const crear = useCrearTarifa();
+  const crear = useCrear();
   const [state, setState] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<FieldErrors>({});
 

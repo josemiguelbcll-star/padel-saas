@@ -890,6 +890,23 @@ export interface VentaItem {
 }
 
 // ============================================================================
+// Migración 0034 — Tarifas de clases (alquiler de cancha para clases)
+// ============================================================================
+
+/**
+ * Tarifa de alquiler de cancha para clases (0034). Misma forma que
+ * `Tarifa`: lineage_id agrupa versiones de precio de la misma franja a
+ * lo largo del tiempo, vigente_desde/hasta define el rango.
+ *
+ * Se mantiene como interface separada para tipado documentado; los hooks
+ * y dialogs reusan el tipo `Tarifa` en sus firmas porque la forma es
+ * idéntica. Si en el futuro las tablas divergen (ej. clases agrega una
+ * columna), separamos los tipos.
+ */
+export interface TarifaClase extends Tarifa {}
+
+
+// ============================================================================
 // Migración 0030 — Turnos fijos (reservas recurrentes con clientes habituales)
 // ============================================================================
 

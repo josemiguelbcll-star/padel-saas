@@ -12,22 +12,29 @@ export interface CobrarClaseInput {
   clase_id: number;
   /** 'YYYY-MM-DD' — fecha puntual de la ocurrencia. */
   fecha: string;
-  monto: number;
   medio_pago: MedioPago;
   observaciones: string | null;
 }
 
 /**
- * Llama a la RPC fn_cobrar_clase (migración 0007), que en una sola
- * transacción valida la ocurrencia (weekday + no-cobro-previo) e
- * inserta el registro en clase_cobros.
+ * Llama a la RPC fn_cobrar_clase (modelo B, 0035).
+ *
+ * Cambio respecto a la versión 0023:
+ *   - YA NO se envía `monto` desde el frontend. El monto se RESUELVE
+ *     server-side vía fn_resolver_tarifa_clase y se inserta en
+ *     clase_cobros como snapshot.
+ *   - Si no hay tarifa de clase configurada para el slot (fecha + hora
+ *     de la clase), la RPC RAISE con mensaje accionable apuntando a
+ *     Configuración → Tarifas → Clases.
  *
  * Errores que el usuario puede ver (todos mapeados por dbErrors):
- *   - "La clase del 2026-05-20 ya fue cobrada."
- *   - "La clase no se dicta el 2026-05-20 — revisá los días configurados."
- *   - "El monto a cobrar debe ser mayor a 0."
+ *   - "No hay tarifa de clase configurada para los {día} a las {hora}.
+ *      Configurala en Configuración → Tarifas (pestaña Clases) antes
+ *      de cobrar."
+ *   - "La clase no se dicta el {fecha} — revisá los días configurados."
  *   - "El medio de pago es obligatorio."
  *   - "La clase no existe o no pertenece a tu club."
+ *   - "No hay caja abierta..." (cuando es efectivo).
  *   - Plus los genéricos de RLS y network.
  *
  * Al éxito invalida ['clase_cobros', fecha] → la grilla refresca el
@@ -45,7 +52,6 @@ export function useCobrarClase(): UseMutationResult<
       const { data, error } = await supabase.rpc('fn_cobrar_clase', {
         p_clase_id: input.clase_id,
         p_fecha: input.fecha,
-        p_monto: input.monto,
         p_medio_pago: input.medio_pago,
         p_observaciones: input.observaciones,
       });
