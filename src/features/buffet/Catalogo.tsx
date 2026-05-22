@@ -2,10 +2,15 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import type { CategoriaProducto, ProductoConStock } from '@/types/database';
+import type {
+  CategoriaProducto,
+  Linea,
+  ProductoConStock,
+} from '@/types/database';
 import {
-  CATEGORIAS_PRODUCTO,
   CATEGORIA_LABEL,
+  LINEA_LABEL,
+  categoriasPermitidas,
 } from '@/features/configuracion/productos/productoSchema';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
@@ -15,6 +20,10 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 });
 
+/** Filtro primario por línea. 'todas' muestra buffet + shop. */
+type FiltroLinea = 'todas' | Linea;
+
+/** Filtro secundario por categoría. 'todas' muestra todas las del filtro de línea. */
 type FiltroCategoria = 'todas' | CategoriaProducto;
 
 interface CatalogoProps {
@@ -26,18 +35,21 @@ interface CatalogoProps {
 }
 
 /**
- * Catálogo del buffet. Solo productos activos. Filtros por categoría
- * (pills: Todas / Bebida / Snack / Otro) + buscador por nombre.
+ * Catálogo del mostrador (POS). Filtros en dos niveles:
+ *   - Pills PRIMARIOS de línea: Todas / Buffet / Shop.
+ *   - Pills SECUNDARIOS de categoría: dependientes del filtro de línea.
+ *     Si la línea es "todas", se muestran todas las categorías (de
+ *     ambas líneas).
  *
- * Cada producto se muestra como una card grande tap-friendly (toda la
- * card es un <button>). Click suma 1 al carrito. La card se deshabilita
- * cuando stock_actual = 0 (sin stock) o cuando la cantidad ya en el
- * carrito iguala al stock (no se puede sumar más).
+ * Cada card muestra un chip con la línea (Buffet/Shop) para que la
+ * vendedora identifique de qué línea es el producto sin tener que
+ * cambiar el filtro. Carrito mezcla líneas — se cobra todo junto en
+ * una sola venta (fn_cerrar_venta server-side acepta carritos mixtos).
  *
- * El costo NO se muestra: es información interna del club, no del
- * vendedor de mostrador.
+ * El costo NO se muestra: es información interna del club.
  */
 export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
+  const [filtroLinea, setFiltroLinea] = useState<FiltroLinea>('todas');
   const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>('todas');
   const [busqueda, setBusqueda] = useState('');
 
@@ -46,53 +58,92 @@ export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
     [productos],
   );
 
+  // Categorías a mostrar como pills secundarios según el filtro de línea.
+  // 'todas' → unión de buffet + shop. Línea específica → solo esa.
+  const categoriasVisibles = useMemo<readonly CategoriaProducto[]>(() => {
+    if (filtroLinea === 'todas') {
+      return [...categoriasPermitidas('buffet'), ...categoriasPermitidas('shop')];
+    }
+    return categoriasPermitidas(filtroLinea);
+  }, [filtroLinea]);
+
+  // Cuando cambia el filtro de línea, reseteamos el filtro de categoría
+  // a 'todas' si la categoría actual ya no es válida para la nueva línea.
+  function handleChangeLinea(next: FiltroLinea): void {
+    setFiltroLinea(next);
+    if (filtroCategoria === 'todas') return;
+    if (next === 'todas') return;
+    if (!categoriasPermitidas(next).includes(filtroCategoria)) {
+      setFiltroCategoria('todas');
+    }
+  }
+
   const productosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return productosActivos.filter((p) => {
+      if (filtroLinea !== 'todas' && p.linea !== filtroLinea) return false;
       if (filtroCategoria !== 'todas' && p.categoria !== filtroCategoria) {
         return false;
       }
-      if (q !== '' && !p.nombre.toLowerCase().includes(q)) {
-        return false;
-      }
+      if (q !== '' && !p.nombre.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [productosActivos, filtroCategoria, busqueda]);
+  }, [productosActivos, filtroLinea, filtroCategoria, busqueda]);
 
   return (
-    <section className="space-y-3" aria-label="Catálogo del buffet">
-      {/* Filtros + buscador */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-1.5">
-          <CategoriaPill
-            label="Todas"
-            active={filtroCategoria === 'todas'}
-            onClick={() => setFiltroCategoria('todas')}
+    <section className="space-y-3" aria-label="Catálogo del mostrador">
+      {/* Filtros primarios — línea */}
+      <div className="flex flex-wrap gap-1.5">
+        <FiltroPill
+          label="Todas"
+          active={filtroLinea === 'todas'}
+          variant="primary"
+          onClick={() => handleChangeLinea('todas')}
+        />
+        {(['buffet', 'shop'] as const).map((linea) => (
+          <FiltroPill
+            key={linea}
+            label={LINEA_LABEL[linea]}
+            active={filtroLinea === linea}
+            variant="primary"
+            onClick={() => handleChangeLinea(linea)}
           />
-          {CATEGORIAS_PRODUCTO.map((cat) => (
-            <CategoriaPill
-              key={cat}
-              label={CATEGORIA_LABEL[cat]}
-              active={filtroCategoria === cat}
-              onClick={() => setFiltroCategoria(cat)}
-            />
-          ))}
-        </div>
+        ))}
+      </div>
 
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
+      {/* Filtros secundarios — categoría (dependiente de la línea) */}
+      <div className="flex flex-wrap gap-1.5">
+        <FiltroPill
+          label="Todas"
+          active={filtroCategoria === 'todas'}
+          variant="secondary"
+          onClick={() => setFiltroCategoria('todas')}
+        />
+        {categoriasVisibles.map((cat) => (
+          <FiltroPill
+            key={cat}
+            label={CATEGORIA_LABEL[cat]}
+            active={filtroCategoria === cat}
+            variant="secondary"
+            onClick={() => setFiltroCategoria(cat)}
           />
-          <Input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar producto…"
-            className="pl-9"
-            aria-label="Buscar producto por nombre"
-          />
-        </div>
+        ))}
+      </div>
+
+      {/* Buscador */}
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar producto…"
+          className="pl-9"
+          aria-label="Buscar producto por nombre"
+        />
       </div>
 
       {/* Grid de productos */}
@@ -119,13 +170,15 @@ export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
   );
 }
 
-function CategoriaPill({
+function FiltroPill({
   label,
   active,
+  variant,
   onClick,
 }: {
   label: string;
   active: boolean;
+  variant: 'primary' | 'secondary';
   onClick: () => void;
 }) {
   return (
@@ -134,8 +187,11 @@ function CategoriaPill({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+        'rounded-md border transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        variant === 'primary'
+          ? 'px-3 py-1.5 text-xs font-semibold'
+          : 'px-2.5 py-1 text-[11px] font-medium',
         active
           ? 'border-primary bg-primary text-primary-foreground'
           : 'border-border bg-background text-foreground hover:bg-muted',
@@ -176,6 +232,8 @@ function ProductoCard({ producto, cartCantidad, onAdd }: ProductoCardProps) {
         'disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:shadow-none',
       )}
     >
+      {/* Chip de línea — para identificar visualmente si es Buffet o Shop */}
+      <LineaChip linea={producto.linea} />
       <div className="line-clamp-2 text-sm font-medium text-foreground">
         {producto.nombre}
       </div>
@@ -191,6 +249,27 @@ function ProductoCard({ producto, cartCantidad, onAdd }: ProductoCardProps) {
         {stockText}
       </div>
     </button>
+  );
+}
+
+function LineaChip({ linea }: { linea: Linea }) {
+  // Buffet usa token estado-pagada (verde), Shop usa primary.
+  // Inline style con hsl(var(--token) / X) — mismo patrón validado
+  // contra el bug de cache de Tailwind con utilidades dinámicas.
+  const color = linea === 'buffet'
+    ? 'hsl(var(--estado-pagada))'
+    : 'hsl(var(--primary))';
+  const bg = linea === 'buffet'
+    ? 'hsl(var(--estado-pagada) / 0.12)'
+    : 'hsl(var(--primary) / 0.12)';
+
+  return (
+    <span
+      className="inline-flex w-fit items-center rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+      style={{ color, backgroundColor: bg }}
+    >
+      {LINEA_LABEL[linea]}
+    </span>
   );
 }
 

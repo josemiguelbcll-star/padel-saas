@@ -17,10 +17,15 @@ import {
   useCreateProducto,
   useUpdateProducto,
 } from '@/features/configuracion/hooks/useProductos';
-import type { CategoriaProducto, Producto } from '@/types/database';
+import type {
+  CategoriaProducto,
+  Linea,
+  Producto,
+} from '@/types/database';
 import {
-  CATEGORIAS_PRODUCTO,
   CATEGORIA_LABEL,
+  LINEA_LABEL,
+  categoriasPermitidas,
   productoSchema,
   type ProductoFormState,
 } from './productoSchema';
@@ -36,19 +41,28 @@ interface ProductoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialValue: Producto | null;
+  /**
+   * Línea pre-seleccionada para productos nuevos (cuando se abre el
+   * form desde un tab específico de la pantalla de Productos).
+   * Ignorada si initialValue !== null (en edición se usa la línea
+   * actual del producto). Default 'buffet'.
+   */
+  initialLinea?: Linea;
 }
 
 export function ProductoFormDialog({
   open,
   onOpenChange,
   initialValue,
+  initialLinea = 'buffet',
 }: ProductoFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <ProductoFormBody
-          key={initialValue?.id ?? 'new'}
+          key={initialValue?.id ?? `new-${initialLinea}`}
           initialValue={initialValue}
+          initialLinea={initialLinea}
           onDone={() => onOpenChange(false)}
         />
       </DialogContent>
@@ -60,20 +74,34 @@ type FieldErrors = Partial<
   Record<keyof ProductoFormState | 'form', string>
 >;
 
-const defaultState: ProductoFormState = {
-  nombre: '',
-  categoria: 'bebida',
-  precio: '0',
-  // Empty default: el admin lo carga cuando lo sepa. Empty se guarda
-  // como NULL en la DB (no como 0), preservando "no cargado" vs "0 real".
-  costo: '',
-  stock_minimo: '0',
-  activo: true,
-};
+/**
+ * Categoría default para producto nuevo según la línea elegida.
+ * Hardcoded para que TS la tipe como `CategoriaProducto` concreto
+ * (categoriasPermitidas(linea)[0] sería CategoriaProducto | undefined
+ * desde el punto de vista del compilador).
+ */
+function defaultCategoriaPorLinea(linea: Linea): CategoriaProducto {
+  return linea === 'buffet' ? 'bebidas' : 'articulos_padel';
+}
+
+function defaultStateFor(linea: Linea): ProductoFormState {
+  return {
+    nombre: '',
+    linea,
+    categoria: defaultCategoriaPorLinea(linea),
+    precio: '0',
+    // Empty default: el admin lo carga cuando lo sepa. Empty se guarda
+    // como NULL en la DB (no como 0), preservando "no cargado" vs "0 real".
+    costo: '',
+    stock_minimo: '0',
+    activo: true,
+  };
+}
 
 function productoToFormState(p: Producto): ProductoFormState {
   return {
     nombre: p.nombre,
+    linea: p.linea,
     categoria: p.categoria,
     precio: p.precio.toString(),
     costo: p.costo === null ? '' : p.costo.toString(),
@@ -84,20 +112,39 @@ function productoToFormState(p: Producto): ProductoFormState {
 
 interface ProductoFormBodyProps {
   initialValue: Producto | null;
+  initialLinea: Linea;
   onDone: () => void;
 }
 
-function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
+function ProductoFormBody({
+  initialValue,
+  initialLinea,
+  onDone,
+}: ProductoFormBodyProps) {
   const isEdit = initialValue !== null;
   const createMutation = useCreateProducto();
   const updateMutation = useUpdateProducto();
 
   const [state, setState] = useState<ProductoFormState>(
-    initialValue ? productoToFormState(initialValue) : defaultState,
+    initialValue ? productoToFormState(initialValue) : defaultStateFor(initialLinea),
   );
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  /**
+   * Cambio de línea: resetea la categoría a la primera de la nueva
+   * línea para evitar quedar en una combinación inválida (el CHECK
+   * compuesto y el superRefine la rechazarían).
+   */
+  function handleChangeLinea(linea: Linea): void {
+    if (linea === state.linea) return;
+    setState({
+      ...state,
+      linea,
+      categoria: defaultCategoriaPorLinea(linea),
+    });
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -110,6 +157,7 @@ function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
         const field = issue.path[0];
         if (
           field === 'nombre' ||
+          field === 'linea' ||
           field === 'categoria' ||
           field === 'precio' ||
           field === 'costo' ||
@@ -145,6 +193,8 @@ function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
     }
   }
 
+  const categoriasActuales = categoriasPermitidas(state.linea);
+
   return (
     <>
       <DialogHeader>
@@ -154,7 +204,7 @@ function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
         <DialogDescription>
           {isEdit
             ? 'Modificá los datos del producto. El stock no se edita acá — para sumar inventario, usá "Cargar stock" desde la tabla.'
-            : 'Agregá un producto al catálogo del buffet. El stock inicial se carga después con "Cargar stock".'}
+            : 'Agregá un producto al catálogo. El stock inicial se carga después con "Cargar stock".'}
         </DialogDescription>
       </DialogHeader>
 
@@ -177,10 +227,46 @@ function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
           )}
         </div>
 
+        {/* Línea — pills primarios */}
+        <div className="space-y-2">
+          <Label>Línea</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {(['buffet', 'shop'] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => handleChangeLinea(l)}
+                disabled={isPending}
+                aria-pressed={state.linea === l}
+                className={cn(
+                  'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                  state.linea === l
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground hover:bg-muted',
+                )}
+              >
+                {LINEA_LABEL[l]}
+              </button>
+            ))}
+          </div>
+          {errors.linea && (
+            <p className="text-xs text-destructive">{errors.linea}</p>
+          )}
+          {isEdit && (
+            <p className="text-[11px] text-muted-foreground">
+              Cambiar la línea resetea la categoría. Las ventas históricas
+              conservan la línea anterior (snapshot).
+            </p>
+          )}
+        </div>
+
+        {/* Categoría — depende de la línea */}
         <div className="space-y-2">
           <Label>Categoría</Label>
           <div className="flex flex-wrap gap-1.5">
-            {CATEGORIAS_PRODUCTO.map((cat) => (
+            {categoriasActuales.map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -280,7 +366,7 @@ function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
               Activo
             </Label>
             <p className="text-xs text-muted-foreground">
-              Si está apagado, no aparece en el catálogo de venta del buffet.
+              Si está apagado, no aparece en el catálogo del mostrador.
             </p>
           </div>
           <Switch
@@ -323,16 +409,8 @@ function ProductoFormBody({ initialValue, onDone }: ProductoFormBodyProps) {
 }
 
 /**
- * Hint debajo del input de costo. Tres estados:
- *   - Error de validación zod (ej. "abc" en el input): muestra el error.
- *   - Costo vacío: "Sin costo cargado · margen no calculable." (muted).
- *   - Costo cargado, margen >= 0: "Margen: $X por unidad." (muted).
- *   - Costo cargado, margen < 0: warning ámbar (no bloquea el submit).
- *
- * El warning de margen negativo es informativo: la DB permite costo >
- * precio (se valida solo costo >= 0). El club puede tener motivos para
- * vender por debajo del costo (promoción, liquidación) y el sistema no
- * debe vetar — solo avisar.
+ * Hint debajo del input de costo. Sin cambios funcionales respecto
+ * de la versión pre-líneas.
  */
 function MargenHint({
   precio,
@@ -360,8 +438,6 @@ function MargenHint({
   const costoNum = Number(costoTrimmed);
 
   if (!Number.isFinite(precioNum) || !Number.isFinite(costoNum)) {
-    // Algún input no-numérico: el error de zod debería capturarlo en submit.
-    // No mostramos hint mientras se está tipeando.
     return null;
   }
 

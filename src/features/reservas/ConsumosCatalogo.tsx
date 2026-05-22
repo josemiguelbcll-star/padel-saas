@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
 import {
-  CATEGORIAS_PRODUCTO,
+  CATEGORIAS_BUFFET,
+  CATEGORIAS_SHOP,
   CATEGORIA_LABEL,
 } from '@/features/configuracion/productos/productoSchema';
 import type {
@@ -12,6 +13,18 @@ import type {
   ProductoConStock,
   TipoRepartoConsumo,
 } from '@/types/database';
+
+/**
+ * Categorías visibles como filtros en el catálogo del turno.
+ * Mostramos TODAS (buffet + shop) sin filtrar por línea: la cuenta
+ * del turno acepta cualquier producto activo (decisión confirmada
+ * por la migración 0026 — un jugador puede cargar pelotas u otros
+ * artículos de shop a su cuenta del turno).
+ */
+const CATEGORIAS_TURNO = [
+  ...CATEGORIAS_BUFFET,
+  ...CATEGORIAS_SHOP,
+] as const;
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -203,7 +216,7 @@ export function ConsumosCatalogo({ onAdd, disabled }: ConsumosCatalogoProps) {
           active={filtroCategoria === 'todas'}
           onClick={() => setFiltroCategoria('todas')}
         />
-        {CATEGORIAS_PRODUCTO.map((cat) => (
+        {CATEGORIAS_TURNO.map((cat) => (
           <CategoriaPill
             key={cat}
             label={CATEGORIA_LABEL[cat]}

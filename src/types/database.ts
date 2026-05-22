@@ -529,8 +529,31 @@ export interface ClaseCobro {
 // Migración 0009 — Buffet Capa 1 (productos, stock, ventas)
 // ============================================================================
 
-/** Categoría del producto. CHECK enum en la DB; ampliar requiere migración. */
-export type CategoriaProducto = 'bebida' | 'snack' | 'otro';
+/**
+ * Línea de negocio del producto (0024).
+ *   - 'buffet': comida y bebida que se consume jugando.
+ *   - 'shop':   artículos de pádel, vestimenta, etc.
+ * Determina dónde se muestra el producto y qué categorías son válidas.
+ */
+export type Linea = 'buffet' | 'shop';
+
+/** Categorías permitidas cuando linea='buffet' (CHECK compuesto en 0024). */
+export type CategoriaBuffet = 'bebidas' | 'snacks' | 'comidas' | 'otros';
+
+/** Categorías permitidas cuando linea='shop' (CHECK compuesto en 0024). */
+export type CategoriaShop =
+  | 'articulos_padel'
+  | 'vestimenta'
+  | 'palas'
+  | 'accesorios';
+
+/**
+ * Categoría del producto. Union de las categorías de cada línea. La
+ * validación de "qué categoría va con qué línea" la hace el CHECK
+ * compuesto `productos_categoria_segun_linea` server-side, y el
+ * superRefine en el schema zod del frontend.
+ */
+export type CategoriaProducto = CategoriaBuffet | CategoriaShop;
 
 /**
  * Origen de un movimiento de stock.
@@ -563,6 +586,8 @@ export interface Producto {
   id: number;
   club_id: number;
   nombre: string;
+  /** Línea de negocio (0024). Determina dónde se muestra el producto. */
+  linea: Linea;
   categoria: CategoriaProducto;
   /** DECIMAL(12,2). >= 0 por CHECK. */
   precio: number;
@@ -671,6 +696,12 @@ export interface ReservaConsumo {
    * que el backfill al default es semánticamente correcto).
    */
   tipo_reparto: TipoRepartoConsumo;
+  /**
+   * Snapshot de productos.linea al momento de la carga (0024). Sirve
+   * para el EERR (saber si fue buffet o shop) aunque el producto se
+   * reclasifique después. fn_cargar_consumo_turno lo escribe.
+   */
+  linea: Linea;
   usuario_id: string;
   fecha_hora: string;
 }
@@ -715,4 +746,10 @@ export interface VentaItem {
   costo_unitario: number | null;
   /** DECIMAL(12,2). cantidad × precio_unitario al cierre. */
   subtotal: number;
+  /**
+   * Snapshot de productos.linea al momento de la venta (0024). Sirve
+   * para el EERR aunque el producto se reclasifique después.
+   * fn_cerrar_venta lo escribe.
+   */
+  linea: Linea;
 }

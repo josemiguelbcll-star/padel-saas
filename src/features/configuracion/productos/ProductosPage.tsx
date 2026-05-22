@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   PackagePlus,
@@ -19,10 +19,10 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { useDeleteProducto } from '@/features/configuracion/hooks/useProductos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
-import type { Producto, ProductoConStock } from '@/types/database';
+import type { Linea, Producto, ProductoConStock } from '@/types/database';
 import { CargarStockDialog } from './CargarStockDialog';
 import { ProductoFormDialog } from './ProductoFormDialog';
-import { CATEGORIA_LABEL } from './productoSchema';
+import { CATEGORIA_LABEL, LINEA_LABEL } from './productoSchema';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -38,6 +38,7 @@ export function ProductosPage() {
   const productosQuery = useProductosConStock();
   const deleteMutation = useDeleteProducto();
 
+  const [tabActivo, setTabActivo] = useState<Linea>('buffet');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Producto | null>(null);
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -46,6 +47,21 @@ export function ProductosPage() {
   );
   const [toDelete, setToDelete] = useState<ProductoConStock | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Conteos por línea para los badges de los tabs. Se calculan sobre
+  // TODOS los productos (no solo los del tab activo) para que los
+  // contadores estén siempre al día.
+  const productosTodos = useMemo(
+    () => productosQuery.data ?? [],
+    [productosQuery.data],
+  );
+  const conteoPorLinea = useMemo(
+    () => ({
+      buffet: productosTodos.filter((p) => p.linea === 'buffet').length,
+      shop: productosTodos.filter((p) => p.linea === 'shop').length,
+    }),
+    [productosTodos],
+  );
 
   function openNew(): void {
     setEditing(null);
@@ -94,8 +110,9 @@ export function ProductosPage() {
             Productos
           </h2>
           <p className="text-sm text-muted-foreground">
-            Catálogo del buffet. El stock se carga via "Cargar stock" por
-            producto; cada carga queda registrada como movimiento de inventario.
+            Catálogo separado por línea (Buffet y Shop). El stock se
+            carga via "Cargar stock" por producto; cada carga queda
+            registrada como movimiento de inventario.
           </p>
         </div>
         {isAdmin && (
@@ -106,8 +123,38 @@ export function ProductosPage() {
         )}
       </header>
 
+      {/* Tabs Buffet / Shop */}
+      <div
+        role="tablist"
+        aria-label="Línea de producto"
+        className="flex gap-1 border-b border-border"
+      >
+        {(['buffet', 'shop'] as const).map((linea) => (
+          <button
+            key={linea}
+            type="button"
+            role="tab"
+            aria-selected={tabActivo === linea}
+            onClick={() => setTabActivo(linea)}
+            className={cn(
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              tabActivo === linea
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {LINEA_LABEL[linea]}
+            <span className="ml-1.5 text-xs text-muted-foreground">
+              ({conteoPorLinea[linea]})
+            </span>
+          </button>
+        ))}
+      </div>
+
       <ProductosTable
         query={productosQuery}
+        lineaFiltro={tabActivo}
         isAdmin={isAdmin}
         onEdit={openEdit}
         onCargarStock={openCargar}
@@ -118,6 +165,7 @@ export function ProductosPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         initialValue={editing}
+        initialLinea={tabActivo}
       />
 
       <CargarStockDialog
@@ -185,6 +233,7 @@ export function ProductosPage() {
 
 interface ProductosTableProps {
   query: ReturnType<typeof useProductosConStock>;
+  lineaFiltro: Linea;
   isAdmin: boolean;
   onEdit: (p: ProductoConStock) => void;
   onCargarStock: (p: ProductoConStock) => void;
@@ -193,6 +242,7 @@ interface ProductosTableProps {
 
 function ProductosTable({
   query,
+  lineaFiltro,
   isAdmin,
   onEdit,
   onCargarStock,
@@ -222,15 +272,19 @@ function ProductosTable({
     );
   }
 
-  const productos = query.data ?? [];
+  const productos = (query.data ?? []).filter(
+    (p) => p.linea === lineaFiltro,
+  );
+  const lineaLabel =
+    lineaFiltro === 'buffet' ? 'buffet' : 'shop';
 
   if (productos.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <p className="text-sm text-muted-foreground">
           {isAdmin
-            ? 'Todavía no agregaste productos. Cargá el primero para empezar a vender en el buffet.'
-            : 'El administrador todavía no agregó productos al catálogo.'}
+            ? `Todavía no agregaste productos de ${lineaLabel}. Cargá el primero para empezar a venderlo en el mostrador.`
+            : `El administrador todavía no agregó productos de ${lineaLabel}.`}
         </p>
       </div>
     );
