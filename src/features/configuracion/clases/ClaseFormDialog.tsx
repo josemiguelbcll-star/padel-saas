@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { Info, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -19,6 +20,8 @@ import {
   useUpdateClase,
 } from '@/features/configuracion/hooks/useClases';
 import { useProfesores } from '@/features/configuracion/hooks/useProfesores';
+import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
+import { resolverTarifa } from '@/features/reservas/utils/resolverTarifa';
 import type { Clase } from '@/types/database';
 import { claseSchema } from './claseSchema';
 
@@ -53,7 +56,6 @@ interface FormState {
   dias_semana: number[];
   hora_inicio: string;
   duracion_min: number;
-  precio: string;
   activa: boolean;
 }
 
@@ -65,7 +67,6 @@ type FieldErrors = Partial<
     | 'dias_semana'
     | 'hora_inicio'
     | 'duracion_min'
-    | 'precio'
     | 'form',
     string
   >
@@ -91,7 +92,6 @@ function defaultState(): FormState {
     dias_semana: [],
     hora_inicio: '',
     duracion_min: DEFAULT_DURACION_CLASE,
-    precio: '',
     activa: true,
   };
 }
@@ -104,9 +104,36 @@ function claseToFormState(c: Clase): FormState {
     dias_semana: [...c.dias_semana],
     hora_inicio: c.hora_inicio.slice(0, 5),
     duracion_min: c.duracion_min,
-    precio: c.precio.toString(),
     activa: c.activa,
   };
+}
+
+const DIA_NOMBRE_CORTO: Record<number, string> = {
+  1: 'lunes',
+  2: 'martes',
+  3: 'miércoles',
+  4: 'jueves',
+  5: 'viernes',
+  6: 'sábados',
+  7: 'domingos',
+};
+
+/**
+ * Devuelve una fecha 'YYYY-MM-DD' (próxima o igual a hoy) que cae en el
+ * día de la semana ISO indicado (1=lun..7=dom). Sirve para alimentar
+ * `resolverTarifa` y verificar si hay tarifa de clase para ese día+hora.
+ */
+function proxFechaConDiaIso(diaIso: number): string {
+  const hoy = new Date();
+  // JS getDay: 0=domingo..6=sábado. ISO: 1=lunes..7=domingo.
+  const isoHoy = hoy.getDay() === 0 ? 7 : hoy.getDay();
+  const offset = (diaIso - isoHoy + 7) % 7;
+  const target = new Date(hoy);
+  target.setDate(hoy.getDate() + offset);
+  const yyyy = target.getFullYear();
+  const mm = String(target.getMonth() + 1).padStart(2, '0');
+  const dd = String(target.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 interface ClaseFormBodyProps {
@@ -118,6 +145,7 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
   const isEdit = initialValue !== null;
   const profesoresQuery = useProfesores();
   const canchasQuery = useCanchas();
+  const tarifasClasesQuery = useTarifasClases();
   const createMutation = useCreateClase();
   const updateMutation = useUpdateClase();
 
@@ -127,6 +155,24 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  // Aviso BLANDO: si algún día seleccionado + hora no tiene tarifa de
+  // clase configurada, mostramos un pill ámbar. NO bloquea el guardado
+  // — la clase se puede crear igual. El RAISE hard ocurre al cobrar
+  // (fn_cobrar_clase 0035). Si el admin guarda sin tarifa, la nota le
+  // recuerda configurarla antes del primer cobro.
+  const diasSinTarifa = useMemo(() => {
+    if (tarifasClasesQuery.isLoading) return [];
+    if (state.dias_semana.length === 0 || state.hora_inicio === '') return [];
+    const tarifas = tarifasClasesQuery.data ?? [];
+    const sinTarifa: number[] = [];
+    for (const dia of state.dias_semana) {
+      const fecha = proxFechaConDiaIso(dia);
+      const r = resolverTarifa({ fecha, hora: state.hora_inicio, tarifas });
+      if (r.tarifa === null) sinTarifa.push(dia);
+    }
+    return sinTarifa;
+  }, [tarifasClasesQuery.isLoading, tarifasClasesQuery.data, state.dias_semana, state.hora_inicio]);
 
   // Para selects: mostramos activos + (si estamos editando una clase con
   // un profesor/cancha que quedó inactivo) el actualmente seleccionado,
@@ -177,7 +223,6 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
       dias_semana: state.dias_semana,
       hora_inicio: state.hora_inicio,
       duracion_min: state.duracion_min,
-      precio: state.precio,
       activa: state.activa,
     });
     if (!parsed.success) {
@@ -190,8 +235,7 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
           field === 'nombre' ||
           field === 'dias_semana' ||
           field === 'hora_inicio' ||
-          field === 'duracion_min' ||
-          field === 'precio'
+          field === 'duracion_min'
         ) {
           next[field] = issue.message;
         } else {
@@ -383,28 +427,46 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
             </p>
           </div>
 
-          {/* Alquiler de cancha */}
+          {/* Alquiler de cancha — nota informativa (modelo B, 0035). El
+              valor se resuelve desde la tarifa de clase al cobrar. */}
           <div className="space-y-2">
-            <Label htmlFor="clase-precio">Alquiler de cancha por clase</Label>
-            <Input
-              id="clase-precio"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              value={state.precio}
-              onChange={(e) => setState({ ...state, precio: e.target.value })}
-              disabled={isPending}
-              required
-              aria-invalid={errors.precio ? true : undefined}
-              placeholder="0.00"
-            />
-            <p className="text-xs text-muted-foreground">
-              Lo que el club cobra al profesor por usar la cancha; los alumnos
-              pagan al profesor directamente.
-            </p>
-            {errors.precio && (
-              <p className="text-xs text-destructive">{errors.precio}</p>
+            <Label>Alquiler de cancha</Label>
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs">
+              <Info
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <p className="text-muted-foreground">
+                El alquiler de cancha lo define la tarifa de clases vigente
+                para el horario. Configurala en{' '}
+                <strong className="font-medium text-foreground">
+                  Tarifas → Clases
+                </strong>
+                .
+              </p>
+            </div>
+            {diasSinTarifa.length > 0 && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs"
+              >
+                <ShieldAlert
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-500"
+                  aria-hidden="true"
+                />
+                <p>
+                  Sin tarifa de clase configurada para{' '}
+                  <strong className="font-medium text-foreground">
+                    {diasSinTarifa.map((d) => DIA_NOMBRE_CORTO[d]).join(', ')}
+                  </strong>{' '}
+                  a las{' '}
+                  <strong className="font-medium text-foreground">
+                    {state.hora_inicio}
+                  </strong>
+                  . Podés guardar igual, pero no vas a poder cobrar hasta
+                  que la configures.
+                </p>
+              </div>
             )}
           </div>
         </div>

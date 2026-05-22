@@ -18,7 +18,9 @@ import { DURACIONES_TURNO_VALIDAS } from '../horarios/horariosSchema';
  *     en 00 para tolerar el formato 'HH:MM:00' de Postgres en edits.
  *   - duracion_min entre los 6 valores válidos (60, 90, 120, ...),
  *     reutilizamos la constante de horariosSchema.
- *   - precio mínimo 0 (el CHECK del backend también lo exige).
+ *   - precio: deprecated (0035, modelo B). El alquiler de cancha se
+ *     resuelve via fn_resolver_tarifa_clase. La columna server-side
+ *     tiene DEFAULT 0; el schema ya no la incluye.
  */
 const HORA_ALINEADA_REGEX = /^\d{2}:(00|30)(:00)?$/;
 
@@ -49,9 +51,6 @@ export const claseSchema = z.object({
       (n) => (DURACIONES_TURNO_VALIDAS as readonly number[]).includes(n),
       { message: 'La duración debe ser 60, 90, 120, 150, 180 o 240 minutos.' },
     ),
-  precio: z.coerce
-    .number({ invalid_type_error: 'Ingresá un precio válido.' })
-    .min(0, 'El precio debe ser mayor o igual a 0.'),
   activa: z.boolean(),
 });
 

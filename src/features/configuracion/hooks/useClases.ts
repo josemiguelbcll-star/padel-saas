@@ -27,10 +27,17 @@ export interface ClaseConProfesor extends Clase {
 }
 
 /**
- * Campos que el frontend envía al crear o actualizar una clase. Omitimos
- * `id` (DB), `club_id` (sesión, RLS valida), `fecha_alta` (DEFAULT NOW).
+ * Campos que el frontend envía al crear o actualizar una clase.
+ *
+ * Omitimos:
+ *   - `id`: DB
+ *   - `club_id`: sesión, RLS valida.
+ *   - `fecha_alta`: DEFAULT NOW.
+ *   - `precio`: deprecated (0035, modelo B). El alquiler de cancha se
+ *     resuelve via fn_resolver_tarifa_clase. La columna queda con
+ *     DEFAULT 0 server-side; el frontend deja de mandarla.
  */
-export type ClaseInput = Omit<Clase, 'id' | 'club_id' | 'fecha_alta'>;
+export type ClaseInput = Omit<Clase, 'id' | 'club_id' | 'fecha_alta' | 'precio'>;
 
 /**
  * Lista de clases del club, con el profesor joineado.
