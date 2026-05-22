@@ -7,12 +7,17 @@ import { compararHoras } from './horaUtils';
  *
  * Regla de resolución:
  *   1. Filtra tarifas activas que aplican:
+ *      - VIGENCIA TEMPORAL (0029): la fecha del slot cae en
+ *        [vigente_desde, vigente_hasta]
  *      - dias_semana incluye el día  OR  dias_semana IS NULL
  *      - hora dentro de [desde_hora, hasta_hora)  OR  ambas NULL
  *   2. Ordena por prioridad DESC, luego id DESC.
  *   3. Devuelve la primera.
  *   4. Si no hay tarifa aplicable, devuelve { tarifa: null, monto: 0 }.
  *      Es la señal para que el vendedor complete el monto a mano.
+ *
+ * Espejo client-side de fn_resolver_tarifa server-side (0029). Ambos
+ * algoritmos deben mantenerse en sintonía.
  *
  * Nota: tarifas NO tienen cancha_id (a diferencia de franjas). Aplican
  * a todo el club; la dimensión cancha-específica del modelo está en
@@ -38,7 +43,9 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
   const { fecha, hora, tarifas } = params;
   const diaSemana = diaSemanaDe(fecha);
 
-  const aplicables = tarifas.filter((t) => tarifaAplicaA(t, diaSemana, hora));
+  const aplicables = tarifas.filter((t) =>
+    tarifaAplicaA(t, fecha, diaSemana, hora),
+  );
 
   if (aplicables.length === 0) {
     return { tarifa: null, monto: 0 };
@@ -55,10 +62,18 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
 
 function tarifaAplicaA(
   tarifa: Tarifa,
+  fechaISO: string,
   diaSemana: number,
   hora: string,
 ): boolean {
   if (!tarifa.activa) return false;
+
+  // Vigencia temporal (0029): comparación lexicográfica de strings ISO
+  // 'YYYY-MM-DD' equivale a comparación cronológica.
+  if (tarifa.vigente_desde > fechaISO) return false;
+  if (tarifa.vigente_hasta !== null && tarifa.vigente_hasta < fechaISO) {
+    return false;
+  }
 
   if (tarifa.dias_semana !== null && !tarifa.dias_semana.includes(diaSemana)) {
     return false;

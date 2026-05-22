@@ -369,6 +369,24 @@ export interface Tarifa {
   /** Mayor número gana. Cuando dos tarifas se superponen, gana la de mayor prioridad. */
   prioridad: number;
   activa: boolean;
+  /**
+   * Vigencia temporal del PRECIO (0029). La franja como tal es atemporal
+   * — son los cambios de monto los que se versionan.
+   * - `vigente_desde`: primera fecha en que este monto aplica.
+   * - `vigente_hasta`: última fecha en que este monto aplica. NULL = abierto.
+   *
+   * `resolverTarifa` filtra por fecha: la tarifa aplica si la fecha del
+   * slot está en [vigente_desde, vigente_hasta].
+   */
+  vigente_desde: string;
+  vigente_hasta: string | null;
+  /**
+   * Agrupa todas las versiones de precio de la MISMA franja a lo largo
+   * del tiempo (0029). La primera versión apunta a sí misma
+   * (lineage_id = id). Cambios de precio crean filas nuevas con el
+   * mismo lineage_id.
+   */
+  lineage_id: number;
 }
 
 // ============================================================================

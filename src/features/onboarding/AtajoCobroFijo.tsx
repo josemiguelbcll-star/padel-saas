@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateTarifa } from '@/features/configuracion/hooks/useTarifas';
+import { useCrearTarifa } from '@/features/configuracion/hooks/useTarifas';
 
 /**
  * Atajo "Cobro lo mismo siempre" del paso 3 del wizard.
@@ -23,7 +23,7 @@ const atajoSchema = z.object({
 });
 
 export function AtajoCobroFijo() {
-  const createMutation = useCreateTarifa();
+  const createMutation = useCrearTarifa();
   const [monto, setMonto] = useState('');
   const [montoError, setMontoError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function AtajoCobroFijo() {
         hasta_hora: null,
         dias_semana: null,
         prioridad: 0,
-        activa: true,
+        // vigente_desde default = hoy (server-side). La RPC crea activa=TRUE.
       });
       // La invalidación de useTarifas en el hook va a hacer que el padre
       // (StepTarifas) re-evalúe `tarifas.length === 0` y desmonte este

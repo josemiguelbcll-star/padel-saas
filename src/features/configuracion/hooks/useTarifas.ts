@@ -7,22 +7,14 @@ import {
 } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
-import { useSession } from '@/features/auth';
 import type { Tarifa } from '@/types/database';
 
 export const TARIFAS_QUERY_KEY = ['tarifas'] as const;
 
 /**
- * Campos que el frontend envía al crear o actualizar una tarifa.
- * `monto`, franjas y días pueden venir nulos cuando se trata de la
- * "tarifa única" del wizard.
- */
-export type TarifaInput = Omit<Tarifa, 'id' | 'club_id'>;
-
-/**
  * Lista de tarifas del club, ordenada por prioridad DESC y nombre ASC.
- * Mostrar primero las tarifas que efectivamente se aplicarían en caso
- * de superposición ayuda al admin a entender el orden de resolución.
+ * Devuelve TODAS las versiones de TODOS los linajes — los consumidores
+ * agrupan con `agruparPorLinaje` para mostrar la franja con su historial.
  */
 export function useTarifas(): UseQueryResult<Tarifa[], Error> {
   return useQuery<Tarifa[], Error>({
@@ -32,30 +24,54 @@ export function useTarifas(): UseQueryResult<Tarifa[], Error> {
         .from('tarifas')
         .select('*')
         .order('prioridad', { ascending: false })
-        .order('nombre', { ascending: true });
+        .order('nombre', { ascending: true })
+        .order('vigente_desde', { ascending: false });
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Tarifa[];
     },
   });
 }
 
-export function useCreateTarifa(): UseMutationResult<Tarifa, Error, TarifaInput> {
-  const queryClient = useQueryClient();
-  const { club } = useSession();
+// ─── Crear franja nueva ──────────────────────────────────────────────
 
-  return useMutation<Tarifa, Error, TarifaInput>({
+export interface CrearTarifaInput {
+  nombre: string;
+  monto: number;
+  desde_hora?: string | null;
+  hasta_hora?: string | null;
+  dias_semana?: number[] | null;
+  prioridad?: number;
+  /** YYYY-MM-DD. Opcional, default 'hoy' server-side. Permite fecha futura. */
+  vigente_desde?: string | null;
+}
+
+/**
+ * Crea una franja nueva via RPC `fn_crear_tarifa` (0029).
+ * La RPC se encarga del patrón autoreferente (lineage_id = id propio).
+ */
+export function useCrearTarifa(): UseMutationResult<
+  Tarifa,
+  Error,
+  CrearTarifaInput
+> {
+  const queryClient = useQueryClient();
+  return useMutation<Tarifa, Error, CrearTarifaInput>({
     mutationFn: async (input) => {
-      if (!club) {
+      const { data, error } = await supabase.rpc('fn_crear_tarifa', {
+        p_nombre: input.nombre,
+        p_monto: input.monto,
+        p_desde_hora: input.desde_hora ?? null,
+        p_hasta_hora: input.hasta_hora ?? null,
+        p_dias_semana: input.dias_semana ?? null,
+        p_prioridad: input.prioridad ?? 0,
+        p_vigente_desde: input.vigente_desde ?? null,
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      if (!data) {
         throw new Error(
-          'No pudimos identificar tu club. Refrescá la página e intentá nuevamente.',
+          'La función respondió sin datos. Refrescá la lista de tarifas.',
         );
       }
-      const { data, error } = await supabase
-        .from('tarifas')
-        .insert({ ...input, club_id: club.id })
-        .select()
-        .single();
-      if (error) throw new Error(mapPostgrestError(error));
       return data as Tarifa;
     },
     onSuccess: () => {
@@ -64,23 +80,44 @@ export function useCreateTarifa(): UseMutationResult<Tarifa, Error, TarifaInput>
   });
 }
 
-interface UpdateTarifaArgs {
-  id: number;
-  changes: Partial<TarifaInput>;
+// ─── Cambiar precio (versionado) ─────────────────────────────────────
+
+export interface CambiarPrecioInput {
+  lineage_id: number;
+  monto_nuevo: number;
+  /** YYYY-MM-DD. Hoy o futuro. NO retroactivo. */
+  vigente_desde: string;
 }
 
-export function useUpdateTarifa(): UseMutationResult<Tarifa, Error, UpdateTarifaArgs> {
+/**
+ * Versiona el precio de un linaje via `fn_cambiar_precio_tarifa` (0029).
+ * Server-side cierra la versión actual y crea una nueva atómicamente.
+ *
+ * Errores mapeados:
+ *  - 'La fecha debe ser hoy o futura...'
+ *  - 'El precio nuevo es igual al actual...'
+ *  - 'Ya hay una versión vigente desde...' (chocaría con aumento programado)
+ *  - 'No hay versión del linaje X vigente en la fecha Y...'
+ *  - 'Solo el administrador puede cambiar precios.'
+ *  - 23P01: EXCLUDE constraint (solapamiento) — mapeado en dbErrors.
+ */
+export function useCambiarPrecioTarifa(): UseMutationResult<
+  Tarifa,
+  Error,
+  CambiarPrecioInput
+> {
   const queryClient = useQueryClient();
-
-  return useMutation<Tarifa, Error, UpdateTarifaArgs>({
-    mutationFn: async ({ id, changes }) => {
-      const { data, error } = await supabase
-        .from('tarifas')
-        .update(changes)
-        .eq('id', id)
-        .select()
-        .single();
+  return useMutation<Tarifa, Error, CambiarPrecioInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc('fn_cambiar_precio_tarifa', {
+        p_lineage_id: input.lineage_id,
+        p_monto_nuevo: input.monto_nuevo,
+        p_vigente_desde: input.vigente_desde,
+      });
       if (error) throw new Error(mapPostgrestError(error));
+      if (!data) {
+        throw new Error('La función respondió sin datos.');
+      }
       return data as Tarifa;
     },
     onSuccess: () => {
@@ -89,13 +126,50 @@ export function useUpdateTarifa(): UseMutationResult<Tarifa, Error, UpdateTarifa
   });
 }
 
-export function useDeleteTarifa(): UseMutationResult<void, Error, number> {
-  const queryClient = useQueryClient();
+// ─── Actualizar metadata (nombre/franja/días/prioridad/activa) ──────
 
-  return useMutation<void, Error, number>({
-    mutationFn: async (id) => {
-      const { error } = await supabase.from('tarifas').delete().eq('id', id);
+export interface ActualizarMetadataInput {
+  lineage_id: number;
+  nombre?: string;
+  desde_hora?: string | null;
+  hasta_hora?: string | null;
+  dias_semana?: number[] | null;
+  prioridad?: number;
+  activa?: boolean;
+  /** Forzar a NULL la franja horaria (`desde_hora` y `hasta_hora`). */
+  clear_franja_horaria?: boolean;
+  /** Forzar a NULL los días de la semana. */
+  clear_dias_semana?: boolean;
+}
+
+/**
+ * Actualiza metadata de TODAS las versiones del linaje via
+ * `fn_actualizar_metadata_tarifa` (0029). NO toca vigencia ni monto.
+ */
+export function useActualizarMetadataTarifa(): UseMutationResult<
+  number, // cantidad de versiones afectadas
+  Error,
+  ActualizarMetadataInput
+> {
+  const queryClient = useQueryClient();
+  return useMutation<number, Error, ActualizarMetadataInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc(
+        'fn_actualizar_metadata_tarifa',
+        {
+          p_lineage_id: input.lineage_id,
+          p_nombre: input.nombre ?? null,
+          p_desde_hora: input.desde_hora ?? null,
+          p_hasta_hora: input.hasta_hora ?? null,
+          p_dias_semana: input.dias_semana ?? null,
+          p_prioridad: input.prioridad ?? null,
+          p_activa: input.activa ?? null,
+          p_clear_franja_horaria: input.clear_franja_horaria ?? false,
+          p_clear_dias_semana: input.clear_dias_semana ?? false,
+        },
+      );
       if (error) throw new Error(mapPostgrestError(error));
+      return (data ?? 0) as number;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: TARIFAS_QUERY_KEY });
