@@ -63,15 +63,103 @@ preguntar antes de inventar.
   bloques encadenados. Pendiente de definir e implementar; afecta el
   algoritmo de generación de bloques "Disponible" en la grilla.
 
-- **BUG DE LAYOUT EN LA GRILLA** (pendiente de arreglar): tras el
-  rediseño visual, algunos bloques de reserva se solapan entre sí o con
-  los "Disponible", y los "Disponible" no calzan exactamente con los
-  huecos libres. Causa probable: desfase del cálculo de posición
+- **BUG DE LAYOUT EN LA GRILLA** (pendiente de arreglar, alto impacto):
+  tras el rediseño visual, algunos bloques de reserva se solapan entre
+  sí o con los "Disponible", y los "Disponible" no calzan exactamente
+  con los huecos libres. Causa probable: desfase del cálculo de posición
   vertical tras bajar la altura de slot de 40 a 36px, o
   reservas/clases/disponibles usando bases de cálculo distintas.
   Pendiente: que todos los bloques usen el mismo sistema de posición
-  (minutos desde apertura × altura de slot). El usuario va a mandar los
-  bloques finales para resolverlo.
+  (minutos desde apertura × altura de slot). **Diagnosticar y resolver
+  ANTES de tocar la grilla en el Bloque 3 de Turnos Fijos** — sin esto
+  arreglado, agregar bloques nuevos (badge fijo, slot comprometido)
+  amplifica el problema.
+
+## Estado del módulo Turnos Fijos
+
+### Hecho y probado (migraciones aplicadas y commiteadas)
+
+**0029 — Tarifas con vigencia temporal.** Refactor para versionado de
+precios: `lineage_id` agrupa versiones de la misma franja a lo largo
+del tiempo, `vigente_desde` / `vigente_hasta` definen el rango, EXCLUDE
+constraint server-side garantiza no-solapamiento por linaje. Soporta
+**aumentos programados con fecha futura** (cierra versión vigente +
+crea nueva atómicamente). `fn_resolver_tarifa(fecha, hora)` (SECURITY
+INVOKER) resuelve el precio vigente A LA FECHA del slot — la base de
+todo el modelo. Frontend de tarifas rediseñado: vista por linaje con
+precio vigente + aviso de aumentos programados, "Cambiar precio" con
+fecha, drawer de historial, editar metadata afecta todas las versiones
+del linaje.
+
+**0030 — Turnos fijos.** Tabla `turnos_fijos` (titular jugador o nombre
+libre, día de semana, hora, duración, vigencia, activo) + columna
+`reservas.turno_fijo_id` (FK ON DELETE SET NULL) + 4 RPCs:
+`fn_crear_turno_fijo`, `fn_actualizar_turno_fijo`, `fn_cancelar_turno_fijo`,
+`fn_materializar_turnos_fijos`. La materialización RESUELVE TARIFA POR
+FECHA de cada reserva (respeta aumentos programados de la 0029), es
+**idempotente** (CHECK A en código + UNIQUE parcial en DB), captura
+choques con reservas sueltas vía `EXCEPTION WHEN exclusion_violation`
+sin pisarlas, saltea solapes con clases. Devuelve **5 contadores**:
+`reservas_creadas`, `slots_ocupados_por_reserva_suelta`,
+`slots_ocupados_por_clase`, `slots_sin_tarifa`, `slots_ya_materializados`.
+Validación al crear turno fijo: **rechaza si no hay tarifa configurada
+para ese slot**. Frontend Parte 1: pantalla `/turnos-fijos`, sidebar
+acordeón Reservas, dialog de alta con botón **"Guardar y seguir
+agregando"** (conserva cancha+día+duración+fechas, resetea cliente+hora),
+modal de resultado con los 5 contadores.
+
+**0031 — Bloqueo de slot en `fn_crear_reserva`.** Una reserva suelta
+NO puede pisar el slot de un turno fijo activo vigente. Cambio
+quirúrgico: solo +1 variable y +1 bloque de validación, resto idéntico
+a la 0005. Aplica SOLO a reservas sueltas — la materialización hace
+INSERT directo a la tabla y NO pasa por la RPC, por lo que no se ve
+afectada. Mensaje accionable con nombre del titular.
+
+**0032 — `fn_eliminar_turno_fijo`.** Cancela reservas pendientes
+FUTURAS asociadas, preserva las cobradas/jugadas (quedan sin link
+gracias al ON DELETE SET NULL de la 0030 pero NO se borran), borra el
+turno fijo y libera el slot del UNIQUE parcial. Atómica, gate admin.
+Distinto de "desactivar" (que solo hace `activo=FALSE`).
+
+**0033 — FIX policy DELETE faltante.** La 0030 definió policies para
+SELECT/INSERT/UPDATE pero NO para DELETE. Como `fn_eliminar_turno_fijo`
+es SECURITY INVOKER, el DELETE se filtraba silenciosamente por RLS
+(0 filas, sin error) y el turno fijo NO se borraba. Agregada policy
+`turnos_fijos_delete_admin` (solo admin del club) + GRANT DELETE
+explícito. Decisión: INVOKER + policy específica (defensa en capas)
+en lugar de DEFINER (coherencia con el patrón del proyecto + policy
+auditable en `pg_policies`).
+
+**Frontend Bloque 2.** Eliminar turno fijo desde dropdown "Más
+acciones" (`MoreVertical`) — separado de Editar/Desactivar para evitar
+clicks accidentales, estilo destructive. Dialog con advertencias claras
+(irreversible + cancela pendientes futuras + preserva cobradas + libera
+el slot). Materialización **configurable** con selector de semanas
+4/8/12/16 (default 12) reemplazando el botón fijo anterior.
+
+### Pendientes del módulo
+
+**Parte 3 — Proyección financiera (NO toca grilla, bajo riesgo).**
+Hook `useProyeccionTurnosFijos(anio, mes)` en `src/features/finanzas/hooks/`
+que calcula, para cada turno fijo activo, las ocurrencias del mes ×
+tarifa vigente a la fecha de cada ocurrencia (reusa `resolverTarifa.ts`
+client-side) = ingreso mensual proyectado. KPI en `/turnos-fijos`
+(reemplaza el contador simple por la proyección $) + sección "Ingresos
+recurrentes proyectados" en `/finanzas` (separada del Resultado del
+Período, mira hacia adelante, NO se mezcla con lo cobrado). Devuelve
+estructura `{ turnos: [...], total_mensual, cantidad_turnos_activos,
+turnos_sin_tarifa }` para alertar si algún slot quedó sin tarifa.
+
+**Bloque 3 — Capa visual del bloqueo (DELICADO, toca la grilla).**
+Badge "🔁 Fijo" en `BloqueReserva` para reservas con `turno_fijo_id`.
+Mostrar el **slot comprometido por turno fijo no materializado como
+ocupado en la grilla** (bloque tipo "Reservado · Turno fijo · {titular}",
+estilo distinto al reservado materializado, clickeable → link a
+`/turnos-fijos`). Banner en `DetalleReservaDialog` con info del turno
+fijo + link. **ANTES de empezar: diagnosticar y resolver el bug de
+layout existente de la grilla** (ver sección anterior). Sin esto
+arreglado, agregar bloques nuevos amplifica el problema. Hacer con
+cabeza fresca, en sesión dedicada.
 
 ## Visión de producto: el turno como cuenta (tipo mesa de restaurante)
 
@@ -200,27 +288,106 @@ si es transversal), para calcular rentabilidad por unidad.
   precio − costo al momento de la venta (snapshot, como ya hacemos con el
   precio).
 - Rentabilidad POR UNIDAD DE NEGOCIO (no solo global).
-- Clases = ingreso puro (sin costo de profesor).
+- Clases = ingreso por **alquiler de cancha al profesor** (ver
+  "Replanteo: Clases como alquiler de cancha" en Deudas funcionales
+  prioritarias). El modelo actual mapea el ingreso a la unidad "Clases"
+  separada de "Canchas" — está desalineado y hay que corregirlo.
 
 **ORDEN DE CONSTRUCCIÓN DEFINIDO**:
 
-1. Costo en productos (cerrar buffet con su margen).
-2. Módulo Gastos (gastos fijos categorizados + etiquetables por unidad).
+1. Costo en productos (cerrar buffet con su margen). ✓ hecho
+2. Módulo Gastos (gastos fijos categorizados + etiquetables por unidad). ✓ hecho
 3. Módulo Caja (unifica todos los ingresos + gastos en un flujo de
-   dinero).
-4. Reportes / EERR por unidad de negocio.
+   dinero). ✓ hecho
+4. Reportes / EERR por unidad de negocio. **Frontend básico hecho;
+   pendiente rediseño completo (ver Deudas funcionales prioritarias).**
 
 ## Deudas funcionales prioritarias
 
-**🔴 PRIORITARIO — Cancelar aumento programado de tarifa**: la migración 0029
-introduce el flujo "Cambiar precio" con aumentos a futuro (ej. "desde el 1/06
-sube a $52.000"). Si un admin lo carga por error, hoy la única forma de
-revertirlo es vía SQL manual (DELETE de la versión futura + UPDATE
-vigente_hasta=NULL de la versión actual). Un admin no técnico no debería
-tener que pasar por soporte para deshacer un aumento mal cargado. Construir
-`fn_cancelar_aumento_programado` + botón "Cancelar este aumento" en la
-pantalla de Tarifas como próxima iteración después del módulo de Turnos
-fijos. No es deuda que duerme.
+**🔴 PRIORITARIO — Cancelar aumento programado de tarifa**: la migración
+0029 introduce el flujo "Cambiar precio" con aumentos a futuro (ej.
+"desde el 1/06 sube a $52.000"). Si un admin lo carga por error, hoy
+la única forma de revertirlo es vía SQL manual (DELETE de la versión
+futura + UPDATE vigente_hasta=NULL de la versión actual). Un admin no
+técnico no debería tener que pasar por soporte para deshacer un aumento
+mal cargado. Construir `fn_cancelar_aumento_programado` + botón
+"Cancelar este aumento" en la pantalla de Tarifas. No es deuda que
+duerme.
+
+**🟠 REPLANTEO: Clases como alquiler de cancha**: confirmado con el
+dueño que en este club el profesor cobra a los alumnos directamente
+(el club NO recibe ese dinero). El club solo cobra el **alquiler de la
+cancha** donde se da la clase. El modelo actual (`clases.precio` como
+número fijo, ingreso mapeado a unidad "Clases" separada) está
+desalineado con la realidad del negocio. Plan acordado:
+
+  1. Renombrar UI "Precio" → "Alquiler de cancha por clase".
+  2. Mapear el ingreso de `clase_cobros` a la unidad **"Canchas"** en
+     `useResumenFinanciero` y el resto del módulo financiero (no a
+     "Clases" como hoy).
+  3. Evaluar reemplazar `clases.precio` por `fn_resolver_tarifa(fecha,
+     hora_inicio)` para consistencia con el modelo de tarifas
+     versionadas (0029). Si la tarifa de cancha cambia, el alquiler de
+     las clases que ocurren en ese horario se actualiza automático.
+
+  Conceptualmente, **una clase ES un turno fijo del profesor**. NO se
+  decidió fusionar las entidades (camino C descartado por invasivo) —
+  solo alinear semánticamente. Las clases siguen siendo entidad propia.
+
+**🟠 PLANIFICACIÓN DE PROFESORES**: cargar todas las clases de los
+profes de una vez (equivalente a turnos fijos pero para clases) para
+estimar ocupación futura del club y proyección financiera del alquiler
+recurrente al profesor. UX similar a la carga masiva de turnos fijos
+("Guardar y seguir agregando"). Va junto con el replanteo de Clases.
+
+**🟠 SIMULADOR DE ALZA DE INGRESOS**: "si subo X% las tarifas, cuánto
+más facturo" sumando turnos fijos + alquiler de clases proyectados con
+tarifa hipotética. Se apoya en `useProyeccionTurnosFijos` (Parte 3 de
+Turnos Fijos, pendiente) reusando el mismo cálculo con un parámetro de
+"factor de ajuste" o "tarifa hipotética por linaje". UI: simulador en
+`/finanzas` o `/configuracion/tarifas`. NO modifica datos, solo
+proyección de cálculo.
+
+**🟠 REDISEÑO MÓDULO FINANCIERO** (visión "Club Operating System" por
+fases): el frontend financiero actual quedó básico. Pendiente:
+
+  - Centros de ingreso vs estructura: que las unidades de tipo
+    `estructura` NO aparezcan como opción al cargar ingresos (solo
+    para gastos). Hoy el form mezcla todas.
+  - **Gastos recurrentes esperados con alarmas**: sistema proactivo
+    que avisa si falta cargar un gasto habitual (ej. "El alquiler del
+    local no se cargó este mes"). Requiere modelar "gasto esperado"
+    + recordatorio.
+  - **EERR con capas correctas**: ingreso − costo de lo vendido
+    (`venta_items.costo_unitario` ya existe, NO recargar) − gastos
+    directos por unidad − estructura = resultado neto. Hoy el EERR
+    está armado pero la presentación es básica.
+  - Rediseño visual del hub `/finanzas` con la mirada de un experto
+    financiero (no del dueño operativo).
+
+## Deudas técnicas
+
+- **Trigger BEFORE INSERT en `reservas`** como defensa en profundidad
+  del bloqueo de slot de turno fijo (0031). Hoy la validación vive
+  solo en `fn_crear_reserva`. Como el frontend SIEMPRE usa la RPC,
+  cubre el 100% del caso real, pero un INSERT directo desde Supabase JS
+  (caso edge, no es nuestro flujo) lo evadiría. Trigger BEFORE INSERT
+  que distinga por `NEW.turno_fijo_id IS NULL` (suelta, valida) vs NOT
+  NULL (materialización, no toca) sería la defensa última.
+
+- **Mismo patrón de vigencia temporal** (lineage_id + vigente_desde/
+  hasta + EXCLUDE) para `clases.precio` y futuras `membresias`. Hoy
+  solo `tarifas` tiene el modelo versionado. Cuando se replantee
+  Clases como alquiler de cancha, evaluar si conviene moverlas
+  directamente a `fn_resolver_tarifa` (que ya está versionado) o
+  versionar `clases.precio` independientemente. Membresías nace con
+  vigencia temporal desde el inicio.
+
+- **LIMPIAR data de prueba** que quedó en la base por ensayos en la
+  app durante el desarrollo. Ej. una reserva en estado "pagada"
+  huérfana en cancha 1 a las 19:00, posibles turnos fijos de prueba,
+  cobros de clases de prueba. Limpiar con cuidado identificando qué
+  es de prueba vs qué es real (consultar al dueño si dudás).
 
 ## Deudas de seguridad detectadas
 
@@ -230,4 +397,6 @@ schema public en este proyecto. La barrera efectiva siempre fue la RLS
 (policies), real y suficiente. Para defensa en capas, conviene auditar
 todas las tablas y REVOKE los permisos de escritura que no correspondan a
 authenticated. En la 0019 se revocó explícitamente en modulos/planes/
-plan_modulos/plataforma_admins.
+plan_modulos/plataforma_admins. La 0029 también revocó DELETE en tarifas.
+La 0033 sumó GRANT DELETE explícito en turnos_fijos (admin-only por
+policy). El resto pendiente.

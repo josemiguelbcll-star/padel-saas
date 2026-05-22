@@ -64,7 +64,7 @@ export function useUpdateHorariosClub(): UseMutationResult<
   HorariosClub
 > {
   const queryClient = useQueryClient();
-  const { club } = useSession();
+  const { club, updateClub } = useSession();
 
   return useMutation<HorariosClub, Error, HorariosClub>({
     mutationFn: async (input) => {
@@ -82,8 +82,13 @@ export function useUpdateHorariosClub(): UseMutationResult<
       if (error) throw new Error(mapPostgrestError(error));
       return data as HorariosClub;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Invalida la query dedicada de HorariosPage.
       void queryClient.invalidateQueries({ queryKey: CLUB_HORARIOS_QUERY_KEY });
+      // Sincroniza el club EN SESIÓN — sin esto, cualquier componente
+      // que lea `session.club.hora_apertura/cierre/duracion_turno_default`
+      // queda con datos stale hasta el próximo full reload.
+      updateClub(data);
     },
   });
 }
