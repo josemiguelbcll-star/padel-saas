@@ -50,6 +50,13 @@ export interface ResumenFinanciero {
    * Gastos directos a unidades operativas (canchas/clases/buffet/shop).
    * En el EERR corporativo se muestran como "Gastos directos". Mantiene
    * el nombre histórico `gastos_operativos` por retrocompat (dashboard).
+   *
+   * EXCLUYE las categorías con `es_mercaderia=TRUE`: el costo de
+   * mercadería ya entra al EERR vía `costos_directos` (CMV = SUM de
+   * venta_items.costo_unitario × cantidad). Si también se incluyera
+   * acá, habría doble conteo (se restaría al comprar y al vender). El
+   * dinero de la compra es flujo de caja / movimiento de inventario,
+   * no resultado del EERR hasta que la mercadería se venda.
    */
   gastos_operativos: number;
   /** Gastos de estructura (unidad tipo='estructura'). */
@@ -78,10 +85,25 @@ export interface ResumenFinanciero {
   resultado_operativo: number;
   /** % margen sobre ingresos. NaN si ingresos = 0. */
   margen_porcentaje: number;
-  /** Top categorías de gasto del período (ordenadas DESC). */
+  /**
+   * Top categorías de gasto del período (ordenadas DESC). EXCLUYE las
+   * categorías con `es_mercaderia=TRUE` (ver `gastos_operativos`): el
+   * top responde "¿en qué se va la plata del EERR?" — mercadería no
+   * es gasto del EERR (su impacto va por CMV al vender).
+   */
   top_gastos_categoria: GastoCategoria[];
   /** Movimientos recientes mixtos (últimos 15). */
   movimientos_recientes: MovimientoReciente[];
+  /**
+   * Total de compras de mercadería del período (suma de gastos cuya
+   * categoría tiene `es_mercaderia=TRUE`). NO entra en ninguna capa
+   * del EERR — es flujo de caja / movimiento de inventario. El costo
+   * de mercadería se computa en el EERR al VENDER, vía
+   * `costos_directos` (CMV de venta_items.costo_unitario). Este campo
+   * queda disponible para banners informativos en /finanzas y para
+   * reportes futuros de flujo de caja.
+   */
+  compras_mercaderia_periodo: number;
 }
 
 export const RESUMEN_FINANCIERO_QUERY_KEY = (anio: number, mes: number) =>
@@ -138,10 +160,20 @@ export function useResumenFinanciero(
             .eq('activo', true)
             .gte('fecha', desde)
             .lte('fecha', hasta),
-          // 5. gastos del mes (devengado = fecha_gasto).
+          // 5. gastos del mes (devengado = fecha_gasto). Embed de
+          //    categorias_gasto.es_mercaderia: los gastos cuya categoría
+          //    está marcada como mercadería se EXCLUYEN del EERR (su
+          //    costo va por CMV vía venta_items, evitar doble conteo).
+          //    El embed many-to-one llega como objeto único en runtime;
+          //    la FK NOT NULL + RESTRICT (0027) garantiza que nunca es
+          //    null para gastos vigentes.
           supabase
             .from('gastos')
-            .select('id, monto, fecha_gasto, categoria_nombre, unidad_nombre, unidad_tipo, proveedor')
+            .select(
+              `id, monto, fecha_gasto, categoria_nombre, unidad_nombre,
+               unidad_tipo, proveedor,
+               categorias_gasto:categoria_id (es_mercaderia)`,
+            )
             .eq('activo', true)
             .gte('fecha_gasto', desde)
             .lte('fecha_gasto', hasta)
@@ -236,7 +268,9 @@ export function useResumenFinanciero(
       if (costoShop > 0) costos_por_linea.push({ linea: 'shop', monto: costoShop });
 
       // ── Gastos por unidad/categoría ────────────────────────────────
-      const gastos = (gastosRes.data ?? []) as Array<{
+      // Embed many-to-one llega como objeto único en runtime aunque
+      // PostgREST lo tipe como array (patrón estándar del codebase).
+      type GastoRow = {
         id: number;
         monto: number;
         fecha_gasto: string;
@@ -244,15 +278,29 @@ export function useResumenFinanciero(
         unidad_nombre: string;
         unidad_tipo: TipoUnidad;
         proveedor: string | null;
-      }>;
+        categorias_gasto: { es_mercaderia: boolean } | null;
+      };
+      const gastos = (gastosRes.data ?? []) as unknown as GastoRow[];
 
       let gastos_operativos = 0;
       let gastos_estructura = 0;
       let gastos_financieros = 0;
       let gastos_otros = 0;
+      let compras_mercaderia_periodo = 0;
       const porCategoria = new Map<string, GastoCategoria>();
       for (const g of gastos) {
         const monto = Number(g.monto);
+        const esMercaderia = g.categorias_gasto?.es_mercaderia === true;
+
+        if (esMercaderia) {
+          // Gastos de mercadería: NO entran en ninguna capa del EERR
+          // ni en el top de categorías. Su costo se computa al vender
+          // (CMV vía venta_items.costo_unitario). Acá solo acumulamos
+          // el total informativo para flujo de caja futuro.
+          compras_mercaderia_periodo += monto;
+          continue;
+        }
+
         if (
           g.unidad_tipo === 'canchas' ||
           g.unidad_tipo === 'clases' ||
@@ -366,6 +414,7 @@ export function useResumenFinanciero(
         margen_porcentaje,
         top_gastos_categoria,
         movimientos_recientes,
+        compras_mercaderia_periodo,
       };
     },
   });

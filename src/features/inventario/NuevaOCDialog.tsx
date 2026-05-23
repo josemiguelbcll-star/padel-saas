@@ -393,8 +393,13 @@ export function NuevaOCDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      {/*
+        Layout sticky-header + scroll-body + sticky-footer. Mismo patrón
+        que DetalleReservaDialog: el botón principal del footer queda
+        siempre visible aunque el body scrollee.
+      */}
+      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-6 pb-4 pt-6">
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" aria-hidden="true" />
             {isEdit ? `Editar OC #${initialValue?.id}` : 'Nueva orden de compra'}
@@ -407,7 +412,7 @@ export function NuevaOCDialog({
         </DialogHeader>
 
         {loadingDetalle ? (
-          <div className="space-y-2" aria-busy="true">
+          <div className="flex-1 space-y-2 overflow-y-auto px-6 py-4" aria-busy="true">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -416,99 +421,109 @@ export function NuevaOCDialog({
             ))}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            <CabeceraSection
-              state={state}
-              proveedores={proveedoresActivos}
-              proveedoresLoading={proveedoresQuery.isLoading}
-              disabled={pending}
-              onProveedorChange={(id) => setField('proveedor_id', id)}
-              onLineaClick={handleLineaClick}
-              onFechaChange={(v) => setField('fecha_oc', v)}
-            />
-
-            <ItemsSection
-              items={state.items}
-              calcs={itemCalcs}
-              linea={state.linea}
-              productosDisponibles={productosDisponibles}
-              productosById={productosById}
-              productosLoading={productosQuery.isLoading}
-              idsYaUsados={idsYaUsados}
-              disabled={pending}
-              onUpdateItem={updateItem}
-              onToggleSuelta={toggleSuelta}
-              onAddItem={addItem}
-              onRemoveItem={removeItem}
-            />
-
-            <CondicionPagoSection
-              state={state}
-              disabled={pending}
-              onCondicionPagoChange={handleCondicionPagoChange}
-              onFechaCompromisoChange={(v) => setField('fecha_compromiso_pago', v)}
-            />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="oc-obs" className="text-xs">
-                Observaciones <span className="text-muted-foreground">(opcional)</span>
-              </Label>
-              <textarea
-                id="oc-obs"
-                value={state.observaciones}
-                onChange={(e) => setField('observaciones', e.target.value)}
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-1 flex-col overflow-hidden"
+            noValidate
+          >
+            {/* Body scrolleable */}
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
+              <CabeceraSection
+                state={state}
+                proveedores={proveedoresActivos}
+                proveedoresLoading={proveedoresQuery.isLoading}
                 disabled={pending}
-                rows={2}
-                maxLength={500}
-                className={cn(
-                  'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  'disabled:cursor-not-allowed disabled:opacity-50',
-                )}
+                onProveedorChange={(id) => setField('proveedor_id', id)}
+                onLineaClick={handleLineaClick}
+                onFechaChange={(v) => setField('fecha_oc', v)}
               />
+
+              <ItemsSection
+                items={state.items}
+                calcs={itemCalcs}
+                linea={state.linea}
+                productosDisponibles={productosDisponibles}
+                productosById={productosById}
+                productosLoading={productosQuery.isLoading}
+                idsYaUsados={idsYaUsados}
+                disabled={pending}
+                onUpdateItem={updateItem}
+                onToggleSuelta={toggleSuelta}
+                onAddItem={addItem}
+                onRemoveItem={removeItem}
+              />
+
+              <CondicionPagoSection
+                state={state}
+                disabled={pending}
+                onCondicionPagoChange={handleCondicionPagoChange}
+                onFechaCompromisoChange={(v) => setField('fecha_compromiso_pago', v)}
+              />
+
+              <div className="space-y-1.5">
+                <Label htmlFor="oc-obs" className="text-xs">
+                  Observaciones <span className="text-muted-foreground">(opcional)</span>
+                </Label>
+                <textarea
+                  id="oc-obs"
+                  value={state.observaciones}
+                  onChange={(e) => setField('observaciones', e.target.value)}
+                  disabled={pending}
+                  rows={2}
+                  maxLength={500}
+                  className={cn(
+                    'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'disabled:cursor-not-allowed disabled:opacity-50',
+                  )}
+                />
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                >
+                  {error}
+                </div>
+              )}
             </div>
 
-            {error && (
-              <div
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-              >
-                {error}
+            {/* Footer fijo con total + botones */}
+            <div className="shrink-0 border-t border-border bg-background px-6 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Total NETO de la OC
+                  </p>
+                  <p className="text-2xl font-bold tabular-nums text-foreground">
+                    {fmtMoney(totalNeto)}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleOpenChange(false)}
+                    disabled={pending}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={pending || submitDisabled}
+                    title={submitDisabledReason ?? undefined}
+                  >
+                    {pending
+                      ? isEdit
+                        ? 'Guardando…'
+                        : 'Creando…'
+                      : isEdit
+                        ? 'Guardar cambios'
+                        : 'Crear OC'}
+                  </Button>
+                </div>
               </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Total NETO de la OC
-                </p>
-                <p className="text-2xl font-bold tabular-nums text-foreground">
-                  {fmtMoney(totalNeto)}
-                </p>
-              </div>
-              <DialogFooter className="m-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleOpenChange(false)}
-                  disabled={pending}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={pending || submitDisabled}
-                  title={submitDisabledReason ?? undefined}
-                >
-                  {pending
-                    ? isEdit
-                      ? 'Guardando…'
-                      : 'Creando…'
-                    : isEdit
-                      ? 'Guardar cambios'
-                      : 'Crear OC'}
-                </Button>
-              </DialogFooter>
             </div>
           </form>
         )}

@@ -11,7 +11,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -402,8 +401,18 @@ export function RecibirOCDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
+      {/*
+        Layout sticky-header + scroll-body + sticky-footer (mismo patrón
+        que DetalleReservaDialog):
+        - max-h-[90vh] cap al viewport (deja margen del browser chrome).
+        - flex flex-col + gap-0 + p-0 reescriben el grid+padding default;
+          el padding lo pone cada zona.
+        - overflow-hidden evita que el contenido se desborde del rounded.
+        El botón "Recibir y registrar" queda en el footer fijo, siempre
+        visible aunque el body scrollee.
+      */}
+      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-6 pb-4 pt-6">
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-4 w-4 text-primary" aria-hidden="true" />
             Recibir OC {compraId !== null ? `#${compraId}` : ''}
@@ -418,7 +427,7 @@ export function RecibirOCDialog({
         </DialogHeader>
 
         {loadingDetalle && (
-          <div className="space-y-2" aria-busy="true">
+          <div className="flex-1 space-y-2 overflow-y-auto px-6 py-4" aria-busy="true">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -429,96 +438,108 @@ export function RecibirOCDialog({
         )}
 
         {detalleQuery.error && (
-          <div
-            role="alert"
-            className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-          >
-            {detalleQuery.error.message}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              {detalleQuery.error.message}
+            </div>
           </div>
         )}
 
         {compra && (
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            <OCSummary
-              compra={compra}
-              proveedorNombre={proveedorNombre}
-              condicionFiscal={condicionFiscal}
-            />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="rec-fecha" className="text-xs">
-                Fecha de recepción <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="rec-fecha"
-                type="date"
-                value={state.fecha_recepcion}
-                onChange={(e) => setField('fecha_recepcion', e.target.value)}
-                disabled={pending}
-                required
-                className="max-w-xs"
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-1 flex-col overflow-hidden"
+            noValidate
+          >
+            {/* Body scrolleable */}
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
+              <OCSummary
+                compra={compra}
+                proveedorNombre={proveedorNombre}
+                condicionFiscal={condicionFiscal}
               />
+
+              <div className="space-y-1.5">
+                <Label htmlFor="rec-fecha" className="text-xs">
+                  Fecha de recepción <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="rec-fecha"
+                  type="date"
+                  value={state.fecha_recepcion}
+                  onChange={(e) => setField('fecha_recepcion', e.target.value)}
+                  disabled={pending}
+                  required
+                  className="max-w-xs"
+                />
+              </div>
+
+              <ItemsSection
+                items={state.items}
+                calcs={itemCalcs}
+                productosDisponibles={productosDisponibles}
+                productosById={productosById}
+                productosLoading={productosQuery.isLoading}
+                idsYaUsados={idsYaUsados}
+                condicionFiscal={condicionFiscal}
+                disabled={pending}
+                onUpdateItem={updateItem}
+                onToggleSuelta={toggleSuelta}
+                onAddItem={addItem}
+                onRemoveItem={removeItem}
+              />
+
+              <ComprobanteSection
+                state={state}
+                disabled={pending}
+                onTipoChange={(v) => setField('comprobante_tipo', v)}
+                onNumeroChange={(v) => setField('comprobante_numero', v)}
+              />
+
+              <PagoSection
+                state={state}
+                efectivoSinCaja={efectivoSinCaja}
+                disabled={pending}
+                onTogglePagado={(v) => setField('pagado', v)}
+                onFechaChange={(v) => setField('fecha_pago', v)}
+                onMedioChange={(v) => setField('medio_pago', v)}
+              />
+
+              {error && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                >
+                  {error}
+                </div>
+              )}
             </div>
 
-            <ItemsSection
-              items={state.items}
-              calcs={itemCalcs}
-              productosDisponibles={productosDisponibles}
-              productosById={productosById}
-              productosLoading={productosQuery.isLoading}
-              idsYaUsados={idsYaUsados}
-              condicionFiscal={condicionFiscal}
-              disabled={pending}
-              onUpdateItem={updateItem}
-              onToggleSuelta={toggleSuelta}
-              onAddItem={addItem}
-              onRemoveItem={removeItem}
-            />
-
-            <ComprobanteSection
-              state={state}
-              disabled={pending}
-              onTipoChange={(v) => setField('comprobante_tipo', v)}
-              onNumeroChange={(v) => setField('comprobante_numero', v)}
-            />
-
-            <PagoSection
-              state={state}
-              efectivoSinCaja={efectivoSinCaja}
-              disabled={pending}
-              onTogglePagado={(v) => setField('pagado', v)}
-              onFechaChange={(v) => setField('fecha_pago', v)}
-              onMedioChange={(v) => setField('medio_pago', v)}
-            />
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-              >
-                {error}
+            {/* Footer fijo con total + botones */}
+            <div className="shrink-0 border-t border-border bg-background px-6 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <TotalesBox totales={totales} />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleOpenChange(false)}
+                    disabled={pending}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={pending || submitDisabled}
+                    title={submitDisabledReason ?? undefined}
+                  >
+                    {pending ? 'Registrando…' : 'Recibir y registrar'}
+                  </Button>
+                </div>
               </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-              <TotalesBox totales={totales} />
-              <DialogFooter className="m-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleOpenChange(false)}
-                  disabled={pending}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={pending || submitDisabled}
-                  title={submitDisabledReason ?? undefined}
-                >
-                  {pending ? 'Registrando…' : 'Recibir y registrar'}
-                </Button>
-              </DialogFooter>
             </div>
           </form>
         )}
