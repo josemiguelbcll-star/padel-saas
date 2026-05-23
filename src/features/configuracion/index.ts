@@ -8,5 +8,6 @@ export { TarifasConfigPage } from './tarifas/TarifasConfigPage';
 export { ProfesoresPage } from './profesores/ProfesoresPage';
 export { ClasesPage } from './clases/ClasesPage';
 export { ProductosPage } from './productos/ProductosPage';
+export { ProveedoresPage } from './proveedores/ProveedoresPage';
 export { UnidadesPage } from './finanzas/UnidadesPage';
 export { CategoriasGastoPage } from './finanzas/CategoriasGastoPage';

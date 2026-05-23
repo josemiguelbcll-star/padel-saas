@@ -980,3 +980,38 @@ export interface ResultadoMaterializacion {
 export interface ResultadoCancelacionTurnoFijo {
   reservas_canceladas: number;
 }
+
+
+// ============================================================================
+// Migración 0038 — Proveedores (catálogo previo al módulo de compras)
+// ============================================================================
+
+/**
+ * Proveedor del club. Solo `nombre` es obligatorio; el resto de los
+ * campos son opcionales (NULL en DB, string vacío en frontend que se
+ * convierte a NULL antes de guardar).
+ *
+ * `que_provee` es texto libre por diseño: un proveedor puede mezclar
+ * líneas (bebidas + algunos shop + alfajores) y forzar FK frenaría
+ * casos reales. Si en el futuro se requiere filtrar por categoría,
+ * modelar tabla N:M `proveedor_categorias` aparte.
+ *
+ * Soft-delete vía `activo`: el frontend NO expone Eliminar; usa el
+ * toggle Activo/Inactivo. La policy DELETE existe igual (admin) para
+ * coherencia con productos, pero está reservada para cuando exista la
+ * tabla `compras` + trigger anti-DELETE con dependencias.
+ */
+export interface Proveedor {
+  id: number;
+  club_id: number;
+  nombre: string;
+  cuit: string | null;
+  contacto_persona: string | null;
+  contacto_telefono: string | null;
+  contacto_email: string | null;
+  condiciones_pago: string | null;
+  que_provee: string | null;
+  notas: string | null;
+  activo: boolean;
+  fecha_alta: string;
+}

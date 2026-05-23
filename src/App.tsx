@@ -14,6 +14,7 @@ import {
   ProfesoresPage,
   ClasesPage,
   ProductosPage,
+  ProveedoresPage,
   UnidadesPage,
   CategoriasGastoPage,
 } from '@/features/configuracion';
@@ -99,6 +100,7 @@ export function App() {
           <Route path="profesores" element={<ProfesoresPage />} />
           <Route path="clases" element={<ClasesPage />} />
           <Route path="productos" element={<ProductosPage />} />
+          <Route path="proveedores" element={<ProveedoresPage />} />
           <Route path="unidades" element={<UnidadesPage />} />
           <Route path="categorias-gasto" element={<CategoriasGastoPage />} />
         </Route>
