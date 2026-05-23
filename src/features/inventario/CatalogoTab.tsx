@@ -18,6 +18,8 @@ import type { ProductoConStock, Linea } from '@/types/database';
 import { useResumenFinanciero } from '@/features/finanzas/hooks/useResumenFinanciero';
 import { useInventarioProductos } from './hooks/useInventarioProductos';
 import { AjustarStockDialog } from './AjustarStockDialog';
+import { TopVendidosSection } from './TopVendidosSection';
+import { RotacionSection } from './RotacionSection';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -200,6 +202,10 @@ export function CatalogoTab() {
           onAjustar={(p) => setAjustando(p)}
         />
       )}
+
+      {/* ── Secciones de análisis (Bloque 3, abajo de la tabla) ──── */}
+      <TopVendidosSection />
+      <RotacionSection />
 
       <AjustarStockDialog
         open={ajustando !== null}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CatalogoTab } from './CatalogoTab';
+import { MovimientosTab } from './MovimientosTab';
 
 type Tab = 'catalogo' | 'movimientos';
 
@@ -10,9 +11,10 @@ type Tab = 'catalogo' | 'movimientos';
  * Solo admin (gateada en sidebar + recomendable gatear ruta también).
  *
  * Tabs:
- *   - Catálogo: productos + stock + KPIs + ajustes manuales.
- *   - Movimientos: auditoría del libro mayor (Bloque 3, placeholder
- *     en este bloque).
+ *   - Catálogo: productos + stock + KPIs + ajustes manuales + top
+ *     vendidos del mes + rotación.
+ *   - Movimientos: auditoría del libro mayor (filtros producto / fuente
+ *     / período).
  */
 export function InventarioPage() {
   const [tab, setTab] = useState<Tab>('catalogo');
@@ -31,11 +33,7 @@ export function InventarioPage() {
 
       <TabsBar activa={tab} onChange={setTab} />
 
-      {tab === 'catalogo' ? (
-        <CatalogoTab />
-      ) : (
-        <MovimientosPlaceholder />
-      )}
+      {tab === 'catalogo' ? <CatalogoTab /> : <MovimientosTab />}
     </div>
   );
 }
@@ -82,12 +80,3 @@ function TabsBar({ activa, onChange }: TabsBarProps) {
   );
 }
 
-function MovimientosPlaceholder() {
-  return (
-    <div className="rounded-lg border border-dashed border-border p-8 text-center">
-      <p className="text-sm text-muted-foreground">
-        El libro mayor de movimientos llega en la próxima entrega del módulo.
-      </p>
-    </div>
-  );
-}

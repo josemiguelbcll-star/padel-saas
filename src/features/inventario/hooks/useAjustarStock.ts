@@ -5,7 +5,6 @@ import {
 } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
-import { INVENTARIO_PRODUCTOS_QUERY_KEY } from './useInventarioProductos';
 
 export interface AjustarStockInput {
   producto_id: number;
@@ -55,9 +54,12 @@ export function useAjustarStock(): UseMutationResult<
       return data as MovimientoStock;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: INVENTARIO_PRODUCTOS_QUERY_KEY });
-      // Si después armamos movimientos en otra pantalla, invalidar
-      // también esa queryKey acá.
+      // Invalidamos TODO el árbol ['inventario'] — los queryKeys de
+      // productos, movimientos, rotación y top vendidos cuelgan de
+      // este prefijo, así que un ajuste refresca todas las vistas
+      // que pueden haberse desfasado (stock_actual cambia → días de
+      // stock cambian; aparece un movimiento nuevo de fuente='ajuste').
+      void queryClient.invalidateQueries({ queryKey: ['inventario'] });
     },
   });
 }
