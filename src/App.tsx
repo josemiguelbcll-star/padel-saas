@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
-import { LoginPage, ProtectedRoute } from '@/features/auth';
+import { LoginPage, ProtectedRoute, useSession } from '@/features/auth';
 import { AppShell } from '@/components/layout/AppShell';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -25,6 +26,7 @@ import {
   PlataformaProtectedRoute,
   PlataformaPage,
 } from '@/features/plataforma';
+import { InventarioPage } from '@/features/inventario';
 import { ReservasPage } from '@/features/reservas';
 import { TurnosFijosPage } from '@/features/turnos-fijos';
 
@@ -75,6 +77,8 @@ export function App() {
         <Route path="reservas" element={<ReservasPage />} />
         <Route path="turnos-fijos" element={<TurnosFijosPage />} />
 
+        <Route path="inventario" element={<AdminOnlyRoute><InventarioPage /></AdminOnlyRoute>} />
+
         <Route path="jugadores" element={<JugadoresPage />} />
 
         <Route path="buffet" element={<BuffetPage />} />
@@ -103,4 +107,18 @@ export function App() {
       </Route>
     </Routes>
   );
+}
+
+/**
+ * Gate de rol para rutas admin-only (ej. /inventario). Si el caller no
+ * es admin, redirige a "/" (el sidebar también esconde el item; este
+ * gate es la red de seguridad para acceso directo por URL). La
+ * seguridad real es server-side (RLS + RPC gates).
+ */
+function AdminOnlyRoute({ children }: { children: ReactNode }) {
+  const { user } = useSession();
+  if (user?.rol !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
 }

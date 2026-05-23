@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
 import { navItems, type NavItem, type NavSubItem } from './navItems';
 
 /**
@@ -31,9 +33,15 @@ interface SidebarNavProps {
 }
 
 export function SidebarNav({ onNavigate }: SidebarNavProps) {
+  const { user } = useSession();
+  const isAdmin = user?.rol === 'admin';
+  const visibles = useMemo(
+    () => navItems.filter((item) => !(item.adminOnly && !isAdmin)),
+    [isAdmin],
+  );
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-      {navItems.map((item) => (
+      {visibles.map((item) => (
         <SidebarItem key={item.label} item={item} onNavigate={onNavigate} />
       ))}
     </nav>

@@ -28,6 +28,13 @@ export interface NavItem {
   to: string;
   icon: LucideIcon;
   disabled?: boolean;
+  /**
+   * Si TRUE, el item solo se muestra a usuarios con rol 'admin'. El
+   * filtro lo aplica el Sidebar (no se renderiza para no-admin). La
+   * seguridad real es server-side (RLS + gate en RPCs) — esto es
+   * cosmética del menú.
+   */
+  adminOnly?: boolean;
   /** Sub-items siempre expandidos debajo del padre. */
   children?: NavSubItem[];
 }
@@ -75,7 +82,7 @@ export const navItems: NavItem[] = [
       { label: 'Otros ingresos', to: '/otros-ingresos', icon: TrendingUp },
     ],
   },
-  { label: 'Inventario', to: '/inventario', icon: Package, disabled: true },
+  { label: 'Inventario', to: '/inventario', icon: Package, adminOnly: true },
   { label: 'Alarmas', to: '/alarmas', icon: Bell, disabled: true },
   { label: 'Configuración', to: '/configuracion', icon: Settings },
 ];
