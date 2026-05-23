@@ -7,7 +7,8 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(npx tsc *)",
-      "Bash(awk *)"
+      "Bash(awk *)",
+      "Bash(grep *)"
     ]
   }
 }
