@@ -5,29 +5,33 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth/useSession';
+import type { CondicionFiscalClub } from '@/types/database';
 
 export interface ActualizarMarcaClubInput {
   /**
    * Cambios a aplicar — al menos uno requerido. La RLS (admin del club)
-   * y el GRANT UPDATE column-level (nombre, color_primario_hsl, 0016)
-   * son los que protegen — el frontend no agrega validación extra de
-   * permisos, sólo de forma.
+   * y el GRANT UPDATE column-level (nombre, color_primario_hsl en 0016;
+   * logo_path en 0017; condicion_fiscal en 0042) son los que protegen
+   * — el frontend no agrega validación extra de permisos, sólo de
+   * forma.
    */
   nombre?: string;
   color_primario_hsl?: string;
+  condicion_fiscal?: CondicionFiscalClub;
 }
 
 export interface MarcaClubResult {
   nombre: string;
   color_primario_hsl: string;
+  condicion_fiscal: CondicionFiscalClub;
 }
 
 /**
- * Actualiza la marca del club (nombre y/o color). UPDATE directo via
+ * Actualiza la marca + datos fiscales del club. UPDATE directo via
  * supabase-js — la política RLS `clubes_update_solo_admin_horarios`
- * (0003) y el GRANT column-level (0016) cubren la seguridad: sólo el
- * admin del club puede UPDATEar las columnas `nombre` y
- * `color_primario_hsl`.
+ * (0003) y los GRANT column-level (0016 + 0017 + 0042) cubren la
+ * seguridad: sólo el admin del club puede UPDATEar las columnas
+ * autorizadas.
  *
  * Al éxito mergea el patch en el SessionProvider vía `updateClub`. El
  * `useEffect` de inyección de color, que está suscripto a
@@ -51,7 +55,8 @@ export function useActualizarMarcaClub(): UseMutationResult<
       }
       if (
         input.nombre === undefined &&
-        input.color_primario_hsl === undefined
+        input.color_primario_hsl === undefined &&
+        input.condicion_fiscal === undefined
       ) {
         throw new Error('No hay cambios para guardar.');
       }
@@ -59,7 +64,7 @@ export function useActualizarMarcaClub(): UseMutationResult<
         .from('clubes')
         .update(input)
         .eq('id', club.id)
-        .select('nombre, color_primario_hsl')
+        .select('nombre, color_primario_hsl, condicion_fiscal')
         .single();
       if (error) throw new Error(mapPostgrestError(error));
       return data as MarcaClubResult;
@@ -70,6 +75,7 @@ export function useActualizarMarcaClub(): UseMutationResult<
       updateClub({
         nombre: data.nombre,
         color_primario_hsl: data.color_primario_hsl,
+        condicion_fiscal: data.condicion_fiscal,
       });
     },
   });

@@ -3,8 +3,9 @@ import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CatalogoTab } from './CatalogoTab';
 import { MovimientosTab } from './MovimientosTab';
+import { ComprasTab } from './ComprasTab';
 
-type Tab = 'catalogo' | 'movimientos';
+type Tab = 'catalogo' | 'movimientos' | 'compras';
 
 /**
  * Página principal del módulo de Inventario (Nivel A, Bloque 2).
@@ -33,7 +34,9 @@ export function InventarioPage() {
 
       <TabsBar activa={tab} onChange={setTab} />
 
-      {tab === 'catalogo' ? <CatalogoTab /> : <MovimientosTab />}
+      {tab === 'catalogo' && <CatalogoTab />}
+      {tab === 'movimientos' && <MovimientosTab />}
+      {tab === 'compras' && <ComprasTab />}
     </div>
   );
 }
@@ -46,6 +49,7 @@ interface TabsBarProps {
 const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
   { value: 'catalogo', label: 'Catálogo + stock' },
   { value: 'movimientos', label: 'Movimientos' },
+  { value: 'compras', label: 'Compras' },
 ];
 
 function TabsBar({ activa, onChange }: TabsBarProps) {

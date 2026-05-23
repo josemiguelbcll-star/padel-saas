@@ -14,6 +14,7 @@ import { useSession } from '@/features/auth';
 import { useActualizarMarcaClub } from '@/features/configuracion/hooks/useActualizarMarcaClub';
 import { useSubirLogoClub } from '@/features/configuracion/hooks/useSubirLogoClub';
 import { useQuitarLogoClub } from '@/features/configuracion/hooks/useQuitarLogoClub';
+import type { CondicionFiscalClub } from '@/types/database';
 
 const nombreClubSchema = z
   .string()
@@ -100,6 +101,22 @@ export function MarcaPage() {
         err instanceof Error
           ? err.message
           : 'No pudimos guardar el color de marca.',
+      );
+    }
+  }
+
+  async function handleCambiarCondicionFiscal(
+    siguiente: CondicionFiscalClub,
+  ): Promise<void> {
+    if (siguiente === club!.condicion_fiscal) return;
+    setError(null);
+    try {
+      await mutation.mutateAsync({ condicion_fiscal: siguiente });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos guardar la condición fiscal.',
       );
     }
   }
@@ -201,6 +218,39 @@ export function MarcaPage() {
       <section className="space-y-2">
         <Label>Previa</Label>
         <PreviewBox />
+      </section>
+
+      {/* ── Datos fiscales ───────────────────────────────────────── */}
+      <section className="space-y-2">
+        <Label htmlFor="marca-condicion-fiscal">Condición fiscal del club</Label>
+        <p className="text-xs text-muted-foreground">
+          Determina cómo se calcula el costo de los productos al recibir
+          compras (Precio Promedio Ponderado): Monotributista promedia
+          con IVA incluido; Responsable Inscripto promedia solo el neto
+          (el IVA es crédito fiscal).
+        </p>
+        <select
+          id="marca-condicion-fiscal"
+          value={club.condicion_fiscal}
+          onChange={(e) => {
+            void handleCambiarCondicionFiscal(
+              e.target.value as CondicionFiscalClub,
+            );
+          }}
+          disabled={!isAdmin || cualquierMutacionEnCurso}
+          className={cn(
+            'flex h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+          )}
+        >
+          <option value="monotributista">Monotributista</option>
+          <option value="responsable_inscripto">Responsable Inscripto</option>
+        </select>
+        <p className="text-[11px] text-muted-foreground">
+          El cambio aplica a compras FUTURAS. Las compras ya recibidas
+          mantienen el tratamiento histórico (snapshot al recibir).
+        </p>
       </section>
 
       {/* ── Logo ─────────────────────────────────────────────────── */}

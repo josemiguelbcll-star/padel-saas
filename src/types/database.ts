@@ -98,6 +98,15 @@ export interface Club {
    * Default 'por_dia' (Signo Padel arranca acá). Cambio sólo por SQL hoy.
    */
   modalidad_caja: ModalidadCaja;
+
+  /**
+   * Condición fiscal del club ante AFIP (0041). Determina cómo se
+   * promedia el costo (PPP) al recibir compras: responsable_inscripto
+   * usa NETO, monotributista usa TOTAL con IVA. Default
+   * 'monotributista' por la 0041. Se snapshotea en
+   * compras.condicion_fiscal_club al recibir.
+   */
+  condicion_fiscal: CondicionFiscalClub;
 }
 
 /**
@@ -1014,4 +1023,148 @@ export interface Proveedor {
   notas: string | null;
   activo: boolean;
   fecha_alta: string;
+}
+
+
+// ============================================================================
+// Migración 0039/0040/0041 — Compras como OC en dos momentos + IVA
+// ============================================================================
+
+/**
+ * Tipo de compra (0039). Bloque 2 solo procesa 'compra'; los demás
+ * existen en el enum para que bonificación (Bloque 2.5) y consignación
+ * (futuro) se enchufen sin migración destructiva.
+ */
+export type CompraTipo = 'compra' | 'bonificacion' | 'consignacion';
+
+/**
+ * Estado del ciclo de vida de la compra (0041).
+ *   - 'pedida': OC creada, sin recepción. NO mueve stock ni costo ni
+ *     genera gasto. Editable y cancelable.
+ *   - 'recibida': llegó con factura. Se actualizó stock, se recalculó
+ *     PPP, se creó el gasto. Final.
+ *   - 'cancelada': anulada antes de recibir. Final, no toca nada.
+ *
+ * Transiciones: pedida → recibida | cancelada. Las dos finales no
+ * vuelven (revertir requiere flujo de anulación, deuda).
+ */
+export type EstadoCompra = 'pedida' | 'recibida' | 'cancelada';
+
+/**
+ * Condición de pago acordada al armar la OC (0041).
+ *   - 'al_dia':     se paga al armar la OC.
+ *   - 'a_plazo':    con fecha_compromiso_pago.
+ *   - 'al_recibir': se define al recibir (default).
+ */
+export type CondicionPago = 'al_dia' | 'a_plazo' | 'al_recibir';
+
+/**
+ * Condición fiscal del club ante AFIP (0041). Determina cómo se
+ * promedia el costo (PPP) al recibir compras:
+ *   - 'responsable_inscripto': PPP usa NETO (IVA es crédito fiscal).
+ *   - 'monotributista': PPP usa TOTAL con IVA (no recupera).
+ *
+ * Se snapshotea en `compras.condicion_fiscal_club` al recibir.
+ */
+export type CondicionFiscalClub = 'monotributista' | 'responsable_inscripto';
+
+/**
+ * Cabecera de una compra (0039 → 0041). Modela una orden de compra
+ * con dos momentos:
+ *
+ *   1. PEDIDO: estado='pedida'. Solo NETO (sin IVA, sin factura).
+ *      fecha_recepcion + gasto_id + montos neto/iva/total en NULL.
+ *      `monto_neto_oc` es el compromiso al pedir.
+ *   2. RECEPCIÓN: estado='recibida'. Llega la factura con IVA
+ *      discriminado. `monto_neto` + `monto_iva` + `monto_total` no
+ *      nulos. `fecha_recepcion` no nula. `gasto_id` apunta al gasto
+ *      creado por la RPC. `condicion_fiscal_club` snapshotea cómo se
+ *      promedió el PPP.
+ *   3. CANCELADA: estado='cancelada'. Como pedida con motivo
+ *      concatenado a observaciones. No toca stock/costo/gasto.
+ *
+ * Coherencia entre estado y campos derivados la garantiza el CHECK
+ * `compras_estado_gasto_coherencia` server-side.
+ */
+export interface Compra {
+  id: number;
+  club_id: number;
+  proveedor_id: number;
+  tipo: CompraTipo;
+  linea: Linea;
+  estado: EstadoCompra;
+
+  /** Fecha en que se armó la OC (renombrada de fecha_compra en 0041). */
+  fecha_oc: string;
+  /** Fecha de recepción. NULL en pedida/cancelada, NOT NULL en recibida. */
+  fecha_recepcion: string | null;
+
+  condicion_pago: CondicionPago;
+  /** Solo cuando condicion_pago='a_plazo'. NULL en los demás casos. */
+  fecha_compromiso_pago: string | null;
+
+  /** Compromiso NETO al pedir (= SUM subtotales del pedido). */
+  monto_neto_oc: number;
+  /** NETO recibido (ajustado contra factura). NULL hasta recibir. */
+  monto_neto: number | null;
+  /** IVA total facturado. NULL hasta recibir. */
+  monto_iva: number | null;
+  /** = monto_neto + monto_iva. NULL hasta recibir. EXACTO (sin redondeo). */
+  monto_total: number | null;
+
+  /** FK al gasto generado por la recepción. NOT NULL solo en recibida. */
+  gasto_id: number | null;
+
+  /** Snapshot de la condición fiscal del club al recibir. NULL en pedida/cancelada. */
+  condicion_fiscal_club: CondicionFiscalClub | null;
+  /** Datos del comprobante fiscal de la factura. Opcionales. */
+  comprobante_tipo: string | null;
+  comprobante_numero: string | null;
+
+  observaciones: string | null;
+  usuario_id: string;
+  fecha_alta: string;
+}
+
+/**
+ * Línea de una compra (0039 + 0040 + 0041). El detalle de bultos
+ * (cantidad_bultos, unidades_por_bulto, costo_por_bulto) preserva la
+ * presentación NETA del pedido. Las columnas derivadas tienen CHECKs
+ * de coherencia server-side:
+ *   - cantidad = cantidad_bultos × unidades_por_bulto   (exacto)
+ *   - subtotal = cantidad_bultos × costo_por_bulto       (exacto, NETO)
+ *   - subtotal_total = subtotal + subtotal_iva           (cuando ambos no NULL)
+ *
+ * Columnas IVA (tasa_iva, subtotal_iva, subtotal_total, costo_unitario_ppp):
+ * NULL en pedida (no hay factura todavía), se llenan al recibir.
+ *
+ *   - tasa_iva: porcentaje (21.00, 10.50, etc.) entre 0 y 100.
+ *   - subtotal_iva = ROUND(subtotal × tasa_iva / 100, 2)
+ *   - subtotal_total = subtotal + subtotal_iva  (snapshot exacto)
+ *   - costo_unitario_ppp: el costo unitario que efectivamente se
+ *     promedió en productos.costo. Depende de la condición fiscal:
+ *       responsable_inscripto → costo_unitario_compra (NETO)
+ *       monotributista         → ROUND(costo_por_bulto×(1+tasa/100)/und/bulto, 2)
+ */
+export interface CompraItem {
+  id: number;
+  club_id: number;
+  compra_id: number;
+  producto_id: number;
+  producto_nombre: string;
+  cantidad_bultos: number;
+  unidades_por_bulto: number;
+  costo_por_bulto: number;
+  cantidad: number;
+  costo_unitario_compra: number;
+  subtotal: number;
+  linea: Linea;
+  /** NULL en pedida. NOT NULL en recibida. */
+  tasa_iva: number | null;
+  /** = ROUND(subtotal × tasa_iva / 100, 2). NULL en pedida. */
+  subtotal_iva: number | null;
+  /** = subtotal + subtotal_iva. NULL en pedida. */
+  subtotal_total: number | null;
+  /** Costo efectivamente promediado en productos.costo. NULL en pedida. */
+  costo_unitario_ppp: number | null;
 }
