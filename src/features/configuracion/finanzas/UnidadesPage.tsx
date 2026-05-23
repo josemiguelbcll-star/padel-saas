@@ -22,6 +22,7 @@ const TIPO_COLOR: Record<TipoUnidad, { fg: string; bg: string }> = {
   buffet: { fg: 'hsl(var(--estado-pagada))', bg: 'hsl(var(--estado-pagada) / 0.10)' },
   shop: { fg: 'hsl(var(--estado-pagada))', bg: 'hsl(var(--estado-pagada) / 0.10)' },
   estructura: { fg: 'hsl(var(--estado-senada))', bg: 'hsl(var(--estado-senada) / 0.10)' },
+  financiero: { fg: 'hsl(var(--estado-senada))', bg: 'hsl(var(--estado-senada) / 0.10)' },
   auspicios: { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' },
   membresias: { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' },
   otro: { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' },

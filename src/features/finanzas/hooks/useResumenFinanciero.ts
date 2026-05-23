@@ -46,16 +46,36 @@ export interface ResumenFinanciero {
   /** Costo directo de venta (buffet + shop), basado en costo_unitario snapshot. */
   costos_directos: number;
   costos_por_linea: { linea: Linea; monto: number }[];
-  /** Gastos operativos (unidades con tipo automático: canchas/clases/buffet/shop). */
+  /**
+   * Gastos directos a unidades operativas (canchas/clases/buffet/shop).
+   * En el EERR corporativo se muestran como "Gastos directos". Mantiene
+   * el nombre histórico `gastos_operativos` por retrocompat (dashboard).
+   */
   gastos_operativos: number;
   /** Gastos de estructura (unidad tipo='estructura'). */
   gastos_estructura: number;
-  /** Otros gastos (auspicios/membresias/otro). */
+  /**
+   * Resultados financieros — gastos con unidad_tipo='financiero'
+   * (comisiones bancarias, comisiones MP/tarjetas, intereses, etc.).
+   * Capa propia del EERR corporativo (0036). Separado de gastos_otros.
+   */
+  gastos_financieros: number;
+  /** Otros gastos (auspicios/membresias/otro — sin financieros). */
   gastos_otros: number;
-  /** Total gastos = operativos + estructura + otros. */
+  /** Total gastos = operativos + estructura + financieros + otros. */
   gastos_total: number;
   /** Resultado = ingresos − costos − gastos. */
   resultado_neto: number;
+  /**
+   * Margen bruto = ingresos_total − costos_directos − gastos_operativos.
+   * Capa intermedia del EERR (después de gastos directos a unidades).
+   */
+  margen_bruto: number;
+  /**
+   * Resultado operativo (≈ EBITDA) = margen_bruto − gastos_estructura.
+   * Capa intermedia del EERR (antes de resultados financieros).
+   */
+  resultado_operativo: number;
   /** % margen sobre ingresos. NaN si ingresos = 0. */
   margen_porcentaje: number;
   /** Top categorías de gasto del período (ordenadas DESC). */
@@ -228,6 +248,7 @@ export function useResumenFinanciero(
 
       let gastos_operativos = 0;
       let gastos_estructura = 0;
+      let gastos_financieros = 0;
       let gastos_otros = 0;
       const porCategoria = new Map<string, GastoCategoria>();
       for (const g of gastos) {
@@ -241,7 +262,13 @@ export function useResumenFinanciero(
           gastos_operativos += monto;
         } else if (g.unidad_tipo === 'estructura') {
           gastos_estructura += monto;
+        } else if (g.unidad_tipo === 'financiero') {
+          // 0036: capa propia "Resultados financieros" (comisiones
+          // bancarias, MP/tarjetas, intereses, etc.). Antes caía en
+          // gastos_otros; ahora se separa para el EERR corporativo.
+          gastos_financieros += monto;
         } else {
+          // auspicios / membresias / otro (sin financieros).
           gastos_otros += monto;
         }
 
@@ -257,12 +284,26 @@ export function useResumenFinanciero(
       const top_gastos_categoria = Array.from(porCategoria.values())
         .sort((a, b) => b.monto - a.monto)
         .slice(0, 8);
-      const gastos_total = gastos_operativos + gastos_estructura + gastos_otros;
+      // gastos_total ahora incluye `gastos_financieros` (0036). La
+      // fórmula del resultado_neto sigue siendo igual porque suma
+      // gastos_total — solo cambia el desglose por capa.
+      const gastos_total =
+        gastos_operativos + gastos_estructura + gastos_financieros + gastos_otros;
 
       // ── Resultado ──────────────────────────────────────────────────
       const resultado_neto = ingresos_total - costos_directos - gastos_total;
       const margen_porcentaje =
         ingresos_total > 0 ? (resultado_neto / ingresos_total) * 100 : NaN;
+
+      // ── Capas intermedias del EERR corporativo (0036) ──────────────
+      // Margen bruto = ingresos − costo de mercadería − gastos directos
+      // a unidades (gastos_operativos en el campo, "Gastos directos" en
+      // la UI).
+      const margen_bruto =
+        ingresos_total - costos_directos - gastos_operativos;
+      // Resultado operativo (≈ EBITDA) = margen_bruto − estructura.
+      // No incluye financieros ni otros (esos van DESPUÉS del operativo).
+      const resultado_operativo = margen_bruto - gastos_estructura;
 
       // ── Movimientos recientes (mixtos, últimos 15 por fecha) ───────
       const movs: MovimientoReciente[] = [];
@@ -316,9 +357,12 @@ export function useResumenFinanciero(
         costos_por_linea,
         gastos_operativos,
         gastos_estructura,
+        gastos_financieros,
         gastos_otros,
         gastos_total,
         resultado_neto,
+        margen_bruto,
+        resultado_operativo,
         margen_porcentaje,
         top_gastos_categoria,
         movimientos_recientes,

@@ -157,8 +157,8 @@ export interface TurnoCaja {
 // ============================================================================
 
 /**
- * Tipo de unidad de negocio (0027). Determina de dónde se agregan los
- * ingresos en el EERR:
+ * Tipo de unidad de negocio (0027, 'financiero' agregado en 0036).
+ * Determina de dónde se agregan los ingresos en el EERR:
  *   - canchas:    reservas
  *   - clases:     clase_cobros
  *   - buffet:     ventas linea='buffet'
@@ -166,10 +166,12 @@ export interface TurnoCaja {
  *   - auspicios:  otros_ingresos (manual)
  *   - membresias: otros_ingresos (manual)
  *   - estructura: SIN ingresos asociados (gastos transversales)
+ *   - financiero: SIN ingresos asociados (gastos bancarios, comisiones,
+ *                 intereses — capa "Resultados financieros" del EERR)
  *   - otro:       escape genérico
  *
- * Los 4 primeros tienen UNIQUE PARCIAL por club (uno por tipo);
- * los otros 4 pueden tener varias unidades.
+ * Los 4 primeros (canchas/clases/buffet/shop) tienen UNIQUE PARCIAL
+ * por club (uno por tipo); los otros pueden tener varias unidades.
  */
 export type TipoUnidad =
   | 'canchas'
@@ -179,6 +181,7 @@ export type TipoUnidad =
   | 'auspicios'
   | 'membresias'
   | 'estructura'
+  | 'financiero'
   | 'otro';
 
 export interface UnidadNegocio {
