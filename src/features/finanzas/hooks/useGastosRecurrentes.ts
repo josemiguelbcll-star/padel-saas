@@ -72,7 +72,7 @@ export function useGastosRecurrentes(): UseQueryResult<RecurrenteFila[], Error> 
           ),
           proveedores:proveedor_id ( nombre ),
           gastos!gastos_gasto_recurrente_id_fkey (
-            id, monto, fecha_gasto, fecha_pago
+            id, monto, fecha_gasto, fecha_pago, activo
           )
           `,
         )
@@ -103,6 +103,7 @@ export function useGastosRecurrentes(): UseQueryResult<RecurrenteFila[], Error> 
           monto: number;
           fecha_gasto: string;
           fecha_pago: string | null;
+          activo: boolean;
         }>;
       };
 
@@ -121,12 +122,16 @@ export function useGastosRecurrentes(): UseQueryResult<RecurrenteFila[], Error> 
         unidad_tipo: (r.categorias_gasto?.unidades_negocio?.tipo ?? 'otro') as TipoUnidad,
         proveedor_id: r.proveedor_id,
         proveedor_nombre: r.proveedores?.nombre ?? null,
-        reales: (r.gastos ?? []).map((g) => ({
-          id: g.id,
-          monto: Number(g.monto),
-          fecha_gasto: g.fecha_gasto,
-          fecha_pago: g.fecha_pago,
-        })),
+        // Solo reales ACTIVOS: un gasto anulado (0048) NO cuenta como
+        // "cargado este mes" — así la tarjeta vuelve a pedir cargar.
+        reales: (r.gastos ?? [])
+          .filter((g) => g.activo)
+          .map((g) => ({
+            id: g.id,
+            monto: Number(g.monto),
+            fecha_gasto: g.fecha_gasto,
+            fecha_pago: g.fecha_pago,
+          })),
       }));
     },
   });

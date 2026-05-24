@@ -1233,3 +1233,42 @@ export interface GastoCuota {
   usuario_id: string;
   fecha_alta: string;
 }
+
+/**
+ * Tipo de motivo de una anulación (0048). Enum cerrado, alineado con el
+ * CHECK de `anulaciones.motivo_tipo`.
+ */
+export type MotivoAnulacionTipo =
+  | 'error_monto'
+  | 'error_carga_duplicado'
+  | 'error_medio_pago'
+  | 'devolucion_proveedor'
+  | 'otro';
+
+/**
+ * Fila del libro de anulaciones (0048). Append-only e inmutable. Una
+ * fila por evento de anulación, con FK tipada a lo anulado (gasto o
+ * pago de cuota), motivo categorizable + detalle, snapshot del estado
+ * original (monto, fecha, medio, caja) y link al ajuste de caja de hoy
+ * (`caja_movimiento_id`) cuando se anula un pago en efectivo de una
+ * caja ya cerrada.
+ */
+export interface Anulacion {
+  id: number;
+  club_id: number;
+  entidad_tipo: 'gasto' | 'pago_cuota';
+  gasto_id: number | null;
+  gasto_cuota_id: number | null;
+  motivo_tipo: MotivoAnulacionTipo;
+  motivo_detalle: string | null;
+  monto: number;
+  fecha_original: string | null;
+  medio_pago_original: MedioPago | null;
+  caja_original_id: number | null;
+  caja_original_cerrada: boolean | null;
+  /** Set solo cuando la anulación generó un ajuste_positivo en la caja
+   *  de hoy (pago en efectivo de una caja cerrada). NULL en el resto. */
+  caja_movimiento_id: number | null;
+  usuario_id: string;
+  fecha_hora: string;
+}

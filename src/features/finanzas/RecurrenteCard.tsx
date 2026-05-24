@@ -43,6 +43,9 @@ export interface RecurrenteCardData {
 interface RecurrenteCardProps {
   data: RecurrenteCardData;
   onCargarReal: () => void;
+  /** Solo se usa cuando estado === 'cargado': anula el real del mes y
+   *  reabre el dialog para cargar el correcto. */
+  onCorregir: () => void;
   onEditar: () => void;
   onDesactivar: () => void;
   onEliminar: () => void;
@@ -75,6 +78,7 @@ const ESTADO_TONO: Record<
 export function RecurrenteCard({
   data,
   onCargarReal,
+  onCorregir,
   onEditar,
   onDesactivar,
   onEliminar,
@@ -223,18 +227,33 @@ export function RecurrenteCard({
         </span>
       </div>
 
-      {/* Acción primaria */}
+      {/* Acción primaria. Si ya hay un real del mes, el backend rechaza
+          cargar otro (uno-por-mes, 0049) → ofrecemos "Corregir" (anular
+          el real + recargar) en lugar de "Cargar otro". */}
       <div className="mt-3 flex">
-        <Button
-          type="button"
-          size="sm"
-          variant={estado === 'cargado' ? 'outline' : 'default'}
-          onClick={onCargarReal}
-          className="w-full"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {estado === 'cargado' ? 'Cargar otro' : 'Cargar real'}
-        </Button>
+        {estado === 'cargado' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onCorregir}
+            className="w-full"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Corregir
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={onCargarReal}
+            className="w-full"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Cargar real
+          </Button>
+        )}
       </div>
     </article>
   );

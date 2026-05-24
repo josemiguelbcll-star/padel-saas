@@ -1,4 +1,4 @@
-import { Clock, Receipt, Repeat } from 'lucide-react';
+import { Ban, Clock, Receipt, Repeat } from 'lucide-react';
 import type { Gasto } from '@/types/database';
 import { MEDIO_PAGO_LABEL } from './finanzasSchemas';
 
@@ -20,13 +20,24 @@ function fmt(iso: string): string {
 }
 
 /**
- * Tabla simple de gastos. Sin acciones por fila (anular/editar van en
- * iteración 2). Snapshots de categoría + unidad ya vienen en la fila.
+ * Tabla simple de gastos. Snapshots de categoría + unidad ya vienen en
+ * la fila. Solo muestra gastos activos (useGastos filtra activo=TRUE);
+ * los anulados quedan fuera (su rastro vive en `anulaciones`).
  *
  * Estado: pendiente (sin fecha_pago) → chip "Pendiente" ámbar.
  *         Pagado → chip "Pagado" verde + medio de pago en línea.
+ *
+ * Si se pasa `onAnular`, cada fila muestra la acción "Anular" (0048).
+ * La RPC rechaza si el gasto tiene cuotas pagadas o viene de una OC;
+ * el dialog del padre muestra ese error.
  */
-export function GastosList({ gastos }: { gastos: Gasto[] }) {
+export function GastosList({
+  gastos,
+  onAnular,
+}: {
+  gastos: Gasto[];
+  onAnular?: (g: Gasto) => void;
+}) {
   if (gastos.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
@@ -51,6 +62,9 @@ export function GastosList({ gastos }: { gastos: Gasto[] }) {
             <th className="px-3 py-2 font-medium">Proveedor</th>
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 text-right font-medium">Monto</th>
+            {onAnular && (
+              <th className="px-3 py-2 text-right font-medium">Acciones</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -117,6 +131,18 @@ export function GastosList({ gastos }: { gastos: Gasto[] }) {
                 <td className="px-3 py-2 align-top text-right font-medium tabular-nums text-foreground">
                   {currencyFmt.format(Number(g.monto))}
                 </td>
+                {onAnular && (
+                  <td className="px-3 py-2 align-top text-right">
+                    <button
+                      type="button"
+                      onClick={() => onAnular(g)}
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Ban className="h-3 w-3" aria-hidden="true" />
+                      Anular
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}

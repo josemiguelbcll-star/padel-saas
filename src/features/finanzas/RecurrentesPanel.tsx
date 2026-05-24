@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Check, Clock, Loader2, Plus, Power, Repeat, Trash2 } from 'lucide-react';
+import type { MotivoAnulacionTipo } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { AnularDialog } from './AnularDialog';
 import { NuevoGastoDialog } from './NuevoGastoDialog';
 import { NuevoRecurrenteDialog } from './NuevoRecurrenteDialog';
 import {
@@ -22,6 +24,7 @@ import {
   useGastosRecurrentes,
   type RecurrenteFila,
 } from './hooks/useGastosRecurrentes';
+import { useAnularGasto } from './hooks/useAnulaciones';
 import {
   clampDiaAlMes,
   fechaVencimientoEnMes,
@@ -94,6 +97,7 @@ export function RecurrentesPanel() {
   const recurrentesQuery = useGastosRecurrentes();
   const actualizar = useActualizarGastoRecurrente();
   const eliminar = useEliminarGastoRecurrente();
+  const anularReal = useAnularGasto();
 
   // Dialogs
   const [openNueva, setOpenNueva] = useState(false);
@@ -102,6 +106,39 @@ export function RecurrentesPanel() {
   const [desactivarFila, setDesactivarFila] = useState<RecurrenteFila | null>(null);
   const [eliminarFila, setEliminarFila] = useState<RecurrenteFila | null>(null);
   const [errorOp, setErrorOp] = useState<string | null>(null);
+  // Flujo "Corregir": anular el real del mes (con motivo) y reabrir el
+  // dialog de "Cargar real" pre-llenado para cargar el correcto.
+  const [corregirData, setCorregirData] = useState<{
+    fila: RecurrenteFila;
+    realId: number;
+    realMonto: number;
+  } | null>(null);
+  const [corregirError, setCorregirError] = useState<string | null>(null);
+
+  async function handleCorregirConfirm(
+    motivoTipo: MotivoAnulacionTipo,
+    motivoDetalle: string | null,
+  ): Promise<void> {
+    if (!corregirData) return;
+    setCorregirError(null);
+    try {
+      await anularReal.mutateAsync({
+        gasto_id: corregirData.realId,
+        motivo_tipo: motivoTipo,
+        motivo_detalle: motivoDetalle,
+      });
+      const fila = corregirData.fila;
+      setCorregirData(null);
+      // Reabrir "Cargar real" pre-llenado para cargar el valor correcto.
+      setCargarRealFila(fila);
+    } catch (err) {
+      setCorregirError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos anular el gasto para corregirlo.',
+      );
+    }
+  }
 
   const cards = useMemo<RecurrenteCardData[]>(() => {
     const filas = recurrentesQuery.data ?? [];
@@ -263,6 +300,16 @@ export function RecurrentesPanel() {
                       key={c.fila.id}
                       data={c}
                       onCargarReal={() => setCargarRealFila(c.fila)}
+                      onCorregir={() => {
+                        const real = c.realesDelMes[0];
+                        if (!real) return;
+                        setCorregirError(null);
+                        setCorregirData({
+                          fila: c.fila,
+                          realId: real.id,
+                          realMonto: real.monto,
+                        });
+                      }}
                       onEditar={() => { setEditandoFila(c.fila); setOpenNueva(true); }}
                       onDesactivar={() => setDesactivarFila(c.fila)}
                       onEliminar={() => setEliminarFila(c.fila)}
@@ -309,6 +356,43 @@ export function RecurrentesPanel() {
               }
             : null
         }
+      />
+
+      {/* Corregir: anular el real del mes (con motivo) → al confirmar,
+          reabre "Cargar real" pre-llenado para cargar el correcto. */}
+      <AnularDialog
+        open={corregirData !== null}
+        onOpenChange={(o) => {
+          if (anularReal.isPending) return;
+          if (!o) { setCorregirData(null); setCorregirError(null); }
+        }}
+        titulo="Corregir gasto del mes"
+        descripcion="Para corregir, anulamos el gasto ya cargado este mes; al confirmar reabrimos el formulario para que cargues el valor correcto. La anulación queda registrada con su motivo."
+        resumen={
+          corregirData && (
+            <div className="space-y-0.5">
+              <p className="font-medium text-foreground">
+                {corregirData.fila.concepto}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {corregirData.fila.categoria_nombre} ·{' '}
+                {corregirData.fila.unidad_nombre}
+              </p>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Real cargado a anular
+                </span>
+                <span className="text-lg font-bold tabular-nums text-foreground">
+                  {fmtMoney(corregirData.realMonto)}
+                </span>
+              </div>
+            </div>
+          )
+        }
+        confirmLabel="Anular y recargar"
+        pending={anularReal.isPending}
+        error={corregirError}
+        onConfirm={handleCorregirConfirm}
       />
 
       {/* Confirm: desactivar */}

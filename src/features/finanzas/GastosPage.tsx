@@ -9,12 +9,21 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { Gasto } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AnularDialog } from './AnularDialog';
 import { GastosList } from './GastosList';
 import { NuevoGastoDialog } from './NuevoGastoDialog';
 import { RecurrentesPanel } from './RecurrentesPanel';
 import { useGastos } from './hooks/useGastos';
+import { useAnularGasto } from './hooks/useAnulaciones';
+
+const fechaGastoFmt = new Intl.DateTimeFormat('es-AR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+});
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -44,8 +53,31 @@ type Tab = 'movimientos' | 'recurrentes';
  */
 export function GastosPage() {
   const gastosQuery = useGastos();
+  const anular = useAnularGasto();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('movimientos');
+  const [gastoAAnular, setGastoAAnular] = useState<Gasto | null>(null);
+  const [anularError, setAnularError] = useState<string | null>(null);
+
+  async function handleAnularConfirm(
+    motivoTipo: Parameters<typeof anular.mutateAsync>[0]['motivo_tipo'],
+    motivoDetalle: string | null,
+  ): Promise<void> {
+    if (!gastoAAnular) return;
+    setAnularError(null);
+    try {
+      await anular.mutateAsync({
+        gasto_id: gastoAAnular.id,
+        motivo_tipo: motivoTipo,
+        motivo_detalle: motivoDetalle,
+      });
+      setGastoAAnular(null);
+    } catch (err) {
+      setAnularError(
+        err instanceof Error ? err.message : 'No pudimos anular el gasto.',
+      );
+    }
+  }
 
   const ahora = new Date();
   const anioActual = ahora.getFullYear();
@@ -179,7 +211,15 @@ export function GastosPage() {
               </div>
             )}
 
-            {gastosQuery.data && <GastosList gastos={gastosQuery.data} />}
+            {gastosQuery.data && (
+              <GastosList
+                gastos={gastosQuery.data}
+                onAnular={(g) => {
+                  setAnularError(null);
+                  setGastoAAnular(g);
+                }}
+              />
+            )}
           </section>
         </div>
       )}
@@ -187,6 +227,46 @@ export function GastosPage() {
       {tab === 'recurrentes' && <RecurrentesPanel />}
 
       <NuevoGastoDialog open={open} onOpenChange={setOpen} />
+
+      <AnularDialog
+        open={gastoAAnular !== null}
+        onOpenChange={(o) => {
+          if (anular.isPending) return;
+          if (!o) {
+            setGastoAAnular(null);
+            setAnularError(null);
+          }
+        }}
+        titulo="Anular gasto"
+        descripcion="El gasto deja de contar en el resultado del período. Esta acción queda registrada con su motivo. Si te equivocaste en el monto, anulá y volvé a cargarlo con el valor correcto."
+        resumen={
+          gastoAAnular && (
+            <div className="space-y-0.5">
+              <p className="font-medium text-foreground">
+                {gastoAAnular.categoria_nombre}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {gastoAAnular.unidad_nombre}
+                {gastoAAnular.proveedor && ` · ${gastoAAnular.proveedor}`}
+              </p>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-[11px] text-muted-foreground">
+                  {fechaGastoFmt.format(
+                    new Date(gastoAAnular.fecha_gasto + 'T00:00:00'),
+                  )}
+                </span>
+                <span className="text-lg font-bold tabular-nums text-foreground">
+                  {currencyFmt.format(Number(gastoAAnular.monto))}
+                </span>
+              </div>
+            </div>
+          )
+        }
+        confirmLabel="Anular gasto"
+        pending={anular.isPending}
+        error={anularError}
+        onConfirm={handleAnularConfirm}
+      />
     </div>
   );
 }
