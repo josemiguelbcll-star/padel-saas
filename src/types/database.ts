@@ -246,6 +246,37 @@ export interface Gasto {
   activo: boolean;
   usuario_id: string;
   fecha_alta: string;
+  /** FK opcional a `gastos_recurrentes` (0046). NULL en gastos manuales
+   *  sin plantilla, gastos de OC y gastos previos a la migración 0046.
+   *  Setearlo NO afecta EERR ni CxP — es metadata del panel de
+   *  Recurrentes y del histórico mes-a-mes futuro. */
+  gasto_recurrente_id: number | null;
+}
+
+/**
+ * Plantilla de gasto recurrente (0046). Catálogo de gastos esperados
+ * cada mes (alquiler, luz, sueldos). Las plantillas NO son
+ * movimientos contables; el panel "Recurrentes del mes" las usa para
+ * detectar qué falta cargar. El gasto real se crea via
+ * `fn_registrar_gasto` con `p_gasto_recurrente_id` apuntando acá.
+ *
+ * `dia_vencimiento` es DÍA del mes (1-31), no una fecha absoluta.
+ * El frontend clampa al último día del mes para meses cortos (ej. 31
+ * en febrero → 28/29).
+ */
+export interface GastoRecurrente {
+  id: number;
+  club_id: number;
+  categoria_id: number;
+  proveedor_id: number | null;
+  concepto: string;
+  monto_estimado: number;
+  dia_vencimiento: number;
+  frecuencia: 'mensual';
+  observaciones: string | null;
+  activo: boolean;
+  usuario_id: string;
+  fecha_alta: string;
 }
 
 /**

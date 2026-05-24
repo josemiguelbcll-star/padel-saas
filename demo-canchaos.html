@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CanchaOS — Recorrido animado del sistema</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --primary:#2563eb; --primary-dark:#1d4ed8; --primary-soft:#eef4ff;
+    --ink:#0f172a; --body:#475569; --muted:#64748b;
+    --bg:#ffffff; --soft:#f6f8fb; --border:#e7ebf0;
+    --green:#16a34a; --green-soft:#e9f9ef;
+    --amber:#f59e0b; --amber-soft:#fff5e6;
+    --violet:#8b5cf6;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:radial-gradient(1100px 600px at 50% -10%, #1e293b 0%, #0b1120 60%, #070b15 100%);
+    color:#e2e8f0; min-height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:32px 18px; gap:18px;
+  }
+  .intro{ text-align:center; max-width:760px; }
+  .intro .badge{
+    display:inline-block; font-size:12px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:#93c5fd; background:rgba(37,99,235,.16);
+    border:1px solid rgba(37,99,235,.35); padding:5px 12px; border-radius:999px;
+  }
+  .intro h1{ font-size:clamp(20px,3.4vw,28px); color:#fff; font-weight:800; margin:12px 0 6px; letter-spacing:-.02em;}
+  .intro p{ font-size:14px; color:#94a3b8; }
+
+  /* ===== Player ===== */
+  .player{
+    width:100%; max-width:960px;
+    background:#0b1120; border:1px solid #243049; border-radius:18px;
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.8); overflow:hidden;
+  }
+  .stage{
+    position:relative; width:100%; aspect-ratio:16/9;
+    background:var(--soft); overflow:hidden;
+  }
+
+  /* ===== App window ===== */
+  .app{ position:absolute; inset:0; display:flex; flex-direction:column; background:var(--bg); }
+  .app-top{
+    height:9.5%; min-height:34px; display:flex; align-items:center; gap:8px;
+    padding:0 3.2%; border-bottom:1px solid var(--border); background:#fff;
+  }
+  .app-logo{ display:flex; align-items:center; gap:7px; font-weight:800; color:var(--ink); font-size:clamp(11px,1.5vw,14px); letter-spacing:-.02em;}
+  .app-logo .mk{
+    width:1.55em; height:1.55em; border-radius:6px;
+    background:linear-gradient(135deg,var(--primary),#4f8bff);
+    display:grid; place-items:center; color:#fff;
+  }
+  .app-logo .mk svg{ width:62%; height:62%; }
+  .app-top .club{ margin-left:auto; font-size:clamp(9px,1.3vw,12px); color:var(--muted); font-weight:600;}
+  .app-top .av{
+    width:1.9em; height:1.9em; border-radius:50%; background:var(--primary-soft);
+    color:var(--primary); display:grid; place-items:center; font-size:clamp(8px,1.1vw,11px); font-weight:700; margin-left:10px;
+  }
+
+  /* KPI strip */
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:2.4%; padding:2.6% 3.2%; background:var(--soft); border-bottom:1px solid var(--border); }
+  .kpi{
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:1.5% 3%; position:relative; overflow:hidden;
+  }
+  .kpi .kl{ font-size:clamp(7px,1.05vw,9.5px); font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+  .kpi .kv{ font-size:clamp(11px,2vw,18px); font-weight:800; color:var(--ink); margin-top:2px; font-variant-numeric:tabular-nums; }
+  .kpi .kv.muted{ color:#cbd5e1; }
+  .kpi.flash::after{
+    content:""; position:absolute; inset:0; background:var(--primary); opacity:0;
+    animation:flash 1s ease;
+  }
+  @keyframes flash{ 0%{opacity:.16;} 100%{opacity:0;} }
+  .kpi .kbar{ position:absolute; left:0; bottom:0; height:3px; width:0; background:var(--primary); transition:width 1s ease; }
+
+  /* main area */
+  .main{ position:relative; flex:1; }
+  .panel{
+    position:absolute; inset:0; padding:2.8% 3.2%;
+    opacity:0; visibility:hidden; transition:opacity .5s ease;
+  }
+  .panel.active{ opacity:1; visibility:visible; }
+  .panel-title{ font-size:clamp(10px,1.6vw,14px); font-weight:700; color:var(--ink); margin-bottom:2%; display:flex; align-items:center; gap:7px;}
+  .panel-title .pt-tag{ font-size:clamp(7px,1vw,9px); font-weight:700; color:var(--primary); background:var(--primary-soft); padding:2px 7px; border-radius:999px;}
+
+  /* ---- grilla panel ---- */
+  .grilla-head,.grilla-row{ display:grid; grid-template-columns:8% repeat(3,1fr); gap:1.4%; }
+  .grilla-head{ margin-bottom:1.2%; }
+  .grilla-head div{ font-size:clamp(7px,1.1vw,10px); font-weight:700; color:var(--muted); text-align:center; }
+  .grilla-row{ margin-bottom:1.4%; }
+  .gt{ font-size:clamp(6.5px,1vw,9px); color:var(--muted); display:flex; align-items:center; justify-content:flex-end; padding-right:5%; }
+  .slot{
+    border-radius:7px; min-height:38px; height:7.5vw; max-height:58px;
+    padding:5px 7px; font-size:clamp(7px,1.05vw,10px); line-height:1.25; overflow:hidden;
+    transition:background .45s ease, border-color .45s ease, color .45s ease;
+  }
+  .slot b{ display:block; font-size:clamp(7.5px,1.15vw,10.5px); font-weight:700; }
+  .slot .sm{ opacity:.75; }
+  .s-free{ border:1.5px dashed #cdd5df; color:#94a3b8; display:flex; align-items:center; justify-content:center; font-weight:600; }
+  .s-pend{ background:#f1f3f6; border-left:3px solid #94a3b8; color:#475569; }
+  .s-senada{ background:var(--amber-soft); border-left:3px solid var(--amber); color:#7c4a03; }
+  .s-pagada{ background:var(--green-soft); border-left:3px solid var(--green); color:#14532d; }
+  .s-clase{ background:#f1ecfe; border-left:3px solid var(--violet); color:#4c2889; }
+  .tap-target{ position:relative; }
+  .tap-pulse{
+    position:absolute; inset:0; border-radius:7px; border:2.5px solid var(--primary);
+    opacity:0; pointer-events:none;
+  }
+  .tap-pulse.go{ animation:tap 1.1s ease 1; }
+  @keyframes tap{
+    0%{ opacity:0; transform:scale(.96);}
+    25%{ opacity:1;}
+    60%{ opacity:.7; transform:scale(1.03);}
+    100%{ opacity:0; transform:scale(1.05);}
+  }
+  .pop-in{ animation:popIn .55s cubic-bezier(.2,.8,.2,1) 1; }
+  @keyframes popIn{ 0%{ opacity:0; transform:scale(.9);} 100%{ opacity:1; transform:scale(1);} }
+
+  .toast{
+    position:absolute; right:3.2%; bottom:4%;
+    display:flex; align-items:center; gap:8px;
+    background:#fff; border:1px solid #bbf0d4; border-left:4px solid var(--green);
+    border-radius:10px; padding:8px 12px; font-size:clamp(8px,1.2vw,11px);
+    color:#065f46; font-weight:600; box-shadow:0 12px 28px -12px rgba(0,0,0,.3);
+    opacity:0; transform:translateY(14px);
+  }
+  .toast.show{ animation:toastIn .5s ease forwards; }
+  @keyframes toastIn{ to{ opacity:1; transform:translateY(0);} }
+  .toast .tk{ width:1.3em; height:1.3em; color:var(--green); flex-shrink:0; }
+
+  /* ---- buffet panel ---- */
+  .buffet-grid{ display:grid; grid-template-columns:1.5fr 1fr; gap:3%; height:100%; }
+  .cat{ display:grid; grid-template-columns:repeat(3,1fr); gap:3.4%; align-content:start; }
+  .prod{
+    background:#fff; border:1px solid var(--border); border-radius:9px; padding:7% 5%;
+    text-align:center; transition:border-color .3s, transform .3s;
+  }
+  .prod.pick{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+  .prod .pe{ font-size:clamp(13px,2.6vw,22px); }
+  .prod .pn{ font-size:clamp(7px,1.1vw,10px); font-weight:600; color:var(--ink); margin-top:3px; }
+  .prod .pp{ font-size:clamp(6.5px,1vw,9px); color:var(--muted); }
+  .prod .ps{ font-size:clamp(6px,.95vw,8.5px); color:var(--green); font-weight:700; margin-top:2px; }
+  .ticket{ background:#fff; border:1px solid var(--border); border-radius:11px; padding:5%; display:flex; flex-direction:column; }
+  .ticket h4{ font-size:clamp(8px,1.3vw,11px); color:var(--ink); font-weight:700; border-bottom:1px solid var(--border); padding-bottom:6%; }
+  .tline{ display:flex; justify-content:space-between; font-size:clamp(7px,1.1vw,10px); color:var(--body); padding:4% 0; opacity:0; }
+  .tline.show{ animation:popIn .4s ease forwards; }
+  .tline b{ color:var(--ink); }
+  .ttot{ margin-top:auto; border-top:1px solid var(--border); padding-top:5%; display:flex; justify-content:space-between; align-items:center;}
+  .ttot .tl{ font-size:clamp(8px,1.2vw,11px); font-weight:700; color:var(--ink); }
+  .ttot .tv{ font-size:clamp(11px,2vw,17px); font-weight:800; color:var(--primary); font-variant-numeric:tabular-nums; }
+  .stockchip{
+    display:inline-flex; align-items:center; gap:4px; font-size:clamp(6px,.95vw,8.5px);
+    font-weight:700; color:var(--amber); background:var(--amber-soft); border-radius:999px;
+    padding:2px 7px; margin-top:6%;
+  }
+
+  /* ---- caja panel ---- */
+  .caja-wrap{ display:flex; flex-direction:column; gap:2.2%; max-width:78%; margin:0 auto; }
+  .caja-row{ display:flex; justify-content:space-between; align-items:center; font-size:clamp(8px,1.3vw,11.5px); color:var(--body); padding:2.4% 0; border-bottom:1px dashed var(--border); }
+  .caja-row .cv{ font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .caja-row .cv.plus{ color:var(--green); }
+  .caja-esperado{
+    background:var(--primary-soft); border:1px solid #cfe0ff; border-radius:11px;
+    padding:3% 4%; display:flex; justify-content:space-between; align-items:center; margin-top:1.5%;
+  }
+  .caja-esperado .cl{ font-size:clamp(9px,1.4vw,13px); font-weight:700; color:var(--ink); }
+  .caja-esperado .ce{ font-size:clamp(13px,2.4vw,22px); font-weight:800; color:var(--primary); font-variant-numeric:tabular-nums; }
+
+  /* ---- eerr panel ---- */
+  .eerr-row{ display:flex; align-items:center; gap:3%; margin-bottom:3%; }
+  .eerr-un{ width:20%; font-size:clamp(8px,1.3vw,12px); font-weight:700; color:var(--ink); }
+  .eerr-track{ flex:1; background:#fff; border:1px solid var(--border); border-radius:999px; height:8.5%; min-height:26px; height:3.4vw; max-height:34px; overflow:hidden; }
+  .eerr-fill{
+    height:100%; width:0; border-radius:999px; display:flex; align-items:center;
+    padding-left:3%; color:#fff; font-size:clamp(7px,1.15vw,10.5px); font-weight:800;
+    white-space:nowrap; transition:width 1.3s cubic-bezier(.2,.8,.2,1);
+    font-variant-numeric:tabular-nums;
+  }
+  .eerr-foot{
+    margin-top:2%; border-top:2px solid var(--border); padding-top:3.4%;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .eerr-foot .efl{ font-size:clamp(9px,1.5vw,14px); font-weight:700; color:var(--ink); }
+  .eerr-foot .efv{ font-size:clamp(15px,3vw,30px); font-weight:800; color:var(--green); font-variant-numeric:tabular-nums; }
+
+  /* ===== Overlays (title / close) ===== */
+  .overlay{
+    position:absolute; inset:0; z-index:5;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:6%; gap:10px;
+    background:radial-gradient(700px 380px at 50% 28%, #1e3a8a 0%, #0b1120 70%);
+    color:#fff; opacity:0; visibility:hidden; transition:opacity .5s ease;
+  }
+  .overlay.active{ opacity:1; visibility:visible; }
+  .overlay .ov-mark{
+    width:13%; min-width:48px; aspect-ratio:1; border-radius:16px;
+    background:linear-gradient(135deg,var(--primary),#60a5fa);
+    display:grid; place-items:center; color:#fff; margin-bottom:6px;
+    box-shadow:0 16px 40px -10px rgba(37,99,235,.8);
+  }
+  .overlay .ov-mark svg{ width:54%; height:54%; }
+  .overlay h2{ font-size:clamp(17px,3.4vw,30px); font-weight:800; letter-spacing:-.02em; max-width:80%; line-height:1.25;}
+  .overlay h2 .hl{ color:#7cb0ff; }
+  .overlay p{ font-size:clamp(10px,1.7vw,15px); color:#9fb3d1; max-width:62%; }
+  .overlay .ov-cta{
+    margin-top:8px; background:#fff; color:var(--primary); font-weight:700;
+    font-size:clamp(10px,1.6vw,14px); padding:.7em 1.5em; border-radius:10px;
+  }
+  .ov-eyebrow{
+    font-size:clamp(8px,1.3vw,11px); font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:#7cb0ff;
+  }
+
+  /* ===== Subtitle ===== */
+  .subtitle{
+    position:absolute; left:0; right:0; bottom:0; z-index:8;
+    padding:5% 8% 4.4%;
+    background:linear-gradient(to top, rgba(8,12,22,.92) 30%, rgba(8,12,22,0));
+    display:flex; justify-content:center;
+  }
+  .subtitle span{
+    color:#fff; font-size:clamp(10px,1.85vw,17px); font-weight:600; line-height:1.45;
+    text-align:center; max-width:88%; text-shadow:0 2px 8px rgba(0,0,0,.6);
+    transition:opacity .35s ease; opacity:0;
+  }
+  .subtitle span.show{ opacity:1; }
+
+  /* ===== Controls ===== */
+  .controls{ display:flex; align-items:center; gap:14px; padding:11px 16px; background:#0b1120; }
+  .progress{ flex:1; height:6px; background:#1e293b; border-radius:999px; overflow:hidden; cursor:pointer; }
+  .progress .bar{ height:100%; width:0; background:linear-gradient(90deg,var(--primary),#60a5fa); border-radius:999px; }
+  .ctrl-btn{
+    width:38px; height:38px; flex-shrink:0; border-radius:50%; border:none; cursor:pointer;
+    background:var(--primary); color:#fff; display:grid; place-items:center;
+    transition:background .15s, transform .12s;
+  }
+  .ctrl-btn:hover{ background:var(--primary-dark); transform:translateY(-1px); }
+  .ctrl-btn.sec{ background:#1e293b; }
+  .ctrl-btn.sec:hover{ background:#334155; }
+  .ctrl-btn svg{ width:17px; height:17px; }
+  .time{ font-size:12px; color:#64748b; font-variant-numeric:tabular-nums; min-width:74px; text-align:right; }
+  .scene-no{ font-size:11px; color:#475569; font-weight:600; min-width:46px; }
+
+  .hint{ font-size:12px; color:#64748b; text-align:center; }
+  .hint b{ color:#94a3b8; }
+
+  @media (max-width:560px){
+    body{ padding:18px 12px; }
+    .controls{ gap:9px; padding:9px 11px; }
+    .time{ min-width:60px; font-size:11px; }
+    .scene-no{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <span class="badge">Recorrido animado · CanchaOS</span>
+  <h1>De cada turno, a la rentabilidad completa del club</h1>
+  <p>Un recorrido de ~80 segundos. Se reproduce solo — usá los controles para pausar o repetir.</p>
+</div>
+
+<div class="player">
+  <div class="stage" id="stage">
+
+    <!-- ===== APP WINDOW ===== -->
+    <div class="app">
+      <div class="app-top">
+        <span class="app-logo">
+          <span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18M12 3v18"/></svg></span>
+          CanchaOS
+        </span>
+        <span class="club">Club Demo · Pádel</span>
+        <span class="av">CD</span>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi" id="kpi-dia">
+          <div class="kl">Ingresos del día</div>
+          <div class="kv" id="v-dia">$ 0</div>
+          <div class="kbar" id="b-dia"></div>
+        </div>
+        <div class="kpi" id="kpi-buf">
+          <div class="kl">Buffet hoy</div>
+          <div class="kv" id="v-buf">$ 0</div>
+          <div class="kbar" id="b-buf"></div>
+        </div>
+        <div class="kpi" id="kpi-caja">
+          <div class="kl">Caja</div>
+          <div class="kv" id="v-caja">$ 20.000</div>
+          <div class="kbar" id="b-caja"></div>
+        </div>
+        <div class="kpi" id="kpi-res">
+          <div class="kl">Resultado del mes</div>
+          <div class="kv muted" id="v-res">—</div>
+          <div class="kbar" id="b-res" style="background:var(--green);"></div>
+        </div>
+      </div>
+
+      <div class="main">
+
+        <!-- panel: grilla -->
+        <div class="panel" id="p-grilla">
+          <div class="panel-title">Grilla del día <span class="pt-tag">Hoy · 19:00</span></div>
+          <div class="grilla-head"><div></div><div>Central</div><div>Cancha 2</div><div>Cancha 3</div></div>
+          <div class="grilla-row">
+            <div class="gt">18:00</div>
+            <div class="slot s-pagada"><b>Tomás L.</b><span class="sm">18–19:30</span></div>
+            <div class="slot s-clase"><b>Clase · Ana</b><span class="sm">18–19</span></div>
+            <div class="slot s-senada"><b>Flor P.</b><span class="sm">18–19:30</span></div>
+          </div>
+          <div class="grilla-row">
+            <div class="gt">19:30</div>
+            <div class="slot s-pagada"><b>Equipo A</b><span class="sm">19:30–21</span></div>
+            <div class="slot tap-target" id="slot-new">
+              <div class="slot s-free" id="slot-new-inner" style="height:100%;">Disponible</div>
+              <div class="tap-pulse" id="tap-pulse"></div>
+            </div>
+            <div class="slot s-pend"><b>Fijo · Jue</b><span class="sm">19:30–21</span></div>
+          </div>
+          <div class="grilla-row">
+            <div class="gt">21:00</div>
+            <div class="slot s-senada"><b>Diego F.</b><span class="sm">21–22:30</span></div>
+            <div class="slot s-free">Disponible</div>
+            <div class="slot s-pagada"><b>Sofía M.</b><span class="sm">21–22:30</span></div>
+          </div>
+          <div class="toast" id="toast-cobro">
+            <svg class="tk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Turno cobrado · $ 24.000 · Bruno V.
+          </div>
+        </div>
+
+        <!-- panel: buffet -->
+        <div class="panel" id="p-buffet">
+          <div class="panel-title">Buffet · Punto de venta <span class="pt-tag">Mostrador</span></div>
+          <div class="buffet-grid">
+            <div class="cat">
+              <div class="prod"><div class="pe">🥤</div><div class="pn">Gatorade</div><div class="pp">$ 2.800</div></div>
+              <div class="prod" id="prod-pick"><div class="pe">💧</div><div class="pn">Agua 500ml</div><div class="pp">$ 1.500</div></div>
+              <div class="prod"><div class="pe">🍫</div><div class="pn">Alfajor</div><div class="pp">$ 1.800</div></div>
+              <div class="prod"><div class="pe">🥫</div><div class="pn">Lata gaseosa</div><div class="pp">$ 2.300</div></div>
+              <div class="prod"><div class="pe">🎾</div><div class="pn">Tubo pelotas</div><div class="pp">$ 9.500</div></div>
+              <div class="prod"><div class="pe">🧤</div><div class="pn">Grip</div><div class="pp">$ 3.200</div></div>
+            </div>
+            <div class="ticket">
+              <h4>Venta actual</h4>
+              <div class="tline" id="tl1"><span>2 × Agua 500ml</span><b>$ 3.000</b></div>
+              <div class="tline" id="tl2"><span>1 × Gatorade</span><b>$ 2.800</b></div>
+              <div class="tline" id="tl3"><span>1 × Tubo pelotas</span><b>$ 9.500</b></div>
+              <div class="stockchip" id="stockchip">↓ Stock actualizado automáticamente</div>
+              <div class="ttot">
+                <span class="tl">Total</span>
+                <span class="tv" id="buffet-total">$ 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- panel: caja -->
+        <div class="panel" id="p-caja">
+          <div class="panel-title">Cierre de caja · Arqueo <span class="pt-tag">Turno de hoy</span></div>
+          <div class="caja-wrap">
+            <div class="caja-row"><span>Apertura</span><span class="cv">$ 20.000</span></div>
+            <div class="caja-row"><span>Cobros de turnos en efectivo</span><span class="cv plus">+ $ 24.000</span></div>
+            <div class="caja-row"><span>Ventas del buffet en efectivo</span><span class="cv plus">+ $ 15.300</span></div>
+            <div class="caja-esperado">
+              <span class="cl">Efectivo esperado en caja</span>
+              <span class="ce" id="caja-esperado">$ 0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- panel: eerr -->
+        <div class="panel" id="p-eerr">
+          <div class="panel-title">Estado de resultados · por unidad de negocio <span class="pt-tag">Este mes</span></div>
+          <div class="eerr-row">
+            <span class="eerr-un">Canchas</span>
+            <div class="eerr-track"><div class="eerr-fill" id="f-canchas" style="background:#16a34a;">$ 1.240.000</div></div>
+          </div>
+          <div class="eerr-row">
+            <span class="eerr-un">Buffet</span>
+            <div class="eerr-track"><div class="eerr-fill" id="f-buffet" style="background:#f59e0b;">$ 510.000</div></div>
+          </div>
+          <div class="eerr-row">
+            <span class="eerr-un">Clases</span>
+            <div class="eerr-track"><div class="eerr-fill" id="f-clases" style="background:#2563eb;">$ 320.000</div></div>
+          </div>
+          <div class="eerr-foot">
+            <span class="efl">Resultado del período</span>
+            <span class="efv" id="eerr-res">$ 0</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== TITLE OVERLAY ===== -->
+    <div class="overlay active" id="ov-title">
+      <span class="ov-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18M12 3v18"/></svg></span>
+      <span class="ov-eyebrow">CanchaOS</span>
+      <h2>Así, <span class="hl">cada acción de tu club</span> se vuelve un número que podés ver</h2>
+      <p>Un recorrido por el sistema — del turno a la rentabilidad.</p>
+    </div>
+
+    <!-- ===== CLOSE OVERLAY ===== -->
+    <div class="overlay" id="ov-close">
+      <span class="ov-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18M12 3v18"/></svg></span>
+      <h2>De cada turno, a la <span class="hl">rentabilidad completa</span> de tu club</h2>
+      <p>Eso es CanchaOS.</p>
+      <span class="ov-cta">Solicitá una demo con los datos de tu club</span>
+    </div>
+
+    <!-- ===== SUBTITLE ===== -->
+    <div class="subtitle"><span id="sub"></span></div>
+
+  </div>
+
+  <!-- ===== CONTROLS ===== -->
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-play" aria-label="Reproducir o pausar">
+      <svg id="ic-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+      <svg id="ic-play" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="ctrl-btn sec" id="btn-restart" aria-label="Reiniciar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+    <span class="scene-no" id="scene-no">1 / 7</span>
+    <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+    <span class="time" id="time">0:00 / 1:22</span>
+  </div>
+</div>
+
+<p class="hint">Consejo: para tu video final, <b>grabá esta pantalla</b> mientras se reproduce y sumale tu voz con el guion de locución.</p>
+
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Scene definitions ----------
+  var SCENES = [
+    { dur:6500,  sub:"Mirá cómo cada acción de tu club se convierte, sola, en un número que podés leer.", enter:scTitle },
+    { dur:13000, sub:"Tu día arranca en la grilla: todas las canchas y turnos de un vistazo. Tocás un horario libre y la reserva queda cargada.", enter:scGrilla },
+    { dur:12500, sub:"Cobrás ese turno y no anotás nada aparte: el ingreso del día sube solo, en el momento.", enter:scCobro },
+    { dur:13500, sub:"Llega una venta del buffet. El stock baja, el ingreso del buffet suma — todo en la misma plataforma.", enter:scBuffet },
+    { dur:11500, sub:"Cada cobro en efectivo cae en la caja. Al cierre, el sistema te dice exactamente cuánto tenés que tener.", enter:scCaja },
+    { dur:17000, sub:"Y acá está la clave: cada acción del día se ordena sola en tu estado de resultados, por unidad de negocio.", enter:scEerr },
+    { dur:8000,  sub:"Del turno a la rentabilidad completa de tu club. Eso es CanchaOS.", enter:scClose }
+  ];
+  var TOTAL = SCENES.reduce(function(s,x){return s+x.dur;},0);
+
+  // ---------- Elements ----------
+  var $ = function(id){ return document.getElementById(id); };
+  var sub = $('sub'), bar = $('bar'), timeEl = $('time'), sceneNo = $('scene-no');
+  var panels = { grilla:$('p-grilla'), buffet:$('p-buffet'), caja:$('p-caja'), eerr:$('p-eerr') };
+  var ovTitle = $('ov-title'), ovClose = $('ov-close');
+
+  // ---------- Helpers ----------
+  function money(n){ return '$ ' + Math.round(n).toLocaleString('es-AR'); }
+  function fmtTime(ms){
+    var s = Math.round(ms/1000);
+    return Math.floor(s/60) + ':' + ('0'+(s%60)).slice(-2);
+  }
+  function setPanel(name){
+    Object.keys(panels).forEach(function(k){
+      panels[k].classList.toggle('active', k===name);
+    });
+  }
+  function tween(el, from, to, dur, fmt){
+    if(reduce){ el.textContent = fmt(to); return; }
+    var t0 = performance.now();
+    (function step(now){
+      var t = Math.min(1,(now-t0)/dur);
+      var e = 1 - Math.pow(1-t,3);
+      el.textContent = fmt(from + (to-from)*e);
+      if(t<1) requestAnimationFrame(step);
+    })(t0);
+  }
+  function flashKpi(id){ var k=$(id); k.classList.remove('flash'); void k.offsetWidth; k.classList.add('flash'); }
+
+  // ---------- Reset all animatable state ----------
+  function resetAll(){
+    ovTitle.classList.remove('active'); ovClose.classList.remove('active');
+    setPanel('grilla');
+    // kpis
+    $('v-dia').textContent='$ 0'; $('v-buf').textContent='$ 0';
+    $('v-caja').textContent='$ 20.000';
+    $('v-res').textContent='—'; $('v-res').classList.add('muted');
+    ['b-dia','b-buf','b-caja','b-res'].forEach(function(id){ $(id).style.width='0'; });
+    // grilla
+    var inner=$('slot-new-inner');
+    inner.className='slot s-free'; inner.style.height='100%'; inner.innerHTML='Disponible';
+    $('tap-pulse').classList.remove('go');
+    $('toast-cobro').classList.remove('show');
+    // buffet
+    ['tl1','tl2','tl3'].forEach(function(id){ $(id).classList.remove('show'); });
+    $('prod-pick').classList.remove('pick');
+    $('buffet-total').textContent='$ 0';
+    // caja
+    $('caja-esperado').textContent='$ 0';
+    // eerr
+    ['f-canchas','f-buffet','f-clases'].forEach(function(id){ $(id).style.width='0'; });
+    $('eerr-res').textContent='$ 0';
+  }
+
+  // ---------- Scenes ----------
+  function scTitle(){ setPanel('grilla'); ovClose.classList.remove('active'); ovTitle.classList.add('active'); }
+
+  function scGrilla(){
+    ovTitle.classList.remove('active'); ovClose.classList.remove('active');
+    setPanel('grilla');
+    $('toast-cobro').classList.remove('show');
+    var inner=$('slot-new-inner');
+    inner.className='slot s-free'; inner.innerHTML='Disponible';
+    // tap, then fill with a new reservation
+    setTimeout(function(){ $('tap-pulse').classList.remove('go'); void $('tap-pulse').offsetWidth; $('tap-pulse').classList.add('go'); }, 1400);
+    setTimeout(function(){
+      inner.className='slot s-pend pop-in';
+      inner.innerHTML='<b>Bruno V.</b><span class="sm">19:30–21 · nuevo</span>';
+    }, 2600);
+  }
+
+  function scCobro(){
+    ovTitle.classList.remove('active');
+    setPanel('grilla');
+    var inner=$('slot-new-inner');
+    inner.className='slot s-pend';
+    inner.innerHTML='<b>Bruno V.</b><span class="sm">19:30–21</span>';
+    setTimeout(function(){
+      inner.className='slot s-pagada pop-in';
+      inner.innerHTML='<b>Bruno V.</b><span class="sm">19:30–21 · pagada</span>';
+      $('toast-cobro').classList.add('show');
+      flashKpi('kpi-dia');
+      tween($('v-dia'),0,24000,1200,money);
+      $('b-dia').style.width='34%';
+    }, 1500);
+  }
+
+  function scBuffet(){
+    setPanel('buffet');
+    ['tl1','tl2','tl3'].forEach(function(id){ $(id).classList.remove('show'); });
+    $('prod-pick').classList.remove('pick');
+    $('buffet-total').textContent='$ 0';
+    var items=[['tl1',900],['tl2',1900],['tl3',3100]];
+    items.forEach(function(it){ setTimeout(function(){ $(it[0]).classList.add('show'); }, it[1]); });
+    setTimeout(function(){ $('prod-pick').classList.add('pick'); }, 700);
+    setTimeout(function(){
+      tween($('buffet-total'),0,15300,1100,money);
+      flashKpi('kpi-buf');
+      tween($('v-buf'),0,15300,1100,money);
+      $('b-buf').style.width='42%';
+      // ingresos del día incorpora el buffet
+      flashKpi('kpi-dia');
+      tween($('v-dia'),24000,39300,1100,money);
+      $('b-dia').style.width='55%';
+    }, 4300);
+  }
+
+  function scCaja(){
+    setPanel('caja');
+    $('caja-esperado').textContent='$ 0';
+    setTimeout(function(){
+      tween($('caja-esperado'),0,59300,1300,money);
+      flashKpi('kpi-caja');
+      tween($('v-caja'),20000,59300,1300,money);
+      $('b-caja').style.width='60%';
+    }, 1400);
+  }
+
+  function scEerr(){
+    setPanel('eerr');
+    ovClose.classList.remove('active');
+    ['f-canchas','f-buffet','f-clases'].forEach(function(id){ $(id).style.width='0'; });
+    $('eerr-res').textContent='$ 0';
+    setTimeout(function(){ $('f-canchas').style.width='92%'; }, 600);
+    setTimeout(function(){ $('f-buffet').style.width='48%'; }, 1200);
+    setTimeout(function(){ $('f-clases').style.width='32%'; }, 1800);
+    setTimeout(function(){
+      tween($('eerr-res'),0,845000,1600,function(n){ return '+ '+money(n); });
+      flashKpi('kpi-res');
+      $('v-res').classList.remove('muted');
+      tween($('v-res'),0,845000,1600,function(n){ return '+ '+money(n); });
+      $('b-res').style.width='78%';
+    }, 3000);
+  }
+
+  function scClose(){ setPanel('eerr'); ovClose.classList.add('active'); }
+
+  // ---------- Timeline engine ----------
+  var idx=0, playing=true, sceneStart=performance.now(), finished=false;
+
+  function showSub(text){
+    sub.classList.remove('show');
+    setTimeout(function(){ sub.textContent=text; sub.classList.add('show'); }, 220);
+  }
+  function enterScene(i){
+    SCENES[i].enter();
+    showSub(SCENES[i].sub);
+    sceneNo.textContent=(i+1)+' / '+SCENES.length;
+  }
+  function elapsedBefore(i){
+    var s=0; for(var k=0;k<i;k++) s+=SCENES[k].dur; return s;
+  }
+  function finish(){
+    finished=true; playing=false;
+    $('ic-pause').style.display='none'; $('ic-play').style.display='block';
+    bar.style.width='100%';
+    timeEl.textContent=fmtTime(TOTAL)+' / '+fmtTime(TOTAL);
+  }
+
+  function loop(now){
+    if(playing && !finished){
+      var el = now - sceneStart;
+      if(el >= SCENES[idx].dur){
+        if(idx >= SCENES.length-1){ finish(); requestAnimationFrame(loop); return; }
+        idx++; enterScene(idx); sceneStart=now; el=0;
+      }
+      var done = elapsedBefore(idx)+Math.min(el,SCENES[idx].dur);
+      bar.style.width=(done/TOTAL*100)+'%';
+      timeEl.textContent=fmtTime(done)+' / '+fmtTime(TOTAL);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Controls ----------
+  var btnPlay=$('btn-play'), btnRestart=$('btn-restart');
+  function setPlayIcon(){
+    $('ic-pause').style.display = playing ? 'block':'none';
+    $('ic-play').style.display  = playing ? 'none':'block';
+  }
+  btnPlay.addEventListener('click', function(){
+    if(finished){ restart(); return; }
+    playing=!playing;
+    if(playing){ sceneStart=performance.now()-pausedElapsed; }
+    else { pausedElapsed=performance.now()-sceneStart; }
+    setPlayIcon();
+  });
+  var pausedElapsed=0;
+  btnRestart.addEventListener('click', restart);
+  function restart(){
+    resetAll(); idx=0; finished=false; playing=true; pausedElapsed=0;
+    enterScene(0); sceneStart=performance.now(); setPlayIcon();
+  }
+
+  // ---------- Start ----------
+  resetAll();
+  enterScene(0);
+  setPlayIcon();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

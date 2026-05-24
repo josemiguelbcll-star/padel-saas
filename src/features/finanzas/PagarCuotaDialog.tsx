@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertTriangle, Wallet } from 'lucide-react';
+import { AlertTriangle, Repeat, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -143,8 +143,19 @@ export function PagarCuotaDialog({
 
         {/* Resumen de la cuota */}
         <div className="space-y-1 rounded-md border border-border bg-card p-3 text-sm">
-          <p className="font-medium text-foreground">
-            {cuota.proveedor ?? <span className="italic text-muted-foreground">(sin proveedor)</span>}
+          <p className="flex items-center gap-1.5 font-medium text-foreground">
+            {cuota.proveedor ?? cuota.concepto_recurrente ?? (
+              <span className="italic text-muted-foreground">(sin proveedor)</span>
+            )}
+            {cuota.concepto_recurrente !== null && (
+              <span
+                title="Cargado desde una plantilla recurrente"
+                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium text-muted-foreground ring-1 ring-border"
+              >
+                <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+                Recurrente
+              </span>
+            )}
           </p>
           <p className="text-xs text-muted-foreground">
             {cuota.categoria_nombre} · {cuota.unidad_nombre}

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="680" height="876" viewBox="0 0 680 876" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Arial, Helvetica, sans-serif">
+<title>Pieza promocional de Padel SaaS para WhatsApp</title>
+<desc>Aviso vertical de venta del sistema de gestión Padel SaaS: titular, mini panel de ingresos por unidad, beneficios y llamado a pedir una demo por WhatsApp.</desc>
+<rect width="680" height="876" fill="#0f2350"/>
+<circle cx="642" cy="56" r="220" fill="#ffffff" fill-opacity="0.045"/>
+<circle cx="34" cy="652" r="190" fill="#ffffff" fill-opacity="0.04"/>
+<rect x="48" y="44" width="46" height="46" rx="12" fill="#2563eb"/>
+<rect x="60" y="56" width="22" height="22" rx="5" fill="none" stroke="#ffffff" stroke-width="2.6"/>
+<line x1="71" y1="56" x2="71" y2="78" stroke="#ffffff" stroke-width="2.6"/>
+<line x1="60" y1="67" x2="82" y2="67" stroke="#ffffff" stroke-width="2.6"/>
+<text x="106" y="76" font-size="25" font-weight="800" fill="#ffffff">Padel SaaS</text>
+<rect x="48" y="104" width="318" height="32" rx="16" fill="#ffffff" fill-opacity="0.10"/>
+<text x="66" y="124" font-size="13" font-weight="500" fill="#c7d5ee">Software de gestión para clubes de pádel</text>
+<text x="48" y="226" font-size="48" font-weight="800" fill="#ffffff">Tu club de pádel,</text>
+<text x="48" y="286" font-size="48" font-weight="800" fill="#4ade80">con números claros.</text>
+<text x="48" y="336" font-size="20" font-weight="400" fill="#aebfd9">Reservas, buffet, caja y rentabilidad —</text>
+<text x="48" y="364" font-size="20" font-weight="400" fill="#aebfd9">todo tu club en una sola plataforma.</text>
+<rect x="48" y="392" width="584" height="166" rx="18" fill="#ffffff"/>
+<text x="74" y="426" font-size="13" font-weight="600" fill="#5b6b85">Ingresos por unidad — este mes</text>
+<text x="74" y="455" font-size="14" font-weight="500" fill="#0f172a">Canchas</text>
+<rect x="170" y="444" width="277" height="14" rx="7" fill="#16a34a"/>
+<text x="456" y="455" font-size="13" font-weight="700" fill="#0f172a">$ 416.858</text>
+<text x="74" y="491" font-size="14" font-weight="500" fill="#0f172a">Buffet</text>
+<rect x="170" y="480" width="280" height="14" rx="7" fill="#f59e0b"/>
+<text x="459" y="491" font-size="13" font-weight="700" fill="#0f172a">$ 422.000</text>
+<text x="74" y="527" font-size="14" font-weight="500" fill="#0f172a">Clases</text>
+<rect x="170" y="516" width="24" height="14" rx="7" fill="#2563eb"/>
+<text x="203" y="527" font-size="13" font-weight="700" fill="#0f172a">$ 30.000</text>
+<circle cx="66" cy="594" r="13" fill="#22c55e"/>
+<path d="M60 594 L64 599 L73 588" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="92" y="600" font-size="18" font-weight="500" fill="#ffffff">Grilla de turnos y turnos fijos</text>
+<circle cx="66" cy="632" r="13" fill="#22c55e"/>
+<path d="M60 632 L64 637 L73 626" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="92" y="638" font-size="18" font-weight="500" fill="#ffffff">Buffet y stock con costos reales</text>
+<circle cx="66" cy="670" r="13" fill="#22c55e"/>
+<path d="M60 670 L64 675 L73 664" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="92" y="676" font-size="18" font-weight="500" fill="#ffffff">Caja con arqueo en un clic</text>
+<circle cx="66" cy="708" r="13" fill="#22c55e"/>
+<path d="M60 708 L64 713 L73 702" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="92" y="714" font-size="18" font-weight="500" fill="#ffffff">Rentabilidad por unidad de negocio</text>
+<rect x="48" y="748" width="584" height="66" rx="16" fill="#25d366"/>
+<rect x="120" y="768" width="34" height="26" rx="9" fill="#06371b"/>
+<polygon points="126,792 126,803 137,792" fill="#06371b"/>
+<circle cx="130" cy="781" r="2.6" fill="#25d366"/>
+<circle cx="137" cy="781" r="2.6" fill="#25d366"/>
+<circle cx="144" cy="781" r="2.6" fill="#25d366"/>
+<text x="176" y="789" font-size="21" font-weight="800" fill="#06371b">Escribinos y pedí tu demo gratis</text>
+<text x="340" y="850" font-size="14" font-weight="400" fill="#8298c0" text-anchor="middle">Padel SaaS  ·  Hecho en Argentina</text>
+</svg>

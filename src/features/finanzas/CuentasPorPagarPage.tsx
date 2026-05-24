@@ -7,6 +7,7 @@ import {
   CalendarRange,
   CircleDashed,
   Receipt,
+  Repeat,
   Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -159,11 +160,17 @@ export function CuentasPorPagarPage() {
   const enUnaSemana = addDaysISO(hoy, 7);
   const finMes = lastDayOfMonthISO(hoy);
 
+  // Label de cada fila para el filtro: proveedor si existe, sino el
+  // concepto de la plantilla recurrente. Sin ambos, queda sin filtrar.
+  function filterLabel(c: CuentaPorPagarFila): string | null {
+    return c.proveedor ?? c.concepto_recurrente ?? null;
+  }
+
   // Clasificación + filtros.
   const cuotasFiltradas = useMemo(() => {
     let result = cuotas;
     if (proveedorFiltro !== 'todos') {
-      result = result.filter((c) => c.proveedor === proveedorFiltro);
+      result = result.filter((c) => filterLabel(c) === proveedorFiltro);
     }
     return result.map((c) => ({
       ...c,
@@ -217,11 +224,15 @@ export function CuentasPorPagarPage() {
     return map;
   }, [cuotasFiltradasFinal]);
 
-  // Proveedores con cuotas pendientes (para el select de filtros).
-  const proveedoresConCuotas = useMemo(() => {
+  // Labels para el select de filtros: proveedor del gasto o, en su
+  // defecto, concepto de la plantilla recurrente. Así los recurrentes
+  // sin proveedor formal (sueldos, "Luz" cargado sin link a Edenor)
+  // también se pueden filtrar por su concepto.
+  const filtroLabels = useMemo(() => {
     const set = new Set<string>();
     for (const c of cuotas) {
-      if (c.proveedor) set.add(c.proveedor);
+      const label = filterLabel(c);
+      if (label) set.add(label);
     }
     return Array.from(set).sort((a, b) =>
       a.localeCompare(b, 'es', { sensitivity: 'base' }),
@@ -274,7 +285,7 @@ export function CuentasPorPagarPage() {
             htmlFor="cxp-proveedor"
             className="text-[10px] uppercase tracking-wider text-muted-foreground"
           >
-            Proveedor
+            Proveedor / Concepto
           </Label>
           <select
             id="cxp-proveedor"
@@ -286,9 +297,9 @@ export function CuentasPorPagarPage() {
             )}
           >
             <option value="todos">Todos</option>
-            {proveedoresConCuotas.map((p) => (
-              <option key={p} value={p}>
-                {p}
+            {filtroLabels.map((label) => (
+              <option key={label} value={label}>
+                {label}
               </option>
             ))}
           </select>
@@ -480,9 +491,18 @@ function CuotaRow({
   return (
     <li className="flex flex-wrap items-center gap-3 px-4 py-3">
       <div className="flex-1 min-w-[200px] space-y-0.5">
-        <p className="text-sm font-medium text-foreground">
-          {cuota.proveedor ?? (
+        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+          {cuota.proveedor ?? cuota.concepto_recurrente ?? (
             <span className="italic text-muted-foreground">(sin proveedor)</span>
+          )}
+          {cuota.concepto_recurrente !== null && (
+            <span
+              title="Cargado desde una plantilla recurrente"
+              className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium text-muted-foreground ring-1 ring-border"
+            >
+              <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+              Recurrente
+            </span>
           )}
         </p>
         <p className="text-xs text-muted-foreground">

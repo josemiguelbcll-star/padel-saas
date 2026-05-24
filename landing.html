@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CanchaOS — El sistema operativo de tu club de pádel</title>
+<meta name="description" content="CanchaOS centraliza reservas, turnos fijos, buffet, caja y rentabilidad de tu club de pádel en una sola plataforma. Dejá las planillas y manejá tu club con números claros." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* ===== Tokens ===== */
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --primary-soft: #eff4ff;
+    --ink: #0f172a;
+    --body: #475569;
+    --muted: #64748b;
+    --bg: #ffffff;
+    --bg-soft: #f8fafc;
+    --bg-deep: #0f172a;
+    --border: #e7ebf0;
+    --emerald: #059669;
+    --emerald-soft: #ecfdf5;
+    --amber: #f59e0b;
+    --violet: #8b5cf6;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.05);
+    --shadow-md: 0 10px 30px -10px rgba(15,23,42,.18);
+    --shadow-lg: 0 30px 60px -20px rgba(15,23,42,.28);
+    --maxw: 1140px;
+  }
+
+  /* ===== Reset ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--body);
+    background: var(--bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--primary); color: #fff; }
+
+  /* ===== Layout ===== */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  section { padding: 96px 0; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--primary);
+    background: var(--primary-soft); padding: 6px 12px; border-radius: 999px;
+  }
+  h1, h2, h3 { color: var(--ink); line-height: 1.15; letter-spacing: -0.02em; }
+  h2.section-title { font-size: clamp(28px, 4vw, 40px); font-weight: 800; margin: 18px 0 14px; }
+  .section-lead { font-size: 18px; max-width: 620px; }
+  .center { text-align: center; }
+  .center .section-lead { margin-left: auto; margin-right: auto; }
+
+  /* ===== Buttons ===== */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-weight: 600; font-size: 15px; border-radius: 12px;
+    padding: 13px 22px; cursor: pointer; border: 1px solid transparent;
+    transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 8px 20px -8px rgba(37,99,235,.6); }
+  .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+  .btn-ghost { background: #fff; color: var(--ink); border-color: var(--border); }
+  .btn-ghost:hover { border-color: #cbd5e1; transform: translateY(-1px); }
+  .btn-light { background: #fff; color: var(--primary); }
+  .btn-light:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .btn-lg { padding: 16px 28px; font-size: 16px; }
+
+  /* ===== Nav ===== */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; color: var(--ink); letter-spacing: -0.02em; }
+  .logo-mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--primary), #4f8bff);
+    display: grid; place-items: center; color: #fff; flex-shrink: 0;
+  }
+  .logo-mark svg { width: 19px; height: 19px; }
+  .nav-links { display: flex; align-items: center; gap: 30px; }
+  .nav-links a { font-size: 15px; font-weight: 500; color: var(--body); transition: color .15s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta { display: flex; align-items: center; gap: 14px; }
+  .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 6px; }
+  .nav-toggle svg { width: 26px; height: 26px; color: var(--ink); }
+
+  /* ===== Hero ===== */
+  .hero { padding: 84px 0 96px; background:
+    radial-gradient(900px 460px at 78% -8%, #eaf1ff 0%, rgba(234,241,255,0) 70%),
+    var(--bg); }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center; }
+  .hero h1 { font-size: clamp(36px, 5.2vw, 56px); font-weight: 800; margin: 20px 0; }
+  .hero h1 .hl { color: var(--primary); }
+  .hero p.lead { font-size: 19px; max-width: 520px; }
+  .hero-cta { display: flex; gap: 14px; margin: 30px 0 18px; flex-wrap: wrap; }
+  .hero-trust { display: flex; align-items: center; gap: 18px; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
+  .hero-trust span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); }
+
+  /* ===== Grilla mockup ===== */
+  .mockup {
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-lg); overflow: hidden;
+  }
+  .mockup-bar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+  .mockup-bar i { width: 10px; height: 10px; border-radius: 50%; background: #d8dee6; }
+  .mockup-bar .mb-title { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .grilla { padding: 14px; }
+  .grilla-head { display: grid; grid-template-columns: 38px repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
+  .grilla-head div { font-size: 11px; font-weight: 700; color: var(--muted); text-align: center; }
+  .grilla-row { display: grid; grid-template-columns: 38px repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
+  .grilla-time { font-size: 10px; color: var(--muted); display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; }
+  .slot { border-radius: 8px; height: 46px; padding: 7px 8px; font-size: 10.5px; line-height: 1.3; }
+  .slot-free { border: 1px dashed #cdd5df; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .slot b { display: block; font-size: 11px; font-weight: 700; }
+  .s-pagada { background: #e9f9ef; border-left: 3px solid #16a34a; color: #14532d; }
+  .s-senada { background: #fef4e2; border-left: 3px solid var(--amber); color: #7c4a03; }
+  .s-pend { background: #f1f3f6; border-left: 3px solid #94a3b8; color: #475569; }
+  .s-clase { background: #f1ecfe; border-left: 3px solid var(--violet); color: #4c2889; }
+  .grilla-toast {
+    margin: 10px 6px 4px; display: flex; align-items: center; gap: 9px;
+    background: var(--emerald-soft); border: 1px solid #bbf0d4; border-radius: 10px;
+    padding: 9px 11px; font-size: 11.5px; color: #065f46; font-weight: 500;
+  }
+  .grilla-toast .tick { width: 16px; height: 16px; color: var(--emerald); flex-shrink: 0; }
+
+  /* ===== Capability strip ===== */
+  .strip { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 30px 0; }
+  .strip-grid { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  .strip-item { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .strip-item svg { width: 20px; height: 20px; color: var(--primary); flex-shrink: 0; }
+
+  /* ===== Feature grid ===== */
+  .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 48px; }
+  .feat {
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 26px; transition: transform .15s ease, box-shadow .2s ease, border-color .2s;
+    position: relative;
+  }
+  .feat:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: #d6deea; }
+  .feat-ico {
+    width: 44px; height: 44px; border-radius: 11px; background: var(--primary-soft);
+    display: grid; place-items: center; margin-bottom: 16px;
+  }
+  .feat-ico svg { width: 22px; height: 22px; color: var(--primary); }
+  .feat h3 { font-size: 17px; font-weight: 700; margin-bottom: 7px; }
+  .feat p { font-size: 14.5px; }
+  .tag {
+    position: absolute; top: 18px; right: 18px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 999px;
+  }
+  .tag-soon { background: #fff5e6; color: #b45309; border: 1px solid #fde2b8; }
+  .feat.soon .feat-ico { background: #fff5e6; }
+  .feat.soon .feat-ico svg { color: var(--amber); }
+
+  /* ===== Deep dive sections ===== */
+  .dive { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  .dive.rev .dive-text { order: 2; }
+  .dive-list { margin-top: 22px; display: flex; flex-direction: column; gap: 16px; }
+  .dive-li { display: flex; gap: 13px; }
+  .dive-li .chk {
+    width: 26px; height: 26px; border-radius: 8px; background: var(--primary-soft);
+    display: grid; place-items: center; flex-shrink: 0; margin-top: 1px;
+  }
+  .dive-li .chk svg { width: 14px; height: 14px; color: var(--primary); }
+  .dive-li h4 { font-size: 15.5px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .dive-li p { font-size: 14px; }
+
+  /* panel: cuenta del turno */
+  .panel { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 22px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .panel-head .pt { font-weight: 700; color: var(--ink); font-size: 15px; }
+  .pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--emerald-soft); color: #047857; }
+  .acct-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; font-size: 14px; }
+  .acct-row.line { border-bottom: 1px dashed var(--border); }
+  .acct-row .lbl { color: var(--body); display: flex; align-items: center; gap: 9px; }
+  .acct-row .amt { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .acct-ico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
+  .acct-total { background: var(--bg-soft); border-radius: 10px; padding: 12px 14px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .acct-total .lbl { font-weight: 700; color: var(--ink); }
+  .acct-total .amt { font-weight: 800; color: var(--primary); font-size: 19px; font-variant-numeric: tabular-nums; }
+  .split { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 14px; }
+  .split-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; padding: 9px; text-align: center; }
+  .split-card .av { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-weight: 700; font-size: 11px; display: grid; place-items: center; margin: 0 auto 5px; }
+  .split-card .nm { font-size: 10.5px; color: var(--muted); }
+  .split-card .vl { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+
+  /* panel: EERR */
+  .eerr-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .eerr-bar-row .un { width: 78px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .eerr-track { flex: 1; background: var(--bg-soft); border-radius: 999px; height: 26px; overflow: hidden; }
+  .eerr-fill { height: 100%; border-radius: 999px; display: flex; align-items: center; padding-left: 10px; color: #fff; font-size: 11.5px; font-weight: 700; }
+  .eerr-foot { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .eerr-foot .l { font-size: 13px; color: var(--muted); }
+  .eerr-foot .r { font-size: 22px; font-weight: 800; color: var(--emerald); font-variant-numeric: tabular-nums; }
+
+  /* ===== Roadmap ===== */
+  .roadmap { background: var(--bg-soft); }
+  .road-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-top: 44px; }
+  .road-card { display: flex; gap: 16px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .road-ico { width: 42px; height: 42px; border-radius: 11px; background: #fff5e6; display: grid; place-items: center; flex-shrink: 0; }
+  .road-ico svg { width: 21px; height: 21px; color: var(--amber); }
+  .road-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .road-card p { font-size: 14px; }
+
+  /* ===== Why ===== */
+  .why-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 22px; margin-top: 48px; }
+  .why { text-align: left; }
+  .why .num { font-size: 14px; font-weight: 800; color: var(--primary); }
+  .why h3 { font-size: 19px; font-weight: 700; margin: 10px 0 8px; }
+  .why p { font-size: 15px; }
+
+  /* ===== FAQ ===== */
+  .faq-list { max-width: 760px; margin: 44px auto 0; }
+  .faq-item { border-bottom: 1px solid var(--border); }
+  .faq-q {
+    width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 22px 4px; font-size: 16.5px; font-weight: 600; color: var(--ink); font-family: inherit;
+  }
+  .faq-q .ic { width: 22px; height: 22px; flex-shrink: 0; color: var(--primary); transition: transform .2s ease; }
+  .faq-item.open .faq-q .ic { transform: rotate(45deg); }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height .26s ease; }
+  .faq-a p { padding: 0 4px 22px; font-size: 15px; }
+
+  /* ===== CTA band ===== */
+  .cta-band {
+    background:
+      radial-gradient(700px 380px at 18% 10%, rgba(79,139,255,.35) 0%, rgba(79,139,255,0) 65%),
+      var(--bg-deep);
+    border-radius: 28px; padding: 64px 48px; text-align: center; color: #fff;
+  }
+  .cta-band h2 { color: #fff; font-size: clamp(28px, 4vw, 38px); font-weight: 800; }
+  .cta-band p { color: #c7d2e3; font-size: 18px; max-width: 540px; margin: 14px auto 28px; }
+  .cta-band .hero-trust { justify-content: center; color: #94a3b8; }
+
+  /* ===== Footer ===== */
+  footer { border-top: 1px solid var(--border); padding: 56px 0 34px; background: var(--bg-soft); }
+  .foot-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 36px; }
+  .foot-brand p { font-size: 14px; margin-top: 14px; max-width: 280px; }
+  .foot-col h4 { font-size: 13px; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 14px; }
+  .foot-col a, .foot-col p { display: block; font-size: 14.5px; color: var(--body); margin-bottom: 9px; }
+  .foot-col a:hover { color: var(--primary); }
+  .foot-bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+
+  /* ===== Reveal animation ===== */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* ===== Mobile menu ===== */
+  .mobile-menu { display: none; flex-direction: column; gap: 4px; padding: 12px 24px 20px; border-bottom: 1px solid var(--border); background: #fff; }
+  .mobile-menu a { padding: 11px 0; font-weight: 500; color: var(--body); border-bottom: 1px solid var(--bg-soft); }
+  .mobile-menu .btn { margin-top: 12px; }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 940px) {
+    section { padding: 72px 0; }
+    .hero-grid, .dive { grid-template-columns: 1fr; }
+    .dive.rev .dive-text { order: 0; }
+    .feat-grid, .why-grid { grid-template-columns: 1fr 1fr; }
+    .road-grid { grid-template-columns: 1fr; }
+    .foot-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
+    .nav-links, .nav-cta .btn { display: none; }
+    .nav-toggle { display: block; }
+  }
+  @media (max-width: 560px) {
+    section { padding: 60px 0; }
+    .wrap { padding: 0 18px; }
+    .feat-grid, .why-grid, .split { grid-template-columns: 1fr; }
+    .split { grid-template-columns: 1fr 1fr; }
+    .hero-cta .btn { flex: 1; }
+    .cta-band { padding: 48px 22px; }
+    .strip-grid { gap: 14px; }
+    .strip-item { font-size: 13px; }
+    .foot-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="#top" class="logo">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18M12 3v18"/></svg>
+      </span>
+      CanchaOS
+    </a>
+    <nav class="nav-links">
+      <a href="#funciones">Funciones</a>
+      <a href="#grilla">La grilla</a>
+      <a href="#cuenta">Cuenta del turno</a>
+      <a href="#finanzas">Rentabilidad</a>
+      <a href="#roadmap">Lo que viene</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="#demo" class="btn btn-primary">Solicitar una demo</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#funciones">Funciones</a>
+    <a href="#grilla">La grilla</a>
+    <a href="#cuenta">Cuenta del turno</a>
+    <a href="#finanzas">Rentabilidad</a>
+    <a href="#roadmap">Lo que viene</a>
+    <a href="#demo" class="btn btn-primary">Solicitar una demo</a>
+  </div>
+</header>
+
+<a id="top"></a>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-text">
+      <span class="eyebrow">Software de gestión para clubes de pádel</span>
+      <h1>El <span class="hl">sistema operativo</span> de tu club de pádel</h1>
+      <p class="lead">Reservas, turnos fijos, buffet, caja y rentabilidad — todo en una sola plataforma. Dejá las planillas y manejá tu club con números claros.</p>
+      <div class="hero-cta">
+        <a href="#demo" class="btn btn-primary btn-lg">Solicitar una demo</a>
+        <a href="#funciones" class="btn btn-ghost btn-lg">Ver funciones</a>
+      </div>
+      <div class="hero-trust">
+        <span><span class="dot"></span> Pensado para clubes de pádel</span>
+        <span><span class="dot"></span> 100% en la nube</span>
+        <span><span class="dot"></span> Hecho en Argentina</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="mockup" role="img" aria-label="Vista de la grilla del día con reservas por cancha">
+        <div class="mockup-bar"><i></i><i></i><i></i><span class="mb-title">Grilla del día — Hoy</span></div>
+        <div class="grilla">
+          <div class="grilla-head"><div></div><div>Cancha 1</div><div>Cancha 2</div><div>Cancha 3</div></div>
+          <div class="grilla-row">
+            <div class="grilla-time">17:00</div>
+            <div class="slot s-pagada"><b>Martín G.</b>17–18:30</div>
+            <div class="slot s-clase"><b>Clase · Ana</b>17–18</div>
+            <div class="slot slot-free">Disponible</div>
+          </div>
+          <div class="grilla-row">
+            <div class="grilla-time">18:30</div>
+            <div class="slot s-senada"><b>Lucía R.</b>18:30–20</div>
+            <div class="slot s-pend"><b>Equipo Jueves</b>18:30–20</div>
+            <div class="slot s-pagada"><b>Diego F.</b>18:30–20</div>
+          </div>
+          <div class="grilla-row">
+            <div class="grilla-time">20:00</div>
+            <div class="slot slot-free">Disponible</div>
+            <div class="slot s-pagada"><b>Sofía M.</b>20–21:30</div>
+            <div class="slot s-senada"><b>Pablo V.</b>20–21:30</div>
+          </div>
+          <div class="grilla-toast">
+            <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Reserva cobrada · Cancha 2 · 20:00 · Sofía M.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CAPABILITY STRIP ============ -->
+<div class="strip">
+  <div class="wrap strip-grid">
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Reservas y turnos fijos</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Buffet y punto de venta</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg> Caja con arqueo</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg> Rentabilidad por unidad</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg> Inventario y compras</div>
+  </div>
+</div>
+
+<!-- ============ PROBLEM ============ -->
+<section>
+  <div class="wrap center">
+    <span class="eyebrow reveal">Por qué CanchaOS</span>
+    <h2 class="section-title reveal">Tu club no se gestiona con un cuaderno y tres planillas</h2>
+    <p class="section-lead reveal">La reserva en un Excel, los consumos del buffet en un papel, la caja en la cabeza y la rentabilidad… nunca. CanchaOS conecta todo eso en un solo lugar, para que sepas exactamente cómo le va a tu club.</p>
+    <div class="why-grid">
+      <div class="why reveal">
+        <div class="num">01</div>
+        <h3>Una sola fuente de verdad</h3>
+        <p>El alquiler de la cancha, los consumos del buffet y los pagos viven juntos. Lo que se cargó una vez no se vuelve a cargar.</p>
+      </div>
+      <div class="why reveal">
+        <div class="num">02</div>
+        <h3>Pensado para el control de la plata</h3>
+        <p>No es solo una agenda. Cada peso que entra y sale queda registrado y se ordena en un estado de resultados real.</p>
+      </div>
+      <div class="why reveal">
+        <div class="num">03</div>
+        <h3>Lo configura cada club</h3>
+        <p>Tus canchas, tus horarios, tus tarifas. Desde un caso simple hasta franjas con precios y duraciones distintas.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section id="funciones" style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Funciones</span>
+      <h2 class="section-title reveal">Todo lo que tu club necesita, en un lugar</h2>
+      <p class="section-lead reveal">Las funciones marcadas como <strong style="color:#b45309;">Próximamente</strong> están en el plan de producto y todavía en desarrollo. El resto ya forma parte del sistema.</p>
+    </div>
+    <div class="feat-grid">
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+        <h3>Grilla del día</h3>
+        <p>Todas tus canchas y turnos del día en una grilla clara. Creás una reserva con un clic en el hueco libre.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9M3 11V9a4 4 0 0 1 4-4h14M7 21.9 3 18l4-3.9M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
+        <h3>Turnos fijos</h3>
+        <p>Cargás los turnos recurrentes una sola vez. El sistema los proyecta semana a semana y los confirma solo.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <h3>Tarifas con vigencia</h3>
+        <p>Precios por franja horaria, con aumentos programados a futuro. Cada turno cobra siempre la tarifa correcta.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+        <h3>Clases y profesores</h3>
+        <p>Organizás las clases de tus profes y el alquiler de cancha asociado, sin pisar las reservas.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1A4 4 0 0 1 16 11"/></svg></div>
+        <h3>Ficha de jugadores</h3>
+        <p>Cada jugador con sus datos, su historial y sus turnos. Buscás y cargás en segundos desde la reserva.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg></div>
+        <h3>Buffet y punto de venta</h3>
+        <p>Vendés bebidas y productos del mostrador desde un POS rápido, con descuento de stock automático.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg></div>
+        <h3>Inventario y compras</h3>
+        <p>Stock de productos, órdenes de compra y movimientos auditados — entradas y salidas siempre trazables.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg></div>
+        <h3>Caja con arqueo</h3>
+        <p>Abrís y cerrás la caja con arqueo. El sistema calcula el efectivo esperado y la diferencia al cierre.</p>
+      </div>
+
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="13" y="7" width="3" height="10"/></svg></div>
+        <h3>Rentabilidad y EERR</h3>
+        <p>Un estado de resultados por unidad de negocio: canchas, clases y buffet, con sus ingresos y costos.</p>
+      </div>
+
+      <div class="feat soon reveal">
+        <span class="tag tag-soon">Próximamente</span>
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-4-1L3 21l1.9-5a8.4 8.4 0 1 1 16.1-3.5z"/></svg></div>
+        <h3>Bot de WhatsApp</h3>
+        <p>Sacás una foto de la factura del proveedor y el bot repone el stock del buffet automáticamente.</p>
+      </div>
+
+      <div class="feat soon reveal">
+        <span class="tag tag-soon">Próximamente</span>
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></div>
+        <h3>Comprobantes fiscales</h3>
+        <p>Facturación formal y numeración de comprobantes, integrada al registro de ventas y cobros.</p>
+      </div>
+
+      <div class="feat soon reveal">
+        <span class="tag tag-soon">Próximamente</span>
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+        <h3>Simulador de ingresos</h3>
+        <p>"Si subo las tarifas un 15%, ¿cuánto más facturo?" Proyectás el impacto antes de decidir.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 1: GRILLA ============ -->
+<section id="grilla">
+  <div class="wrap dive">
+    <div class="dive-text">
+      <span class="eyebrow reveal">La operación del día</span>
+      <h2 class="section-title reveal">La grilla que tu recepción mira todo el día</h2>
+      <p class="section-lead reveal">Una vista por cancha y por hora, pensada para el mostrador: ves de un vistazo qué está libre, qué está señado y qué falta cobrar.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Reservá en un clic</h4><p>Tocás un hueco libre y cargás la reserva con el titular, los acompañantes y el estado de pago.</p></div>
+        </div>
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Estados con color</h4><p>Pendiente, señada, pagada, jugada y clase: cada bloque dice su situación sin abrir nada.</p></div>
+        </div>
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Turnos fijos integrados</h4><p>Los turnos recurrentes ocupan su lugar en la grilla y no se pueden pisar por error.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="mockup">
+        <div class="mockup-bar"><i></i><i></i><i></i><span class="mb-title">Reservas — Martes 19/05</span></div>
+        <div class="grilla">
+          <div class="grilla-head"><div></div><div>Central</div><div>Cancha 2</div><div>Cancha 3</div></div>
+          <div class="grilla-row">
+            <div class="grilla-time">16:00</div>
+            <div class="slot s-clase"><b>Clase grupal</b>16–17</div>
+            <div class="slot s-pagada"><b>Nicolás A.</b>16–17:30</div>
+            <div class="slot slot-free">Disponible</div>
+          </div>
+          <div class="grilla-row">
+            <div class="grilla-time">17:30</div>
+            <div class="slot s-senada"><b>Carla D.</b>17:30–19</div>
+            <div class="slot s-pend"><b>Fijo · Lun/Mié</b>17:30–19</div>
+            <div class="slot s-pagada"><b>Tomás L.</b>17:30–19</div>
+          </div>
+          <div class="grilla-row">
+            <div class="grilla-time">19:00</div>
+            <div class="slot s-pagada"><b>Equipo A</b>19–20:30</div>
+            <div class="slot s-senada"><b>Flor P.</b>19–20:30</div>
+            <div class="slot slot-free">Disponible</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 2: CUENTA DEL TURNO ============ -->
+<section id="cuenta" style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap dive rev">
+    <div class="dive-text">
+      <span class="eyebrow reveal">La cuenta del turno</span>
+      <h2 class="section-title reveal">Cada turno funciona como una mesa de restaurante</h2>
+      <p class="section-lead reveal">El turno abre una cuenta: se le suma el alquiler de la cancha y los consumos del buffet. El sistema calcula cuánto le toca a cada jugador para que cuadrar sea simple.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Alquiler + consumos juntos</h4><p>Lo que se toma del buffet se cuelga del turno. Una sola cuenta, sin papelitos sueltos.</p></div>
+        </div>
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>División entre jugadores</h4><p>Indicás cuántos juegan y el sistema reparte la parte justa de cada uno, descontando lo que ya pagaron.</p></div>
+        </div>
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Varios medios de pago</h4><p>Uno paga en efectivo, otro por transferencia. Cada cobro queda registrado en su medio.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="pt">Cuenta del turno · Cancha 2</span>
+          <span class="pill">4 jugadores</span>
+        </div>
+        <div class="acct-row line">
+          <span class="lbl"><span class="acct-ico" style="background:var(--primary-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4"/></svg></span> Alquiler de cancha</span>
+          <span class="amt">$ 48.000</span>
+        </div>
+        <div class="acct-row line">
+          <span class="lbl"><span class="acct-ico" style="background:#fff5e6;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg></span> Consumos del buffet</span>
+          <span class="amt">$ 12.400</span>
+        </div>
+        <div class="acct-total">
+          <span class="lbl">Total de la cuenta</span>
+          <span class="amt">$ 60.400</span>
+        </div>
+        <div class="split">
+          <div class="split-card"><div class="av">M</div><div class="nm">Martín</div><div class="vl">$ 15.100</div></div>
+          <div class="split-card"><div class="av">L</div><div class="nm">Lucía</div><div class="vl">$ 15.100</div></div>
+          <div class="split-card"><div class="av">D</div><div class="nm">Diego</div><div class="vl">$ 15.100</div></div>
+          <div class="split-card"><div class="av">S</div><div class="nm">Sofía</div><div class="vl">$ 15.100</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 3: FINANZAS ============ -->
+<section id="finanzas">
+  <div class="wrap dive">
+    <div class="dive-text">
+      <span class="eyebrow reveal">Rentabilidad</span>
+      <h2 class="section-title reveal">Sabé cuánto gana tu club, por unidad de negocio</h2>
+      <p class="section-lead reveal">Canchas, clases y buffet: cada uno con sus ingresos y sus costos. CanchaOS arma el estado de resultados para que veas de dónde sale la plata — y de dónde no.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Ingresos y costos etiquetados</h4><p>Cada movimiento se asigna a su unidad de negocio o a la estructura general del club.</p></div>
+        </div>
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Margen real del buffet</h4><p>Con el costo de cada producto, el buffet muestra su margen de verdad, no solo lo facturado.</p></div>
+        </div>
+        <div class="dive-li reveal">
+          <span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><h4>Resultado del período</h4><p>Ingresos menos costos menos gastos fijos. El número que importa, sin armar planillas.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="pt">Ingresos por unidad · Mayo</span>
+          <span class="pill" style="background:var(--primary-soft);color:#1d4ed8;">Este mes</span>
+        </div>
+        <div class="eerr-bar-row">
+          <span class="un">Canchas</span>
+          <div class="eerr-track"><div class="eerr-fill" style="width:88%;background:#16a34a;">$ 1.240.000</div></div>
+        </div>
+        <div class="eerr-bar-row">
+          <span class="un">Buffet</span>
+          <div class="eerr-track"><div class="eerr-fill" style="width:46%;background:#f59e0b;">$ 510.000</div></div>
+        </div>
+        <div class="eerr-bar-row">
+          <span class="un">Clases</span>
+          <div class="eerr-track"><div class="eerr-fill" style="width:30%;background:#2563eb;">$ 320.000</div></div>
+        </div>
+        <div class="eerr-foot">
+          <span class="l">Resultado del período</span>
+          <span class="r">+ $ 845.000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ROADMAP ============ -->
+<section id="roadmap" class="roadmap">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Lo que viene</span>
+      <h2 class="section-title reveal">Un producto que sigue creciendo</h2>
+      <p class="section-lead reveal">CanchaOS está en desarrollo activo. Estas funciones forman parte del plan de producto y se van sumando sobre la base que ya está operativa.</p>
+    </div>
+    <div class="road-grid">
+      <div class="road-card reveal">
+        <div class="road-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-4-1L3 21l1.9-5a8.4 8.4 0 1 1 16.1-3.5z"/></svg></div>
+        <div><h3>Reposición de stock por WhatsApp</h3><p>Mandás la foto de la factura del proveedor y el stock del buffet se actualiza solo.</p></div>
+      </div>
+      <div class="road-card reveal">
+        <div class="road-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div><h3>Comprobantes fiscales</h3><p>Facturación formal y numeración de comprobantes, conectada a ventas y cobros.</p></div>
+      </div>
+      <div class="road-card reveal">
+        <div class="road-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16M9 7h6M9 11h6M9 15h4"/></svg></div>
+        <div><h3>Membresías y abonos</h3><p>Cuotas y pases mensuales con cobro recurrente, sin perseguir a nadie.</p></div>
+      </div>
+      <div class="road-card reveal">
+        <div class="road-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+        <div><h3>Simulador de ingresos</h3><p>Proyectás el impacto de un aumento de tarifas antes de aplicarlo.</p></div>
+      </div>
+      <div class="road-card reveal">
+        <div class="road-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01"/></svg></div>
+        <div><h3>Planificación de profesores</h3><p>Cargás todas las clases de la temporada de una vez y proyectás la ocupación.</p></div>
+      </div>
+      <div class="road-card reveal">
+        <div class="road-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a2 2 0 0 0 3.4 0"/></svg></div>
+        <div><h3>Alarmas de gastos esperados</h3><p>El sistema te avisa si falta cargar un gasto habitual del mes.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section>
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Preguntas frecuentes</span>
+      <h2 class="section-title reveal">Lo que se suele preguntar</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Necesito instalar algo?
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>No. CanchaOS es 100% en la nube. Alcanza con una computadora, tablet o celular con internet en la recepción del club.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">Hoy uso planillas de Excel. ¿Puedo cambiarme?
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Sí — el sistema está pensado justamente para reemplazar el cuaderno y las planillas. En la puesta en marcha cargás tus canchas, horarios y tarifas, y empezás a operar desde la grilla.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿En qué etapa está el producto?
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>CanchaOS está en desarrollo activo. El núcleo operativo —grilla, reservas, turnos fijos, tarifas, buffet, caja y finanzas— ya está funcionando. Las funciones marcadas como "Próximamente" forman parte del plan y se van sumando. Por eso hoy trabajamos con clubes piloto.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Puedo configurar mis propias tarifas y horarios?
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Totalmente. Cada club define sus canchas, su horario de apertura y cierre, y sus tarifas por franja — desde un precio único hasta franjas con valores y duraciones distintas. Y podés programar aumentos con fecha futura.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Sirve para un club con varias canchas?
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Sí. La grilla muestra todas las canchas del club, sin límite. Cada club gestiona su propia información de forma aislada y segura.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section id="demo">
+  <div class="wrap">
+    <div class="cta-band reveal">
+      <h2>¿Querés ver CanchaOS con los datos de tu club?</h2>
+      <p>Te mostramos el sistema funcionando y armamos juntos la puesta en marcha para tu club.</p>
+      <a href="#" class="btn btn-light btn-lg">Solicitar una demo</a>
+      <div class="hero-trust" style="margin-top:24px;">
+        <span><span class="dot"></span> Sin compromiso</span>
+        <span><span class="dot"></span> Acompañamiento en la puesta en marcha</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#top" class="logo">
+          <span class="logo-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18M12 3v18"/></svg>
+          </span>
+          CanchaOS
+        </a>
+        <p>El sistema operativo para clubes de pádel. Reservas, buffet, caja y rentabilidad, en un solo lugar.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Producto</h4>
+        <a href="#funciones">Funciones</a>
+        <a href="#grilla">La grilla del día</a>
+        <a href="#cuenta">Cuenta del turno</a>
+        <a href="#finanzas">Rentabilidad</a>
+      </div>
+      <div class="foot-col">
+        <h4>Recursos</h4>
+        <a href="#roadmap">Lo que viene</a>
+        <a href="#demo">Solicitar demo</a>
+        <a href="#funciones">Preguntas frecuentes</a>
+      </div>
+      <div class="foot-col">
+        <h4>Contacto</h4>
+        <p>hola@canchaos.com</p>
+        <p>Argentina</p>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 CanchaOS. Todos los derechos reservados.</span>
+      <span>Hecho en Argentina 🇦🇷</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Mobile menu
+  var toggle = document.getElementById('navToggle');
+  var menu = document.getElementById('mobileMenu');
+  toggle.addEventListener('click', function () {
+    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+  });
+  menu.querySelectorAll('a').forEach(function (a) {
+    a.addEventListener('click', function () { menu.style.display = 'none'; });
+  });
+
+  // FAQ accordion
+  document.querySelectorAll('.faq-item').forEach(function (item) {
+    var q = item.querySelector('.faq-q');
+    var a = item.querySelector('.faq-a');
+    q.addEventListener('click', function () {
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(function (other) {
+        other.classList.remove('open');
+        other.querySelector('.faq-a').style.maxHeight = null;
+      });
+      if (!isOpen) {
+        item.classList.add('open');
+        a.style.maxHeight = a.scrollHeight + 'px';
+      }
+    });
+  });
+
+  // Scroll reveal
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+</script>
+
+</body>
+</html>

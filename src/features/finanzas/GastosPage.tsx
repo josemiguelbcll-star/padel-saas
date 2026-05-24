@@ -1,9 +1,19 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Calendar, Clock, Loader2, Plus, TrendingDown } from 'lucide-react';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Loader2,
+  Plus,
+  Repeat,
+  TrendingDown,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { GastosList } from './GastosList';
 import { NuevoGastoDialog } from './NuevoGastoDialog';
+import { RecurrentesPanel } from './RecurrentesPanel';
 import { useGastos } from './hooks/useGastos';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
@@ -18,14 +28,24 @@ const mesActualFmt = new Intl.DateTimeFormat('es-AR', {
   year: 'numeric',
 });
 
+type Tab = 'movimientos' | 'recurrentes';
+
 /**
- * Pantalla de Gastos — carga + listado completo. El resumen agregado
- * (totales, comparativas) vive en /finanzas; acá el foco es el
- * detalle operativo: ver y registrar.
+ * Pantalla de Gastos — dos vistas internas (tabs locales, sin nueva
+ * ruta ni nuevo item de sidebar):
+ *
+ *   - Movimientos: lo histórico (KPIs + lista de gastos).
+ *   - Recurrentes: panel de plantillas del mes (alquiler/luz/sueldos),
+ *     con qué ya se cargó y qué falta.
+ *
+ * El resumen agregado (totales, comparativas) vive en /finanzas; acá
+ * el foco es el detalle operativo: ver, registrar, y atajos de
+ * recurrentes.
  */
 export function GastosPage() {
   const gastosQuery = useGastos();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>('movimientos');
 
   const ahora = new Date();
   const anioActual = ahora.getFullYear();
@@ -74,66 +94,97 @@ export function GastosPage() {
               correspondiente. Si pagás en efectivo, entra a la caja del día.
             </p>
           </div>
-          <Button type="button" onClick={() => setOpen(true)} className="shrink-0">
-            <Plus className="h-4 w-4" />
-            Registrar gasto
-          </Button>
+          {tab === 'movimientos' && (
+            <Button type="button" onClick={() => setOpen(true)} className="shrink-0">
+              <Plus className="h-4 w-4" />
+              Registrar gasto
+            </Button>
+          )}
         </div>
       </header>
 
-      {/* KPI Cards */}
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <KpiCard
-          label={`Total ${mesLabel}`}
-          monto={totalMes}
-          subtitle={`${cantMes} ${cantMes === 1 ? 'registro' : 'registros'} con fecha en el mes`}
+      {/* Tabs */}
+      <nav
+        role="tablist"
+        aria-label="Vistas de gastos"
+        className="flex gap-1 border-b border-border"
+      >
+        <TabButton
+          active={tab === 'movimientos'}
+          onClick={() => setTab('movimientos')}
           icon={TrendingDown}
-          variant="negative"
-        />
-        <KpiCard
-          label="Pendientes de pago"
-          monto={totalPendiente}
-          subtitle="De todos los períodos · aún sin fecha de pago"
-          icon={Clock}
-          variant="warn"
-        />
-        <KpiCard
-          label="Promedio diario del mes"
-          monto={totalMes / Math.max(ahora.getDate(), 1)}
-          subtitle={`Sobre los ${ahora.getDate()} días transcurridos`}
-          icon={Calendar}
-          variant="neutral"
-        />
-      </section>
+        >
+          Movimientos
+        </TabButton>
+        <TabButton
+          active={tab === 'recurrentes'}
+          onClick={() => setTab('recurrentes')}
+          icon={Repeat}
+        >
+          Recurrentes
+        </TabButton>
+      </nav>
 
-      {/* Lista */}
-      <section className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-foreground">
-            Historial reciente
-          </h2>
-          {gastosQuery.data && (
-            <p className="text-xs text-muted-foreground">
-              {gastosQuery.data.length} {gastosQuery.data.length === 1 ? 'registro' : 'registros'} en total
-            </p>
-          )}
+      {/* Contenido del tab */}
+      {tab === 'movimientos' && (
+        <div className="space-y-6">
+          {/* KPI Cards */}
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <KpiCard
+              label={`Total ${mesLabel}`}
+              monto={totalMes}
+              subtitle={`${cantMes} ${cantMes === 1 ? 'registro' : 'registros'} con fecha en el mes`}
+              icon={TrendingDown}
+              variant="negative"
+            />
+            <KpiCard
+              label="Pendientes de pago"
+              monto={totalPendiente}
+              subtitle="De todos los períodos · aún sin fecha de pago"
+              icon={Clock}
+              variant="warn"
+            />
+            <KpiCard
+              label="Promedio diario del mes"
+              monto={totalMes / Math.max(ahora.getDate(), 1)}
+              subtitle={`Sobre los ${ahora.getDate()} días transcurridos`}
+              icon={Calendar}
+              variant="neutral"
+            />
+          </section>
+
+          {/* Lista */}
+          <section className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold text-foreground">
+                Historial reciente
+              </h2>
+              {gastosQuery.data && (
+                <p className="text-xs text-muted-foreground">
+                  {gastosQuery.data.length} {gastosQuery.data.length === 1 ? 'registro' : 'registros'} en total
+                </p>
+              )}
+            </div>
+
+            {gastosQuery.isLoading && (
+              <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Cargando gastos…
+              </div>
+            )}
+
+            {gastosQuery.error && (
+              <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {gastosQuery.error.message}
+              </div>
+            )}
+
+            {gastosQuery.data && <GastosList gastos={gastosQuery.data} />}
+          </section>
         </div>
+      )}
 
-        {gastosQuery.isLoading && (
-          <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Cargando gastos…
-          </div>
-        )}
-
-        {gastosQuery.error && (
-          <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            {gastosQuery.error.message}
-          </div>
-        )}
-
-        {gastosQuery.data && <GastosList gastos={gastosQuery.data} />}
-      </section>
+      {tab === 'recurrentes' && <RecurrentesPanel />}
 
       <NuevoGastoDialog open={open} onOpenChange={setOpen} />
     </div>
@@ -141,6 +192,37 @@ export function GastosPage() {
 }
 
 import type { LucideIcon } from 'lucide-react';
+
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        active
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {children}
+    </button>
+  );
+}
 
 function KpiCard({
   label,

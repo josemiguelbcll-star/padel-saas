@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import type { Gasto, MedioPago } from '@/types/database';
 import { GASTOS_QUERY_KEY } from './useGastos';
+import { GASTOS_RECURRENTES_QUERY_KEY } from './useGastosRecurrentes';
+import { CXP_QUERY_KEY } from './useCuentasPorPagar';
 import { CAJA_RESUMEN_QUERY_KEY } from '@/features/caja/hooks/useResumenCajaAbierta';
 import { CAJA_MOVIMIENTOS_QUERY_KEY } from '@/features/caja/hooks/useMovimientosCaja';
 
@@ -18,6 +20,18 @@ export interface RegistrarGastoInput {
   observaciones?: string | null;
   fecha_pago?: string | null;     // YYYY-MM-DD si pagó
   medio_pago?: MedioPago | null;
+  /** Fecha de vencimiento del gasto pendiente. Solo aplica cuando el
+   *  gasto nace sin pagar — viaja como `p_fecha_vencimiento` a la RPC
+   *  y la 0045 la setea en `gasto_cuotas.fecha_vencimiento`. Si el
+   *  gasto se paga al momento, esto se ignora (la RPC tampoco crea
+   *  cuota). NULL = la cuota queda en bucket "Sin fecha" de CxP. */
+  fecha_vencimiento?: string | null;
+  /** Vínculo opcional a una plantilla de gasto recurrente (0046).
+   *  Se setea cuando el alta viene del flujo "Cargar real" del panel
+   *  de Recurrentes. NULL en gastos manuales sin plantilla. La RPC
+   *  valida que la plantilla exista en el club y que la categoría
+   *  coincida. */
+  gasto_recurrente_id?: number | null;
   /** Para invalidar el resumen/movimientos de la caja si el pago fue
    *  en efectivo. Opcional: se pasa solo si hay caja abierta. */
   turnoCajaIdParaInvalidate?: number | null;
@@ -57,6 +71,8 @@ export function useRegistrarGasto(): UseMutationResult<
         p_observaciones: input.observaciones ?? null,
         p_fecha_pago: input.fecha_pago ?? null,
         p_medio_pago: input.medio_pago ?? null,
+        p_fecha_vencimiento: input.fecha_vencimiento ?? null,
+        p_gasto_recurrente_id: input.gasto_recurrente_id ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
@@ -68,6 +84,14 @@ export function useRegistrarGasto(): UseMutationResult<
     },
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: GASTOS_QUERY_KEY });
+      // 0045: la RPC genera 1 cuota si nace pendiente — refrescar CxP.
+      void queryClient.invalidateQueries({ queryKey: CXP_QUERY_KEY });
+      // 0046: el panel de Recurrentes detecta "cargado este mes" via
+      // los gastos vinculados. Si el alta tuvo gasto_recurrente_id,
+      // hay que refrescar el panel para que la tarjeta pase a "Cargada".
+      if (variables.gasto_recurrente_id) {
+        void queryClient.invalidateQueries({ queryKey: GASTOS_RECURRENTES_QUERY_KEY });
+      }
       if (
         variables.medio_pago === 'efectivo' &&
         variables.turnoCajaIdParaInvalidate

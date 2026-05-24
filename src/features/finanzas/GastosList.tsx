@@ -1,4 +1,4 @@
-import { Clock, Receipt } from 'lucide-react';
+import { Clock, Receipt, Repeat } from 'lucide-react';
 import type { Gasto } from '@/types/database';
 import { MEDIO_PAGO_LABEL } from './finanzasSchemas';
 
@@ -65,7 +65,18 @@ export function GastosList({ gastos }: { gastos: Gasto[] }) {
                   {fmt(g.fecha_gasto)}
                 </td>
                 <td className="px-3 py-2 align-top">
-                  <p className="text-foreground">{g.categoria_nombre}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-foreground">{g.categoria_nombre}</p>
+                    {g.gasto_recurrente_id !== null && (
+                      <span
+                        title="Cargado desde una plantilla recurrente"
+                        className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium text-muted-foreground ring-1 ring-border"
+                      >
+                        <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+                        Recurrente
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     {g.unidad_nombre}
                   </p>

@@ -18,6 +18,11 @@ export interface CuentaPorPagarFila {
   unidad_tipo: TipoUnidad;
   /** Snapshot del nombre del proveedor en gastos. NULL si carga manual. */
   proveedor: string | null;
+  /** Si el gasto vino de una plantilla recurrente (0046), el concepto
+   *  de la plantilla (ej. "Luz", "Sueldo Juan"). NULL si no vino de
+   *  recurrente. Se usa como fallback del título cuando `proveedor`
+   *  es NULL (típico en sueldos y otros gastos sin proveedor formal). */
+  concepto_recurrente: string | null;
   /** Si el gasto vino de una OC, esta es la compra madre (para mostrar
    *  "Compra #X" en la fila). NULL en gastos manuales. */
   compra_id: number | null;
@@ -59,6 +64,7 @@ export function useCuentasPorPagar(): UseQueryResult<
           id, gasto_id, numero, es_anticipo, monto, fecha_vencimiento,
           gastos:gasto_id (
             categoria_nombre, unidad_nombre, unidad_tipo, proveedor,
+            gastos_recurrentes:gasto_recurrente_id ( concepto ),
             gasto_cuotas (count)
           ),
           compras:gasto_id (id)
@@ -89,6 +95,7 @@ export function useCuentasPorPagar(): UseQueryResult<
           unidad_nombre: string;
           unidad_tipo: TipoUnidad;
           proveedor: string | null;
+          gastos_recurrentes: { concepto: string } | null;
           gasto_cuotas: Array<{ count: number }>;
         } | null;
         compras: Array<{ id: number }>;
@@ -108,6 +115,7 @@ export function useCuentasPorPagar(): UseQueryResult<
           unidad_nombre: r.gastos?.unidad_nombre ?? '',
           unidad_tipo: (r.gastos?.unidad_tipo ?? 'otro') as TipoUnidad,
           proveedor: r.gastos?.proveedor ?? null,
+          concepto_recurrente: r.gastos?.gastos_recurrentes?.concepto ?? null,
           compra_id: compraId,
           total_cuotas: totalCuotas,
         };
