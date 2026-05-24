@@ -1168,3 +1168,37 @@ export interface CompraItem {
   /** Costo efectivamente promediado en productos.costo. NULL en pedida. */
   costo_unitario_ppp: number | null;
 }
+
+
+// ============================================================================
+// Migración 0045 — Cuentas por Pagar (cuotas de gastos)
+// ============================================================================
+
+/**
+ * Cuota de un gasto pendiente. Una cuota por fila; numero=0 es
+ * anticipo opcional (es_anticipo=TRUE), numero>=1 son cuotas regulares.
+ *
+ * Estado de pago igual modelo que Gasto:
+ *   - Pendiente: fecha_pago + medio_pago + turno_caja_id las 3 NULL.
+ *   - Pagada: fecha_pago + medio_pago obligatorios.
+ *   - Si medio_pago='efectivo', turno_caja_id NOT NULL (regla de oro).
+ *
+ * La invariante SUM(gasto_cuotas.monto WHERE gasto_id=X) = gastos.monto
+ * la garantizan las RPCs (fn_registrar_gasto, fn_recibir_oc). El
+ * estado de la deuda madre (pendiente/parcial/saldada) se deriva
+ * on-the-fly al consultar — no se persiste.
+ */
+export interface GastoCuota {
+  id: number;
+  club_id: number;
+  gasto_id: number;
+  numero: number;
+  es_anticipo: boolean;
+  monto: number;
+  fecha_vencimiento: string | null;
+  fecha_pago: string | null;
+  medio_pago: MedioPago | null;
+  turno_caja_id: number | null;
+  usuario_id: string;
+  fecha_alta: string;
+}

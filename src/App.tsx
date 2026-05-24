@@ -20,7 +20,12 @@ import {
 } from '@/features/configuracion';
 import { BuffetPage } from '@/features/buffet';
 import { CajaPage } from '@/features/caja';
-import { FinanzasPage, GastosPage, OtrosIngresosPage } from '@/features/finanzas';
+import {
+  FinanzasPage,
+  GastosPage,
+  OtrosIngresosPage,
+  CuentasPorPagarPage,
+} from '@/features/finanzas';
 import { JugadoresPage } from '@/features/jugadores';
 import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
 import {
@@ -89,6 +94,7 @@ export function App() {
         <Route path="finanzas" element={<FinanzasPage />} />
         <Route path="gastos" element={<GastosPage />} />
         <Route path="otros-ingresos" element={<OtrosIngresosPage />} />
+        <Route path="cxp" element={<CuentasPorPagarPage />} />
 
         <Route path="configuracion" element={<ConfiguracionLayout />}>
           <Route index element={<Navigate to="marca" replace />} />

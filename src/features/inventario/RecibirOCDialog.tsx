@@ -101,14 +101,26 @@ interface ItemFormState {
   tasa_iva: string;
 }
 
+type ModoPago = 'al_contado' | 'a_plazo';
+
 interface FormState {
   fecha_recepcion: string;
   items: ItemFormState[];
   comprobante_tipo: string;
   comprobante_numero: string;
-  pagado: boolean;
-  fecha_pago: string;
-  medio_pago: MedioPago | '';
+  // ── Plan de pago (0045) ──────────────────────────────────────────
+  modo_pago: ModoPago;
+  // Al contado:
+  fecha_pago_contado: string;
+  medio_pago_contado: MedioPago | '';
+  // A plazo:
+  anticipo: string;                       // monto del anticipo (string del input)
+  cantidad_cuotas: string;                // N de cuotas regulares
+  fechas_vencimiento: string[];           // exactamente N fechas (YYYY-MM-DD)
+  // Sub-toggle "pagar anticipo al recibir" — solo aplica si anticipo > 0
+  pagar_anticipo_al_recibir: boolean;
+  fecha_pago_anticipo: string;
+  medio_pago_anticipo: MedioPago | '';
 }
 
 function makeEmptyItem(): ItemFormState {
@@ -124,15 +136,87 @@ function makeEmptyItem(): ItemFormState {
 }
 
 function initialState(): FormState {
+  const hoy = todayISO();
   return {
-    fecha_recepcion: todayISO(),
+    fecha_recepcion: hoy,
     items: [],
     comprobante_tipo: '',
     comprobante_numero: '',
-    pagado: false,
-    fecha_pago: todayISO(),
-    medio_pago: '',
+    modo_pago: 'al_contado',
+    fecha_pago_contado: hoy,
+    medio_pago_contado: 'transferencia',
+    anticipo: '0',
+    cantidad_cuotas: '3',
+    fechas_vencimiento: [],            // se llena cuando admin entra al modo a_plazo
+    pagar_anticipo_al_recibir: true,
+    fecha_pago_anticipo: hoy,
+    medio_pago_anticipo: 'transferencia',
   };
+}
+
+/**
+ * Suma N meses a una fecha preservando el día del mes. Si el mes
+ * destino no tiene ese día (ej. 31 ene + 1 mes → 3 mar en JS por
+ * overflow), retrocedemos al último día del mes destino. Espejo del
+ * cálculo que se sugiere en el plan de cuotas.
+ */
+function addMonths(d: Date, n: number): Date {
+  const r = new Date(d.getTime());
+  const day = r.getDate();
+  r.setMonth(r.getMonth() + n);
+  if (r.getDate() !== day) r.setDate(0);
+  return r;
+}
+
+function fechaISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Autogenera N fechas mensuales (cuota 1 = fechaBase + 1 mes, cuota 2
+ * = +2 meses, etc.) a partir de una fecha base (típicamente la fecha
+ * de recepción).
+ */
+function generarFechasVencimiento(fechaBaseISO: string, n: number): string[] {
+  const base = new Date(fechaBaseISO + 'T00:00:00');
+  const out: string[] = [];
+  for (let i = 1; i <= n; i++) {
+    out.push(fechaISO(addMonths(base, i)));
+  }
+  return out;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Cálculo del plan de cuotas EXACTAMENTE igual a fn_recibir_oc (0045):
+ *   - cuota_base = ROUND(monto_resto / N, 2)
+ *   - última cuota = monto_resto - cuota_base * (N - 1)  (absorbe residuo)
+ *   - SUM exacto: anticipo + cuotas regulares = monto_gasto.
+ */
+interface PlanCuotas {
+  anticipo: number;
+  cuota_base: number;
+  cuota_ultima: number;
+  monto_resto: number;
+  hay_residuo: boolean;
+}
+
+function computePlan(
+  montoGasto: number,
+  anticipo: number,
+  cantidad: number,
+): PlanCuotas {
+  const monto_resto = round2(montoGasto - anticipo);
+  const cuota_base = round2(monto_resto / cantidad);
+  const cuota_ultima = round2(monto_resto - cuota_base * (cantidad - 1));
+  const hay_residuo = cuota_base !== cuota_ultima;
+  return { anticipo, cuota_base, cuota_ultima, monto_resto, hay_residuo };
 }
 
 interface ItemCalc {
@@ -288,14 +372,62 @@ export function RecibirOCDialog({
   }, [itemCalcs]);
 
   const cajaAbierta = cajaQuery.data ?? null;
-  const efectivoSinCaja =
-    state.pagado &&
-    state.medio_pago === 'efectivo' &&
-    cajaAbierta === null;
+
+  // Monto del gasto según condición fiscal del club (idéntico a la RPC).
+  const montoGasto = useMemo(
+    () =>
+      condicionFiscal === 'responsable_inscripto'
+        ? totales.neto
+        : totales.total,
+    [condicionFiscal, totales],
+  );
+
+  // Plan de cuotas calculado para preview en vivo. Solo válido si modo
+  // a_plazo + anticipo válido + N >= 1 + montoGasto > 0.
+  const anticipoNum = useMemo(() => {
+    const n = Number(state.anticipo);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }, [state.anticipo]);
+
+  const cantidadNum = useMemo(() => {
+    const n = Number(state.cantidad_cuotas);
+    return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 0;
+  }, [state.cantidad_cuotas]);
+
+  const plan = useMemo(() => {
+    if (montoGasto <= 0) return null;
+    if (cantidadNum < 1) return null;
+    if (anticipoNum < 0 || anticipoNum >= montoGasto) return null;
+    return computePlan(montoGasto, anticipoNum, cantidadNum);
+  }, [montoGasto, anticipoNum, cantidadNum]);
+
+  // ¿Hay un pago al recibir en efectivo que necesita caja abierta?
+  const efectivoSinCaja = useMemo(() => {
+    if (cajaAbierta !== null) return false;
+    if (state.modo_pago === 'al_contado') {
+      return state.medio_pago_contado === 'efectivo';
+    }
+    // A plazo: solo si se paga anticipo al recibir y es efectivo.
+    return (
+      anticipoNum > 0 &&
+      state.pagar_anticipo_al_recibir &&
+      state.medio_pago_anticipo === 'efectivo'
+    );
+  }, [
+    cajaAbierta,
+    state.modo_pago,
+    state.medio_pago_contado,
+    state.pagar_anticipo_al_recibir,
+    state.medio_pago_anticipo,
+    anticipoNum,
+  ]);
 
   const submitDisabledReason = computeSubmitDisabledReason({
     state,
     itemCalcs,
+    montoGasto,
+    anticipoNum,
+    cantidadNum,
   });
   const submitDisabled = submitDisabledReason !== null;
 
@@ -340,6 +472,51 @@ export function RecibirOCDialog({
     });
   }
 
+  // ── Handlers del plan de pago ──────────────────────────────────────
+
+  function setModoPago(modo: ModoPago) {
+    setState((s) => {
+      if (modo === s.modo_pago) return s;
+      // Al cambiar a "a plazo" por primera vez, autogenerar fechas si
+      // están vacías.
+      if (modo === 'a_plazo' && s.fechas_vencimiento.length === 0) {
+        const n = Number(s.cantidad_cuotas);
+        const N = Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
+        return {
+          ...s,
+          modo_pago: modo,
+          fechas_vencimiento: generarFechasVencimiento(s.fecha_recepcion, N),
+        };
+      }
+      return { ...s, modo_pago: modo };
+    });
+  }
+
+  function setCantidadCuotas(valor: string) {
+    setState((s) => {
+      const n = Number(valor);
+      if (!Number.isFinite(n) || n < 1) {
+        // Permitir escribir libremente (vacío, transición), no regenerar.
+        return { ...s, cantidad_cuotas: valor };
+      }
+      const N = Math.trunc(n);
+      // Regenerar fechas con N nuevas (overwrite).
+      return {
+        ...s,
+        cantidad_cuotas: valor,
+        fechas_vencimiento: generarFechasVencimiento(s.fecha_recepcion, N),
+      };
+    });
+  }
+
+  function setFechaVencimiento(idx: number, valor: string) {
+    setState((s) => {
+      const next = [...s.fechas_vencimiento];
+      next[idx] = valor;
+      return { ...s, fechas_vencimiento: next };
+    });
+  }
+
   // ── Submit ─────────────────────────────────────────────────────────
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -367,6 +544,34 @@ export function RecibirOCDialog({
         };
       });
 
+    // Armar payload del plan según modo.
+    let pAnticipo = 0;
+    let pCantidad = 1;
+    let pFechas: string[] = [];
+    let pFechaPago: string | null = null;
+    let pMedioPago: MedioPago | null = null;
+
+    if (state.modo_pago === 'al_contado') {
+      // 1 cuota total pagada al instante.
+      pAnticipo = 0;
+      pCantidad = 1;
+      pFechas = [state.fecha_recepcion];
+      pFechaPago = state.fecha_pago_contado;
+      pMedioPago = state.medio_pago_contado as MedioPago;
+    } else {
+      // A plazo: anticipo + N cuotas.
+      pAnticipo = anticipoNum;
+      pCantidad = cantidadNum;
+      pFechas = state.fechas_vencimiento.slice(0, cantidadNum);
+      // Si hay anticipo > 0 y el admin pidió pagarlo al recibir, mandar
+      // pago. Si no, dejar nulls — el anticipo (o la única cuota si N=1)
+      // nace pendiente.
+      if (anticipoNum > 0 && state.pagar_anticipo_al_recibir) {
+        pFechaPago = state.fecha_pago_anticipo;
+        pMedioPago = state.medio_pago_anticipo as MedioPago;
+      }
+    }
+
     try {
       await recibir.mutateAsync({
         compra_id: compraId,
@@ -378,8 +583,11 @@ export function RecibirOCDialog({
         comprobante_numero: state.comprobante_numero.trim() === ''
           ? null
           : state.comprobante_numero.trim(),
-        fecha_pago: state.pagado ? state.fecha_pago : null,
-        medio_pago: state.pagado ? (state.medio_pago as MedioPago) : null,
+        fecha_pago: pFechaPago,
+        medio_pago: pMedioPago,
+        anticipo: pAnticipo,
+        cantidad_cuotas: pCantidad,
+        fechas_vencimiento: pFechas,
         turnoCajaIdParaInvalidate: cajaAbierta?.id ?? null,
       });
       onOpenChange(false);
@@ -499,13 +707,32 @@ export function RecibirOCDialog({
                 onNumeroChange={(v) => setField('comprobante_numero', v)}
               />
 
-              <PagoSection
+              <PagoPlanSection
                 state={state}
+                montoGasto={montoGasto}
+                condicionFiscal={condicionFiscal}
+                plan={plan}
                 efectivoSinCaja={efectivoSinCaja}
                 disabled={pending}
-                onTogglePagado={(v) => setField('pagado', v)}
-                onFechaChange={(v) => setField('fecha_pago', v)}
-                onMedioChange={(v) => setField('medio_pago', v)}
+                onModoPagoChange={setModoPago}
+                onFechaPagoContadoChange={(v) =>
+                  setField('fecha_pago_contado', v)
+                }
+                onMedioPagoContadoChange={(v) =>
+                  setField('medio_pago_contado', v)
+                }
+                onAnticipoChange={(v) => setField('anticipo', v)}
+                onCantidadCuotasChange={setCantidadCuotas}
+                onFechaVencimientoChange={setFechaVencimiento}
+                onPagarAnticipoToggle={(v) =>
+                  setField('pagar_anticipo_al_recibir', v)
+                }
+                onFechaPagoAnticipoChange={(v) =>
+                  setField('fecha_pago_anticipo', v)
+                }
+                onMedioPagoAnticipoChange={(v) =>
+                  setField('medio_pago_anticipo', v)
+                }
               />
 
               {error && (
@@ -1095,69 +1322,125 @@ function ComprobanteSection({
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Pago
+// Pago — plan de cuotas (0045)
 // ─────────────────────────────────────────────────────────────────────
+// Toggle Al contado vs A plazo. En A plazo, expone anticipo (opcional)
+// + cantidad de cuotas + N fechas autogeneradas mensualmente desde la
+// fecha de recepción (ajustables). Si hay anticipo > 0, sub-toggle
+// "Pagar anticipo al recibir" con fecha + medio. Muestra el plan en
+// vivo (cuota base + última que absorbe residuo de centavos, espejo
+// exacto del cálculo de fn_recibir_oc).
 
-function PagoSection({
-  state,
-  efectivoSinCaja,
-  disabled,
-  onTogglePagado,
-  onFechaChange,
-  onMedioChange,
-}: {
+interface PagoPlanSectionProps {
   state: FormState;
+  montoGasto: number;
+  condicionFiscal: CondicionFiscalClub;
+  plan: PlanCuotas | null;
   efectivoSinCaja: boolean;
   disabled: boolean;
-  onTogglePagado: (v: boolean) => void;
-  onFechaChange: (v: string) => void;
-  onMedioChange: (v: MedioPago | '') => void;
-}) {
+  onModoPagoChange: (m: ModoPago) => void;
+  onFechaPagoContadoChange: (v: string) => void;
+  onMedioPagoContadoChange: (v: MedioPago | '') => void;
+  onAnticipoChange: (v: string) => void;
+  onCantidadCuotasChange: (v: string) => void;
+  onFechaVencimientoChange: (idx: number, v: string) => void;
+  onPagarAnticipoToggle: (v: boolean) => void;
+  onFechaPagoAnticipoChange: (v: string) => void;
+  onMedioPagoAnticipoChange: (v: MedioPago | '') => void;
+}
+
+function PagoPlanSection({
+  state,
+  montoGasto,
+  condicionFiscal,
+  plan,
+  efectivoSinCaja,
+  disabled,
+  onModoPagoChange,
+  onFechaPagoContadoChange,
+  onMedioPagoContadoChange,
+  onAnticipoChange,
+  onCantidadCuotasChange,
+  onFechaVencimientoChange,
+  onPagarAnticipoToggle,
+  onFechaPagoAnticipoChange,
+  onMedioPagoAnticipoChange,
+}: PagoPlanSectionProps) {
+  const fiscalNote =
+    condicionFiscal === 'responsable_inscripto'
+      ? 'NETO — tu club es Responsable Inscripto'
+      : 'TOTAL con IVA — tu club es Monotributista';
+
+  // Cantidad de cuotas como número (puede no ser válido en transición).
+  const cantNum = Number(state.cantidad_cuotas);
+  const cantValida = Number.isFinite(cantNum) && cantNum >= 1 ? Math.trunc(cantNum) : 0;
+  const anticipoVal = Number(state.anticipo);
+  const anticipoValido =
+    Number.isFinite(anticipoVal) && anticipoVal >= 0 ? anticipoVal : 0;
+
   return (
     <div className="space-y-3 rounded-md border border-border bg-card p-3">
+      {/* Banner monto del gasto según fiscal */}
+      <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+        <p className="text-muted-foreground">
+          Monto del gasto:{' '}
+          <strong className="tabular-nums text-foreground">
+            {fmtMoney(montoGasto)}
+          </strong>{' '}
+          ({fiscalNote})
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          Es lo que entra al EERR del mes y se divide en el plan de pago.
+        </p>
+      </div>
+
+      {/* Toggle modo */}
       <div className="flex flex-wrap items-center gap-3">
-        <Label className="text-xs">Pago:</Label>
+        <Label className="text-xs">Modo de pago:</Label>
         <div className="flex gap-1.5">
           <PagoPill
-            checked={!state.pagado}
-            onClick={() => onTogglePagado(false)}
+            checked={state.modo_pago === 'al_contado'}
+            onClick={() => onModoPagoChange('al_contado')}
             disabled={disabled}
           >
-            Pendiente
+            Al contado
           </PagoPill>
           <PagoPill
-            checked={state.pagado}
-            onClick={() => onTogglePagado(true)}
+            checked={state.modo_pago === 'a_plazo'}
+            onClick={() => onModoPagoChange('a_plazo')}
             disabled={disabled}
           >
-            Pagada al recibir
+            A plazo
           </PagoPill>
         </div>
       </div>
 
-      {state.pagado && (
+      {/* Al contado */}
+      {state.modo_pago === 'al_contado' && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="rec-fecha-pago" className="text-xs">
+            <Label htmlFor="rec-fecha-pago-contado" className="text-xs">
               Fecha de pago <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="rec-fecha-pago"
+              id="rec-fecha-pago-contado"
               type="date"
-              value={state.fecha_pago}
-              onChange={(e) => onFechaChange(e.target.value)}
+              value={state.fecha_pago_contado}
+              onChange={(e) => onFechaPagoContadoChange(e.target.value)}
               disabled={disabled}
               required
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="rec-medio" className="text-xs">
+            <Label htmlFor="rec-medio-contado" className="text-xs">
               Medio <span className="text-destructive">*</span>
             </Label>
             <select
-              id="rec-medio"
-              value={state.medio_pago}
-              onChange={(e) => onMedioChange(e.target.value as MedioPago | '')}
+              id="rec-medio-contado"
+              value={state.medio_pago_contado}
+              onChange={(e) =>
+                onMedioPagoContadoChange(e.target.value as MedioPago | '')
+              }
               disabled={disabled}
               className={cn(
                 'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
@@ -1176,6 +1459,158 @@ function PagoSection({
         </div>
       )}
 
+      {/* A plazo */}
+      {state.modo_pago === 'a_plazo' && (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rec-anticipo" className="text-xs">
+                Anticipo <span className="text-muted-foreground">(opcional)</span>
+              </Label>
+              <Input
+                id="rec-anticipo"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={state.anticipo}
+                onChange={(e) => onAnticipoChange(e.target.value)}
+                disabled={disabled}
+                placeholder="0"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rec-cantidad-cuotas" className="text-xs">
+                Cantidad de cuotas <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="rec-cantidad-cuotas"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={state.cantidad_cuotas}
+                onChange={(e) => onCantidadCuotasChange(e.target.value)}
+                disabled={disabled}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Sub-toggle: pagar anticipo al recibir */}
+          {anticipoValido > 0 && (
+            <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2.5">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={state.pagar_anticipo_al_recibir}
+                  onChange={(e) => onPagarAnticipoToggle(e.target.checked)}
+                  disabled={disabled}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <span className="text-xs font-medium">
+                  Pagar el anticipo al recibir
+                </span>
+              </label>
+              {state.pagar_anticipo_al_recibir && (
+                <div className="grid gap-3 pl-6 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="rec-fecha-anticipo"
+                      className="text-[10px] uppercase tracking-wider text-muted-foreground"
+                    >
+                      Fecha de pago
+                    </Label>
+                    <Input
+                      id="rec-fecha-anticipo"
+                      type="date"
+                      value={state.fecha_pago_anticipo}
+                      onChange={(e) =>
+                        onFechaPagoAnticipoChange(e.target.value)
+                      }
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="rec-medio-anticipo"
+                      className="text-[10px] uppercase tracking-wider text-muted-foreground"
+                    >
+                      Medio
+                    </Label>
+                    <select
+                      id="rec-medio-anticipo"
+                      value={state.medio_pago_anticipo}
+                      onChange={(e) =>
+                        onMedioPagoAnticipoChange(
+                          e.target.value as MedioPago | '',
+                        )
+                      }
+                      disabled={disabled}
+                      className={cn(
+                        'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                        'disabled:cursor-not-allowed disabled:opacity-50',
+                      )}
+                    >
+                      <option value="">Elegí un medio…</option>
+                      {MEDIOS_PAGO.map((m) => (
+                        <option key={m} value={m}>
+                          {MEDIO_PAGO_LABEL[m]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fechas de vencimiento */}
+          {cantValida >= 1 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                Fechas de vencimiento{' '}
+                <span className="text-muted-foreground">
+                  (autogeneradas, ajustables)
+                </span>
+              </Label>
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                {Array.from({ length: cantValida }).map((_, idx) => {
+                  const fecha = state.fechas_vencimiento[idx] ?? '';
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <Label
+                        htmlFor={`rec-cuota-fecha-${idx}`}
+                        className="text-[10px] uppercase tracking-wider text-muted-foreground"
+                      >
+                        Cuota {idx + 1}
+                      </Label>
+                      <Input
+                        id={`rec-cuota-fecha-${idx}`}
+                        type="date"
+                        value={fecha}
+                        onChange={(e) =>
+                          onFechaVencimientoChange(idx, e.target.value)
+                        }
+                        disabled={disabled}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Preview del plan */}
+          <PlanPreview
+            state={state}
+            plan={plan}
+            cantValida={cantValida}
+          />
+        </div>
+      )}
+
       {efectivoSinCaja && (
         <div
           role="alert"
@@ -1183,12 +1618,75 @@ function PagoSection({
         >
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <p>
-            No hay caja abierta del día. Si registrás la recepción en
-            efectivo sin caja abierta, el servidor la va a rechazar.
-            Abrí la caja desde el módulo Caja antes de continuar, o
-            elegí otro medio de pago.
+            No hay caja abierta del día. Si registrás el pago en efectivo
+            sin caja abierta, el servidor lo va a rechazar. Abrí la caja
+            desde el módulo Caja antes de continuar, o elegí otro medio
+            de pago.
           </p>
         </div>
+      )}
+    </div>
+  );
+}
+
+function PlanPreview({
+  state,
+  plan,
+  cantValida,
+}: {
+  state: FormState;
+  plan: PlanCuotas | null;
+  cantValida: number;
+}) {
+  if (!plan) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Completá anticipo + cantidad de cuotas para ver el plan en vivo.
+      </div>
+    );
+  }
+  const fechas = state.fechas_vencimiento.slice(0, cantValida);
+  return (
+    <div className="space-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+      <p className="font-semibold uppercase tracking-wider text-muted-foreground">
+        Plan de pago
+      </p>
+      {plan.anticipo > 0 && (
+        <p className="text-muted-foreground">
+          Anticipo:{' '}
+          <strong className="tabular-nums text-foreground">
+            {fmtMoney(plan.anticipo)}
+          </strong>
+          {state.pagar_anticipo_al_recibir
+            ? ' · se paga al recibir'
+            : ' · queda pendiente'}
+        </p>
+      )}
+      {plan.hay_residuo ? (
+        <p className="text-muted-foreground">
+          {cantValida - 1} cuota{cantValida - 1 === 1 ? '' : 's'} de{' '}
+          <strong className="tabular-nums text-foreground">
+            {fmtMoney(plan.cuota_base)}
+          </strong>{' '}
+          + 1 cuota de{' '}
+          <strong className="tabular-nums text-foreground">
+            {fmtMoney(plan.cuota_ultima)}
+          </strong>{' '}
+          <span className="text-[10px]">(última absorbe el residuo)</span>
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
+          {cantValida} cuota{cantValida === 1 ? '' : 's'} de{' '}
+          <strong className="tabular-nums text-foreground">
+            {fmtMoney(plan.cuota_base)}
+          </strong>{' '}
+          c/u
+        </p>
+      )}
+      {fechas.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Vencimientos: {fechas.join(' · ')}
+        </p>
       )}
     </div>
   );
@@ -1264,8 +1762,11 @@ function TotalesBox({
 function computeSubmitDisabledReason(p: {
   state: FormState;
   itemCalcs: ItemCalc[];
+  montoGasto: number;
+  anticipoNum: number;
+  cantidadNum: number;
 }): string | null {
-  const { state, itemCalcs } = p;
+  const { state, itemCalcs, montoGasto, anticipoNum, cantidadNum } = p;
 
   if (state.fecha_recepcion === '') return 'Ingresá la fecha de recepción.';
 
@@ -1284,9 +1785,49 @@ function computeSubmitDisabledReason(p: {
     }
   }
 
-  if (state.pagado) {
-    if (state.fecha_pago === '') return 'Ingresá la fecha de pago.';
-    if (state.medio_pago === '') return 'Elegí el medio de pago.';
+  if (montoGasto <= 0) {
+    return 'El monto del gasto debe ser mayor a 0. Revisá los items.';
+  }
+
+  if (state.modo_pago === 'al_contado') {
+    if (state.fecha_pago_contado === '') {
+      return 'Ingresá la fecha de pago.';
+    }
+    if (state.medio_pago_contado === '') {
+      return 'Elegí el medio de pago.';
+    }
+  } else {
+    // A plazo.
+    if (anticipoNum < 0) {
+      return 'El anticipo no puede ser negativo.';
+    }
+    if (anticipoNum >= montoGasto) {
+      return 'El anticipo no puede ser igual ni mayor al monto del gasto. Reducí el anticipo o usá "Al contado".';
+    }
+    if (cantidadNum < 1) {
+      return 'La cantidad de cuotas debe ser ≥ 1.';
+    }
+    // Fechas: exactamente N, todas válidas, ascendentes.
+    const fechas = state.fechas_vencimiento.slice(0, cantidadNum);
+    if (fechas.length !== cantidadNum || fechas.some((f) => f === '')) {
+      return 'Completá las fechas de vencimiento de todas las cuotas.';
+    }
+    for (let i = 0; i < cantidadNum - 1; i++) {
+      const a = fechas[i] ?? '';
+      const b = fechas[i + 1] ?? '';
+      if (a >= b) {
+        return `Las fechas de vencimiento deben estar en orden ascendente (cuota ${i + 1} debe ser anterior a cuota ${i + 2}).`;
+      }
+    }
+    // Pago del anticipo al recibir.
+    if (anticipoNum > 0 && state.pagar_anticipo_al_recibir) {
+      if (state.fecha_pago_anticipo === '') {
+        return 'Ingresá la fecha de pago del anticipo.';
+      }
+      if (state.medio_pago_anticipo === '') {
+        return 'Elegí el medio de pago del anticipo.';
+      }
+    }
   }
 
   return null;

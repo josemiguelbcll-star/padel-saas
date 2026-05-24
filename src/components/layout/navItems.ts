@@ -10,6 +10,7 @@ import {
   PieChart,
   TrendingDown,
   TrendingUp,
+  Receipt,
   Bell,
   Settings,
   type LucideIcon,
@@ -80,6 +81,7 @@ export const navItems: NavItem[] = [
     children: [
       { label: 'Gastos', to: '/gastos', icon: TrendingDown },
       { label: 'Otros ingresos', to: '/otros-ingresos', icon: TrendingUp },
+      { label: 'Cuentas por pagar', to: '/cxp', icon: Receipt },
     ],
   },
   { label: 'Inventario', to: '/inventario', icon: Package, adminOnly: true },
