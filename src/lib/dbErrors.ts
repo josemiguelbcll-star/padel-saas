@@ -48,11 +48,14 @@ export function mapPostgrestError(error: PostgrestError): string {
     if (/clubes_duracion_turno_default_valida/i.test(message)) {
       return 'La duración por defecto del turno debe ser 60, 90, 120, 150, 180 o 240 minutos.';
     }
-    if (/tarifas_franja_coherente|franjas_duracion_franja_coherente/i.test(message)) {
+    if (/tarifas_franja_coherente|franjas_turno_franja_coherente/i.test(message)) {
       return 'Si configurás una franja horaria, ambas horas deben estar completas y "hasta" debe ser posterior a "desde".';
     }
-    if (/tarifas_dias_semana_validos|franjas_duracion_dias_semana_validos/i.test(message)) {
+    if (/tarifas_dias_semana_validos|franjas_turno_dias_semana_validos/i.test(message)) {
       return 'Los días de la semana deben estar entre lunes (1) y domingo (7).';
+    }
+    if (/franjas_turno_duraciones_validas/i.test(message)) {
+      return 'Elegí al menos una duración válida (60, 90, 120, 150, 180 o 240 minutos).';
     }
     if (/monto_pagado.*monto_total|monto_pagado <= monto_total/i.test(message)) {
       return 'El monto pagado no puede ser mayor al total de la reserva.';

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Clock, LayoutGrid } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { Cancha, ClaseCobro } from '@/types/database';
+import type { Cancha, ClaseCobro, FranjaTurno } from '@/types/database';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
 import {
   useClases,
   type ClaseConProfesor,
 } from '@/features/configuracion/hooks/useClases';
+import { useFranjasTurno } from '@/features/configuracion/hooks/useFranjasTurno';
 import { useHorariosClub } from '@/features/configuracion/hooks/useHorariosClub';
 import { DetalleClaseDialog } from './DetalleClaseDialog';
 import { DetalleReservaDialog } from './DetalleReservaDialog';
@@ -64,6 +65,9 @@ export function ReservasPage() {
   const reservasQuery = useReservasDelDia(fecha);
   const clasesQuery = useClases();
   const cobrosQuery = useCobrosDelDia(fecha);
+  // Franjas de duración. Si falla/está vacío, la grilla cae al fallback
+  // (duracion_turno_default) — no bloqueamos el render por ellas.
+  const franjasQuery = useFranjasTurno();
 
   const canchasActivas = useMemo(
     () => (canchasQuery.data ?? []).filter((c) => c.activa),
@@ -117,10 +121,19 @@ export function ReservasPage() {
     pagosIniciales: ClaseCobro[];
   } | null>(null);
 
-  function handleSlotClick(canchaId: number, hora: string): void {
+  function handleSlotClick(
+    canchaId: number,
+    hora: string,
+    duracionesPermitidas: number[],
+  ): void {
     const cancha = canchasActivas.find((c) => c.id === canchaId);
     if (!cancha) return;
-    setNuevoSlot({ cancha, fecha, hora: normalizarHora(hora) });
+    setNuevoSlot({
+      cancha,
+      fecha,
+      hora: normalizarHora(hora),
+      duracionesPermitidas,
+    });
   }
 
   function handleReservaClick(reserva: ReservaConTitular): void {
@@ -159,6 +172,8 @@ export function ReservasPage() {
         errorReservas={reservasQuery.error?.message ?? null}
         horaApertura={horariosQuery.data?.hora_apertura ?? null}
         horaCierre={horariosQuery.data?.hora_cierre ?? null}
+        duracionDefault={horariosQuery.data?.duracion_turno_default ?? 90}
+        franjas={franjasQuery.data ?? []}
         canchasActivas={canchasActivas}
         reservas={reservasQuery.data ?? []}
         clases={clasesDelDia}
@@ -209,12 +224,14 @@ interface ReservasBodyProps {
   errorReservas: string | null;
   horaApertura: string | null;
   horaCierre: string | null;
+  duracionDefault: number;
+  franjas: FranjaTurno[];
   canchasActivas: Cancha[];
   reservas: ReservaConTitular[];
   clases: ClaseConProfesor[];
   cobrosPorClase: Map<number, ClaseCobro[]>;
   fecha: string;
-  onSlotClick: (canchaId: number, hora: string) => void;
+  onSlotClick: (canchaId: number, hora: string, duracionesPermitidas: number[]) => void;
   onReservaClick: (reserva: ReservaConTitular) => void;
   onClaseClick: (clase: ClaseConProfesor) => void;
 }
@@ -228,6 +245,8 @@ function ReservasBody({
   errorReservas,
   horaApertura,
   horaCierre,
+  duracionDefault,
+  franjas,
   canchasActivas,
   reservas,
   clases,
@@ -291,6 +310,8 @@ function ReservasBody({
       horaApertura={horaApertura}
       horaCierre={horaCierre}
       fecha={fecha}
+      franjas={franjas}
+      duracionDefault={duracionDefault}
       loading={loadingReservas}
       onSlotClick={onSlotClick}
       onReservaClick={onReservaClick}

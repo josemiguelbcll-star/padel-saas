@@ -14,6 +14,7 @@ import {
   DURACIONES_TURNO_VALIDAS,
   horariosSchema,
 } from './horariosSchema';
+import { FranjasTurnoSection } from './FranjasTurnoSection';
 
 type FieldErrors = Partial<
   Record<'hora_apertura' | 'hora_cierre' | 'duracion_turno_default' | 'form', string>
@@ -90,7 +91,14 @@ export function HorariosPage() {
       )}
 
       {isAdmin ? (
-        <HorariosForm initial={horariosQuery.data} />
+        <>
+          <HorariosForm initial={horariosQuery.data} />
+          <FranjasTurnoSection
+            horaApertura={horariosQuery.data.hora_apertura}
+            horaCierre={horariosQuery.data.hora_cierre}
+            duracionDefault={horariosQuery.data.duracion_turno_default}
+          />
+        </>
       ) : (
         <HorariosReadOnly value={horariosQuery.data} />
       )}
@@ -240,8 +248,9 @@ function HorariosForm({ initial }: HorariosFormProps) {
           </p>
         )}
         <p className="text-xs text-muted-foreground">
-          Las reservas nuevas se proponen con esta duración. Más adelante vas a poder
-          elegir otra al crear cada reserva.
+          Es la duración que usa la grilla cuando NINGUNA franja horaria aplica.
+          Si configurás franjas de turno (abajo), ellas mandan en sus horarios;
+          este valor es el respaldo para el resto.
         </p>
       </div>
 

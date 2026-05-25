@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Cancha, ClaseCobro } from '@/types/database';
+import type { Cancha, ClaseCobro, FranjaTurno } from '@/types/database';
 import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases';
 import { CanchaColumna } from './CanchaColumna';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
@@ -21,11 +21,15 @@ interface GrillaDiaProps {
   horaApertura: string;
   /** Hora de cierre del club, 'HH:MM:SS' o 'HH:MM'. */
   horaCierre: string;
-  /** Fecha mostrada 'YYYY-MM-DD' (para que LineaAhora sepa si renderizar). */
+  /** Fecha mostrada 'YYYY-MM-DD' (LineaAhora + resolución de franjas por día). */
   fecha: string;
+  /** Franjas de turno del club (duraciones por franja). Vacío = fallback. */
+  franjas: FranjaTurno[];
+  /** Duración por defecto del club (fallback sin franja). */
+  duracionDefault: number;
   loading?: boolean;
-  /** Callback al clickear un Disponible. */
-  onSlotClick: (canchaId: number, hora: string) => void;
+  /** Callback al clickear un Disponible (con las duraciones que la franja permite ahí). */
+  onSlotClick: (canchaId: number, hora: string, duracionesPermitidas: number[]) => void;
   /** Callback al clickear un bloque de reserva existente. */
   onReservaClick: (reserva: ReservaConTitular) => void;
   /** Callback al clickear un bloque de clase. */
@@ -58,6 +62,8 @@ export function GrillaDia({
   horaApertura,
   horaCierre,
   fecha,
+  franjas,
+  duracionDefault,
   loading,
   onSlotClick,
   onReservaClick,
@@ -164,6 +170,9 @@ export function GrillaDia({
               cobrosPorClase={cobrosPorClase}
               horaApertura={horaApertura}
               horaCierre={horaCierre}
+              fecha={fecha}
+              franjas={franjas}
+              duracionDefault={duracionDefault}
               onSlotClick={onSlotClick}
               onReservaClick={onReservaClick}
               onClaseClick={onClaseClick}

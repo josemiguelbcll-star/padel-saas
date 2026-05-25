@@ -14,13 +14,6 @@ export const MEDIOS_PAGO = [
 export type MedioPagoForm = (typeof MEDIOS_PAGO)[number];
 
 /**
- * Duración fija de los partidos en el modelo actual del Sprint 3a (post
- * cambio de modelo): todos los turnos reservables son de 90 min. Las
- * clases tienen su propia duración y no pasan por este modal.
- */
-export const DURACION_PARTIDO_MIN = 90;
-
-/**
  * Schema de los campos "no-jugador" del modal de nueva reserva.
  *
  * La validación de titular + acompañantes (estructura compleja con
@@ -28,8 +21,9 @@ export const DURACION_PARTIDO_MIN = 90;
  * cubrimos los CHECK constraints que la migración 0004 impone y los
  * estados consistentes del pago.
  *
- * `duracion_min` NO está en el schema: el modal no la pide. El componente
- * envía DURACION_PARTIDO_MIN (90) a la RPC.
+ * `duracion_min` NO está en el schema: el modal la maneja por separado
+ * (selector de duración según las que permite la franja del slot) y la
+ * pasa a la RPC, que calcula hora_fin = hora_inicio + duracion_min.
  */
 export const nuevaReservaCamposSchema = z
   .object({

@@ -20,7 +20,6 @@ import {
 } from './JugadorAutocomplete';
 import { useCrearReserva, type CrearReservaInput } from './hooks/useCrearReserva';
 import {
-  DURACION_PARTIDO_MIN,
   ESTADOS_INICIALES,
   MEDIOS_PAGO,
   nuevaReservaCamposSchema,
@@ -39,6 +38,11 @@ export interface NuevoReservaSlot {
   fecha: string;
   /** 'HH:MM:SS' */
   hora: string;
+  /**
+   * Duraciones (minutos) que la franja permite arrancando en este inicio.
+   * ≥1. Si hay más de una, el modal deja elegir; si hay una, va directo.
+   */
+  duracionesPermitidas: number[];
 }
 
 interface NuevaReservaDialogProps {
@@ -49,9 +53,11 @@ interface NuevaReservaDialogProps {
 
 /**
  * Modal para crear una reserva nueva. Se abre con un slot pre-cargado
- * (cancha + fecha + hora). Duración fija de partido (90 min: ver
- * DURACION_PARTIDO_MIN). Calcula tarifa sugerida via resolverTarifa.
- * Dispara la RPC fn_crear_reserva al confirmar.
+ * (cancha + fecha + hora + duraciones que la franja permite). Si la franja
+ * ofrece más de una duración, el usuario elige; si ofrece una, va directo.
+ * La tarifa sugerida sale de resolverTarifa (por franja horaria — todavía
+ * NO depende de la duración; eso es el próximo proyecto) y es editable a
+ * mano. Dispara la RPC fn_crear_reserva al confirmar.
  */
 export function NuevaReservaDialog({
   open,
@@ -172,6 +178,12 @@ function NuevaReservaBodyReady({
     [slot.fecha, slot.hora, tarifas],
   );
 
+  // Duración elegida. Default: la más corta que ofrece la franja en este
+  // inicio (= la altura del bloque "Disponible"). Si la franja ofrece una
+  // sola, queda fija en ésa.
+  const [duracion, setDuracion] = useState<number>(
+    slot.duracionesPermitidas[0] ?? 90,
+  );
   const [titular, setTitular] = useState<JugadorSeleccionado | null>(null);
   const [acompañantes, setAcompañantes] = useState<
     Array<JugadorSeleccionado | null>
@@ -285,12 +297,13 @@ function NuevaReservaBodyReady({
       }
     }
 
-    // 4. Armar input para la RPC. Duración fija = DURACION_PARTIDO_MIN.
+    // 4. Armar input para la RPC. Duración = la elegida por el usuario.
+    //    La RPC calcula hora_fin = hora_inicio + duracion_min server-side.
     const input: CrearReservaInput = {
       cancha_id: slot.cancha.id,
       fecha: slot.fecha,
       hora_inicio: slot.hora,
-      duracion_min: DURACION_PARTIDO_MIN,
+      duracion_min: duracion,
       jugador_titular_id: titular.jugadorId,
       jugadores_ids: jugadoresIds,
       nombres_libres: nombresLibres,
@@ -324,11 +337,43 @@ function NuevaReservaBodyReady({
         <DialogTitle>Nueva reserva</DialogTitle>
         <DialogDescription>
           {formatearFechaAmigable(slot.fecha)} · {slot.cancha.nombre} ·{' '}
-          {formatearHora(slot.hora)} ({DURACION_PARTIDO_MIN} min)
+          {formatearHora(slot.hora)} ({duracion} min)
         </DialogDescription>
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {/* Duración (si la franja ofrece >1, el usuario elige; si ofrece
+            una, queda fija en ésa). */}
+        <div className="space-y-2">
+          <Label>Duración</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {slot.duracionesPermitidas.map((min) => (
+              <button
+                key={min}
+                type="button"
+                onClick={() => setDuracion(min)}
+                disabled={isPending}
+                aria-pressed={duracion === min}
+                className={cn(
+                  'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                  duracion === min
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground hover:bg-muted',
+                )}
+              >
+                {min} min
+              </button>
+            ))}
+          </div>
+          {slot.duracionesPermitidas.length === 1 && (
+            <p className="text-[11px] text-muted-foreground">
+              Esta franja permite turnos de {slot.duracionesPermitidas[0]} min.
+            </p>
+          )}
+        </div>
+
         {/* Titular */}
         <div className="space-y-2">
           <Label htmlFor="reserva-titular">Titular</Label>
