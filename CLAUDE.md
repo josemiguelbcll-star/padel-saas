@@ -22,6 +22,10 @@ preguntar antes de inventar.
 - Validación: zod
 - Errores: @sentry/react
 - Backend: Supabase (Postgres + Auth + RLS + Edge Functions)
+- Testing: **NO hay infraestructura todavía** (sin vitest/jest, sin
+  script `test`, cero tests propios). Montarla es un pendiente (ver
+  blindaje del EERR). Cuando se monte: vitest (las funciones puras
+  corren en Node plano, sin tocar Supabase ni React).
 
 ## Reglas no negociables
 1. RLS habilitada en TODAS las tablas, sin excepción.
@@ -41,362 +45,352 @@ preguntar antes de inventar.
 4. NO modificar políticas RLS existentes sin avisar.
 5. Si una tarea es ambigua, preguntar antes de asumir.
 
-## Requisitos pendientes para Sprint 3 (Reservas)
+---
 
-- **DURACIÓN DE TURNO POR FRANJA, CONFIGURABLE POR CADA CLUB**: cada club
-  debe poder configurar manualmente, según sus necesidades, que distintas
-  franjas horarias tengan turnos de duración distinta. Caso real: turnos
-  de 60 min por la mañana (clases) y de 90 min el resto del día (partidos).
-  Filosofía: igual que tarifas, lo define cada club (desde un caso simple
-  de duración única hasta franjas múltiples), nada hardcodeado. NO es un
-  único `duracion_turno_default`; es una regla por franja, estructuralmente
-  similar al modelo de tarifas (franja horaria → valor asociado). Diseñar
-  e implementar en Sprint 3 junto con la grilla de Reservas, definiendo el
-  modelo de datos (probablemente una tabla de franjas de duración). El
-  `duracion_turno_default` actual queda como fallback cuando el club no
-  configuró franjas.
+# ⭐ REGLA DE ORO — ATRIBUCIÓN POR UNIDAD DE NEGOCIO DEL EERR (INVIOLABLE)
 
-- **FLEXIBILIDAD DE HORARIO DE INICIO DE TURNOS**: por ahora los turnos
-  son encadenados (arrancan 8:00, 9:30, 11:00... en bloques de 90 fijos
-  desde la apertura). A futuro, el club podría querer permitir que el
-  cliente elija cualquier hora de inicio (cada 30 min), no solo los
-  bloques encadenados. Pendiente de definir e implementar; afecta el
-  algoritmo de generación de bloques "Disponible" en la grilla.
+**Cada ingreso y cada costo del Estado de Resultados va a SU unidad de
+negocio. Esto NO se puede romper.** Es el principio que sostiene toda la
+rentabilidad por unidad; si se viola, los márgenes mienten.
 
-- **BUG DE LAYOUT EN LA GRILLA** (pendiente de arreglar, alto impacto):
-  tras el rediseño visual, algunos bloques de reserva se solapan entre
-  sí o con los "Disponible", y los "Disponible" no calzan exactamente
-  con los huecos libres. Causa probable: desfase del cálculo de posición
-  vertical tras bajar la altura de slot de 40 a 36px, o
-  reservas/clases/disponibles usando bases de cálculo distintas.
-  Pendiente: que todos los bloques usen el mismo sistema de posición
-  (minutos desde apertura × altura de slot). **Diagnosticar y resolver
-  ANTES de tocar la grilla en el Bloque 3 de Turnos Fijos** — sin esto
-  arreglado, agregar bloques nuevos (badge fijo, slot comprometido)
-  amplifica el problema.
+### El mapeo (modelo actual)
+- **Alquiler de la cancha → Canchas.** Canchas usa SOLO `monto_alquiler`
+  del pago. **El consumo del turno NUNCA va a Canchas.**
+- **Consumo de buffet del turno → Buffet.**
+- **Consumo de shop del turno → Shop.**
+- **Venta de mostrador (POS) → su línea** (buffet o shop, según el
+  snapshot `venta_items.linea`).
+- **Clase → Clases.** (Ver deuda "Replanteo Clases": el negocio puede
+  querer remapear esto a Canchas — cuando se ejecute, se cambia EN la
+  función centralizada de atribución, no esparcido.)
+- **El COSTO (CMV) de cada venta va a la MISMA unidad que su ingreso.**
+  Ingreso y costo de una línea salen de las mismas filas → margen real
+  por unidad, no inflado.
 
-## Estado del módulo Turnos Fijos
+### Cómo se reconoce el ingreso del consumo del turno
+- Base **DEVENGADA por línea**: monto y costo salen de `reserva_consumos`
+  (subtotal + costo_unitario×cantidad), separados por `linea`.
+- Se **gatilla al COBRAR el turno** (el pago tiene `monto_consumo>0`).
+- **Sin doble conteo**: se agrupa por `reserva_id` (NO por pago), así un
+  turno con varios pagos cuenta su consumo una sola vez. Un turno cuenta
+  en UN único mes (el primero en que se cobró su consumo).
 
-### Hecho y probado (migraciones aplicadas y commiteadas)
+### POR QUÉ es regla de oro (se violó una vez)
+Esta separación se rompió en una modificación del EERR: Canchas pasó a
+sumar el total del pago (alquiler + consumo), y el consumo del turno
+apareció duplicado/mal atribuido. **Se rompió porque la regla NO estaba
+documentada ni blindada** — la lógica de atribución estaba (y sigue, hoy)
+desparramada e inline dentro de `useResumenFinanciero`, con el branch
+buffet/shop escrito DOS veces. Nada impedía mandar el consumo a Canchas.
 
-**0029 — Tarifas con vigencia temporal.** Refactor para versionado de
-precios: `lineage_id` agrupa versiones de la misma franja a lo largo
-del tiempo, `vigente_desde` / `vigente_hasta` definen el rango, EXCLUDE
-constraint server-side garantiza no-solapamiento por linaje. Soporta
-**aumentos programados con fecha futura** (cierra versión vigente +
-crea nueva atómicamente). `fn_resolver_tarifa(fecha, hora)` (SECURITY
-INVOKER) resuelve el precio vigente A LA FECHA del slot — la base de
-todo el modelo. Frontend de tarifas rediseñado: vista por linaje con
-precio vigente + aviso de aumentos programados, "Cambiar precio" con
-fecha, drawer de historial, editar metadata afecta todas las versiones
-del linaje.
+### PENDIENTE — Blindaje (refactor A+B + tests, sesión dedicada)
+Documentado ahora; el refactor queda para sesión propia.
+- **(A) Función pura `atribuirIngresoAUnidad(fuente)`** centralizada en
+  `src/features/finanzas/utils/`: recibe la FUENTE (alquiler / consumo+linea
+  / venta_item+linea / clase) y devuelve la unidad. El costo se enruta por
+  la MISMA clave → ingreso y costo no pueden divergir por construcción.
+  Un único lugar que cambiar, documentable, y la duplicación buffet/shop
+  colapsa a una llamada.
+- **(B) Extraer el cómputo a `computeResumenFinanciero(filas)`** puro,
+  dejando el `queryFn` solo con los `await` (I/O). Esto hace TESTEABLE la
+  regla sin mockear Supabase: el test arma filas plain (turno con alquiler
+  + consumo buffet + consumo shop, cobrado) y verifica la atribución.
+- **Suite vitest** que falle en rojo si alguien manda el consumo a Canchas
+  o desalinea costo/ingreso (escenarios: turno cobrado con 3 líneas; turno
+  no cobrado no cuenta consumo; reembolso resta alquiler; venta mostrador
+  por línea; clase→Clases; costo→misma unidad que su ingreso).
+- Hoy `useResumenFinanciero` NO es testeable: la lógica vive en un closure
+  que llama a `supabase.from(...)` con ~8 queries encadenadas.
 
-**0030 — Turnos fijos.** Tabla `turnos_fijos` (titular jugador o nombre
-libre, día de semana, hora, duración, vigencia, activo) + columna
-`reservas.turno_fijo_id` (FK ON DELETE SET NULL) + 4 RPCs:
-`fn_crear_turno_fijo`, `fn_actualizar_turno_fijo`, `fn_cancelar_turno_fijo`,
-`fn_materializar_turnos_fijos`. La materialización RESUELVE TARIFA POR
-FECHA de cada reserva (respeta aumentos programados de la 0029), es
-**idempotente** (CHECK A en código + UNIQUE parcial en DB), captura
-choques con reservas sueltas vía `EXCEPTION WHEN exclusion_violation`
-sin pisarlas, saltea solapes con clases. Devuelve **5 contadores**:
-`reservas_creadas`, `slots_ocupados_por_reserva_suelta`,
-`slots_ocupados_por_clase`, `slots_sin_tarifa`, `slots_ya_materializados`.
-Validación al crear turno fijo: **rechaza si no hay tarifa configurada
-para ese slot**. Frontend Parte 1: pantalla `/turnos-fijos`, sidebar
-acordeón Reservas, dialog de alta con botón **"Guardar y seguir
-agregando"** (conserva cancha+día+duración+fechas, resetea cliente+hora),
-modal de resultado con los 5 contadores.
+---
 
-**0031 — Bloqueo de slot en `fn_crear_reserva`.** Una reserva suelta
-NO puede pisar el slot de un turno fijo activo vigente. Cambio
-quirúrgico: solo +1 variable y +1 bloque de validación, resto idéntico
-a la 0005. Aplica SOLO a reservas sueltas — la materialización hace
-INSERT directo a la tabla y NO pasa por la RPC, por lo que no se ve
-afectada. Mensaje accionable con nombre del titular.
+# Principios financieros (cómo piensa el EERR)
 
-**0032 — `fn_eliminar_turno_fijo`.** Cancela reservas pendientes
-FUTURAS asociadas, preserva las cobradas/jugadas (quedan sin link
-gracias al ON DELETE SET NULL de la 0030 pero NO se borran), borra el
-turno fijo y libera el slot del UNIQUE parcial. Atómica, gate admin.
-Distinto de "desactivar" (que solo hace `activo=FALSE`).
+Estos principios rigen todo el módulo financiero. El dueño es experto en
+finanzas; el modelo debe respetarlos.
 
-**0033 — FIX policy DELETE faltante.** La 0030 definió policies para
-SELECT/INSERT/UPDATE pero NO para DELETE. Como `fn_eliminar_turno_fijo`
-es SECURITY INVOKER, el DELETE se filtraba silenciosamente por RLS
-(0 filas, sin error) y el turno fijo NO se borraba. Agregada policy
-`turnos_fijos_delete_admin` (solo admin del club) + GRANT DELETE
-explícito. Decisión: INVOKER + policy específica (defensa en capas)
-en lugar de DEFINER (coherencia con el patrón del proyecto + policy
-auditable en `pg_policies`).
+- **Devengado vs percibido.** El gasto se **devenga en su mes**
+  (`fecha_gasto`), independientemente de cuándo se paga. El PAGO es un
+  evento aparte (caja / cuotas). **Pagar una Cuenta por Pagar NO re-impacta
+  el EERR** — el resultado ya tomó el gasto cuando se devengó; el pago solo
+  mueve caja.
+- **IVA es flujo, no resultado.** Los márgenes se calculan sobre **neto**.
+  El IVA es un pasaje de dinero (se cobra/paga por cuenta del fisco), no
+  ganancia ni pérdida del período.
+- **CMV = costo de lo VENDIDO, no de lo comprado.** El costo de mercadería
+  entra al EERR cuando se VENDE (vía `venta_items.costo_unitario` snapshot ×
+  cantidad). La COMPRA de mercadería es flujo de caja / movimiento de
+  inventario, NO gasto del período. Por eso los gastos con categoría
+  `es_mercaderia=TRUE` se EXCLUYEN del EERR (evita doble conteo: se restaría
+  al comprar y al vender).
+- **Activo fijo = CAPEX al balance, no gasto.** Una inversión en activo
+  (ej. una cancha nueva) no es gasto del período; va al balance y se
+  deprecia. No se carga como gasto operativo.
+- **Condición fiscal por club** (monotributo vs Responsable Inscripto):
+  el club RI computa el gasto a NETO (descuenta IVA); el monotributista a
+  TOTAL (el IVA es costo, no lo recupera). `fn_recibir_oc` y el registro de
+  gasto respetan la condición fiscal del club (0043).
 
-**Frontend Bloque 2.** Eliminar turno fijo desde dropdown "Más
-acciones" (`MoreVertical`) — separado de Editar/Desactivar para evitar
-clicks accidentales, estilo destructive. Dialog con advertencias claras
-(irreversible + cancela pendientes futuras + preserva cobradas + libera
-el slot). Materialización **configurable** con selector de semanas
-4/8/12/16 (default 12) reemplazando el botón fijo anterior.
+---
 
-### Pendientes del módulo
+# Estado construido (módulos y migraciones)
 
-**Parte 3 — Proyección financiera (NO toca grilla, bajo riesgo).**
-Hook `useProyeccionTurnosFijos(anio, mes)` en `src/features/finanzas/hooks/`
-que calcula, para cada turno fijo activo, las ocurrencias del mes ×
-tarifa vigente a la fecha de cada ocurrencia (reusa `resolverTarifa.ts`
-client-side) = ingreso mensual proyectado. KPI en `/turnos-fijos`
-(reemplaza el contador simple por la proyección $) + sección "Ingresos
-recurrentes proyectados" en `/finanzas` (separada del Resultado del
-Período, mira hacia adelante, NO se mezcla con lo cobrado). Devuelve
-estructura `{ turnos: [...], total_mensual, cantidad_turnos_activos,
-turnos_sin_tarifa }` para alertar si algún slot quedó sin tarifa.
+## Fundaciones (0001–0028, resumen)
+Schema inicial + RLS multi-tenant (helpers `current_club_id()`,
+`current_user_rol()`, `current_club_caja_abierta()`), canchas y tarifas,
+reservas + jugadores + franjas, clases y profesores, cobros de reserva y
+de clase, Buffet Capa 1 (productos, stock por movimientos, ventas POS),
+costo de producto (margen), fichas de jugadores, **consumos del turno**
+(`reserva_consumos`, fn_cargar/quitar consumo), pagos por persona, tipo de
+reparto del consumo (general/partido), marca y logo del club, módulo de
+usuarios, plataforma (planes/módulos), **Caja** (turnos_caja, movimientos,
+integración de cobros), líneas Buffet/Shop (`venta_items.linea`,
+`reserva_consumos.linea`), modelo financiero base (unidades de negocio,
+categorías de gasto, otros_ingresos), RPCs financieras + integración caja.
 
-**Bloque 3 — Capa visual del bloqueo (DELICADO, toca la grilla).**
-Badge "🔁 Fijo" en `BloqueReserva` para reservas con `turno_fijo_id`.
-Mostrar el **slot comprometido por turno fijo no materializado como
-ocupado en la grilla** (bloque tipo "Reservado · Turno fijo · {titular}",
-estilo distinto al reservado materializado, clickeable → link a
-`/turnos-fijos`). Banner en `DetalleReservaDialog` con info del turno
-fijo + link. **ANTES de empezar: diagnosticar y resolver el bug de
-layout existente de la grilla** (ver sección anterior). Sin esto
-arreglado, agregar bloques nuevos amplifica el problema. Hacer con
-cabeza fresca, en sesión dedicada.
+## Reservas, grilla y turno como cuenta
+- **Consumos del turno**: `reserva_consumos` (1 fila = 1 carga, snapshots
+  de nombre/precio/costo/subtotal, `tipo_reparto` general|partido, `linea`
+  buffet|shop). UI consolida por (producto, tipo_reparto). El movimiento de
+  stock se ata al consumo (`fuente='consumo_turno'`).
+- **Pagos del turno**: `reserva_pagos` con desglose `monto_alquiler` +
+  `monto_consumo` (preparado para la cuenta tipo mesa de restaurante y la
+  división informativa entre jugadores).
 
-## Visión de producto: el turno como cuenta (tipo mesa de restaurante)
+## Turnos fijos (0029–0033)
+- **0029 — Tarifas con vigencia temporal.** `lineage_id` agrupa versiones
+  de la misma franja a lo largo del tiempo; `vigente_desde`/`vigente_hasta`;
+  EXCLUDE server-side garantiza no-solapamiento por linaje. Soporta
+  **aumentos programados a futuro** (cierra versión vigente + crea nueva,
+  atómico). `fn_resolver_tarifa(fecha, hora)` resuelve el precio vigente A
+  LA FECHA del slot — base de todo el modelo. Frontend por linaje (precio
+  vigente + aviso de aumentos, "Cambiar precio" con fecha, historial).
+- **0030 — Turnos fijos.** `turnos_fijos` + `reservas.turno_fijo_id`
+  (FK ON DELETE SET NULL) + 4 RPCs (crear/actualizar/cancelar/materializar).
+  La materialización RESUELVE TARIFA POR FECHA, es idempotente (CHECK +
+  UNIQUE parcial), no pisa reservas sueltas (captura `exclusion_violation`),
+  saltea clases. Devuelve 5 contadores. Frontend `/turnos-fijos` con
+  "Guardar y seguir agregando".
+- **0031 — Bloqueo de slot en `fn_crear_reserva`.** Una reserva suelta no
+  puede pisar el slot de un turno fijo activo vigente. Solo afecta sueltas
+  (la materialización hace INSERT directo).
+- **0032 — `fn_eliminar_turno_fijo`.** Cancela pendientes futuras, preserva
+  cobradas/jugadas (sin link por ON DELETE SET NULL), libera el slot.
+  Distinto de "desactivar". Gate admin.
+- **0033 — FIX policy DELETE faltante.** La 0030 no creó policy DELETE → el
+  DELETE de `fn_eliminar_turno_fijo` (INVOKER) se filtraba por RLS sin error.
+  Agregada `turnos_fijos_delete_admin` + GRANT DELETE. Decisión: INVOKER +
+  policy específica (defensa en capas) en vez de DEFINER.
+- **Frontend Bloque 2**: eliminar desde "Más acciones", materialización
+  configurable (4/8/12/16 semanas, default 12).
+- **Proyección financiera** (construido — verificar alcance): los archivos
+  `calcularProyeccionTurnosFijos.ts` / `calcularProyeccionClases.ts` /
+  `useProyeccionAlquileres.ts` existen (ocurrencias del mes × tarifa vigente
+  a la fecha de cada ocurrencia), pero puede estar a medias. Confirmar qué
+  quedó efectivamente terminado antes de apoyarse en ello.
 
-Cada turno/reserva debe funcionar conceptualmente como la mesa de un
-restaurante: una cuenta abierta asociada al turno que acumula el alquiler
-de la cancha MÁS los consumos (bebidas, compras del buffet), con soporte
-para múltiples medios de pago, división de la cuenta entre los jugadores,
-y cuentas diferenciadas (un jugador puede pagar algo extra además de su
-parte de la cuenta compartida del turno).
+## Tarifas: vigencia temporal + 2D (0029, 0034–0035, 0051–0052)
+- **0034–0035 — Tarifas de clases.** Mismo modelo de tarifas para el
+  alquiler de cancha de clases; cobro de clase vía `fn_resolver_tarifa`.
+- **0051 — TARIFA 2D (franja × duración).** Columna `tarifas.duracion_min`
+  (NULL = aplica a cualquier duración; valor específico = solo esa). En la
+  resolución, **la específica gana sobre NULL**. `fn_resolver_tarifa` toma
+  `p_duracion`; el ABM (crear/cambiar precio/metadata) propaga `duracion_min`;
+  la materialización de turnos fijos pasa la duración del turno.
+  POR QUÉ: con franjas de duración configurable, un mismo horario puede
+  tener precio distinto según dure 60 o 90 min.
+- **0052 — FIX bug lineage temporal.** `fn_crear_tarifa` /
+  `fn_crear_tarifa_clase` usaban `lineage_id=1` temporal, que colisiona con
+  el linaje real 1 en el EXCLUDE al crear varias tarifas seguidas. Fix:
+  `nextval('..._id_seq')`. Bug PREEXISTENTE (0029/0034), no introducido por
+  la 2D.
 
-Esta visión integra tres módulos: Reservas (el turno), Buffet/POS (los
-consumos) y Caja (los medios de pago y la división). Se construye de
-forma incremental:
-- **Sprint 3a**: la reserva nace con monto de alquiler + estado de pago
-  simple (pendiente/señado/pagado) + medio. El modelo de datos se diseña
-  para que después se le puedan "colgar" consumos y división de cuentas.
-- **Módulos Buffet y Caja**: se suman los consumos, los medios de pago
-  múltiples, y la división/diferenciación de cuentas.
+## Franjas de turno / grilla dinámica (0050)
+- **0050 — `franjas_turno`.** Motor GENÉRICO de duración de turno
+  configurable por club (nada hardcodeado, misma filosofía que tarifas).
+  Tabla con `duraciones_min INTEGER[]` (una franja puede permitir varias
+  duraciones) + `cancha_id` nullable (regla global o por cancha).
+  `fn_resolver_duraciones` devuelve las duraciones permitidas para un slot.
+  Reemplaza el viejo `duracion_turno_default` (queda de fallback).
+- **Frontend grilla dinámica**: `calcularDisponibles` tilea por franja y
+  soporta **inicios flexibles**; selector de duración al reservar
+  (`NuevaReservaDialog`). **FIX del bug de layout**: todos los bloques
+  (reserva/clase/disponible) posicionan por el MISMO sistema —
+  minutos desde apertura × altura de slot — eliminando los solapamientos.
+  → Cierra las tres viejas viñetas pendientes de Sprint 3 (duración por
+  franja, inicios flexibles, bug de layout).
 
-El documento maestro ya contempla esto en 8.1 (flujo B: cobrar saldo al
-finalizar turno con buffet asociado) y 10.1 (cuenta corriente del turno).
+## Consumos del turno + debounce anti-doble-submit (0013–0026, 0053)
+- **0026 — `fn_cargar_consumo_turno` acepta shop.** El turno absorbe
+  cualquier producto activo (un jugador puede cargar pelotas y pagarlas al
+  final). Mantiene el snapshot de `linea` para el EERR.
+- **0053 — DEBOUNCE server-side.** Un doble-tap / ghost-click táctil se
+  colaba por la ventana de carrera del guard `disabled={isPending}` del
+  frontend (que tarda un render de React) → cargas DUPLICADAS de consumos
+  (filas idénticas con <1s de diferencia), que además duplicaban el descuento
+  de stock y, vía la regla de oro, inflaban el Buffet al doble. Fix:
+  - **Backend**: tras el `SELECT ... FROM productos ... FOR UPDATE` (que ya
+    existía y SERIALIZA la ráfaga del mismo producto), antes de validar
+    stock e insertar, un `EXISTS` de consumo idéntico (club + reserva +
+    producto + cantidad + tipo_reparto + usuario) en los últimos **2
+    segundos**. Si existe → **no-op idempotente**: NO inserta consumo NI
+    movimiento de stock (crítico: no duplica el descuento) y devuelve la
+    fila existente. Race-safe gracias al FOR UPDATE (sin TOCTOU). Los 2s
+    son constante técnica anti-ráfaga (no config de club): cubren el
+    doble-tap accidental (<1s) sin bloquear un 2º consumo deliberado (>1,5–2s).
+  - **Frontend**: `isSubmittingRef` síncrono en `ConsumosTurnoSection` (set
+    true al tope del handler ANTES del await, chequeo al entrar, reset en
+    finally) — cierra la ventana de carrera; `disabled={isPending}` queda
+    como señal visual. Defensa en capas: ref (1ª capa) + RPC (autoritativa).
 
-**REQUISITO DE DISEÑO para Sprint 3a**: al modelar la tabla `reservas` y
-sus pagos, dejar el modelo preparado para esta evolución (no cerrarlo de
-forma que después haya que migrar datos para sumar buffet/división).
+## Finanzas: EERR, caja, gastos, compras, CxP, recurrentes, anulación
+- **0036 — Capas del EERR corporativo.** `unidad_tipo='financiero'` separa
+  "Resultados financieros" (comisiones banco/MP, intereses) de otros gastos.
+  Capas: margen bruto (ingresos − CMV − gastos directos a unidades) →
+  resultado operativo (≈EBITDA, − estructura) → resultado neto (− financieros
+  − otros).
+- **0037 — `fn_ajustar_stock`.** Ajuste manual de stock auditable (movimiento,
+  no edición destructiva).
+- **0038–0044 — Compras y proveedores.** Proveedores, compras unificadas,
+  detalle de bultos (`unidades_por_bulto`/`costo_por_bulto` con conversión),
+  orden de compra en dos momentos (emitir / recibir), condición fiscal del
+  club (RI=neto, monotributo=total), columnas de condición fiscal ampliadas.
+- **0045 — Cuentas por Pagar (`gasto_cuotas`).** Plan de cuotas de un gasto.
+  `fn_recibir_oc` con anticipo + cuotas; `fn_pagar_cuota`; `fn_registrar_gasto`
+  genera cuota si queda pendiente. POR QUÉ: comprar a crédito sin perder el
+  devengado (el gasto impacta el EERR en su mes; las cuotas son flujo).
+- **0046 — Gastos recurrentes (plantillas).** `gastos_recurrentes` (plantilla)
+  + `gastos.gasto_recurrente_id`; `fn_registrar_gasto` v4 vincula a plantilla.
+- **0047 — FIX cierre de caja con cuotas en efectivo.** `fn_cerrar_caja` no
+  restaba las `gasto_cuotas` pagadas en efectivo → falso faltante. Agregado
+  el branch que las descuenta del esperado.
+- **0048 — Sistema de ANULACIÓN (Filosofía B).** **No se reescribe el
+  pasado**: nada se borra ni se edita; se marca `activo=FALSE` (soft-delete)
+  y se asienta en el ledger `anulaciones` (FKs tipadas `gasto_id` /
+  `gasto_cuota_id` + CHECK exactly-one, `motivo_tipo` enum + `motivo_detalle`,
+  snapshot del estado anulado).
+  - `fn_anular_gasto`: gate admin; guardas (no anular si tiene cuotas pagadas
+    o si vino de una OC).
+  - `fn_anular_pago_cuota`: **anular un pago revierte CAJA, no el EERR**
+    (el gasto ya se devengó). Matriz por caja: si el pago fue en efectivo y
+    la caja está cerrada → genera `ajuste_positivo`; si la caja sigue abierta
+    → revierte el movimiento; otros medios → sin movimiento de caja.
+  - `fn_pagar_cuota` con guarda: rechaza si el gasto está `activo=FALSE`.
+- **0049 — Gasto recurrente uno-por-mes.** `fn_registrar_gasto` v5 + índice
+  único parcial: una plantilla recurrente no puede cargarse dos veces en el
+  mismo mes (evita el duplicado del alquiler del local, etc.).
+- **EERR**: `useResumenFinanciero` (cómputo client-side desde varias queries).
+  Aplica la REGLA DE ORO de atribución por unidad (ver sección destacada).
 
-### División de la cuenta del turno (definición precisa)
+---
 
-La cuenta del turno acumula el alquiler de la cancha + los consumos de
-buffet, y el sistema CALCULA cómo se divide (es una ayuda informativa para
-cuadrar, NO un sistema de sub-cuentas formales por persona — el vendedor
-ve cuánto le toca a cada uno y registra el cobro).
+# Visión de producto
 
-**Reglas de división del ALQUILER (Forma B, confirmada):**
+## El turno como cuenta (tipo mesa de restaurante)
+Cada turno funciona como la mesa de un restaurante: una cuenta abierta que
+acumula el alquiler + los consumos (buffet/shop), con múltiples medios de
+pago y **división informativa** entre jugadores. Construido el núcleo
+(`reserva_consumos`, `reserva_pagos` con desglose alquiler/consumo,
+tipo_reparto). Falta integrar plenamente Caja (medios múltiples) y la
+división UI.
 
-- Cantidad de jugadores CONFIGURABLE por turno (no fijo en 4). Caso real:
-  juegan 6 y se turnan, pagan entre 6. El vendedor indica cuántos jugadores
-  participan.
-- Parte justa de cada jugador = `monto_total_alquiler / cantidad_jugadores`.
-- A cada jugador se le descuenta lo que YA pagó (ej. la seña se descuenta
-  SOLO de quien la pagó).
-- Ejemplo: cancha $48.000, 4 jugadores → parte justa $12.000 c/u. Si uno
-  señó $10.000, ese debe $2.000 más; los otros 3 deben $12.000 c/u.
-  (NO se reparte el saldo entre los que no pagaron; cada uno debe su parte
-  justa menos lo que aportó.)
+### División de la cuenta del turno (Forma B, confirmada)
+- Cantidad de jugadores CONFIGURABLE por turno (no fijo en 4). Parte justa =
+  `monto_total_alquiler / cantidad_jugadores`. A cada uno se le descuenta lo
+  que YA pagó (la seña se descuenta solo de quien la pagó). NO se reparte el
+  saldo entre los que no pagaron.
+- Acompañantes que solo consumen: se indica la CANTIDAD (un número), sin
+  fichas. No pagan alquiler.
+- El cobro es **informativo** ("a cada uno le toca $X"), no exige pago por
+  persona. Modelo preparado (`reserva_jugadores`, `reserva_pagos.jugador_id`
+  nullable).
+- REQUISITO a sumar: indicar la cantidad de jugadores del partido.
 
-**Acompañantes que SOLO consumen (no juegan):**
+## Buffet (a futuro)
+- **Reposición de stock por facturas vía bot de WhatsApp**: subir facturas
+  de compra, parsearlas y reponer stock. REQUISITO DE DISEÑO ya respetado:
+  el stock se modela por movimientos auditables, las entradas pueden venir
+  de una fuente externa sin migración destructiva.
+- **Contabilidad / comprobantes fiscales**: las ventas hoy son registro
+  interno. REQUISITO DE DISEÑO: dejar el registro listo para numeración de
+  comprobantes y datos fiscales sin rehacer el modelo.
 
-- Se indica solo la CANTIDAD de personas extra (un número), sin cargar
-  nombres ni fichas. No pagan alquiler, solo lo que consumieron del buffet.
+## Rentabilidad y EERR por unidad de negocio
+- **Unidades**: Canchas (alquileres), Clases, Buffet, Shop, + estructura /
+  financiero / otros (transversales). La atribución por unidad es la REGLA
+  DE ORO (ver sección destacada).
+- **Estructura del EERR**: ingresos por unidad − CMV (costo de lo vendido,
+  buffet/shop) − gastos directos por unidad = margen; − estructura = operativo;
+  − financieros − otros = resultado neto.
+- **Costo de productos**: manual + último costo conocido (snapshot por venta),
+  no promedio ponderado por ahora.
+- **Orden de construcción** (definido): 1) costo en productos ✓, 2) gastos ✓,
+  3) caja ✓, 4) EERR por unidad (frontend básico hecho; rediseño pendiente).
 
-**Consumos de buffet (cuando exista el módulo):**
+---
 
-- Se suman a la cuenta del turno. La división de consumos se definirá al
-  construir el buffet (probablemente: o se reparten entre todos, o se
-  asignan a personas puntuales).
+# Deudas funcionales prioritarias
 
-**El cobro es INFORMATIVO**: el sistema muestra "a cada uno le toca $X"
-para cuadrar; no exige registrar pago por persona. El modelo de datos ya
-está preparado (`reserva_jugadores` = participantes, `reserva_pagos` con
-`jugador_id` nullable, futura `reserva_items` para consumos).
+**🔴 Cancelar aumento programado de tarifa.** La 0029 permite cargar aumentos
+a futuro; si un admin lo carga por error, hoy solo se revierte por SQL manual.
+Construir `fn_cancelar_aumento_programado` + botón "Cancelar este aumento".
 
-**REQUISITO para el turno** (a sumar cuando se construya): poder indicar
-la CANTIDAD de jugadores del partido (no asumir 4), porque la división
-depende de eso.
+**🟠 Replanteo: Clases como alquiler de cancha.** Confirmado: el profesor
+cobra a los alumnos directo; el club solo cobra el **alquiler de la cancha**.
+El modelo actual (`clases.precio` fijo, ingreso a unidad "Clases") está
+desalineado. Plan: renombrar UI "Precio"→"Alquiler de cancha por clase";
+**mapear `clase_cobros` a la unidad Canchas** (este es el cambio que tocará
+la REGLA DE ORO — hacerlo EN la función centralizada de atribución); evaluar
+resolver vía `fn_resolver_tarifa` en vez de `clases.precio`. Una clase ES
+conceptualmente un turno fijo del profesor, pero NO se fusionan entidades.
 
-## Requisitos pendientes para Buffet (Capa 1)
+**🟠 Planificación de profesores.** Cargar todas las clases de los profes de
+una vez (como turnos fijos pero de clases) para ocupación y proyección. UX
+tipo "Guardar y seguir agregando". Va con el replanteo de Clases.
 
-- **ANULAR / CORREGIR UNA VENTA DESDE LA UI** (admin): hoy la venta es
-  inmutable desde la app — si hay un error de cobro la única manera de
-  corregirlo es SQL manual, lo que no es viable para uso diario real.
-  Falta una acción de admin que anule una venta y, atómicamente, revierta
-  los movimientos de stock que generó (movimientos compensatorios
-  positivos con fuente nueva tipo `'anulacion_venta'` o similar, NO
-  borrado de filas históricas). Decidir si es "anular completa" o
-  "anular ítem por ítem", la fuente exacta del movimiento compensatorio
-  y los mensajes/confirmación. No se construye en Capa 1, pero queda
-  registrado como necesario antes del uso diario real del módulo.
+**🟠 Simulador de alza de ingresos.** "Si subo X% las tarifas, cuánto más
+facturo" sumando turnos fijos + alquiler de clases con tarifa hipotética.
+Reusa el cálculo de proyección con un factor de ajuste. No modifica datos.
 
-## Visión de producto: Buffet (a futuro)
+**🟠 Anular / corregir una venta de mostrador desde la UI** (admin). Hoy la
+venta POS es inmutable desde la app. Falta anular una venta revirtiendo
+atómicamente los movimientos de stock (compensatorios, fuente
+`'anulacion_venta'`, NO borrado). La infraestructura de anulación Filosofía B
+(`anulaciones`, 0048) ya existe para gastos y es el patrón a extender a ventas.
 
-- **REPOSICIÓN DE STOCK POR FACTURAS DE COMPRA VÍA BOT DE WHATSAPP**: a
-  futuro, el club quiere poder subir las facturas de compra de
-  proveedores a través de un bot de WhatsApp, que lea la factura y
-  actualice/reponga el stock de los productos del buffet automáticamente.
-  Es un módulo grande propio (integración WhatsApp + parsing de facturas
-  + movimientos de stock). **REQUISITO DE DISEÑO** para el buffet base:
-  modelar el stock de forma que los movimientos (entradas por compra,
-  salidas por venta) se puedan registrar y auditar, dejando lugar para
-  que las entradas vengan después de una fuente externa (las facturas)
-  sin migración destructiva.
+**🟠 Rediseño módulo financiero** (visión "Club Operating System"):
+- Centros de ingreso vs estructura: que las unidades `estructura` NO aparezcan
+  al cargar INGRESOS (solo gastos). Hoy el form las mezcla.
+- Gastos esperados con alarmas (avisar si falta cargar un gasto habitual del
+  mes). Se apoya en `gastos_recurrentes` (0046) + recordatorio.
+- EERR con presentación de capas correctas (el cálculo ya está; falta UX).
+- Rediseño visual del hub `/finanzas` con mirada de experto financiero.
 
-- **CONTABILIDAD / COMPROBANTES FISCALES**: las ventas del buffet hoy son
-  registro interno (sin ticket fiscal). A futuro, el club quiere meterse
-  en la contabilidad formal (comprobantes, facturación). **REQUISITO DE
-  DISEÑO**: que el registro de ventas quede preparado para sumar
-  numeración de comprobantes y datos fiscales más adelante, sin rehacer
-  el modelo.
+# Deudas técnicas
 
-## Visión de producto: rentabilidad y EERR por unidad de negocio
+- **Blindaje de la REGLA DE ORO del EERR** (refactor A+B + vitest): ver la
+  sección destacada. Es la deuda técnica más importante hoy.
+- **Trigger BEFORE INSERT en `reservas`** como defensa última del bloqueo de
+  slot de turno fijo (hoy solo en `fn_crear_reserva`; un INSERT directo lo
+  evadiría). Distinguir `turno_fijo_id IS NULL` (suelta, valida) vs NOT NULL
+  (materialización, no toca).
+- **Vigencia temporal (lineage + EXCLUDE) para `clases.precio` y futuras
+  `membresias`.** Hoy solo `tarifas` (turnos y clases) la tiene. Al replantear
+  Clases, evaluar moverlas a `fn_resolver_tarifa`. Membresías nace versionada.
+- **Limpiar data de prueba** que quedó de ensayos en la app durante el
+  desarrollo (reservas/turnos/cobros de prueba, y `reserva_consumos`
+  duplicados de las ráfagas de prueba). Los duplicados de `reserva_consumos`
+  son DATA DE PRUEBA (confirmado por el dueño: no son ventas reales) → se van
+  con esta limpieza general, NO requieren reversión quirúrgica de stock. El
+  debounce de la 0053 ya frena la generación de nuevos duplicados de acá en
+  adelante (eso sí es permanente). Identificar prueba vs real (consultar al
+  dueño si hay duda).
 
-**OBJETIVO**: el club quiere ver su rentabilidad completa en un Estado de
-Resultados (EERR) desglosado, con análisis POR UNIDAD DE NEGOCIO.
+# Deudas de seguridad detectadas
 
-**UNIDADES DE NEGOCIO**: Alquileres (reservas), Clases, Buffet. Cada
-ingreso y cada gasto debe poder etiquetarse con su unidad (o "general"
-si es transversal), para calcular rentabilidad por unidad.
-
-**ESTRUCTURA DEL EERR**:
-
-- Ingresos por unidad: Alquileres (pagos de reservas), Clases
-  (clase_cobros), Buffet (ventas).
-- Costos directos: SOLO el buffet tiene costo directo (costo de mercadería
-  vendida = costo del producto × cantidad). Alquileres y Clases NO tienen
-  costo directo (no se paga a profesores; el club solo cobra alquiler).
-- Margen por unidad = ingresos − costo directo.
-- Gastos fijos del club (alquiler local, servicios, sueldos, mantenimiento,
-  impuestos): se restan del margen total. Opcionalmente prorrateables por
-  unidad a futuro; por ahora globales.
-- Resultado neto = suma de márgenes − gastos fijos.
-
-**DECISIONES TOMADAS**:
-
-- Costo de productos: MANUAL (campo en el producto) + ÚLTIMO COSTO
-  CONOCIDO (no promedio ponderado por ahora). El margen de cada venta =
-  precio − costo al momento de la venta (snapshot, como ya hacemos con el
-  precio).
-- Rentabilidad POR UNIDAD DE NEGOCIO (no solo global).
-- Clases = ingreso por **alquiler de cancha al profesor** (ver
-  "Replanteo: Clases como alquiler de cancha" en Deudas funcionales
-  prioritarias). El modelo actual mapea el ingreso a la unidad "Clases"
-  separada de "Canchas" — está desalineado y hay que corregirlo.
-
-**ORDEN DE CONSTRUCCIÓN DEFINIDO**:
-
-1. Costo en productos (cerrar buffet con su margen). ✓ hecho
-2. Módulo Gastos (gastos fijos categorizados + etiquetables por unidad). ✓ hecho
-3. Módulo Caja (unifica todos los ingresos + gastos en un flujo de
-   dinero). ✓ hecho
-4. Reportes / EERR por unidad de negocio. **Frontend básico hecho;
-   pendiente rediseño completo (ver Deudas funcionales prioritarias).**
-
-## Deudas funcionales prioritarias
-
-**🔴 PRIORITARIO — Cancelar aumento programado de tarifa**: la migración
-0029 introduce el flujo "Cambiar precio" con aumentos a futuro (ej.
-"desde el 1/06 sube a $52.000"). Si un admin lo carga por error, hoy
-la única forma de revertirlo es vía SQL manual (DELETE de la versión
-futura + UPDATE vigente_hasta=NULL de la versión actual). Un admin no
-técnico no debería tener que pasar por soporte para deshacer un aumento
-mal cargado. Construir `fn_cancelar_aumento_programado` + botón
-"Cancelar este aumento" en la pantalla de Tarifas. No es deuda que
-duerme.
-
-**🟠 REPLANTEO: Clases como alquiler de cancha**: confirmado con el
-dueño que en este club el profesor cobra a los alumnos directamente
-(el club NO recibe ese dinero). El club solo cobra el **alquiler de la
-cancha** donde se da la clase. El modelo actual (`clases.precio` como
-número fijo, ingreso mapeado a unidad "Clases" separada) está
-desalineado con la realidad del negocio. Plan acordado:
-
-  1. Renombrar UI "Precio" → "Alquiler de cancha por clase".
-  2. Mapear el ingreso de `clase_cobros` a la unidad **"Canchas"** en
-     `useResumenFinanciero` y el resto del módulo financiero (no a
-     "Clases" como hoy).
-  3. Evaluar reemplazar `clases.precio` por `fn_resolver_tarifa(fecha,
-     hora_inicio)` para consistencia con el modelo de tarifas
-     versionadas (0029). Si la tarifa de cancha cambia, el alquiler de
-     las clases que ocurren en ese horario se actualiza automático.
-
-  Conceptualmente, **una clase ES un turno fijo del profesor**. NO se
-  decidió fusionar las entidades (camino C descartado por invasivo) —
-  solo alinear semánticamente. Las clases siguen siendo entidad propia.
-
-**🟠 PLANIFICACIÓN DE PROFESORES**: cargar todas las clases de los
-profes de una vez (equivalente a turnos fijos pero para clases) para
-estimar ocupación futura del club y proyección financiera del alquiler
-recurrente al profesor. UX similar a la carga masiva de turnos fijos
-("Guardar y seguir agregando"). Va junto con el replanteo de Clases.
-
-**🟠 SIMULADOR DE ALZA DE INGRESOS**: "si subo X% las tarifas, cuánto
-más facturo" sumando turnos fijos + alquiler de clases proyectados con
-tarifa hipotética. Se apoya en `useProyeccionTurnosFijos` (Parte 3 de
-Turnos Fijos, pendiente) reusando el mismo cálculo con un parámetro de
-"factor de ajuste" o "tarifa hipotética por linaje". UI: simulador en
-`/finanzas` o `/configuracion/tarifas`. NO modifica datos, solo
-proyección de cálculo.
-
-**🟠 REDISEÑO MÓDULO FINANCIERO** (visión "Club Operating System" por
-fases): el frontend financiero actual quedó básico. Pendiente:
-
-  - Centros de ingreso vs estructura: que las unidades de tipo
-    `estructura` NO aparezcan como opción al cargar ingresos (solo
-    para gastos). Hoy el form mezcla todas.
-  - **Gastos recurrentes esperados con alarmas**: sistema proactivo
-    que avisa si falta cargar un gasto habitual (ej. "El alquiler del
-    local no se cargó este mes"). Requiere modelar "gasto esperado"
-    + recordatorio.
-  - **EERR con capas correctas**: ingreso − costo de lo vendido
-    (`venta_items.costo_unitario` ya existe, NO recargar) − gastos
-    directos por unidad − estructura = resultado neto. Hoy el EERR
-    está armado pero la presentación es básica.
-  - Rediseño visual del hub `/finanzas` con la mirada de un experto
-    financiero (no del dueño operativo).
-
-## Deudas técnicas
-
-- **Trigger BEFORE INSERT en `reservas`** como defensa en profundidad
-  del bloqueo de slot de turno fijo (0031). Hoy la validación vive
-  solo en `fn_crear_reserva`. Como el frontend SIEMPRE usa la RPC,
-  cubre el 100% del caso real, pero un INSERT directo desde Supabase JS
-  (caso edge, no es nuestro flujo) lo evadiría. Trigger BEFORE INSERT
-  que distinga por `NEW.turno_fijo_id IS NULL` (suelta, valida) vs NOT
-  NULL (materialización, no toca) sería la defensa última.
-
-- **Mismo patrón de vigencia temporal** (lineage_id + vigente_desde/
-  hasta + EXCLUDE) para `clases.precio` y futuras `membresias`. Hoy
-  solo `tarifas` tiene el modelo versionado. Cuando se replantee
-  Clases como alquiler de cancha, evaluar si conviene moverlas
-  directamente a `fn_resolver_tarifa` (que ya está versionado) o
-  versionar `clases.precio` independientemente. Membresías nace con
-  vigencia temporal desde el inicio.
-
-- **LIMPIAR data de prueba** que quedó en la base por ensayos en la
-  app durante el desarrollo. Ej. una reserva en estado "pagada"
-  huérfana en cancha 1 a las 19:00, posibles turnos fijos de prueba,
-  cobros de clases de prueba. Limpiar con cuidado identificando qué
-  es de prueba vs qué es real (consultar al dueño si dudás).
-
-## Deudas de seguridad detectadas
-
-**DEUDA DE SEGURIDAD (no urgente)**: el rol authenticated recibe permisos de
-escritura (INSERT/UPDATE/DELETE) por DEFAULT sobre las tablas nuevas del
-schema public en este proyecto. La barrera efectiva siempre fue la RLS
-(policies), real y suficiente. Para defensa en capas, conviene auditar
-todas las tablas y REVOKE los permisos de escritura que no correspondan a
-authenticated. En la 0019 se revocó explícitamente en modulos/planes/
-plan_modulos/plataforma_admins. La 0029 también revocó DELETE en tarifas.
-La 0033 sumó GRANT DELETE explícito en turnos_fijos (admin-only por
-policy). El resto pendiente.
+**GRANTs de escritura a `authenticated` por DEFAULT** sobre tablas nuevas del
+schema public. La barrera efectiva siempre fue la RLS (real y suficiente).
+Para defensa en capas, auditar todas las tablas y REVOKE lo que no corresponda.
+Hecho explícito en 0019 (modulos/planes/plan_modulos/plataforma_admins), 0029
+(DELETE en tarifas), 0033 (GRANT DELETE admin-only en turnos_fijos). Resto
+pendiente.
