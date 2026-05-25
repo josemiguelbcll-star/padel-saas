@@ -11,7 +11,11 @@
       "Bash(grep *)",
       "Bash(echo \"exit=$?\")",
       "Bash(node -e \"const s=require\\('./package.json'\\).scripts; console.log\\(JSON.stringify\\(s,null,2\\)\\)\")",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\proyectos\\\\padel-saas\\\\src\\\\features\\\\reservas\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(ls src/features/configuracion/hooks/)",
+      "Bash(grep -rl \"export function useTarifas\" src)"
     ]
   }
 }

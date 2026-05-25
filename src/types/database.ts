@@ -432,6 +432,34 @@ export interface Tarifa {
   lineage_id: number;
 }
 
+/**
+ * Franja de turno (0050): regla de duración por franja horaria + días
+ * (+ cancha opcional). Define QUÉ duraciones se pueden reservar
+ * arrancando dentro de la franja. SIN versionado temporal (a diferencia
+ * de Tarifa): las duraciones son estables.
+ *
+ * Resolución (resolverDuraciones.ts / fn_resolver_duraciones): la franja
+ * cancha-específica gana sobre la global, luego prioridad DESC, id DESC.
+ * Sin franja aplicable → fallback a clubes.duracion_turno_default.
+ */
+export interface FranjaTurno {
+  id: number;
+  club_id: number;
+  /** NULL = aplica a todas las canchas del club. */
+  cancha_id: number | null;
+  nombre: string;
+  /** TIME 'HH:MM:SS' o NULL. Ambas NULL = aplica a toda hora. */
+  desde_hora: string | null;
+  hasta_hora: string | null;
+  /** 1=lunes..7=domingo. NULL = todos los días. */
+  dias_semana: number[] | null;
+  /** Subconjunto no vacío de {60,90,120,150,180,240}. Ej: [60,90]. */
+  duraciones_min: number[];
+  /** Mayor número gana cuando dos franjas se superponen. */
+  prioridad: number;
+  activa: boolean;
+}
+
 // ============================================================================
 // Migración 0004 — Reservas, jugadores, franjas, pagos
 // ============================================================================
