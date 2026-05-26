@@ -26,6 +26,7 @@ import {
   GastosPage,
   OtrosIngresosPage,
   CuentasPorPagarPage,
+  FlujoCajaPage,
 } from '@/features/finanzas';
 import { JugadoresPage } from '@/features/jugadores';
 import { OnboardingGate, OnboardingPage } from '@/features/onboarding';
@@ -93,6 +94,7 @@ export function App() {
         <Route path="caja" element={<CajaPage />} />
 
         <Route path="finanzas" element={<FinanzasPage />} />
+        <Route path="flujo-caja" element={<FlujoCajaPage />} />
         <Route path="gastos" element={<GastosPage />} />
         <Route path="otros-ingresos" element={<OtrosIngresosPage />} />
         <Route path="cxp" element={<CuentasPorPagarPage />} />

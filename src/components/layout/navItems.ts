@@ -8,6 +8,7 @@ import {
   ShoppingCart,
   Package,
   PieChart,
+  LineChart,
   TrendingDown,
   TrendingUp,
   Receipt,
@@ -79,6 +80,7 @@ export const navItems: NavItem[] = [
     to: '/finanzas',
     icon: PieChart,
     children: [
+      { label: 'Flujo de caja', to: '/flujo-caja', icon: LineChart },
       { label: 'Gastos', to: '/gastos', icon: TrendingDown },
       { label: 'Otros ingresos', to: '/otros-ingresos', icon: TrendingUp },
       { label: 'Cuentas por pagar', to: '/cxp', icon: Receipt },
