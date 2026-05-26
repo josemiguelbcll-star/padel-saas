@@ -96,6 +96,8 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
   const isAdmin = user?.rol === 'admin';
 
   const query = config.useList();
+  // Tarifa 2D (0051): solo el módulo de turnos tiene dimensión duración.
+  const soportaDuracion = config.modulo === 'turnos';
 
   const linajes = useMemo<TarifaLinaje[]>(
     () => agruparPorLinaje(query.data ?? []),
@@ -178,6 +180,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
               key={l.lineage_id}
               linaje={l}
               isAdmin={isAdmin}
+              soportaDuracion={soportaDuracion}
               onCambiarPrecio={() => openCambiarPrecio(l)}
               onEditarMetadata={() => openEditarMetadata(l)}
               onHistorial={() => openHistorial(l)}
@@ -190,6 +193,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
         open={nuevaOpen}
         onOpenChange={setNuevaOpen}
         useCrear={config.useCrear}
+        soportaDuracion={soportaDuracion}
       />
       <CambiarPrecioDialog
         open={cambiarPrecioOpen}
@@ -202,6 +206,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
         onOpenChange={setEditarMetadataOpen}
         linaje={seleccionado}
         useActualizarMetadata={config.useActualizarMetadata}
+        soportaDuracion={soportaDuracion}
       />
       <HistorialPrecioDialog
         open={historialOpen}
@@ -219,6 +224,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
 interface LinajeCardProps {
   linaje: TarifaLinaje;
   isAdmin: boolean;
+  soportaDuracion: boolean;
   onCambiarPrecio: () => void;
   onEditarMetadata: () => void;
   onHistorial: () => void;
@@ -227,6 +233,7 @@ interface LinajeCardProps {
 function LinajeCard({
   linaje,
   isAdmin,
+  soportaDuracion,
   onCambiarPrecio,
   onEditarMetadata,
   onHistorial,
@@ -253,6 +260,16 @@ function LinajeCard({
               {!linaje.activa && (
                 <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                   Inactiva
+                </span>
+              )}
+              {soportaDuracion && (
+                <span
+                  title="Duración a la que aplica esta tarifa"
+                  className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                >
+                  {linaje.duracion_min !== null
+                    ? `${linaje.duracion_min} min`
+                    : 'cualquier duración'}
                 </span>
               )}
             </div>

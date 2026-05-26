@@ -11,3 +11,4 @@ export { ProductosPage } from './productos/ProductosPage';
 export { ProveedoresPage } from './proveedores/ProveedoresPage';
 export { UnidadesPage } from './finanzas/UnidadesPage';
 export { CategoriasGastoPage } from './finanzas/CategoriasGastoPage';
+export { TesoreriaPage } from './tesoreria/TesoreriaPage';

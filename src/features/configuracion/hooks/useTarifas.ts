@@ -43,6 +43,9 @@ export interface CrearTarifaInput {
   prioridad?: number;
   /** YYYY-MM-DD. Opcional, default 'hoy' server-side. Permite fecha futura. */
   vigente_desde?: string | null;
+  /** Duración (minutos) a la que aplica (0051). NULL/undefined = cualquier
+   *  duración. Solo tarifas de TURNOS; las de clases lo ignoran. */
+  duracion_min?: number | null;
 }
 
 /**
@@ -65,6 +68,7 @@ export function useCrearTarifa(): UseMutationResult<
         p_dias_semana: input.dias_semana ?? null,
         p_prioridad: input.prioridad ?? 0,
         p_vigente_desde: input.vigente_desde ?? null,
+        p_duracion_min: input.duracion_min ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
@@ -140,6 +144,10 @@ export interface ActualizarMetadataInput {
   clear_franja_horaria?: boolean;
   /** Forzar a NULL los días de la semana. */
   clear_dias_semana?: boolean;
+  /** Duración (minutos) a setear (0051). Solo tarifas de turnos. */
+  duracion_min?: number | null;
+  /** Forzar a NULL la duración (= cualquier duración). */
+  clear_duracion?: boolean;
 }
 
 /**
@@ -166,6 +174,8 @@ export function useActualizarMetadataTarifa(): UseMutationResult<
           p_activa: input.activa ?? null,
           p_clear_franja_horaria: input.clear_franja_horaria ?? false,
           p_clear_dias_semana: input.clear_dias_semana ?? false,
+          p_duracion_min: input.duracion_min ?? null,
+          p_clear_duracion: input.clear_duracion ?? false,
         },
       );
       if (error) throw new Error(mapPostgrestError(error));

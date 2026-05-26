@@ -36,65 +36,70 @@ interface CalcularDisponiblesParams {
   duracionDefault: number;
 }
 
+/** Intervalo ocupado, en minutos desde 00:00. */
+export interface Intervalo {
+  start: number;
+  end: number;
+}
+
+interface CalcularDisponiblesCoreParams {
+  /** Intervalos ocupados (minutos). Se ordenan adentro; no se mutan. */
+  ocupados: Intervalo[];
+  /** Hora de apertura del club, 'HH:MM' o 'HH:MM:SS'. */
+  horaApertura: string;
+  /** Hora de cierre del club, 'HH:MM' o 'HH:MM:SS'. */
+  horaCierre: string;
+  /** Fecha del día ('YYYY-MM-DD') — para resolver dias_semana de las franjas. */
+  fecha: string;
+  /** Cancha — para resolver franjas cancha-específicas. */
+  canchaId: number;
+  franjas: FranjaTurno[];
+  duracionDefault: number;
+}
+
 /**
- * Calcula los slots "Disponible" de una cancha en un día dado (grilla
- * dinámica, Forma B).
+ * Núcleo del cálculo de disponibilidad (grilla dinámica, Forma B).
+ *
+ * Dado el conjunto de intervalos OCUPADOS + horario + franjas, devuelve los
+ * inicios libres con sus duraciones permitidas por franja. No sabe de dónde
+ * viene la ocupación: la grilla de reservas la arma desde reservas + clases
+ * (`calcularDisponibles`); el calendario de turnos fijos la arma desde turnos
+ * fijos + clases. Un solo motor, dos adapters.
  *
  * Algoritmo:
- *   1. Unir reservas + clases como intervalos ocupados (minutos desde 00:00).
- *   2. Computar los huecos libres entre apertura y cierre (set algebra básica).
- *   3. Tilear cada hueco con INICIOS FLEXIBLES POR FRANJA: un cursor camina
- *      desde el inicio del hueco; en cada posición resuelve la franja
- *      aplicable (resolverDuraciones) y ofrece las duraciones que entran
- *      antes de min(fin del hueco, fin de la franja) — un turno NUNCA cruza
- *      el borde de su franja. Avanza por la duración más corta ofrecida
- *      (el "paso"). Si nada entra en lo que resta de la franja, salta al
- *      fin de ésta.
+ *   1. Computar los huecos libres entre apertura y cierre (set algebra básica).
+ *   2. Tilear cada hueco con INICIOS FLEXIBLES POR FRANJA: un cursor camina
+ *      desde el inicio del hueco; en cada posición resuelve la franja aplicable
+ *      (resolverDuraciones) y ofrece las duraciones que entran antes de
+ *      min(fin del hueco, fin de la franja) — un turno NUNCA cruza el borde de
+ *      su franja. Avanza por la duración más corta ofrecida (el "paso"). Si
+ *      nada entra en lo que resta de la franja, salta al fin de ésta.
  *
  * FALLBACK (club sin franjas): resolverDuraciones devuelve
  * { duraciones: [duracionDefault], hastaHora: null }, así que el tiling
- * encadena `duracionDefault` desde el inicio de cada hueco — el mismo
- * comportamiento de turnos rígidos de antes (con duracionDefault=90, es
- * idéntico a la grilla previa).
+ * encadena `duracionDefault` desde el inicio de cada hueco.
  */
-export function calcularDisponibles({
-  reservas,
-  clases,
+export function calcularDisponiblesCore({
+  ocupados,
   horaApertura,
   horaCierre,
   fecha,
   canchaId,
   franjas,
   duracionDefault,
-}: CalcularDisponiblesParams): SlotDisponible[] {
+}: CalcularDisponiblesCoreParams): SlotDisponible[] {
   const aperturaMin = horaToMinutos(horaApertura);
   const cierreMin = horaToMinutos(horaCierre);
 
   if (cierreMin <= aperturaMin) return [];
 
-  // 1. Intervalos ocupados (en minutos). IDÉNTICO a la versión previa.
-  const ocupados: { start: number; end: number }[] = [];
+  // Orden por inicio (copia — no mutamos el array del caller).
+  const ordenados = [...ocupados].sort((a, b) => a.start - b.start);
 
-  for (const r of reservas) {
-    if (r.estado === 'cancelada') continue;
-    ocupados.push({
-      start: horaToMinutos(r.hora_inicio),
-      end: horaToMinutos(r.hora_fin),
-    });
-  }
-
-  for (const c of clases) {
-    if (!c.activa) continue;
-    const start = horaToMinutos(c.hora_inicio);
-    ocupados.push({ start, end: start + c.duracion_min });
-  }
-
-  ocupados.sort((a, b) => a.start - b.start);
-
-  // 2. Huecos libres dentro de [apertura, cierre). IDÉNTICO a la previa.
+  // 1. Huecos libres dentro de [apertura, cierre).
   const huecos: { start: number; end: number }[] = [];
   let cursor = aperturaMin;
-  for (const o of ocupados) {
+  for (const o of ordenados) {
     if (o.end <= cursor) continue;
     if (o.start > cursor) {
       huecos.push({ start: cursor, end: Math.min(o.start, cierreMin) });
@@ -106,7 +111,7 @@ export function calcularDisponibles({
     huecos.push({ start: cursor, end: cierreMin });
   }
 
-  // 3. Tilear cada hueco con inicios flexibles por franja.
+  // 2. Tilear cada hueco con inicios flexibles por franja.
   const disponibles: SlotDisponible[] = [];
   for (const h of huecos) {
     let pos = h.start;
@@ -141,4 +146,46 @@ export function calcularDisponibles({
   }
 
   return disponibles;
+}
+
+/**
+ * Slots "Disponible" de una cancha en un día (grilla de reservas). Adapter
+ * fino sobre `calcularDisponiblesCore`: arma la ocupación desde las reservas
+ * (no canceladas) y las clases activas, y delega el cálculo.
+ */
+export function calcularDisponibles({
+  reservas,
+  clases,
+  horaApertura,
+  horaCierre,
+  fecha,
+  canchaId,
+  franjas,
+  duracionDefault,
+}: CalcularDisponiblesParams): SlotDisponible[] {
+  const ocupados: Intervalo[] = [];
+
+  for (const r of reservas) {
+    if (r.estado === 'cancelada') continue;
+    ocupados.push({
+      start: horaToMinutos(r.hora_inicio),
+      end: horaToMinutos(r.hora_fin),
+    });
+  }
+
+  for (const c of clases) {
+    if (!c.activa) continue;
+    const start = horaToMinutos(c.hora_inicio);
+    ocupados.push({ start, end: start + c.duracion_min });
+  }
+
+  return calcularDisponiblesCore({
+    ocupados,
+    horaApertura,
+    horaCierre,
+    fecha,
+    canchaId,
+    franjas,
+    duracionDefault,
+  });
 }

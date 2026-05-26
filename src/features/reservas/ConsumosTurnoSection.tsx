@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Plus, ShoppingCart, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -53,6 +53,9 @@ export function ConsumosTurnoSection({
 
   const [showCatalogo, setShowCatalogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guard síncrono anti-doble-submit (ver handleAgregar). Un ref, no
+  // estado: se actualiza al instante y no depende de un render de React.
+  const isSubmittingRef = useRef(false);
 
   const consumos = useMemo<ReservaConsumo[]>(
     () => consumosQuery.data ?? [],
@@ -101,6 +104,15 @@ export function ConsumosTurnoSection({
     productoId: number,
     tipoReparto: TipoRepartoConsumo,
   ): Promise<void> {
+    // Guard síncrono anti-doble-submit. El `disabled={isPending}` del
+    // catálogo depende de un render de React y deja una ventana de
+    // carrera de ~1 frame por la que se cuela el doble-tap / ghost-click
+    // táctil (causa de la duplicación de consumos — ver migración 0053).
+    // Un ref se actualiza al instante, así que el segundo disparo de la
+    // ráfaga ve `true` y aborta ANTES del await. Es la 1ª capa; la RPC
+    // (debounce 2s, 0053) es la garantía autoritativa server-side.
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setError(null);
     try {
       await cargar.mutateAsync({
@@ -115,6 +127,8 @@ export function ConsumosTurnoSection({
           ? err.message
           : 'No pudimos cargar el consumo.',
       );
+    } finally {
+      isSubmittingRef.current = false;
     }
   }
 

@@ -14,6 +14,9 @@ export interface TarifaLinaje {
   dias_semana: number[] | null;
   prioridad: number;
   activa: boolean;
+  /** Duración (minutos) a la que aplica, o null = cualquier duración (0051).
+   *  Solo tarifas de turnos; en clases siempre null. */
+  duracion_min: number | null;
   /** Versiones del linaje ordenadas por vigente_desde DESC (más reciente primero). */
   versiones: Tarifa[];
   /** La versión vigente hoy (cubre CURRENT_DATE). NULL si ninguna aplica hoy. */
@@ -76,6 +79,8 @@ export function agruparPorLinaje(tarifas: Tarifa[]): TarifaLinaje[] {
       dias_semana: base.dias_semana,
       prioridad: base.prioridad,
       activa: base.activa,
+      // ?? null: las filas de tarifas_clases no traen la columna → undefined.
+      duracion_min: base.duracion_min ?? null,
       versiones,
       vigenteHoy,
       proximoAumento,

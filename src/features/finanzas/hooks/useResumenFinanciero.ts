@@ -133,10 +133,12 @@ export function useResumenFinanciero(
       const [pagosRes, ventasRes, clasesRes, otrosIngRes, gastosRes] =
         await Promise.all([
           // 1. reserva_pagos del mes (criterio: fecha_hora del cobro).
-          //    Reembolsos restan.
+          //    Reembolsos restan. Traemos el desglose alquiler/consumo +
+          //    reserva_id: Canchas = solo monto_alquiler; el monto_consumo
+          //    marca los turnos cuyo consumo se cobró (van a buffet/shop).
           supabase
             .from('reserva_pagos')
-            .select('monto, tipo, fecha_hora')
+            .select('monto_alquiler, monto_consumo, tipo, fecha_hora, reserva_id')
             .gte('fecha_hora', desdeISO)
             .lte('fecha_hora', hastaISO),
           // 2. ventas del mes (fecha_hora). El desglose por línea lo
@@ -185,10 +187,21 @@ export function useResumenFinanciero(
       }
 
       // ── Ingresos por unidad ────────────────────────────────────────
-      const pagos = (pagosRes.data ?? []) as Array<{ monto: number; tipo: string; fecha_hora: string }>;
+      const pagos = (pagosRes.data ?? []) as Array<{
+        monto_alquiler: number;
+        monto_consumo: number;
+        tipo: string;
+        fecha_hora: string;
+        reserva_id: number;
+      }>;
+      // Canchas = SOLO el alquiler cobrado (el consumo va a su unidad,
+      // buffet/shop). Reembolsos restan su parte de alquiler.
       const ingresoCanchas = pagos.reduce(
         (acc, p) =>
-          acc + (p.tipo === 'reembolso' ? -Number(p.monto) : Number(p.monto)),
+          acc +
+          (p.tipo === 'reembolso'
+            ? -Number(p.monto_alquiler)
+            : Number(p.monto_alquiler)),
         0,
       );
 
@@ -226,6 +239,75 @@ export function useResumenFinanciero(
         } else {
           ingresoShop += ingreso;
           costoShop += costo;
+        }
+      }
+
+      // ── Consumos de turno cobrados → su unidad de negocio ────────────
+      // Base DEVENGADA por línea (subtotal + costo×cantidad de
+      // reserva_consumos), pero se reconoce cuando el turno está COBRADO
+      // (tiene pago de consumo). Reglas:
+      //   - candidatos = reservas con pago de consumo (monto_consumo>0) en
+      //     el mes (de `pagos`, deduplicados por reserva_id).
+      //   - se excluyen los turnos que YA tenían pago de consumo ANTES del
+      //     mes (contados en su primer mes) → un turno cuenta en UN mes.
+      //   - ingreso/costo salen de reserva_consumos agrupado por reserva
+      //     (NO por pago) → un turno con varios pagos NO duplica su consumo.
+      //   - ingreso y costo de cada línea salen de las MISMAS filas →
+      //     margen real (no inflado).
+      const candidatos = Array.from(
+        new Set(
+          pagos
+            .filter((p) => Number(p.monto_consumo) > 0)
+            .map((p) => p.reserva_id),
+        ),
+      );
+
+      if (candidatos.length > 0) {
+        const [anterioresRes, consumosRes] = await Promise.all([
+          // Turnos que YA tenían pago de consumo antes de este mes.
+          supabase
+            .from('reserva_pagos')
+            .select('reserva_id')
+            .gt('monto_consumo', 0)
+            .lt('fecha_hora', desdeISO)
+            .in('reserva_id', candidatos),
+          // Consumos (por línea) de los turnos candidatos.
+          supabase
+            .from('reserva_consumos')
+            .select('reserva_id, linea, subtotal, costo_unitario, cantidad')
+            .in('reserva_id', candidatos),
+        ]);
+        if (anterioresRes.error) throw new Error(mapPostgrestError(anterioresRes.error));
+        if (consumosRes.error) throw new Error(mapPostgrestError(consumosRes.error));
+
+        // Turnos ya contados en un mes anterior (primer pago de consumo previo).
+        const yaContados = new Set(
+          ((anterioresRes.data ?? []) as Array<{ reserva_id: number }>).map(
+            (r) => r.reserva_id,
+          ),
+        );
+
+        type ConsumoRow = {
+          reserva_id: number;
+          linea: Linea;
+          subtotal: number;
+          costo_unitario: number | null;
+          cantidad: number;
+        };
+        for (const c of (consumosRes.data ?? []) as ConsumoRow[]) {
+          if (yaContados.has(c.reserva_id)) continue; // ya contado antes
+          const ingreso = Number(c.subtotal);
+          const costo =
+            c.costo_unitario === null
+              ? 0
+              : Number(c.costo_unitario) * Number(c.cantidad);
+          if (c.linea === 'buffet') {
+            ingresoBuffet += ingreso;
+            costoBuffet += costo;
+          } else {
+            ingresoShop += ingreso;
+            costoShop += costo;
+          }
         }
       }
 

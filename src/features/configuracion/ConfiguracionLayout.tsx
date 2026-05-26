@@ -26,6 +26,9 @@ const tabs: ConfigTab[] = [
   // de gastos los necesitan).
   { label: 'Unidades de negocio', to: '/configuracion/unidades' },
   { label: 'Categorías de gasto', to: '/configuracion/categorias-gasto' },
+  // Tesorería: cuentas configurables (dónde está la plata) + mapeo
+  // medio→cuenta por defecto. ABM admin; saldo derivado (Etapa 1 = inicial).
+  { label: 'Cuentas', to: '/configuracion/cuentas' },
 ];
 
 /**

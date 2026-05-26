@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type {
   Cancha,
-  EstadoReserva,
   MedioPago,
   Reserva,
   ReservaPago,
@@ -21,7 +20,21 @@ import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
 import { useReservaPagos } from './hooks/useReservaPagos';
+import { useReservaConsumos } from './hooks/useReservaConsumos';
+import { useCancelarReserva } from './hooks/useCancelarReserva';
+import { useCerrarTurno } from './hooks/useCerrarTurno';
+import { useReservaJugadores } from './hooks/useReservaJugadores';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
+import {
+  calcularDesgloseCuenta,
+  calcularSaldosPersonas,
+} from './utils/cuentaTurno';
+import {
+  derivarEstadoOperativo,
+  ESTADO_OPERATIVO_LABEL,
+  estadoOperativoColorVar,
+  estadoOperativoColorFgVar,
+} from './utils/derivarEstadoOperativo';
 import { formatearFechaAmigable } from './utils/fechaUtils';
 import { formatearHora } from './utils/horaUtils';
 
@@ -36,31 +49,6 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   tarjeta: 'Tarjeta',
   otro: 'Otro',
 };
-
-const ESTADO_LABEL: Record<EstadoReserva, string> = {
-  pendiente: 'Pendiente',
-  senada: 'Señada',
-  pagada: 'Pagada',
-  jugada: 'Jugada',
-  cancelada: 'Cancelada',
-};
-
-function estadoBadgeClasses(estado: EstadoReserva): string {
-  // Clases completas (no concatenadas) para que el JIT de Tailwind las
-  // detecte. Mismas tokens que los bloques de la grilla.
-  switch (estado) {
-    case 'pendiente':
-      return 'bg-estado-pendiente text-estado-pendiente-foreground';
-    case 'senada':
-      return 'bg-estado-senada text-estado-senada-foreground';
-    case 'pagada':
-      return 'bg-estado-pagada text-estado-pagada-foreground';
-    case 'jugada':
-      return 'bg-estado-jugada text-estado-jugada-foreground';
-    case 'cancelada':
-      return 'bg-estado-cancelada text-estado-cancelada-foreground';
-  }
-}
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -159,9 +147,13 @@ function DetalleReservaBody({
   const [reserva, setReserva] = useState<ReservaConTitular>(initialReserva);
 
   const pagosQuery = useReservaPagos(reserva.id);
-  const actualizarMutation = useActualizarReserva();
+  const consumosQuery = useReservaConsumos(reserva.id);
+  const jugadoresQuery = useReservaJugadores(reserva.id);
+  const actualizarMutation = useActualizarReserva(); // solo observaciones
+  const cancelarMutation = useCancelarReserva();
+  const cerrarMutation = useCerrarTurno();
 
-  // State de las acciones del footer (marcar jugada / cancelar).
+  // State de las acciones del footer (cerrar / cancelar).
   // El cobro NO está acá — vive por persona en PersonasTurnoSection
   // desde el paso 4 del módulo cuenta del turno.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -169,9 +161,74 @@ function DetalleReservaBody({
 
   const saldo = reserva.monto_total - reserva.monto_pagado;
   const tieneSaldo = saldo > 0;
-  const puedeMarcarJugada =
-    reserva.estado !== 'jugada' && reserva.estado !== 'cancelada';
-  const puedeCancelar = reserva.estado !== 'cancelada';
+
+  // Estado operativo para las guardas de acciones (espejo de la 0055).
+  const tienePago = (pagosQuery.data?.length ?? 0) > 0;
+  const tieneConsumo = (consumosQuery.data?.length ?? 0) > 0;
+  const estaCerrado = reserva.cerrado_en !== null;
+  const estaCancelado = reserva.estado === 'cancelada';
+
+  // Cerrar: cualquier turno no cancelado y no cerrado.
+  const puedeCerrar = !estaCancelado && !estaCerrado;
+
+  // Cancelar: solo turnos sin plata ni consumo, no cerrados. Mostramos el
+  // motivo para que el vendedor entienda por qué no puede ANTES de apretar
+  // (el server igual lo blinda con la 0055).
+  const motivoNoCancelable: string | null = estaCancelado
+    ? 'El turno ya está cancelado.'
+    : estaCerrado
+      ? 'El turno está cerrado; no se puede cancelar.'
+      : tienePago
+        ? 'Tiene pagos registrados; no se puede cancelar.'
+        : tieneConsumo
+          ? 'Tiene consumos cargados; no se puede cancelar.'
+          : null;
+  const puedeCancelar = motivoNoCancelable === null;
+
+  // Estado operativo (badge). Mismo cálculo que la grilla / la view.
+  const estadoOperativo = derivarEstadoOperativo(
+    {
+      estado: reserva.estado,
+      cerrado_en: reserva.cerrado_en,
+      fecha: reserva.fecha,
+      hora_inicio: reserva.hora_inicio,
+      tieneConsumo,
+      tienePago,
+    },
+    new Date(),
+  );
+
+  // "Todos pagaron" para el nudge de cierre: todas las personas saldadas
+  // (mismo cálculo per-persona de cuentaTurno que usa PersonasTurnoSection).
+  const todoSaldado = useMemo<boolean>(() => {
+    const personas = jugadoresQuery.data ?? [];
+    if (personas.length === 0) return false;
+    const consumos = consumosQuery.data ?? [];
+    const pagos = pagosQuery.data ?? [];
+    const totalConsumosPartido = consumos
+      .filter((c) => c.tipo_reparto === 'partido')
+      .reduce((s, c) => s + c.subtotal, 0);
+    const totalConsumosGeneral = consumos
+      .filter((c) => c.tipo_reparto === 'general')
+      .reduce((s, c) => s + c.subtotal, 0);
+    const desglose = calcularDesgloseCuenta({
+      montoAlquiler: reserva.monto_total,
+      cantidadJugadores: personas.filter((p) => p.tipo === 'jugador').length,
+      totalConsumosPartido,
+      totalConsumosGeneral,
+      cantidadPersonas: personas.length,
+    });
+    const saldos = calcularSaldosPersonas({
+      personas: personas.map((p) => ({ id: p.id, tipo: p.tipo })),
+      pagos: pagos.map((p) => ({
+        reserva_jugador_id: p.reserva_jugador_id,
+        monto_alquiler: p.monto_alquiler,
+        monto_consumo: p.monto_consumo,
+      })),
+      desglose,
+    });
+    return saldos.length > 0 && saldos.every((s) => s.estado === 'saldada');
+  }, [jugadoresQuery.data, consumosQuery.data, pagosQuery.data, reserva.monto_total]);
 
   /**
    * Las mutations de reservas (actualizar y cobrar) devuelven un Reserva
@@ -182,20 +239,17 @@ function DetalleReservaBody({
     setReserva({ ...updated, jugador: reserva.jugador });
   }
 
-  async function handleMarcarJugada(): Promise<void> {
+  async function handleCerrarTurno(): Promise<void> {
     setAccionError(null);
     try {
-      const updated = await actualizarMutation.mutateAsync({
+      const updated = await cerrarMutation.mutateAsync({
         id: reserva.id,
         fecha: reserva.fecha,
-        changes: { estado: 'jugada' },
       });
       applyReservaUpdate(updated);
     } catch (err) {
       setAccionError(
-        err instanceof Error
-          ? err.message
-          : 'No pudimos marcar la reserva como jugada.',
+        err instanceof Error ? err.message : 'No pudimos cerrar el turno.',
       );
     }
   }
@@ -203,18 +257,15 @@ function DetalleReservaBody({
   async function handleConfirmCancel(): Promise<void> {
     setAccionError(null);
     try {
-      await actualizarMutation.mutateAsync({
+      await cancelarMutation.mutateAsync({
         id: reserva.id,
         fecha: reserva.fecha,
-        changes: { estado: 'cancelada' },
       });
       // Cerramos el dialog: el bloque desaparece de la grilla al refrescar.
       onClose();
     } catch (err) {
       setAccionError(
-        err instanceof Error
-          ? err.message
-          : 'No pudimos cancelar la reserva.',
+        err instanceof Error ? err.message : 'No pudimos cancelar la reserva.',
       );
     }
   }
@@ -234,15 +285,16 @@ function DetalleReservaBody({
 
       {/* Body scrolleable */}
       <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
-        {/* Estado */}
+        {/* Estado operativo */}
         <div>
           <span
-            className={cn(
-              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-              estadoBadgeClasses(reserva.estado),
-            )}
+            className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+            style={{
+              backgroundColor: estadoOperativoColorVar(estadoOperativo),
+              color: estadoOperativoColorFgVar(estadoOperativo),
+            }}
           >
-            {ESTADO_LABEL[reserva.estado]}
+            {ESTADO_OPERATIVO_LABEL[estadoOperativo]}
           </span>
         </div>
 
@@ -346,6 +398,33 @@ function DetalleReservaBody({
           </div>
         )}
 
+        {/* Nudge "todos pagaron, ¿cerrás?" — aviso suave con el botón a mano.
+            El cierre NO es automático: aunque esté todo pagado se puede
+            seguir consumiendo, por eso se cierra a mano. */}
+        {puedeCerrar && todoSaldado && !confirmingCancel && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
+            style={{
+              borderColor: 'hsl(var(--estado-op-cerrado) / 0.4)',
+              backgroundColor: 'hsl(var(--estado-op-cerrado) / 0.08)',
+            }}
+          >
+            <p className="text-sm text-foreground">
+              Todos pagaron. ¿Cerrás el turno?
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                void handleCerrarTurno();
+              }}
+              disabled={cerrarMutation.isPending}
+            >
+              {cerrarMutation.isPending ? 'Cerrando…' : 'Cerrar turno'}
+            </Button>
+          </div>
+        )}
+
         {confirmingCancel ? (
           <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
             <div className="flex items-start gap-2">
@@ -358,9 +437,8 @@ function DetalleReservaBody({
                   ¿Cancelar esta reserva?
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Esta acción no se puede deshacer. Los pagos registrados
-                  no se reversan automáticamente y quedan como evidencia
-                  (si hace falta, se gestiona desde Caja más adelante).
+                  El turno no tiene pagos ni consumos. Se cancela y el
+                  horario queda libre. Esta acción no se puede deshacer.
                 </p>
               </div>
             </div>
@@ -370,7 +448,7 @@ function DetalleReservaBody({
                 variant="outline"
                 size="sm"
                 onClick={() => setConfirmingCancel(false)}
-                disabled={actualizarMutation.isPending}
+                disabled={cancelarMutation.isPending}
               >
                 No, mantener
               </Button>
@@ -381,27 +459,27 @@ function DetalleReservaBody({
                 onClick={() => {
                   void handleConfirmCancel();
                 }}
-                disabled={actualizarMutation.isPending}
+                disabled={cancelarMutation.isPending}
               >
-                {actualizarMutation.isPending ? 'Cancelando…' : 'Sí, cancelar'}
+                {cancelarMutation.isPending ? 'Cancelando…' : 'Sí, cancelar'}
               </Button>
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {puedeMarcarJugada && (
+          <div className="flex flex-wrap items-end justify-end gap-2">
+            {puedeCerrar && !todoSaldado && (
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  void handleMarcarJugada();
+                  void handleCerrarTurno();
                 }}
-                disabled={actualizarMutation.isPending}
+                disabled={cerrarMutation.isPending}
               >
-                Marcar jugada
+                {cerrarMutation.isPending ? 'Cerrando…' : 'Cerrar turno'}
               </Button>
             )}
-            {puedeCancelar && (
+            <div className="flex flex-col items-end gap-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -409,11 +487,18 @@ function DetalleReservaBody({
                   setAccionError(null);
                   setConfirmingCancel(true);
                 }}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={!puedeCancelar}
+                title={motivoNoCancelable ?? undefined}
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground disabled:hover:bg-transparent"
               >
                 Cancelar reserva
               </Button>
-            )}
+              {!puedeCancelar && motivoNoCancelable && (
+                <span className="text-[11px] text-muted-foreground">
+                  {motivoNoCancelable}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

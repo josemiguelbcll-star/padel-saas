@@ -6,6 +6,7 @@ import { BloqueDisponible } from './BloqueDisponible';
 import { BloqueReserva } from './BloqueReserva';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import { calcularDisponibles } from './utils/disponibilidad';
+import type { InfoReservaVisual } from './utils/derivarEstadoOperativo';
 import { horaToMinutos } from './utils/horaUtils';
 
 interface CanchaColumnaProps {
@@ -39,6 +40,8 @@ interface CanchaColumnaProps {
   franjas: FranjaTurno[];
   /** Duración por defecto del club (fallback sin franja). */
   duracionDefault: number;
+  /** Info visual por reserva id (estado operativo + flags de actividad). */
+  infoReservas: Map<number, InfoReservaVisual>;
   /** Callback al clickear un Disponible (con las duraciones que la franja permite ahí). */
   onSlotClick: (canchaId: number, hora: string, duracionesPermitidas: number[]) => void;
   /** Callback al clickear un bloque de reserva existente. */
@@ -79,6 +82,7 @@ export function CanchaColumna({
   fecha,
   franjas,
   duracionDefault,
+  infoReservas,
   onSlotClick,
   onReservaClick,
   onClaseClick,
@@ -130,6 +134,26 @@ export function CanchaColumna({
       role="group"
       aria-label={`Cancha ${cancha.nombre}`}
     >
+      {/* Capa 0: líneas de hora (estructura). Hora en punto más marcada,
+          media hora tenue. pointer-events-none → no interfieren con clicks. */}
+      {slots.map((s) => {
+        const enHora = s.endsWith(':00:00');
+        const t = (horaToMinutos(s) - aperturaMin) * pxPorMin;
+        return (
+          <div
+            key={`line-${s}`}
+            className="pointer-events-none absolute inset-x-0 border-t"
+            style={{
+              top: t,
+              borderColor: enHora
+                ? 'hsl(var(--border))'
+                : 'hsl(var(--border) / 0.4)',
+            }}
+            aria-hidden="true"
+          />
+        );
+      })}
+
       {/* Capa 1: Disponibles. Altura = duración más corta ofrecida (las
           duraciones más largas se eligen al reservar — PARTE C). */}
       {disponibles.map((d) => {
@@ -172,6 +196,13 @@ export function CanchaColumna({
           <BloqueReserva
             key={r.id}
             reserva={r}
+            info={
+              infoReservas.get(r.id) ?? {
+                estado: 'reservado',
+                tieneConsumo: false,
+                tienePago: false,
+              }
+            }
             top={pos.top}
             height={pos.height}
             onClick={onReservaClick}

@@ -28,6 +28,9 @@ const DIAS_SEMANA = [
   { value: 7, label: 'DOM', full: 'Domingo' },
 ] as const;
 
+/** Duraciones válidas (espejo del CHECK de tarifas.duracion_min, 0051). */
+const DURACIONES_MIN = [60, 90, 120, 150, 180, 240] as const;
+
 interface EditarMetadataDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,6 +44,8 @@ interface EditarMetadataDialogProps {
     Error,
     ActualizarMetadataInput
   >;
+  /** Si el módulo soporta tarifa por duración (turnos: sí; clases: no). */
+  soportaDuracion?: boolean;
 }
 
 interface FormState {
@@ -50,6 +55,8 @@ interface FormState {
   dias_semana: number[];
   prioridad: string;
   activa: boolean;
+  /** null = cualquier duración. Solo se usa si soportaDuracion. */
+  duracion_min: number | null;
 }
 
 const schema = z
@@ -102,6 +109,7 @@ export function EditarMetadataDialog({
   onOpenChange,
   linaje,
   useActualizarMetadata,
+  soportaDuracion = false,
 }: EditarMetadataDialogProps) {
   const actualizar = useActualizarMetadata();
   const [state, setState] = useState<FormState>({
@@ -111,6 +119,7 @@ export function EditarMetadataDialog({
     dias_semana: [],
     prioridad: '0',
     activa: true,
+    duracion_min: null,
   });
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -125,6 +134,7 @@ export function EditarMetadataDialog({
         dias_semana: linaje.dias_semana ?? [],
         prioridad: linaje.prioridad.toString(),
         activa: linaje.activa,
+        duracion_min: linaje.duracion_min,
       });
       setErrors({});
     }
@@ -188,6 +198,12 @@ export function EditarMetadataDialog({
         activa: parsed.data.activa,
         clear_franja_horaria: !tieneFranja,
         clear_dias_semana: !tieneDias,
+        // Solo turnos. duracion_min=null → clear (cualquier duración).
+        duracion_min:
+          soportaDuracion && state.duracion_min !== null
+            ? state.duracion_min
+            : undefined,
+        clear_duracion: soportaDuracion ? state.duracion_min === null : false,
       });
       onOpenChange(false);
     } catch (err) {
@@ -307,6 +323,40 @@ export function EditarMetadataDialog({
               Sin selección = aplica todos los días.
             </p>
           </div>
+
+          {soportaDuracion && (
+            <div className="space-y-1.5">
+              <Label htmlFor="meta-duracion">Duración del turno</Label>
+              <select
+                id="meta-duracion"
+                value={state.duracion_min ?? ''}
+                onChange={(e) =>
+                  setState({
+                    ...state,
+                    duracion_min:
+                      e.target.value === '' ? null : Number(e.target.value),
+                  })
+                }
+                disabled={pending}
+                className={cn(
+                  'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+              >
+                <option value="">Cualquier duración</option>
+                {DURACIONES_MIN.map((m) => (
+                  <option key={m} value={m}>
+                    {m} min
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                "Cualquier duración" = el precio aplica a todos los turnos de
+                esta franja.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label htmlFor="meta-prioridad">Prioridad</Label>

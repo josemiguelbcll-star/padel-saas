@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
   CalendarPlus,
+  CalendarRange,
   Clock,
+  List,
   MapPin,
   MoreVertical,
   Pencil,
@@ -22,9 +24,13 @@ import {
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
+import { useClases } from '@/features/configuracion/hooks/useClases';
+import { useFranjasTurno } from '@/features/configuracion/hooks/useFranjasTurno';
+import { useHorariosClub } from '@/features/configuracion/hooks/useHorariosClub';
 import { useJugadores } from '@/features/reservas/hooks/useJugadores';
 import { useMaterializarTurnosFijos, useTurnosFijos } from './hooks/useTurnosFijos';
-import { NuevoTurnoFijoDialog } from './NuevoTurnoFijoDialog';
+import { CalendarioSemanalTurnosFijos } from './CalendarioSemanalTurnosFijos';
+import { NuevoTurnoFijoDialog, type TurnoFijoPrefill } from './NuevoTurnoFijoDialog';
 import { EditarTurnoFijoDialog } from './EditarTurnoFijoDialog';
 import { CancelarTurnoFijoDialog } from './CancelarTurnoFijoDialog';
 import { EliminarTurnoFijoDialog } from './EliminarTurnoFijoDialog';
@@ -81,6 +87,9 @@ export function TurnosFijosPage() {
   const turnosQuery = useTurnosFijos();
   const canchasQuery = useCanchas();
   const jugadoresQuery = useJugadores();
+  const horariosQuery = useHorariosClub();
+  const franjasQuery = useFranjasTurno();
+  const clasesQuery = useClases();
   const materializar = useMaterializarTurnosFijos();
 
   const [nuevoOpen, setNuevoOpen] = useState(false);
@@ -88,6 +97,10 @@ export function TurnosFijosPage() {
   const [cancelarOpen, setCancelarOpen] = useState(false);
   const [eliminarOpen, setEliminarOpen] = useState(false);
   const [seleccionado, setSeleccionado] = useState<TurnoFijo | null>(null);
+
+  // Vista del módulo + precarga del alta desde el calendario.
+  const [vista, setVista] = useState<'calendario' | 'lista'>('calendario');
+  const [prefillNuevo, setPrefillNuevo] = useState<TurnoFijoPrefill | null>(null);
 
   const [resultadoMat, setResultadoMat] = useState<ResultadoMaterializacion | null>(
     null,
@@ -165,7 +178,14 @@ export function TurnosFijosPage() {
           </p>
         </div>
         {isAdmin && (
-          <Button type="button" onClick={() => setNuevoOpen(true)} className="shrink-0">
+          <Button
+            type="button"
+            onClick={() => {
+              setPrefillNuevo(null);
+              setNuevoOpen(true);
+            }}
+            className="shrink-0"
+          >
             <Plus className="h-4 w-4" />
             Nuevo turno fijo
           </Button>
@@ -243,7 +263,69 @@ export function TurnosFijosPage() {
         </div>
       )}
 
-      {turnosQuery.data && turnos.length === 0 && (
+      {/* Toggle Calendario / Lista */}
+      {turnosQuery.data && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {turnos.length === 1
+              ? '1 turno fijo activo'
+              : `${turnos.length} turnos fijos activos`}
+          </p>
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            <button
+              type="button"
+              onClick={() => setVista('calendario')}
+              aria-pressed={vista === 'calendario'}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                vista === 'calendario'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted',
+              )}
+            >
+              <CalendarRange className="h-3.5 w-3.5" />
+              Calendario
+            </button>
+            <button
+              type="button"
+              onClick={() => setVista('lista')}
+              aria-pressed={vista === 'lista'}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                vista === 'lista'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted',
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              Lista
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Vista calendario semanal */}
+      {turnosQuery.data && vista === 'calendario' && (
+        <CalendarioSemanalTurnosFijos
+          turnos={turnos}
+          canchas={canchasQuery.data ?? []}
+          resolverTitular={nombreTitularDe}
+          horaApertura={horariosQuery.data?.hora_apertura ?? null}
+          horaCierre={horariosQuery.data?.hora_cierre ?? null}
+          franjas={franjasQuery.data ?? []}
+          duracionDefault={horariosQuery.data?.duracion_turno_default ?? 90}
+          clases={clasesQuery.data ?? []}
+          onCrearEnSlot={(p) => {
+            setPrefillNuevo(p);
+            setNuevoOpen(true);
+          }}
+          onEditarTurno={openEditar}
+        />
+      )}
+
+      {turnosQuery.data && vista === 'lista' && turnos.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <Repeat className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
           <p className="mt-2 text-sm text-muted-foreground">
@@ -254,7 +336,7 @@ export function TurnosFijosPage() {
         </div>
       )}
 
-      {turnos.length > 0 && (
+      {vista === 'lista' && turnos.length > 0 && (
         <ul className="space-y-2">
           {turnos.map((t) => {
             const nombreTitular = nombreTitularDe(t);
@@ -362,7 +444,11 @@ export function TurnosFijosPage() {
         </ul>
       )}
 
-      <NuevoTurnoFijoDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
+      <NuevoTurnoFijoDialog
+        open={nuevoOpen}
+        onOpenChange={setNuevoOpen}
+        prefill={prefillNuevo}
+      />
       <EditarTurnoFijoDialog
         open={editarOpen}
         onOpenChange={setEditarOpen}

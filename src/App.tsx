@@ -17,6 +17,7 @@ import {
   ProveedoresPage,
   UnidadesPage,
   CategoriasGastoPage,
+  TesoreriaPage,
 } from '@/features/configuracion';
 import { BuffetPage } from '@/features/buffet';
 import { CajaPage } from '@/features/caja';
@@ -109,6 +110,7 @@ export function App() {
           <Route path="proveedores" element={<ProveedoresPage />} />
           <Route path="unidades" element={<UnidadesPage />} />
           <Route path="categorias-gasto" element={<CategoriasGastoPage />} />
+          <Route path="cuentas" element={<TesoreriaPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

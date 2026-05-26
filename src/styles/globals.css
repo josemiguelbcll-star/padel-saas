@@ -79,6 +79,18 @@
     --estado-cancelada: 0 72% 51%;
     --estado-cancelada-foreground: 0 0% 100%;
 
+    /* Estados OPERATIVOS del turno (0054). Tonos mid-dark saturados:
+       los bloques de la grilla van de color SÓLIDO con texto BLANCO, así
+       que cada tono tiene contraste suficiente (~4.5:1) con el blanco. */
+    --estado-op-reservado: 215 20% 43%;
+    --estado-op-reservado-foreground: 0 0% 100%;
+    --estado-op-abierto: 142 62% 29%;
+    --estado-op-abierto-foreground: 0 0% 100%;
+    --estado-op-cerrado: 217 72% 46%;
+    --estado-op-cerrado-foreground: 0 0% 100%;
+    --estado-op-cancelado: 0 66% 46%;
+    --estado-op-cancelado-foreground: 0 0% 100%;
+
     /* Color de los bloques de clase. Violeta para distinguirlas
        claramente de los 5 estados de reserva (en particular del azul
        'jugada' que comparte tono con --primary). Las clases NO son
@@ -130,6 +142,17 @@
 
     --estado-cancelada: 0 62% 50%;
     --estado-cancelada-foreground: 0 0% 100%;
+
+    /* Estados OPERATIVOS del turno (0054) — dark. Mismos tonos mid-dark:
+       el bloque sólido lleva texto blanco en ambos temas. */
+    --estado-op-reservado: 215 18% 45%;
+    --estado-op-reservado-foreground: 0 0% 100%;
+    --estado-op-abierto: 142 58% 32%;
+    --estado-op-abierto-foreground: 0 0% 100%;
+    --estado-op-cerrado: 217 70% 50%;
+    --estado-op-cerrado-foreground: 0 0% 100%;
+    --estado-op-cancelado: 0 62% 50%;
+    --estado-op-cancelado-foreground: 0 0% 100%;
 
     --clase: 270 60% 60%;
     --clase-foreground: 0 0% 100%;

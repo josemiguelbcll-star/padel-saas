@@ -430,6 +430,17 @@ export interface Tarifa {
    * mismo lineage_id.
    */
   lineage_id: number;
+  /**
+   * Duración (minutos) a la que aplica esta tarifa (0051). NULL =
+   * cualquier duración (retrocompatible). Tarifa 2D: el precio depende
+   * de franja horaria × duración (ej. Mañana 60 vs Mañana 90). Es
+   * metadata constante del linaje. En la resolución, una tarifa con
+   * duración específica gana sobre la NULL.
+   *
+   * Nota: `tarifas_clases` no tiene esta columna; cuando una fila de
+   * clases se mapea como Tarifa, llega `undefined` (tratado como null).
+   */
+  duracion_min: number | null;
 }
 
 /**
@@ -482,6 +493,53 @@ export type MedioPago =
 
 /** Tipos de movimiento en reserva_pagos (CHECK en reserva_pagos.tipo). */
 export type TipoPago = 'sena' | 'pago' | 'reembolso';
+
+// ============================================================================
+// Migración 0056 — Tesorería (Etapa 1): cuentas configurables + mapeo
+// medio→cuenta por defecto. El medio dice "cómo" llegó la plata (enum fijo);
+// la cuenta dice "dónde" está (configurable por club).
+// ============================================================================
+
+/** Tipo de cuenta de tesorería (CHECK en cuentas.tipo). */
+export type TipoCuenta = 'efectivo' | 'banco' | 'billetera' | 'otro';
+
+export interface Cuenta {
+  id: number;
+  club_id: number;
+  nombre: string;
+  tipo: TipoCuenta;
+  /**
+   * TRUE = entra al arqueo de caja física (cajón). Generaliza la regla de
+   * oro del efectivo. Comportamiento, no taxonomía.
+   */
+  es_caja_fisica: boolean;
+  /** Saldo al momento del corte (empezar a usar tesorería). DECIMAL(12,2). */
+  saldo_inicial: number;
+  activa: boolean;
+  orden: number;
+  /** CBU / alias / nº de cuenta — opcional. */
+  detalle: string | null;
+  fecha_alta: string;
+}
+
+/**
+ * Fila de la vista `v_cuentas_saldo`: cuenta + saldo calculado. En Etapa 1
+ * saldo = saldo_inicial (ningún movimiento tiene cuenta_id todavía).
+ */
+export interface CuentaConSaldo extends Cuenta {
+  saldo: number;
+}
+
+/**
+ * Mapeo medio→cuenta por defecto, por club (0056). La AUSENCIA de fila para
+ * un medio = ese medio no tiene cuenta por defecto (en Etapa 2 el operador
+ * la elige al cobrar).
+ */
+export interface MedioCuentaDefault {
+  club_id: number;
+  medio_pago: MedioPago;
+  cuenta_id: number;
+}
 
 /** Género del jugador. NULL = no cargado. Enum cerrado en la DB (CHECK). */
 export type GeneroJugador = 'masculino' | 'femenino' | 'otro';
@@ -569,6 +627,33 @@ export interface Reserva {
    * — normalmente se desactiva), la reserva histórica se preserva.
    */
   turno_fijo_id: number | null;
+  /**
+   * Cierre MANUAL del turno (cierre operativo, 0054). NULL = no cerrado.
+   * El estado operativo CERRADO se deriva de esta columna. Cerrado es
+   * terminal: no admite cargar consumos (cobrar sí). NO participa del enum
+   * `estado` ni del EXCLUDE no_overlap_reservas.
+   */
+  cerrado_en: string | null;
+}
+
+/**
+ * Estado OPERATIVO derivado del turno (capa encima del enum `estado`, 0054).
+ * NO es una columna: se calcula con `derivarEstadoOperativo()`.
+ *   - reservado: no llegó la hora de inicio y sin consumo ni pago.
+ *   - abierto:   llegó la hora O hay consumo/pago, y no está cerrado.
+ *   - cerrado:   cerrado_en IS NOT NULL (cierre manual, terminal).
+ *   - cancelado: estado = 'cancelada' (terminal).
+ */
+export type EstadoOperativo = 'reservado' | 'abierto' | 'cerrado' | 'cancelado';
+
+/**
+ * Fila de la vista `v_reservas_operativas` (0054): reserva + flags de
+ * existencia de consumo/pago (EXISTS). `security_invoker = true` → respeta la
+ * RLS por club. La usa la alarma cross-día de turnos viejos sin cerrar.
+ */
+export interface ReservaOperativa extends Reserva {
+  tiene_consumo: boolean;
+  tiene_pago: boolean;
 }
 
 /**

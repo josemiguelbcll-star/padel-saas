@@ -7,8 +7,7 @@ interface BloqueClaseProps {
   clase: ClaseConProfesor;
   /**
    * True si la ocurrencia (clase × fecha mostrada) tiene al menos un
-   * pago registrado. Sin distinguir cuántos: un pago = tilde. El total
-   * cobrado y el detalle viven en el DetalleClaseDialog.
+   * pago registrado. Sin distinguir cuántos: un pago = tilde.
    */
   pagado: boolean;
   /** Posición absoluta dentro de la columna de la cancha (px). */
@@ -22,15 +21,10 @@ interface BloqueClaseProps {
 /**
  * Bloque visual de una clase dentro de la grilla del día.
  *
- * Es un <button>: el click abre el DetalleClaseDialog (ver/cobrar la
- * ocurrencia). Mantiene la absorción del click sobre los slots de
- * Disponible que cubre debajo — el click no atraviesa al modal de
- * nueva reserva.
- *
- * Diseño: fondo violeta clarito + barra izq violeta + birrete violeta.
- * Si la ocurrencia ya está cobrada, aparece un tilde violeta (Check) en
- * la esquina superior derecha; el resto del look queda igual para no
- * romper la coherencia visual con las impagas.
+ * Diseño cohesivo con el rediseño "color sólido": tarjeta entera en VIOLETA
+ * (token --clase) con texto blanco + birrete, distinta de los estados de
+ * reserva. Si la ocurrencia ya está cobrada, un tilde a la derecha. Hover:
+ * leve elevación + brillo. El click abre el DetalleClaseDialog.
  */
 export function BloqueClase({
   clase,
@@ -45,6 +39,7 @@ export function BloqueClase({
   const horaFin = formatearHora(
     sumarMinutos(clase.hora_inicio, clase.duracion_min),
   );
+  const compacto = height < 46;
 
   return (
     <button
@@ -52,42 +47,39 @@ export function BloqueClase({
       onClick={() => onClick(clase)}
       aria-label={`Ver detalle: ${titulo}, ${horaInicio} a ${horaFin}${pagado ? ', pagada' : ', impaga'}`}
       className={cn(
-        'absolute left-1 right-1 overflow-hidden text-left',
-        'rounded-md border border-border shadow-sm transition-shadow hover:shadow',
+        'group absolute left-1 right-1 overflow-hidden rounded-md text-left',
+        'shadow-sm ring-1 ring-black/10 transition-all duration-150',
+        'hover:-translate-y-px hover:shadow-md hover:brightness-110',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
       style={{
         top,
         height,
-        // Fondo violeta clarito (12% de opacidad sobre el token saturado).
-        backgroundColor: 'hsl(var(--clase) / 0.12)',
-        // Barra de 3px a la izquierda en violeta saturado.
-        borderLeftWidth: '3px',
-        borderLeftColor: 'hsl(var(--clase))',
+        backgroundColor: 'hsl(var(--clase))',
+        color: 'hsl(var(--clase-foreground))',
       }}
     >
-      <div className="flex items-start justify-between gap-1.5 px-2 py-1.5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <GraduationCap
-              className="h-3 w-3 shrink-0"
-              style={{ color: 'hsl(var(--clase))' }}
-              aria-hidden="true"
-            />
-            <span className="truncate text-xs font-medium text-foreground">
+      <div
+        className={cn(
+          'flex h-full flex-col px-2',
+          compacto ? 'justify-center py-0.5' : 'py-1.5',
+        )}
+      >
+        <div className="flex items-start justify-between gap-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <GraduationCap className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="truncate text-xs font-semibold leading-tight">
               {titulo}
             </span>
-          </div>
-          <div className="truncate text-[11px] text-muted-foreground">
-            {horaInicio}–{horaFin}
-          </div>
+          </span>
+          {pagado && (
+            <Check className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden="true" />
+          )}
         </div>
-        {pagado && (
-          <Check
-            className="h-3.5 w-3.5 shrink-0"
-            style={{ color: 'hsl(var(--clase))' }}
-            aria-hidden="true"
-          />
+        {!compacto && (
+          <span className="truncate text-[11px] leading-tight opacity-80">
+            {horaInicio}–{horaFin}
+          </span>
         )}
       </div>
     </button>

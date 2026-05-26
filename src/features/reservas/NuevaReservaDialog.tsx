@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -165,25 +165,27 @@ function NuevaReservaBodyReady({
   tarifas,
   crearMutation,
 }: NuevaReservaBodyReadyProps) {
-  // Resolver tarifa una sola vez al montar (slot estable gracias al key
-  // del padre). La duración ya no se resuelve: los partidos son siempre
-  // DURACION_PARTIDO_MIN (90), las clases viven en su propia tabla.
-  const tarifaResuelta = useMemo(
-    () =>
-      resolverTarifa({
-        fecha: slot.fecha,
-        hora: slot.hora,
-        tarifas,
-      }),
-    [slot.fecha, slot.hora, tarifas],
-  );
-
   // Duración elegida. Default: la más corta que ofrece la franja en este
   // inicio (= la altura del bloque "Disponible"). Si la franja ofrece una
   // sola, queda fija en ésa.
   const [duracion, setDuracion] = useState<number>(
     slot.duracionesPermitidas[0] ?? 90,
   );
+
+  // Tarifa sugerida por (fecha, hora, DURACIÓN). Recalcula al cambiar la
+  // duración → tarifa 2D (0051): resolverTarifa filtra por duración y la
+  // tarifa específica de esa duración gana sobre la de "cualquier duración".
+  const tarifaResuelta = useMemo(
+    () =>
+      resolverTarifa({
+        fecha: slot.fecha,
+        hora: slot.hora,
+        tarifas,
+        duracion,
+      }),
+    [slot.fecha, slot.hora, tarifas, duracion],
+  );
+
   const [titular, setTitular] = useState<JugadorSeleccionado | null>(null);
   const [acompañantes, setAcompañantes] = useState<
     Array<JugadorSeleccionado | null>
@@ -191,12 +193,27 @@ function NuevaReservaBodyReady({
   const [montoTotal, setMontoTotal] = useState<string>(
     tarifaResuelta.monto.toString(),
   );
+  // Si el usuario editó el monto a mano, no lo pisamos al recalcular la
+  // tarifa por duración (espejo de montoPagadoTouched).
+  const [montoTotalTouched, setMontoTotalTouched] = useState(false);
   const [estado, setEstado] = useState<EstadoInicial>('pendiente');
   const [montoPagado, setMontoPagado] = useState<string>('0');
   const [montoPagadoTouched, setMontoPagadoTouched] = useState(false);
   const [medioPago, setMedioPago] = useState<MedioPagoForm | null>(null);
   const [observaciones, setObservaciones] = useState<string>('');
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // Re-seed del monto sugerido cuando cambia la tarifa resuelta (p.ej. al
+  // cambiar la duración en el selector) — salvo que el usuario lo haya
+  // editado a mano. Mantiene el monto pagado en sync si está "pagada".
+  useEffect(() => {
+    if (montoTotalTouched) return;
+    const sugerido = tarifaResuelta.monto.toString();
+    setMontoTotal(sugerido);
+    if (estado === 'pagada' && !montoPagadoTouched) {
+      setMontoPagado(sugerido);
+    }
+  }, [tarifaResuelta.monto, montoTotalTouched, estado, montoPagadoTouched]);
 
   function cambiarEstado(nuevo: EstadoInicial): void {
     setEstado(nuevo);
@@ -216,6 +233,9 @@ function NuevaReservaBodyReady({
   }
 
   function cambiarMontoTotal(nuevo: string): void {
+    // Edición manual: a partir de acá no re-seedeamos el monto al cambiar
+    // la duración (lo respeta el efecto de arriba).
+    setMontoTotalTouched(true);
     setMontoTotal(nuevo);
     // Si estamos en "pagada" y el usuario no editó manualmente el monto
     // pagado, mantenerlo en sync con el total.

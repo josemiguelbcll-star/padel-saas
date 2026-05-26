@@ -5,7 +5,8 @@ import { CanchaColumna } from './CanchaColumna';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import { LeyendaGrilla } from './LeyendaGrilla';
 import { LineaAhora } from './LineaAhora';
-import { formatearHora, generarSlots } from './utils/horaUtils';
+import type { InfoReservaVisual } from './utils/derivarEstadoOperativo';
+import { formatearHora, generarSlots, horaToMinutos } from './utils/horaUtils';
 
 interface GrillaDiaProps {
   /** Canchas activas, ya ordenadas (vienen del hook que ordena por orden + nombre). */
@@ -27,6 +28,8 @@ interface GrillaDiaProps {
   franjas: FranjaTurno[];
   /** Duración por defecto del club (fallback sin franja). */
   duracionDefault: number;
+  /** Info visual por reserva id (estado operativo + flags de actividad). */
+  infoReservas: Map<number, InfoReservaVisual>;
   loading?: boolean;
   /** Callback al clickear un Disponible (con las duraciones que la franja permite ahí). */
   onSlotClick: (canchaId: number, hora: string, duracionesPermitidas: number[]) => void;
@@ -64,6 +67,7 @@ export function GrillaDia({
   fecha,
   franjas,
   duracionDefault,
+  infoReservas,
   loading,
   onSlotClick,
   onReservaClick,
@@ -97,6 +101,40 @@ export function GrillaDia({
     return m;
   }, [clases]);
 
+  // Ocupación por cancha para el encabezado (sin queries: usa lo cargado).
+  const aperturaMin = horaToMinutos(horaApertura);
+  const cierreMin = horaToMinutos(horaCierre);
+  const operatingMin = Math.max(0, cierreMin - aperturaMin);
+
+  function ocupacionDe(canchaId: number): {
+    turnos: number;
+    pct: number;
+    horasLibres: number;
+  } {
+    const rs = reservasPorCancha.get(canchaId) ?? [];
+    const cs = clasesPorCancha.get(canchaId) ?? [];
+    let ocupMin = 0;
+    for (const r of rs) {
+      const s = Math.max(horaToMinutos(r.hora_inicio), aperturaMin);
+      const e = Math.min(horaToMinutos(r.hora_fin), cierreMin);
+      if (e > s) ocupMin += e - s;
+    }
+    for (const c of cs) {
+      const s = Math.max(horaToMinutos(c.hora_inicio), aperturaMin);
+      const e = Math.min(horaToMinutos(c.hora_inicio) + c.duracion_min, cierreMin);
+      if (e > s) ocupMin += e - s;
+    }
+    ocupMin = Math.min(ocupMin, operatingMin);
+    const pct = operatingMin > 0 ? Math.round((ocupMin / operatingMin) * 100) : 0;
+    const horasLibres = Math.max(0, (operatingMin - ocupMin) / 60);
+    return { turnos: rs.length, pct, horasLibres };
+  }
+
+  function fmtHoras(h: number): string {
+    const r = Math.round(h * 10) / 10;
+    return Number.isInteger(r) ? `${r}h` : `${r.toFixed(1)}h`;
+  }
+
   if (slots.length === 0) {
     return (
       <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -108,7 +146,7 @@ export function GrillaDia({
 
   return (
     <div className="space-y-3">
-      <div className="relative overflow-x-auto">
+      <div className="relative overflow-x-auto rounded-xl border border-border bg-card p-3 shadow-sm">
         {loading && (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center pt-12">
             <div className="rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
@@ -124,15 +162,34 @@ export function GrillaDia({
             style={{ width: COL_TIME_WIDTH }}
             aria-hidden="true"
           />
-          {canchas.map((c) => (
-            <div
-              key={c.id}
-              className="shrink-0 px-3 pb-2 text-sm font-medium text-foreground"
-              style={{ width: COL_CANCHA_WIDTH }}
-            >
-              {c.nombre}
-            </div>
-          ))}
+          {canchas.map((c) => {
+            const occ = ocupacionDe(c.id);
+            return (
+              <div
+                key={c.id}
+                className="shrink-0 px-3 pb-2"
+                style={{ width: COL_CANCHA_WIDTH }}
+              >
+                <div className="truncate text-sm font-semibold text-foreground">
+                  {c.nombre}
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${occ.pct}%` }}
+                  />
+                </div>
+                <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-muted-foreground">
+                  <span>
+                    {occ.turnos} turno{occ.turnos === 1 ? '' : 's'}
+                  </span>
+                  <span className="tabular-nums">
+                    {occ.pct}% · {fmtHoras(occ.horasLibres)} libre
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Body: columna de horas + N columnas de canchas + LineaAhora sobre las canchas */}
@@ -173,6 +230,7 @@ export function GrillaDia({
               fecha={fecha}
               franjas={franjas}
               duracionDefault={duracionDefault}
+              infoReservas={infoReservas}
               onSlotClick={onSlotClick}
               onReservaClick={onReservaClick}
               onClaseClick={onClaseClick}

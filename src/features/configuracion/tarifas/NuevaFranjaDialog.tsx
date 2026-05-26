@@ -26,6 +26,9 @@ const DIAS_SEMANA = [
   { value: 7, label: 'DOM', full: 'Domingo' },
 ] as const;
 
+/** Duraciones válidas (espejo del CHECK de tarifas.duracion_min, 0051). */
+const DURACIONES_MIN = [60, 90, 120, 150, 180, 240] as const;
+
 function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -40,6 +43,11 @@ interface NuevaFranjaDialogProps {
    * sin acoplarlo a una RPC específica.
    */
   useCrear: () => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
+  /**
+   * Si el módulo soporta tarifa por duración (turnos: sí; clases: no).
+   * Cuando true, muestra el selector de duración (0051). Default false.
+   */
+  soportaDuracion?: boolean;
 }
 
 interface FormState {
@@ -50,6 +58,8 @@ interface FormState {
   dias_semana: number[];
   prioridad: string;
   vigente_desde: string;
+  /** null = cualquier duración. Solo se usa si soportaDuracion. */
+  duracion_min: number | null;
 }
 
 const INITIAL = (): FormState => ({
@@ -60,6 +70,7 @@ const INITIAL = (): FormState => ({
   dias_semana: [],
   prioridad: '0',
   vigente_desde: todayISO(),
+  duracion_min: null,
 });
 
 const schema = z
@@ -112,6 +123,7 @@ export function NuevaFranjaDialog({
   open,
   onOpenChange,
   useCrear,
+  soportaDuracion = false,
 }: NuevaFranjaDialogProps) {
   const crear = useCrear();
   const [state, setState] = useState<FormState>(INITIAL);
@@ -180,6 +192,9 @@ export function NuevaFranjaDialog({
           parsed.data.dias_semana.length === 0 ? null : parsed.data.dias_semana,
         prioridad: parsed.data.prioridad,
         vigente_desde: parsed.data.vigente_desde,
+        // Solo turnos. En clases, soportaDuracion=false → NULL (la RPC de
+        // clases lo ignora de todos modos).
+        duracion_min: soportaDuracion ? state.duracion_min : null,
       });
       onOpenChange(false);
     } catch (err) {
@@ -321,6 +336,41 @@ export function NuevaFranjaDialog({
               Sin selección = aplica todos los días.
             </p>
           </div>
+
+          {soportaDuracion && (
+            <div className="space-y-1.5">
+              <Label htmlFor="franja-duracion">Duración del turno</Label>
+              <select
+                id="franja-duracion"
+                value={state.duracion_min ?? ''}
+                onChange={(e) =>
+                  setState({
+                    ...state,
+                    duracion_min:
+                      e.target.value === '' ? null : Number(e.target.value),
+                  })
+                }
+                disabled={pending}
+                className={cn(
+                  'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+              >
+                <option value="">Cualquier duración</option>
+                {DURACIONES_MIN.map((m) => (
+                  <option key={m} value={m}>
+                    {m} min
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                Elegí una duración solo si el precio depende de cuánto dura el
+                turno (ej. 60 distinto de 90). "Cualquier duración" = aplica a
+                todos.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label htmlFor="franja-prioridad">Prioridad</Label>

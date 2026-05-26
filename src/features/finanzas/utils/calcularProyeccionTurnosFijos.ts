@@ -87,11 +87,13 @@ export function calcularProyeccionTurnosFijos(params: {
           falta_cobrar += Math.max(0, total - cobrado);
         }
       } else {
-        // No materializada → proyectamos vía tarifa.
+        // No materializada → proyectamos vía tarifa, por la DURACIÓN del
+        // turno fijo (tarifa 2D, 0051). Espejo de fn_materializar_turnos_fijos.
         const r = resolverTarifa({
           fecha,
           hora: tf.hora_inicio,
           tarifas,
+          duracion: tf.duracion_min,
         });
         falta_cobrar += r.monto;
       }

@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatearHora } from './utils/horaUtils';
 
@@ -19,13 +20,10 @@ interface BloqueDisponibleProps {
 }
 
 /**
- * Slot disponible para crear una reserva nueva. Render como tarjeta con
- * borde dashed sutil + label "Disponible" centrado. Hover ilumina con
- * un fondo muted para invitar al click.
- *
- * Click → abre el modal de nueva reserva con la hora del slot pre-cargada
- * y las duraciones que la franja permite ahí (el usuario elige si hay >1).
- * Las posiciones las computa `calcularDisponibles`.
+ * Slot disponible para crear una reserva nueva. Por defecto discreto (borde
+ * dashed tenue) para que ceda visualmente ante los bloques de color de las
+ * reservas; en hover se ilumina con tinte primario + un "+" que invita al
+ * click. Posiciones de `calcularDisponibles`.
  */
 export function BloqueDisponible({
   canchaId,
@@ -41,14 +39,18 @@ export function BloqueDisponible({
       onClick={() => onClick(canchaId, hora, duracionesPermitidas)}
       aria-label={`Nueva reserva a las ${formatearHora(hora)}`}
       className={cn(
-        'absolute left-1 right-1 flex items-center justify-center',
-        'rounded-md border border-dashed border-border bg-transparent',
-        'transition-colors hover:bg-muted/60',
+        'group absolute left-1 right-1 flex items-center justify-center gap-1 rounded-md',
+        'border border-dashed border-border/60 bg-transparent',
+        'transition-colors hover:border-primary/50 hover:bg-primary/[0.06]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
       )}
       style={{ top, height }}
     >
-      <span className="text-[11px] font-medium text-muted-foreground">
+      <Plus
+        className="h-3 w-3 text-muted-foreground opacity-0 transition-all group-hover:text-primary group-hover:opacity-100"
+        aria-hidden="true"
+      />
+      <span className="text-[11px] font-medium text-muted-foreground transition-colors group-hover:text-primary">
         Disponible
       </span>
     </button>

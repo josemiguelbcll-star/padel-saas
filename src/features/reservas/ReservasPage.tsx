@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Clock, LayoutGrid } from 'lucide-react';
+import { AlertTriangle, Clock, LayoutGrid } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { Cancha, ClaseCobro, FranjaTurno } from '@/types/database';
+import type {
+  Cancha,
+  ClaseCobro,
+  EstadoOperativo,
+  FranjaTurno,
+  ReservaOperativa,
+} from '@/types/database';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
 import {
   useClases,
@@ -22,8 +28,20 @@ import {
   useReservasDelDia,
   type ReservaConTitular,
 } from './hooks/useReservasDelDia';
-import { diaSemanaDe, fechaHoy } from './utils/fechaUtils';
-import { normalizarHora } from './utils/horaUtils';
+import { useActividadDelDia } from './hooks/useActividadDelDia';
+import { useTurnosAbiertosViejos } from './hooks/useTurnosAbiertosViejos';
+import {
+  derivarEstadoOperativo,
+  ESTADO_OPERATIVO_LABEL,
+  estadoOperativoColorVar,
+  type InfoReservaVisual,
+} from './utils/derivarEstadoOperativo';
+import {
+  diaSemanaDe,
+  fechaHoy,
+  formatearFechaAmigable,
+} from './utils/fechaUtils';
+import { formatearHora, normalizarHora } from './utils/horaUtils';
 
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -68,6 +86,10 @@ export function ReservasPage() {
   // Franjas de duración. Si falla/está vacío, la grilla cae al fallback
   // (duracion_turno_default) — no bloqueamos el render por ellas.
   const franjasQuery = useFranjasTurno();
+  // Actividad del día (qué reservas tienen consumo / pago) para derivar el
+  // estado operativo sin N+1. Alarma cross-día de turnos viejos sin cerrar.
+  const actividadQuery = useActividadDelDia(fecha);
+  const turnosViejosQuery = useTurnosAbiertosViejos();
 
   const canchasActivas = useMemo(
     () => (canchasQuery.data ?? []).filter((c) => c.activa),
@@ -98,6 +120,39 @@ export function ReservasPage() {
     }
     return m;
   }, [cobrosQuery.data]);
+
+  // Info visual por reserva del día (estado operativo + flags de actividad).
+  // Espejo de v_reservas_operativas; se recalcula con `now` en cada render.
+  const infoReservas = useMemo(() => {
+    const now = new Date();
+    const idsConsumo = actividadQuery.data?.idsConConsumo ?? new Set<number>();
+    const idsPago = actividadQuery.data?.idsConPago ?? new Set<number>();
+    const m = new Map<number, InfoReservaVisual>();
+    for (const r of reservasQuery.data ?? []) {
+      const tieneConsumo = idsConsumo.has(r.id);
+      const tienePago = idsPago.has(r.id);
+      const estado = derivarEstadoOperativo(
+        {
+          estado: r.estado,
+          cerrado_en: r.cerrado_en,
+          fecha: r.fecha,
+          hora_inicio: r.hora_inicio,
+          tieneConsumo,
+          tienePago,
+        },
+        now,
+      );
+      m.set(r.id, { estado, tieneConsumo, tienePago });
+    }
+    return m;
+  }, [reservasQuery.data, actividadQuery.data]);
+
+  // Conteo del día por estado operativo (header).
+  const conteo = useMemo(() => {
+    const c = { reservado: 0, abierto: 0, cerrado: 0, cancelado: 0 };
+    for (const info of infoReservas.values()) c[info.estado] += 1;
+    return c;
+  }, [infoReservas]);
 
   // Estado del modal de nueva reserva.
   const [nuevoSlot, setNuevoSlot] = useState<NuevoReservaSlot | null>(null);
@@ -160,8 +215,18 @@ export function ReservasPage() {
             Grilla del día por cancha. Cada bloque representa una reserva.
           </p>
         </div>
-        <NavegacionFecha fecha={fecha} onChange={handleFechaChange} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <NavegacionFecha fecha={fecha} onChange={handleFechaChange} />
+          <ContadorDiaOperativo conteo={conteo} />
+        </div>
       </header>
+
+      {(turnosViejosQuery.data?.length ?? 0) > 0 && (
+        <AlarmaTurnosViejos
+          turnos={turnosViejosQuery.data ?? []}
+          onIrAFecha={handleFechaChange}
+        />
+      )}
 
       <ReservasBody
         loadingHorarios={horariosQuery.isLoading}
@@ -174,6 +239,7 @@ export function ReservasPage() {
         horaCierre={horariosQuery.data?.hora_cierre ?? null}
         duracionDefault={horariosQuery.data?.duracion_turno_default ?? 90}
         franjas={franjasQuery.data ?? []}
+        infoReservas={infoReservas}
         canchasActivas={canchasActivas}
         reservas={reservasQuery.data ?? []}
         clases={clasesDelDia}
@@ -226,6 +292,7 @@ interface ReservasBodyProps {
   horaCierre: string | null;
   duracionDefault: number;
   franjas: FranjaTurno[];
+  infoReservas: Map<number, InfoReservaVisual>;
   canchasActivas: Cancha[];
   reservas: ReservaConTitular[];
   clases: ClaseConProfesor[];
@@ -247,6 +314,7 @@ function ReservasBody({
   horaCierre,
   duracionDefault,
   franjas,
+  infoReservas,
   canchasActivas,
   reservas,
   clases,
@@ -312,11 +380,115 @@ function ReservasBody({
       fecha={fecha}
       franjas={franjas}
       duracionDefault={duracionDefault}
+      infoReservas={infoReservas}
       loading={loadingReservas}
       onSlotClick={onSlotClick}
       onReservaClick={onReservaClick}
       onClaseClick={onClaseClick}
     />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Contador del día por estado operativo (sub-bloque 3)
+// ─────────────────────────────────────────────────────────────────────
+
+function ContadorDiaOperativo({
+  conteo,
+}: {
+  conteo: {
+    reservado: number;
+    abierto: number;
+    cerrado: number;
+    cancelado: number;
+  };
+}) {
+  const items: Array<{ estado: EstadoOperativo; n: number }> = [
+    { estado: 'reservado', n: conteo.reservado },
+    { estado: 'abierto', n: conteo.abierto },
+    { estado: 'cerrado', n: conteo.cerrado },
+  ];
+  // Cancelado se omite del contador (estado negativo, no operativo del día).
+  if (conteo.reservado + conteo.abierto + conteo.cerrado === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {items.map(({ estado, n }) => (
+        <span
+          key={estado}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs"
+        >
+          <span
+            aria-hidden="true"
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: estadoOperativoColorVar(estado) }}
+          />
+          <span className="font-semibold tabular-nums text-foreground">{n}</span>
+          <span className="text-muted-foreground">
+            {ESTADO_OPERATIVO_LABEL[estado].toLowerCase()}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Alarma de turnos viejos sin cerrar (sub-bloque 4)
+// ─────────────────────────────────────────────────────────────────────
+
+function AlarmaTurnosViejos({
+  turnos,
+  onIrAFecha,
+}: {
+  turnos: ReservaOperativa[];
+  onIrAFecha: (fecha: string) => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="space-y-2 rounded-md border p-3 text-sm"
+      style={{
+        borderColor: 'hsl(var(--estado-senada) / 0.4)',
+        backgroundColor: 'hsl(var(--estado-senada) / 0.1)',
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle
+          className="mt-0.5 h-4 w-4 shrink-0"
+          style={{ color: 'hsl(var(--estado-senada))' }}
+          aria-hidden="true"
+        />
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">
+            {turnos.length === 1
+              ? 'Hay 1 turno de un día anterior sin cerrar.'
+              : `Hay ${turnos.length} turnos de días anteriores sin cerrar.`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Tuvieron consumo o pago y nunca se cerraron. Revisalos y cerralos
+            si ya terminaron.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {turnos.slice(0, 8).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onIrAFecha(t.fecha)}
+            className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {formatearFechaAmigable(t.fecha)} · {formatearHora(t.hora_inicio)}
+          </button>
+        ))}
+        {turnos.length > 8 && (
+          <span className="self-center text-xs text-muted-foreground">
+            +{turnos.length - 8} más
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

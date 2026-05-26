@@ -15,7 +15,8 @@
       "Bash(Get-ChildItem -Path \"C:\\\\proyectos\\\\padel-saas\\\\src\\\\features\\\\reservas\" -Recurse)",
       "Bash(Select-Object FullName)",
       "Bash(ls src/features/configuracion/hooks/)",
-      "Bash(grep -rl \"export function useTarifas\" src)"
+      "Bash(grep -rl \"export function useTarifas\" src)",
+      "PowerShell(npm run *)"
     ]
   }
 }

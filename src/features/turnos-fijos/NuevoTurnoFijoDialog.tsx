@@ -81,9 +81,23 @@ type FieldErrors = Partial<Record<
   string
 >>;
 
+/** Valores para precargar el alta (p. ej. desde el calendario semanal). */
+export interface TurnoFijoPrefill {
+  cancha_id: number;
+  dia_semana: number;
+  /** 'HH:MM'. */
+  hora_inicio: string;
+  duracion_min: number;
+}
+
 interface NuevoTurnoFijoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Si viene, el form arranca con estos valores (cancha + día + hora +
+   * duración). El cliente queda vacío para que el vendedor lo complete.
+   */
+  prefill?: TurnoFijoPrefill | null;
 }
 
 type SubmitMode = 'cerrar' | 'seguir';
@@ -98,6 +112,7 @@ type SubmitMode = 'cerrar' | 'seguir';
 export function NuevoTurnoFijoDialog({
   open,
   onOpenChange,
+  prefill = null,
 }: NuevoTurnoFijoDialogProps) {
   const crear = useCrearTurnoFijo();
   const canchasQuery = useCanchas();
@@ -110,11 +125,21 @@ export function NuevoTurnoFijoDialog({
 
   useEffect(() => {
     if (open) {
-      setState(INITIAL());
+      setState(
+        prefill
+          ? {
+              ...INITIAL(),
+              cancha_id: String(prefill.cancha_id),
+              dia_semana: prefill.dia_semana,
+              hora_inicio: prefill.hora_inicio,
+              duracion_min: prefill.duracion_min,
+            }
+          : INITIAL(),
+      );
       setErrors({});
       setUltimoCreado(null);
     }
-  }, [open]);
+  }, [open, prefill]);
 
   function handleOpenChange(next: boolean): void {
     if (pending) return;
