@@ -130,6 +130,18 @@ finanzas; el modelo debe respetarlos.
   el club RI computa el gasto a NETO (descuenta IVA); el monotributista a
   TOTAL (el IVA es costo, no lo recupera). `fn_recibir_oc` y el registro de
   gasto respetan la condición fiscal del club (0043).
+- **⚠ Cuotas/pagos = PERCIBIDO; gasto = DEVENGADO. NO confundir — REGLA
+  BLINDADA.** La deuda de una compra a plazo (sus `gasto_cuotas`) es lo que
+  REALMENTE se le debe y se le paga al proveedor → el **TOTAL con IVA**. El
+  gasto del EERR es el **neto** (en RI; el IVA es crédito fiscal). Por lo tanto,
+  para un club RI **`SUM(cuotas) ≠ gastos.monto` (cuotas = total con IVA,
+  gasto = neto), y eso es CORRECTO. NO es un bug. NO "arreglarlo" igualando las
+  cuotas al neto.** Igualarlas rompe la deuda real al proveedor (ya pasó: las
+  cuotas se generaban por el neto → fix 0063). Es el tipo de regla que, si no
+  está blindada, se vuelve a romper (como la regla de oro del EERR). El **flujo
+  de caja es PERCIBIDO** (cuándo entra/sale la plata); el **EERR es DEVENGADO**
+  (cuándo se genera el resultado): dos vistas distintas de los mismos hechos,
+  no se mezclan.
 
 ---
 
@@ -243,6 +255,20 @@ categorías de gasto, otros_ingresos), RPCs financieras + integración caja.
     finally) — cierra la ventana de carrera; `disabled={isPending}` queda
     como señal visual. Defensa en capas: ref (1ª capa) + RPC (autoritativa).
 
+## Ciclo de vida del turno (0054–0055)
+Capa OPERATIVA encima del modelo, **sin renombrar el enum `estado` de reservas**.
+- **0054 — turno cerrado.** `reservas.cerrado_en` (marca de cierre) + estado
+  operativo derivado (RESERVADO / ABIERTO / CERRADO / CANCELADO) + guard
+  server-side en `fn_cargar_consumo_turno`: NO se cargan consumos a un turno
+  CERRADO. **Cobrar SÍ se permite post-cierre** (decisión confirmada). "Reabrir
+  turno" queda como pendiente futuro.
+- **0055 — `fn_cancelar_reserva` + `fn_cerrar_turno`** (las dos RPCs del ciclo;
+  el swap del frontend dejó de usar el UPDATE directo).
+- **Frontend (mención, no reimplementar)**: existe el rediseño visual de la
+  "grilla del día" (bloques de color sólido/alto contraste por estado, badges) y
+  el calendario semanal de turnos fijos disponibles (`ocupacionTurnoFijo`, reusa
+  `calcularDisponiblesCore`). Ya están construidos.
+
 ## Finanzas: EERR, caja, gastos, compras, CxP, recurrentes, anulación
 - **0036 — Capas del EERR corporativo.** `unidad_tipo='financiero'` separa
   "Resultados financieros" (comisiones banco/MP, intereses) de otros gastos.
@@ -279,10 +305,98 @@ categorías de gasto, otros_ingresos), RPCs financieras + integración caja.
 - **0049 — Gasto recurrente uno-por-mes.** `fn_registrar_gasto` v5 + índice
   único parcial: una plantilla recurrente no puede cargarse dos veces en el
   mismo mes (evita el duplicado del alquiler del local, etc.).
+- **0063 (FIX) — `fn_recibir_oc`: cuotas por el TOTAL con IVA.** Las cuotas de
+  una compra a plazo se generaban por el NETO (= monto del gasto en RI); ahora
+  reparten el **total con IVA** (la deuda real al proveedor; anticipo validado
+  contra el total). El **gasto madre sigue en neto (RI) / total (mono)** → EERR
+  intacto. `SUM(cuotas) = total` exacto (la última absorbe el residuo). Ver el
+  principio percibido/devengado: `SUM(cuotas) ≠ gastos.monto` en RI es CORRECTO.
+- **estadoPagoGasto (frontend).** El estado de pago en el listado de compras
+  (`useCompras`) y el historial de gastos (`useGastos`) se **deriva de las
+  cuotas** (`gasto_cuotas`), NO de `gastos.fecha_pago` (que en una compra a
+  plazo nace NULL aunque la cuota esté pagada → mostraba "pendiente" mal).
+  Estados: pagada / parcial / pendiente + medio (o "varios"). Helper puro
+  compartido `features/finanzas/utils/estadoPagoGasto.ts`.
 - **EERR**: `useResumenFinanciero` (cómputo client-side desde varias queries).
   Aplica la REGLA DE ORO de atribución por unidad (ver sección destacada).
 
 ---
+
+## Tesorería — cuentas, libro mayor y saldos (0056–0062)
+Módulo nuevo: el dinero deja de ser solo `medio_pago` y pasa a tener **cuentas**.
+**MEDIO = "cómo" llegó la plata (taxonomía FIJA de 5 valores); CUENTA = "dónde"
+está (configurable por club).** Dimensiones independientes.
+- **0056 — `cuentas` + `medio_cuenta_default`.** `cuentas` (config por club: tipo
+  efectivo/banco/billetera/otro, `es_caja_fisica`, `saldo_inicial`, `activa`);
+  `medio_cuenta_default` (mapeo medio→cuenta; ausencia de fila = sin default).
+  Seed por club: una cuenta "Efectivo" (`es_caja_fisica=true`) + `efectivo→Efectivo`.
+- **0057 — `cuenta_id` + libro mayor + saldo vivo.** `cuenta_id` en las 6 tablas
+  de plata (reserva_pagos, clase_cobros, ventas, gastos, otros_ingresos,
+  gasto_cuotas) + backfill (`cuenta_id = medio_cuenta_default[club, medio]`, solo
+  filas con medio; **nunca inventa cuenta**). **`v_movimientos_cuenta`** = libro
+  mayor derivado (UNION de las 6 tablas con `cuenta_id` + caja_movimientos_manuales
+  + transferencias), normalizado a (cuenta_id, club_id, fecha, origen, ref_id,
+  signo, monto). **`v_cuentas_saldo`** = `saldo_inicial + Σ(signo·monto)`.
+- **0058 — las 9 RPCs de cobro/pago escriben `cuenta_id`.** `+p_cuenta_id` DEFAULT
+  NULL (compatible con callers actuales) → `v_cuenta_id = COALESCE(p_cuenta_id,
+  default del medio)`. La "regla de oro del efectivo" se generaliza del literal
+  `'efectivo'` al flag `es_caja_fisica`. **Behavior-preserving para efectivo.**
+  *(Asimetría anotada: `fn_crear_reserva` escribe `cuenta_id` pero NO ata caja en
+  la seña inicial — hueco preexistente preservado, no se cierra acá.)*
+- **0059 — arqueo (`fn_cerrar_caja`) por `es_caja_fisica`.** El esperado se calcula
+  por cuenta `es_caja_fisica` en vez del literal `'efectivo'` (equivalencia exacta
+  bajo el invariante de abajo).
+- **0060 — transferencias entre cuentas.** Tabla `transferencias` + `fn_transferir`
+  (gate fino: si toca el cajón → admin O vendedor; puramente digital banco↔billetera
+  → admin). **Bisagra con el arqueo**: si una pata es `es_caja_fisica`, ata
+  `turno_caja_id` y entra al esperado (+destino / −origen). En `v_movimientos_cuenta`
+  van como dos patas (origen −, destino +) → en el agregado se anulan (no son
+  ingreso/egreso del negocio).
+- **0062 (FIX) — `v_movimientos_cuenta` excluye anulados.** Las ramas `gastos` y
+  `otros_ingresos` agregan `AND activo = TRUE` (un gasto anulado conservaba
+  `cuenta_id` y seguía pesando en el saldo). El resto anula por su patrón:
+  reserva_pagos por **reembolso** (signo −), gasto_cuotas por **nuleo de
+  `cuenta_id`** (`fn_anular_pago_cuota`), caja_manual y transferencias **inmutables**.
+
+### ⭐ Regla de oro del EFECTIVO reconciliada (`es_caja_fisica`)
+"Lo que está en el cajón" dejó de depender del literal `medio_pago='efectivo'` y
+pasa a depender del flag **`cuentas.es_caja_fisica`**. **INVARIANTE (lo garantizan
+el seed 0056 + el backfill 0057 + las RPCs 0058):** el club tiene UNA sola cuenta
+`es_caja_fisica` (la "Efectivo" sembrada) y SOLO el medio `efectivo` mapea a ella.
+Bajo ese invariante vale `efectivo ⟺ cuenta es_caja_fisica`, y el arqueo (0059) da
+**idéntico** al del literal. Si un admin mapeara un medio no-efectivo a una cuenta
+`es_caja_fisica`, esa plata entraría al cajón **a propósito** (comportamiento
+generalizado buscado, no bug) — pero deja de ser "equivalente al literal".
+
+### Frontend de Tesorería
+- **Construido**: el header muestra el **estado real de caja** (`CajaEstadoBadge`
+  → `useCajaAbierta`, resuelto por modalidad del club; indicador "en vivo" con
+  latido, link a `/caja`).
+- **Pendiente** (ver deudas): elegir/pasar `cuenta_id` al cobrar desde la UI (las
+  RPCs ya lo aceptan), pantalla de transferencias, saldos vivos por cuenta.
+
+## Flujo de caja (0061 + frontend)
+Vista nueva, **distinta del EERR**: el flujo de caja es **PERCIBIDO** (cuándo
+entra/sale la plata); el EERR es devengado.
+- **0061 — `fn_flujo_caja(p_desde, p_hasta, p_granularidad, p_cuenta_id)`.** Motor
+  del flujo REAL por período (day/week/month, **semana ISO lunes**), SOLO lectura
+  (security_invoker). Devuelve (periodo, ingresos, egresos, neto, saldo_apertura,
+  saldo_cierre). **Saldo de FUENTE ÚNICA**: la apertura = `v_cuentas_saldo` cortado
+  a la fecha; el `saldo_cierre` del último período **== Σ `v_cuentas_saldo`** (prueba
+  de cuadre). **Día local AR por origen** (los cobros nocturnos no se corren de día).
+  `p_cuenta_id` NULL = agregado (transferencias internas se anulan); con id = esa cuenta.
+- **Frontend `/flujo-caja`** (combina REAL + PROYECTADO, nunca mezclados):
+  - Helpers PUROS en `features/finanzas/utils/` (testeables): **`clavePeriodo`**
+    (espeja `date_trunc`), **`combinarFlujo`** (encadena real→proyectado **desde el
+    saldo real de hoy, NUNCA de cero**), `resumenFlujo` (KPIs + valle de liquidez).
+  - **`useFlujoProyectado`**: compromisos futuros dateados — cuotas de CxP (por
+    `fecha_vencimiento`; vencidas → primer período), recurrentes (con **dedup de 3
+    vías**: si ya hay real ese mes NO proyecta la plantilla), OC `a_plazo` (por
+    `fecha_compromiso_pago`; `al_recibir` → bloque "sin fecha"), ingresos esperados
+    (turnos fijos + clases, funciones puras). Ingresos día/semana: aproximados.
+  - Pantalla: KPIs (incl. **alerta de liquidez**), **curva de saldo** (real sólido /
+    proyectado punteado, área con gradiente azul→rojo cortado en y=0, marcador "Hoy"
+    + valle), **waterfall** (composición período a período) y tabla real+proyectado.
 
 # Visión de producto
 
@@ -366,6 +480,24 @@ atómicamente los movimientos de stock (compensatorios, fuente
 - EERR con presentación de capas correctas (el cálculo ya está; falta UX).
 - Rediseño visual del hub `/finanzas` con mirada de experto financiero.
 
+**🟠 Anular / devolver una COMPRA recibida** (reversión completa). Hoy **NO existe**
+`fn_anular_compra`: una compra recibida no se puede deshacer (sacar la mercadería
+del stock + revertir el gasto + **revertir el PPP** + anular cuotas/pagos).
+`fn_anular_gasto` RECHAZA los gastos de OC y enruta acá. Lo ÚNICO disponible hoy es
+**anular el pago** (`fn_anular_pago_cuota`: revierte la plata; stock y gasto
+intactos). El PPP es el punto delicado (promedio ponderado no trivialmente
+reversible si hubo ventas posteriores). Mismo patrón Filosofía B que "anular venta
+de mostrador".
+
+**🟠 Desglose por origen en el flujo de caja.** `fn_flujo_caja` devuelve ingresos/
+egresos agregados por período; falta el breakdown por fuente (cobros / gastos /
+cuotas / transferencias) para drill-down.
+
+**🟠 Frontend de Tesorería.** El backend está completo (0056–0060). Falta en la UI:
+elegir/pasar `cuenta_id` al cobrar (las 9 RPCs ya lo aceptan), pantalla de
+transferencias entre cuentas, y mostrar saldos vivos por cuenta (`v_cuentas_saldo`
+ya los calcula).
+
 # Deudas técnicas
 
 - **Blindaje de la REGLA DE ORO del EERR** (refactor A+B + vitest): ver la
@@ -385,6 +517,10 @@ atómicamente los movimientos de stock (compensatorios, fuente
   debounce de la 0053 ya frena la generación de nuevos duplicados de acá en
   adelante (eso sí es permanente). Identificar prueba vs real (consultar al
   dueño si hay duda).
+- **Corrección de la compra 12** (dato viejo). Su cuota se generó por el NETO
+  (antes del fix 0063) en vez del total con IVA. Requiere corrección puntual de
+  datos (anular el pago + regenerar la cuota por el total, o un ajuste manual).
+  No urgente; el fix 0063 frena los casos nuevos.
 
 # Deudas de seguridad detectadas
 
