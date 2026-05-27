@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Info, Loader2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { hoyISO, type Granularidad } from '../utils/clavePeriodo';
+import { etiquetaPeriodo, hoyISO, type Granularidad } from '../utils/clavePeriodo';
 import { combinarFlujo } from '../utils/combinarFlujo';
+import { resumenFlujo } from '../utils/resumenFlujo';
 import { useFlujoCaja } from '../hooks/useFlujoCaja';
 import { useFlujoProyectado } from '../hooks/useFlujoProyectado';
+import { FlujoCajaCurva } from './FlujoCajaCurva';
+import { FlujoCajaKpis } from './FlujoCajaKpis';
+import { FlujoCajaWaterfall } from './FlujoCajaWaterfall';
 import { FlujoCajaTable } from './FlujoCajaTable';
 
 const money = new Intl.NumberFormat('es-AR', {
@@ -82,6 +86,11 @@ export function FlujoCajaPage() {
       hoy,
     });
   }, [realQuery.data, proy.data, gran, hoy]);
+
+  const resumen = useMemo(
+    () => (combinado ? resumenFlujo(combinado) : null),
+    [combinado],
+  );
 
   const loading = realQuery.isLoading || proy.isLoading;
   const error = realQuery.error ?? proy.error;
@@ -185,23 +194,64 @@ export function FlujoCajaPage() {
         </div>
       </header>
 
-      {loading && (
-        <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Calculando flujo de caja…
-        </div>
-      )}
-
-      {error && (
+      {error ? (
         <div
           role="alert"
           className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
         >
           {error.message}
         </div>
-      )}
+      ) : (
+        <>
+          {/* Hero de KPIs — insight de un vistazo (incluye liquidez). */}
+          <FlujoCajaKpis resumen={resumen} loading={loading} granularidad={gran} />
 
-      {combinado && !loading && !error && (
+          {/* Alerta de liquidez — cuando la proyección cruza $0. */}
+          {resumen?.primerNegativo && !loading && (
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3.5 text-sm"
+            >
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-500"
+                aria-hidden="true"
+              />
+              <p className="text-foreground">
+                <strong className="text-red-700 dark:text-red-400">
+                  Alerta de liquidez:
+                </strong>{' '}
+                el saldo proyectado se va a <strong>rojo</strong> en{' '}
+                <strong>{etiquetaPeriodo(resumen.primerNegativo, gran)}</strong>
+                {resumen.minSaldo != null && resumen.minPeriodo && (
+                  <>
+                    {' '}
+                    · piso de{' '}
+                    <strong className="tabular-nums">
+                      {fmtMoney(resumen.minSaldo)}
+                    </strong>{' '}
+                    en {etiquetaPeriodo(resumen.minPeriodo, gran)}
+                  </>
+                )}
+                . Revisá cobranzas y compromisos antes de esa fecha.
+              </p>
+            </div>
+          )}
+
+          {/* Curva protagonista. Maneja su propio skeleton/vacío. */}
+          <FlujoCajaCurva
+            combinado={combinado}
+            loading={loading}
+            granularidad={gran}
+          />
+
+          {/* Waterfall: composición del saldo período a período. */}
+          <FlujoCajaWaterfall
+            combinado={combinado}
+            loading={loading}
+            granularidad={gran}
+          />
+
+          {combinado && !loading && (
         <>
           <FlujoCajaTable combinado={combinado} granularidad={gran} />
 
@@ -270,6 +320,8 @@ export function FlujoCajaPage() {
                 )}
               </dl>
             </div>
+          )}
+            </>
           )}
         </>
       )}

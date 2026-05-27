@@ -120,3 +120,20 @@ export function hoyISO(): string {
   const d = new Date();
   return fmtISO(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
+
+// ── Etiquetas de período (es-AR) — compartidas por la UI del flujo ──────────
+const _mesAnioFmt = new Intl.DateTimeFormat('es-AR', { month: 'short', year: 'numeric' });
+const _diaMesFmt = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit' });
+
+/** Etiqueta corta y legible de un período (inicio ISO), según granularidad.
+ *  month → "may 2026" · week → "sem. 11/05" · day → "11/05". */
+export function etiquetaPeriodo(iso: string, gran: Granularidad): string {
+  const { y, m, d } = parseISO(iso);
+  const fecha = new Date(y, m - 1, d);
+  if (gran === 'month') {
+    const s = _mesAnioFmt.format(fecha).replace('.', '');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  if (gran === 'week') return `sem. ${_diaMesFmt.format(fecha)}`;
+  return _diaMesFmt.format(fecha);
+}
