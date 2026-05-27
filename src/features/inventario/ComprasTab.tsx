@@ -558,7 +558,12 @@ function ComprasRow({
       </td>
       <td className="px-3 py-2.5 text-right whitespace-nowrap">{montoCell}</td>
       <td className="px-3 py-2.5">
-        <PagoChip estado={c.pago_estado} medio={c.pago_medio} />
+        <PagoChip
+          estado={c.pago_estado}
+          medio={c.pago_medio}
+          pagadas={c.pago_cuotas_pagadas}
+          total={c.pago_cuotas_total}
+        />
       </td>
       <td
         className="px-4 py-2.5 text-right"
@@ -643,9 +648,13 @@ function EstadoChip({ estado }: { estado: EstadoCompra }) {
 function PagoChip({
   estado,
   medio,
+  pagadas,
+  total,
 }: {
-  estado: 'pagada' | 'pendiente' | null;
-  medio: MedioPago | null;
+  estado: 'pagada' | 'parcial' | 'pendiente' | null;
+  medio: MedioPago | 'varios' | null;
+  pagadas?: number;
+  total?: number;
 }) {
   if (estado === null) {
     return <span className="text-muted-foreground/60">—</span>;
@@ -658,10 +667,20 @@ function PagoChip({
       </span>
     );
   }
+  if (estado === 'parcial') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        Parcial{pagadas != null && total != null ? ` · ${pagadas}/${total}` : ''}
+      </span>
+    );
+  }
+  // pagada
+  const medioLabel = medio === 'varios' ? 'Varios' : medio ? MEDIO_PAGO_LABEL[medio] : '';
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-      Pagada{medio ? ` · ${MEDIO_PAGO_LABEL[medio]}` : ''}
+      Pagada{medioLabel ? ` · ${medioLabel}` : ''}
     </span>
   );
 }

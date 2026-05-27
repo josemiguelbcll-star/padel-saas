@@ -8,6 +8,7 @@ import type {
   Linea,
   MedioPago,
 } from '@/types/database';
+import { estadoPagoGasto } from '@/features/finanzas/utils/estadoPagoGasto';
 
 export interface CompraListaFila {
   id: number;
@@ -26,12 +27,17 @@ export interface CompraListaFila {
   proveedor_id: number;
   proveedor_nombre: string | null;
   /**
-   * 'pagada' si el gasto vinculado tiene fecha_pago.
-   * 'pendiente' si la compra recibida tiene gasto sin pago aún.
-   * NULL si la compra está pedida o cancelada (no aplica).
+   * Estado de pago DERIVADO de las cuotas del gasto (no del gasto madre, que en
+   * compras a plazo nace con fecha_pago NULL): 'pagada' (todas las cuotas
+   * pagadas) / 'parcial' (algunas) / 'pendiente' (ninguna). NULL si la compra
+   * está pedida/cancelada o no genera gasto (bonificación/consignación).
    */
-  pago_estado: 'pagada' | 'pendiente' | null;
-  pago_medio: MedioPago | null;
+  pago_estado: 'pagada' | 'parcial' | 'pendiente' | null;
+  /** Medio de las cuotas pagadas; 'varios' si difieren; null si no hay pago. */
+  pago_medio: MedioPago | 'varios' | null;
+  /** Cuotas pagadas / total (para "Parcial · 1/3"). */
+  pago_cuotas_pagadas: number;
+  pago_cuotas_total: number;
   items_count: number;
 }
 
@@ -84,7 +90,10 @@ export function useCompras(
           monto_neto_oc, monto_total, observaciones,
           proveedor_id,
           proveedores:proveedor_id (nombre),
-          gastos:gasto_id (fecha_pago, medio_pago),
+          gastos:gasto_id (
+            fecha_pago, medio_pago,
+            gasto_cuotas (fecha_pago, medio_pago)
+          ),
           compra_items (count)
           `,
         )
@@ -124,17 +133,36 @@ export function useCompras(
         observaciones: string | null;
         proveedor_id: number;
         proveedores: { nombre: string } | null;
-        gastos: { fecha_pago: string | null; medio_pago: MedioPago | null } | null;
+        gastos: {
+          fecha_pago: string | null;
+          medio_pago: MedioPago | null;
+          gasto_cuotas: Array<{ fecha_pago: string | null; medio_pago: MedioPago | null }>;
+        } | null;
         compra_items: Array<{ count: number }>;
       };
 
       return ((data ?? []) as unknown as Row[]).map((r) => {
         const itemsCount = r.compra_items?.[0]?.count ?? 0;
-        let pago_estado: 'pagada' | 'pendiente' | null;
+
+        // Estado de pago DERIVADO de las cuotas (no del gasto madre, que en
+        // compras a plazo tiene fecha_pago NULL).
+        let pago_estado: 'pagada' | 'parcial' | 'pendiente' | null;
+        let pago_medio: MedioPago | 'varios' | null;
+        let pago_cuotas_pagadas = 0;
+        let pago_cuotas_total = 0;
         if (r.estado !== 'recibida' || r.tipo !== 'compra' || r.gastos === null) {
           pago_estado = null;
+          pago_medio = null;
         } else {
-          pago_estado = r.gastos.fecha_pago !== null ? 'pagada' : 'pendiente';
+          const p = estadoPagoGasto(
+            r.gastos.gasto_cuotas ?? [],
+            r.gastos.fecha_pago,
+            r.gastos.medio_pago,
+          );
+          pago_estado = p.estado;
+          pago_medio = p.medio;
+          pago_cuotas_pagadas = p.pagadas;
+          pago_cuotas_total = p.total;
         }
         return {
           id: r.id,
@@ -151,7 +179,9 @@ export function useCompras(
           proveedor_id: r.proveedor_id,
           proveedor_nombre: r.proveedores?.nombre ?? null,
           pago_estado,
-          pago_medio: r.gastos?.medio_pago ?? null,
+          pago_medio,
+          pago_cuotas_pagadas,
+          pago_cuotas_total,
           items_count: itemsCount,
         };
       });

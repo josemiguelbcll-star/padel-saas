@@ -1,6 +1,12 @@
 import { Ban, Clock, Receipt, Repeat } from 'lucide-react';
-import type { Gasto } from '@/types/database';
+import type { Gasto, MedioPago } from '@/types/database';
 import { MEDIO_PAGO_LABEL } from './finanzasSchemas';
+import type { GastoFila } from './hooks/useGastos';
+
+function medioPagoLabel(medio: MedioPago | 'varios' | null): string {
+  if (medio === null) return '';
+  return medio === 'varios' ? 'Varios' : MEDIO_PAGO_LABEL[medio];
+}
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -24,8 +30,9 @@ function fmt(iso: string): string {
  * la fila. Solo muestra gastos activos (useGastos filtra activo=TRUE);
  * los anulados quedan fuera (su rastro vive en `anulaciones`).
  *
- * Estado: pendiente (sin fecha_pago) → chip "Pendiente" ámbar.
- *         Pagado → chip "Pagado" verde + medio de pago en línea.
+ * Estado de pago DERIVADO de las cuotas (g.pago, vía estadoPagoGasto): un gasto
+ * a plazo / con cuota nace con fecha_pago NULL pero puede estar pagado por sus
+ * cuotas. Pagada (verde + medio) / Parcial (ámbar, "1/3") / Pendiente (ámbar).
  *
  * Si se pasa `onAnular`, cada fila muestra la acción "Anular" (0048).
  * La RPC rechaza si el gasto tiene cuotas pagadas o viene de una OC;
@@ -35,7 +42,7 @@ export function GastosList({
   gastos,
   onAnular,
 }: {
-  gastos: Gasto[];
+  gastos: GastoFila[];
   onAnular?: (g: Gasto) => void;
 }) {
   if (gastos.length === 0) {
@@ -69,7 +76,7 @@ export function GastosList({
         </thead>
         <tbody>
           {gastos.map((g) => {
-            const esPagado = g.fecha_pago !== null;
+            const pago = g.pago;
             return (
               <tr
                 key={g.id}
@@ -99,7 +106,7 @@ export function GastosList({
                   {g.proveedor ?? '—'}
                 </td>
                 <td className="px-3 py-2 align-top">
-                  {esPagado ? (
+                  {pago.estado === 'pagada' ? (
                     <div className="space-y-0.5">
                       <span
                         className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
@@ -110,11 +117,23 @@ export function GastosList({
                       >
                         Pagado
                       </span>
-                      <p className="text-[11px] text-muted-foreground">
-                        {g.medio_pago ? MEDIO_PAGO_LABEL[g.medio_pago] : ''}
-                        {g.fecha_pago && ` · ${fmt(g.fecha_pago)}`}
-                      </p>
+                      {medioPagoLabel(pago.medio) && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {medioPagoLabel(pago.medio)}
+                        </p>
+                      )}
                     </div>
+                  ) : pago.estado === 'parcial' ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                      style={{
+                        backgroundColor: 'hsl(var(--estado-senada) / 0.12)',
+                        color: 'hsl(var(--estado-senada))',
+                      }}
+                    >
+                      <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+                      Parcial · {pago.pagadas}/{pago.total}
+                    </span>
                   ) : (
                     <span
                       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"

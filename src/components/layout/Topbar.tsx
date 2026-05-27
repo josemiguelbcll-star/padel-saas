@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSession } from '@/features/auth';
+import { CajaEstadoBadge } from '@/features/caja';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 
 interface TopbarProps {
@@ -79,15 +80,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </span>
       </div>
 
-      {/* Placeholder de estado de caja — se va a alimentar desde el módulo
-          Caja en el próximo sprint. */}
-      <div
-        className="hidden items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground sm:inline-flex"
-        aria-label="Estado de caja"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
-        Caja: cerrada
-      </div>
+      {/* Estado de caja — lee el estado real (useCajaAbierta) y linkea a /caja. */}
+      <CajaEstadoBadge />
 
       {/* Campana de alarmas — placeholder con contador 0 hasta que exista
           el módulo Alarmas. */}
