@@ -16,7 +16,14 @@
       "Bash(Select-Object FullName)",
       "Bash(ls src/features/configuracion/hooks/)",
       "Bash(grep -rl \"export function useTarifas\" src)",
-      "PowerShell(npm run *)"
+      "PowerShell(npm run *)",
+      "Bash(npm ls *)",
+      "Bash(npm audit *)",
+      "Bash(cmd *)",
+      "Bash(where pdftoppm *)",
+      "Bash(pdftotext -layout \"C:\\\\Users\\\\JOSE MIGUEL BC\\\\Downloads\\\\MatchGo_Presentacion.pdf\" \"C:\\\\Users\\\\JOSE MIGUEL BC\\\\Downloads\\\\MatchGo_Presentacion.txt\")",
+      "mcp__Claude_Preview__preview_start",
+      "WebFetch(domain:www.pexels.com)"
     ]
   }
 }

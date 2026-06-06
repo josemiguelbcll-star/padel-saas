@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MatchGo — Tu club, contabilizado solo</title>
+<meta name="description" content="MatchGo es el sistema operativo financiero para clubes de pádel. Operás arriba, se contabiliza abajo: cada reserva, consumo y gasto impacta solo en la caja, el estado de resultados y el flujo de caja. Sin Excel paralelo." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* ===== Tokens — Identidad MatchGo (Manual de Marca v1.0) ===== */
+  :root {
+    /* Paleta oficial */
+    --marino: #0B1F4D;       /* color principal: texto, isotipo, fondos oscuros */
+    --marino-dark: #081A40;
+    --green: #39C54A;        /* acento: botones, "Go", elementos activos */
+    --green-dark: #2FAE3F;
+    --green-text: #15A637;   /* verde legible para texto/números positivos */
+    --green-soft: #eafaec;
+    --ball: #D9F23B;         /* amarillo tenis: la pelota, acento secundario */
+    /* Mapeo a roles de UI */
+    --primary: #0B1F4D;
+    --primary-dark: #081A40;
+    --primary-soft: #e9edf8;
+    --ink: #0B1F4D;
+    --body: #475569;
+    --muted: #64748b;
+    --bg: #ffffff;
+    --bg-soft: #f7f9fc;
+    --bg-deep: #0B1F4D;
+    --border: #e4e8f0;
+    --emerald: #15A637;
+    --emerald-soft: #eafaec;
+    --amber: #f59e0b;
+    --amber-soft: #fff5e6;
+    --rose: #e11d48;
+    --violet: #8b5cf6;
+    --font-display: 'Poppins', 'Inter', system-ui, sans-serif;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.05);
+    --shadow-md: 0 10px 30px -10px rgba(15,23,42,.18);
+    --shadow-lg: 0 30px 60px -20px rgba(15,23,42,.28);
+    --maxw: 1140px;
+  }
+
+  /* ===== Reset ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--body); background: var(--bg); line-height: 1.6;
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--primary); color: #fff; }
+
+  /* ===== Layout ===== */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  section { padding: 96px 0; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--primary);
+    background: var(--primary-soft); padding: 6px 12px; border-radius: 999px;
+  }
+  h1, h2, h3 { color: var(--ink); line-height: 1.15; letter-spacing: -0.02em; font-family: var(--font-display); }
+  h2.section-title { font-size: clamp(28px, 4vw, 40px); font-weight: 800; margin: 18px 0 14px; }
+  .section-lead { font-size: 18px; max-width: 640px; }
+  .center { text-align: center; }
+  .center .section-lead { margin-left: auto; margin-right: auto; }
+
+  /* ===== Buttons ===== */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-weight: 600; font-size: 15px; border-radius: 12px;
+    padding: 13px 22px; cursor: pointer; border: 1px solid transparent;
+    transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--green); color: #fff; font-weight: 700; box-shadow: 0 8px 20px -8px rgba(57,197,74,.7); }
+  .btn-primary:hover { background: var(--green-dark); transform: translateY(-1px); }
+  .btn-ghost { background: #fff; color: var(--marino); border-color: var(--border); }
+  .btn-ghost:hover { border-color: #c3ccdb; transform: translateY(-1px); }
+  .btn-light { background: var(--green); color: #fff; font-weight: 700; }
+  .btn-light:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .btn-lg { padding: 16px 28px; font-size: 16px; }
+
+  /* ===== Nav ===== */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-img { height: 38px; width: auto; display: block; }
+  .foot-brand .logo-img { height: 42px; }
+  .nav-links { display: flex; align-items: center; gap: 30px; }
+  .nav-links a { font-size: 15px; font-weight: 500; color: var(--body); transition: color .15s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta { display: flex; align-items: center; gap: 14px; }
+  .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 6px; }
+  .nav-toggle svg { width: 26px; height: 26px; color: var(--ink); }
+
+  /* ===== Hero ===== */
+  .hero { padding: 84px 0 96px; background:
+    radial-gradient(900px 460px at 78% -8%, #eafaec 0%, rgba(234,250,236,0) 70%),
+    var(--bg); }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center; }
+  .hero h1 { font-size: clamp(36px, 5.2vw, 56px); font-weight: 900; margin: 20px 0; }
+  .hero h1 .hl { color: var(--green); }
+  .hero p.lead { font-size: 19px; max-width: 540px; }
+  .hero-cta { display: flex; gap: 14px; margin: 30px 0 18px; flex-wrap: wrap; }
+  .hero-trust { display: flex; align-items: center; gap: 18px; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
+  .hero-trust span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); position: relative; }
+  .live-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--emerald); opacity: .5; animation: ping 1.6s cubic-bezier(0,0,.2,1) infinite; }
+  @keyframes ping { 75%,100% { transform: scale(2); opacity: 0; } }
+
+  /* ===== Mockup shell ===== */
+  .mockup { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); overflow: hidden; }
+  .mockup-bar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+  .mockup-bar i { width: 10px; height: 10px; border-radius: 50%; background: #d8dee6; }
+  .mockup-bar .mb-title { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .mockup-bar .mb-live { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--emerald); }
+
+  /* ===== Cashflow hero visual ===== */
+  .cf { padding: 18px 16px 14px; }
+  .cf-head { display: flex; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .cf-kpi { flex: 1; min-width: 120px; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+  .cf-kpi .k-l { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .cf-kpi .k-v { font-size: 18px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+  .cf-kpi.ok .k-v { color: var(--emerald); }
+  .cf-svg { width: 100%; height: auto; display: block; margin-top: 4px; }
+  .cf-legend { display: flex; gap: 16px; padding: 6px 4px 2px; font-size: 11px; color: var(--muted); }
+  .cf-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .lg-real { width: 18px; height: 0; border-top: 3px solid var(--marino); }
+  .lg-proj { width: 18px; height: 0; border-top: 3px dashed var(--green); }
+
+  /* ===== Capability strip ===== */
+  .strip { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 30px 0; }
+  .strip-grid { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  .strip-item { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .strip-item svg { width: 20px; height: 20px; color: var(--primary); flex-shrink: 0; }
+
+  /* ===== Problem cards ===== */
+  .prob-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-top: 48px; text-align: left; }
+  .prob { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .prob-ico { width: 40px; height: 40px; border-radius: 10px; background: #fef2f2; display: grid; place-items: center; margin-bottom: 14px; }
+  .prob-ico svg { width: 20px; height: 20px; color: var(--rose); }
+  .prob h3 { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
+  .prob p { font-size: 13.5px; }
+  .prob-foot { margin-top: 38px; font-size: 18px; font-weight: 600; color: var(--ink); }
+
+  /* ===== Steps ===== */
+  .steps { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-top: 48px; position: relative; }
+  .step { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 18px; text-align: center; position: relative; }
+  .step .sn { width: 30px; height: 30px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; font-size: 13px; display: grid; place-items: center; margin: 0 auto 12px; }
+  .step h3 { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+  .step p { font-size: 12.5px; }
+  .step .arrow { display: none; }
+  .steps-foot { margin-top: 32px; text-align: center; font-size: 16px; color: var(--body); max-width: 760px; margin-left: auto; margin-right: auto; }
+  .steps-foot strong { color: var(--ink); }
+
+  /* ===== Platform 3 cols ===== */
+  .plat { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; margin-top: 48px; }
+  .plat-col { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; }
+  .plat-col h3 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--primary); margin-bottom: 16px; }
+  .plat-col.fin h3 { color: var(--emerald); }
+  .plat-col.ctrl h3 { color: #3E5C9A; }
+  .plat-li { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 14.5px; color: var(--body); border-bottom: 1px solid var(--bg-soft); }
+  .plat-li:last-child { border-bottom: none; }
+  .plat-li svg { width: 16px; height: 16px; color: var(--primary); flex-shrink: 0; }
+  .plat-col.fin .plat-li svg { color: var(--emerald); }
+  .plat-col.ctrl .plat-li svg { color: #3E5C9A; }
+
+  /* ===== Deep dive ===== */
+  .dive { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  .dive.rev .dive-text { order: 2; }
+  .dive-list { margin-top: 22px; display: flex; flex-direction: column; gap: 16px; }
+  .dive-li { display: flex; gap: 13px; }
+  .dive-li .chk { width: 26px; height: 26px; border-radius: 8px; background: var(--primary-soft); display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+  .dive-li .chk svg { width: 14px; height: 14px; color: var(--primary); }
+  .dive-li h4 { font-size: 15.5px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .dive-li p { font-size: 14px; }
+
+  /* panels */
+  .panel { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 22px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .panel-head .pt { font-weight: 700; color: var(--ink); font-size: 15px; }
+  .pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--emerald-soft); color: #047857; }
+  .acct-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; font-size: 14px; }
+  .acct-row.line { border-bottom: 1px dashed var(--border); }
+  .acct-row .lbl { color: var(--body); display: flex; align-items: center; gap: 9px; }
+  .acct-row .amt { font-weight: 700; color: var(--ink); }
+  .acct-ico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
+  .acct-total { background: var(--bg-soft); border-radius: 10px; padding: 12px 14px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .acct-total .lbl { font-weight: 700; color: var(--ink); }
+  .acct-total .amt { font-weight: 800; color: var(--primary); font-size: 19px; }
+  .split { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 14px; }
+  .split-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; padding: 9px; text-align: center; }
+  .split-card .av { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-weight: 700; font-size: 11px; display: grid; place-items: center; margin: 0 auto 5px; }
+  .split-card .nm { font-size: 10.5px; color: var(--muted); }
+  .split-card .vl { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .split-card.paid { background: var(--emerald-soft); border-color: #bbf0d4; }
+  .split-card.paid .vl { color: #047857; }
+
+  /* EERR cascade */
+  .eerr-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .eerr-bar-row .un { width: 78px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .eerr-track { flex: 1; background: var(--bg-soft); border-radius: 999px; height: 26px; overflow: hidden; }
+  .eerr-fill { height: 100%; border-radius: 999px; display: flex; align-items: center; padding-left: 10px; color: #fff; font-size: 11.5px; font-weight: 700; }
+  .eerr-foot { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .eerr-foot .l { font-size: 13px; color: var(--muted); }
+  .eerr-foot .r { font-size: 22px; font-weight: 800; color: var(--emerald); }
+
+  /* Reservas online (canal del jugador) */
+  .book-top { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .book-top .bt-logo { width: 34px; height: 34px; border-radius: 9px; background: var(--marino); display: grid; place-items: center; color: #fff; font-weight: 800; font-family: var(--font-display); font-size: 15px; flex-shrink: 0; }
+  .book-top .bt-name { font-weight: 700; color: var(--ink); font-size: 14px; }
+  .book-top .bt-sub { font-size: 11px; color: var(--muted); }
+  .book-top .bt-tag { margin-left: auto; font-size: 10.5px; font-weight: 700; color: #047857; background: var(--green-soft); padding: 4px 9px; border-radius: 999px; }
+  .book-dates { display: flex; gap: 6px; margin-bottom: 14px; }
+  .book-date { flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 10px; padding: 7px 4px; font-size: 10.5px; color: var(--muted); }
+  .book-date .d { font-weight: 700; color: var(--ink); font-size: 15px; }
+  .book-date.on { background: var(--marino); border-color: var(--marino); color: #c7d2e3; }
+  .book-date.on .d { color: #fff; }
+  .book-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .book-slots { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+  .book-slot { border: 1px solid var(--border); border-radius: 10px; padding: 10px 4px; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .book-slot.off { color: #c3ccdb; background: var(--bg-soft); }
+  .book-slot.on { background: var(--green-soft); border-color: var(--green); color: #15803d; }
+  .book-pay { display: flex; justify-content: space-between; align-items: center; background: var(--bg-soft); border-radius: 10px; padding: 11px 14px; margin-bottom: 12px; font-size: 13px; color: var(--body); }
+  .book-pay b { color: var(--ink); }
+  .book-btn { width: 100%; background: var(--green); color: #fff; font-weight: 700; font-size: 14px; border: none; border-radius: 12px; padding: 13px; cursor: pointer; }
+  .book-flow { display: flex; align-items: center; gap: 9px; margin-top: 12px; background: #f4fbf5; border: 1px solid #cdeed4; border-radius: 10px; padding: 9px 11px; font-size: 11.5px; color: #15803d; font-weight: 500; }
+  .book-flow svg { width: 15px; height: 15px; color: var(--green); flex-shrink: 0; }
+
+  /* Reservá tu cancha (marketplace del jugador) */
+  .rc { background: linear-gradient(135deg, #0B1F4D 0%, #081A40 60%, #0a2356 100%); color: #fff; position: relative; overflow: hidden; }
+  .rc-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 52px; align-items: center; }
+  .rc-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--ball); background: rgba(217,242,59,.12); border: 1px solid rgba(217,242,59,.30); padding: 6px 13px; border-radius: 999px; margin-bottom: 20px; }
+  .rc h2 { font-family: var(--font-display); font-size: clamp(30px, 4.2vw, 48px); line-height: 1.04; font-weight: 800; margin: 0 0 16px; letter-spacing: -.02em; color: #fff; }
+  .rc h2 .hl { color: var(--green); }
+  .rc-lead { font-size: 17px; line-height: 1.55; color: #c7d2e3; margin: 0 0 26px; max-width: 31em; }
+  .rc-search { background: #fff; border-radius: 16px; padding: 9px; display: grid; grid-template-columns: 1fr 1.3fr 1fr auto; gap: 6px; box-shadow: 0 20px 45px rgba(0,0,0,.30); }
+  .rc-field { display: flex; flex-direction: column; gap: 3px; padding: 9px 13px; border-radius: 11px; cursor: pointer; }
+  .rc-field:hover { background: var(--bg-soft); }
+  .rc-field .fl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .rc-field .fv { font-size: 14px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .rc-field .fv svg { width: 15px; height: 15px; color: var(--green-text); flex-shrink: 0; }
+  .rc-go { background: var(--green); color: #fff; border: none; border-radius: 12px; padding: 0 22px; font-weight: 700; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .rc-go:hover { background: var(--green-dark); }
+  .rc-go svg { width: 18px; height: 18px; }
+  .rc-chips { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 20px; }
+  .rc-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: #c7d2e3; }
+  .rc-chip svg { width: 16px; height: 16px; color: var(--green); flex-shrink: 0; }
+  .rc-gallery { display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: 1fr 1fr; gap: 12px; height: 450px; }
+  .rc-gallery figure { margin: 0; border-radius: 18px; overflow: hidden; position: relative; box-shadow: 0 16px 38px rgba(0,0,0,.32); }
+  .rc-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rc-gallery .g1 { grid-row: span 2; }
+  .rc-tagimg { position: absolute; left: 12px; bottom: 12px; background: rgba(11,31,77,.80); backdrop-filter: blur(4px); color: #fff; font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px; }
+  @media (max-width: 880px) {
+    .rc-grid { grid-template-columns: 1fr; gap: 34px; }
+    .rc-search { grid-template-columns: 1fr 1fr; }
+    .rc-go { grid-column: 1 / -1; padding: 13px; }
+    .rc-gallery { height: 320px; order: -1; }
+  }
+  @media (max-width: 520px) {
+    .rc-search { grid-template-columns: 1fr; }
+    .rc-gallery { grid-template-columns: 1fr 1fr; height: 280px; }
+  }
+
+  /* Hero B2C (jugador) */
+  .hero-b2c { position: relative; color: #fff; overflow: hidden; background: var(--marino); }
+  .hero-b2c .hb-bg { position: absolute; inset: 0; z-index: 0; }
+  .hero-b2c .hb-bg img { width: 100%; height: 100%; object-fit: cover; object-position: 62% 26%; }
+  .hero-b2c .hb-overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(108deg, rgba(8,26,64,.95) 0%, rgba(11,31,77,.82) 40%, rgba(11,31,77,.42) 72%, rgba(11,31,77,.15) 100%); }
+  .hero-b2c .hb-inner { position: relative; z-index: 2; padding: 100px 0 86px; }
+  .hero-b2c h1 { font-family: var(--font-display); font-size: clamp(36px, 5.6vw, 64px); line-height: 1.01; font-weight: 800; letter-spacing: -.02em; color: #fff; margin: 0 0 18px; max-width: 15ch; }
+  .hero-b2c h1 .hl { color: var(--green); }
+  .hb-lead { font-size: clamp(16px, 1.6vw, 20px); color: #d4dcea; max-width: 33em; margin: 0 0 30px; line-height: 1.5; }
+  .hb-search { max-width: 800px; }
+  @media (max-width: 880px) {
+    .hero-b2c .hb-overlay { background: linear-gradient(180deg, rgba(8,26,64,.82), rgba(11,31,77,.93)); }
+    .hero-b2c .hb-bg img { object-position: 60% 22%; }
+    .hero-b2c .hb-inner { padding: 70px 0 54px; }
+  }
+
+  /* Deportes (cards grandes) */
+  .dep-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .dep-card { position: relative; border-radius: 22px; overflow: hidden; aspect-ratio: 5 / 4; box-shadow: 0 18px 44px rgba(11,31,77,.16); }
+  .dep-card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .55s ease; }
+  .dep-card:hover img { transform: scale(1.05); }
+  .dep-ov { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(8,26,64,.80) 0%, rgba(8,26,64,.12) 52%, rgba(8,26,64,0) 100%); }
+  .dep-meta { position: absolute; left: 24px; right: 24px; bottom: 22px; color: #fff; }
+  .dep-meta h3 { font-family: var(--font-display); font-size: 28px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.01em; color: #fff; }
+  .dep-meta p { font-size: 14px; color: #dbe2ee; margin: 0; }
+  @media (max-width: 680px) { .dep-cards { grid-template-columns: 1fr; } }
+
+  /* Software para clubes (pivote) */
+  .sw-grid { display: grid; grid-template-columns: 1.08fr .92fr; gap: 52px; align-items: center; }
+  .sw-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+  .sw-photo { border-radius: 22px; overflow: hidden; box-shadow: 0 20px 48px rgba(11,31,77,.20); aspect-ratio: 4 / 3; position: relative; }
+  .sw-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sw-photo .sw-badge { position: absolute; left: 16px; bottom: 16px; background: rgba(255,255,255,.95); color: var(--ink); font-size: 12px; font-weight: 700; padding: 8px 13px; border-radius: 999px; display: flex; align-items: center; gap: 7px; box-shadow: 0 6px 18px rgba(11,31,77,.18); }
+  .sw-photo .sw-badge svg { width: 14px; height: 14px; color: var(--green-text); }
+  @media (max-width: 880px) { .sw-grid { grid-template-columns: 1fr; gap: 30px; } }
+
+  /* Motor contable */
+  .motor { background: var(--bg-deep); border-radius: 28px; padding: 48px; margin-top: 20px; color: #fff; }
+  .motor-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 28px; align-items: center; }
+  .motor-col h4 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; margin-bottom: 14px; }
+  .motor-item { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .motor-item .mi-t { font-size: 14px; font-weight: 700; color: #fff; }
+  .motor-item .mi-d { font-size: 12.5px; color: #94a3b8; margin-top: 2px; }
+  .motor-core { text-align: center; }
+  .motor-core .mc-badge { width: 96px; height: 96px; border-radius: 24px; background: linear-gradient(135deg, var(--green), #2ea83d); display: grid; place-items: center; margin: 0 auto 14px; box-shadow: 0 20px 40px -12px rgba(57,197,74,.55); }
+  .motor-core .mc-badge svg { width: 44px; height: 44px; color: #fff; }
+  .motor-core .mc-t { font-size: 15px; font-weight: 800; color: #fff; }
+  .motor-core .mc-d { font-size: 12.5px; color: #94a3b8; margin-top: 6px; max-width: 180px; margin-left: auto; margin-right: auto; }
+  .motor-foot { text-align: center; margin-top: 30px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,.1); font-size: 14px; font-weight: 600; color: #cbd5e1; }
+  .motor-out .motor-item { background: rgba(16,185,129,.1); border-color: rgba(16,185,129,.25); }
+
+  /* Roles */
+  .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 48px; }
+  .role { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+  .role-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .role-ico { width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; }
+  .role-ico svg { width: 22px; height: 22px; }
+  .role.admin .role-ico { background: var(--primary-soft); } .role.admin .role-ico svg { color: var(--primary); }
+  .role.vend .role-ico { background: var(--emerald-soft); } .role.vend .role-ico svg { color: var(--emerald); }
+  .role h3 { font-size: 18px; font-weight: 800; }
+  .role .role-sub { font-size: 13px; color: var(--muted); }
+  .role-li { display: flex; gap: 10px; padding: 8px 0; font-size: 14px; color: var(--body); }
+  .role-li svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px; }
+  .role.admin .role-li svg { color: var(--primary); }
+  .role.vend .role-li svg { color: var(--emerald); }
+  .role-li.no { color: var(--muted); }
+  .role-li.no svg { color: #cbd5e1; }
+
+  /* Pricing */
+  .pricing { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; margin-top: 48px; align-items: stretch; }
+  .plan { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 30px 26px; display: flex; flex-direction: column; }
+  .plan.feat { border: 2px solid var(--primary); box-shadow: var(--shadow-md); position: relative; }
+  .plan-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 5px 14px; border-radius: 999px; }
+  .plan h3 { font-size: 19px; font-weight: 800; }
+  .plan .plan-desc { font-size: 13.5px; color: var(--muted); margin: 6px 0 18px; min-height: 40px; }
+  .plan .price { font-size: 34px; font-weight: 900; color: var(--ink); }
+  .plan .price small { font-size: 14px; font-weight: 600; color: var(--muted); }
+  .plan .price-note { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .plan .plan-list { margin: 20px 0 24px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .plan-li { display: flex; gap: 9px; font-size: 14px; color: var(--body); }
+  .plan-li svg { width: 16px; height: 16px; color: var(--emerald); flex-shrink: 0; margin-top: 3px; }
+  .plan-li.off { color: #b4bdc9; }
+  .plan-li.off svg { color: #d8dee6; }
+  .pricing-note { text-align: center; margin-top: 26px; font-size: 13.5px; color: var(--muted); }
+
+  /* FAQ */
+  .faq-list { max-width: 760px; margin: 44px auto 0; }
+  .faq-item { border-bottom: 1px solid var(--border); }
+  .faq-q { width: 100%; text-align: left; background: none; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 4px; font-size: 16.5px; font-weight: 600; color: var(--ink); font-family: inherit; }
+  .faq-q .ic { width: 22px; height: 22px; flex-shrink: 0; color: var(--primary); transition: transform .2s ease; }
+  .faq-item.open .faq-q .ic { transform: rotate(45deg); }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height .26s ease; }
+  .faq-a p { padding: 0 4px 22px; font-size: 15px; }
+
+  /* CTA band */
+  .cta-band { background: radial-gradient(700px 380px at 18% 10%, rgba(57,197,74,.30) 0%, rgba(57,197,74,0) 65%), var(--bg-deep); border-radius: 28px; padding: 64px 48px; text-align: center; color: #fff; }
+  .cta-band h2 { color: #fff; font-size: clamp(28px, 4vw, 38px); font-weight: 800; }
+  .cta-band p { color: #c7d2e3; font-size: 18px; max-width: 560px; margin: 14px auto 28px; }
+  .cta-band .hero-trust { justify-content: center; color: #94a3b8; }
+
+  /* Footer */
+  footer { border-top: 1px solid var(--border); padding: 56px 0 34px; background: var(--bg-soft); }
+  .foot-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 36px; }
+  .foot-brand p { font-size: 14px; margin-top: 14px; max-width: 280px; }
+  .foot-col h4 { font-size: 13px; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 14px; }
+  .foot-col a, .foot-col p { display: block; font-size: 14.5px; color: var(--body); margin-bottom: 9px; }
+  .foot-col a:hover { color: var(--primary); }
+  .foot-bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+
+  /* Reveal */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* Mobile menu */
+  .mobile-menu { display: none; flex-direction: column; gap: 4px; padding: 12px 24px 20px; border-bottom: 1px solid var(--border); background: #fff; }
+  .mobile-menu a { padding: 11px 0; font-weight: 500; color: var(--body); border-bottom: 1px solid var(--bg-soft); }
+  .mobile-menu .btn { margin-top: 12px; }
+
+  /* Responsive */
+  @media (max-width: 980px) {
+    section { padding: 72px 0; }
+    .hero-grid, .dive { grid-template-columns: 1fr; }
+    .dive.rev .dive-text { order: 0; }
+    .prob-grid { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .plat, .pricing { grid-template-columns: 1fr; }
+    .motor-grid { grid-template-columns: 1fr; }
+    .roles { grid-template-columns: 1fr; }
+    .foot-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
+    .nav-links, .nav-cta .btn { display: none; }
+    .nav-toggle { display: block; }
+  }
+  @media (max-width: 560px) {
+    section { padding: 60px 0; }
+    .wrap { padding: 0 18px; }
+    .prob-grid, .steps, .split { grid-template-columns: 1fr; }
+    .split { grid-template-columns: 1fr 1fr; }
+    .hero-cta .btn { flex: 1; }
+    .cta-band, .motor { padding: 40px 22px; }
+    .foot-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="#top" class="logo" aria-label="MatchGo — inicio">
+      <img src="assets/matchgo_logo.svg" alt="MatchGo" class="logo-img" />
+    </a>
+    <nav class="nav-links">
+      <a href="#reservar">Reservá</a>
+      <a href="#deportes">Deportes</a>
+      <a href="#comojugador">Cómo funciona</a>
+      <a href="#software">Software para clubes</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="#reservar" class="btn btn-primary">Reservá tu cancha</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#reservar">Reservá</a>
+    <a href="#deportes">Deportes</a>
+    <a href="#comojugador">Cómo funciona</a>
+    <a href="#software">Software para clubes</a>
+    <a href="#reservar" class="btn btn-primary">Reservá tu cancha</a>
+  </div>
+</header>
+
+<a id="top"></a>
+
+<!-- ============ HERO B2C (JUGADOR) ============ -->
+<section class="hero-b2c" id="reservar">
+  <div class="hb-bg"><img src="assets/act-padel-a.jpg" alt="Jugador de pádel en plena acción" /></div>
+  <div class="hb-overlay"></div>
+  <div class="wrap hb-inner">
+    <span class="rc-eyebrow">Pádel y tenis · disponibilidad en vivo</span>
+    <h1>Tu próximo partido, <span class="hl">a un click</span></h1>
+    <p class="hb-lead">Encontrá tu club, mirá la disponibilidad real y reservá tu cancha en segundos. Sin llamados, sin esperar respuesta por WhatsApp.</p>
+    <div class="rc-search hb-search">
+      <div class="rc-field">
+        <span class="fl">Deporte</span>
+        <span class="fv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5C9 8 11 13 12 21M18.5 5.5C15 8 13 12 5 17.5"/></svg> Pádel</span>
+      </div>
+      <div class="rc-field">
+        <span class="fl">Club o zona</span>
+        <span class="fv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Tucán Padel Center</span>
+      </div>
+      <div class="rc-field">
+        <span class="fl">Día</span>
+        <span class="fv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Vie 06</span>
+      </div>
+      <button class="rc-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Buscar canchas</button>
+    </div>
+    <div class="rc-chips">
+      <span class="rc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Seña online</span>
+      <span class="rc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Cancelación flexible</span>
+      <span class="rc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Pádel y tenis</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CÓMO FUNCIONA (JUGADOR) ============ -->
+<section id="comojugador" style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap center">
+    <span class="eyebrow reveal">Reservar nunca fue tan fácil</span>
+    <h2 class="section-title reveal">Buscás, reservás y jugás</h2>
+    <p class="section-lead reveal">Tu cancha en tres pasos, desde el teléfono. Sin llamados ni esperar a que te contesten.</p>
+    <div class="steps">
+      <div class="step reveal"><div class="sn">1</div><h3>Buscás</h3><p>Elegí deporte, club y horario. Ves la disponibilidad real, en vivo.</p></div>
+      <div class="step reveal"><div class="sn">2</div><h3>Reservás</h3><p>Confirmás con seña online y tu lugar queda asegurado.</p></div>
+      <div class="step reveal"><div class="sn">3</div><h3>Jugás</h3><p>Llegás y jugás. La cuenta del turno ya está lista en el club.</p></div>
+    </div>
+    <p class="steps-foot reveal">Y si vas con amigos, <strong>dividís el alquiler entre los jugadores</strong> — cada uno paga lo suyo.</p>
+  </div>
+</section>
+
+<!-- ============ DEPORTES ============ -->
+<section id="deportes">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Pádel y tenis</span>
+      <h2 class="section-title reveal">Jugá donde quieras, cuando quieras</h2>
+      <p class="section-lead reveal">Reservá en tu club de siempre o descubrí canchas nuevas cerca tuyo. Disponibilidad real, en vivo.</p>
+    </div>
+    <div class="dep-cards">
+      <div class="dep-card reveal"><img src="assets/act-padel-a.jpg" alt="Jugador de pádel en acción" loading="lazy" /><div class="dep-ov"></div><div class="dep-meta"><h3>Pádel</h3><p>Canchas indoor y al aire libre · turnos de 60 a 90 min</p></div></div>
+      <div class="dep-card reveal"><img src="assets/act-tennis-b.jpg" alt="Jugador de tenis sacando" loading="lazy" /><div class="dep-ov"></div><div class="dep-meta"><h3>Tenis</h3><p>Polvo de ladrillo, cemento y carpeta · singles y dobles</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SOFTWARE PARA CLUBES (PIVOTE B2B) ============ -->
+<section id="software" style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap sw-grid">
+    <div>
+      <span class="eyebrow reveal">¿Tenés un club?</span>
+      <h2 class="section-title reveal">El software que gestiona tu club entero — y lo contabiliza solo</h2>
+      <p class="section-lead reveal">Detrás de cada reserva hay un sistema completo de gestión. Grilla, mostrador, caja y finanzas: lo que operás arriba se contabiliza abajo, sin Excel paralelo.</p>
+      <div class="sw-cta">
+        <a href="#plataforma" class="btn btn-primary btn-lg">Ver funcionalidades</a>
+        <a href="#precios" class="btn btn-ghost btn-lg">Ver planes y precios</a>
+      </div>
+    </div>
+    <div class="sw-photo reveal">
+      <img src="assets/padel-2.jpg" alt="Club de pádel indoor" loading="lazy" />
+      <span class="sw-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Todo contabilizado, en vivo</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CAPABILITY STRIP ============ -->
+<div class="strip">
+  <div class="wrap strip-grid">
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Reservas y grilla</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Mostrador y caja</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg> Estado de resultados</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Flujo de caja a futuro</div>
+    <div class="strip-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg> Tesorería y deuda</div>
+  </div>
+</div>
+
+<!-- ============ PROBLEM ============ -->
+<section>
+  <div class="wrap center">
+    <span class="eyebrow reveal">El punto de partida</span>
+    <h2 class="section-title reveal">La operación y los números viven separados</h2>
+    <p class="section-lead reveal">Lo que pasa en la cancha rara vez llega —bien y a tiempo— a la contabilidad. Se opera por un lado y se anota por otro.</p>
+    <div class="prob-grid">
+      <div class="prob reveal">
+        <div class="prob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></div>
+        <h3>Doble carga</h3>
+        <p>Se opera en un lado y se contabiliza en otro. Lo que no se recarga, se pierde.</p>
+      </div>
+      <div class="prob reveal">
+        <div class="prob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+        <h3>Caja que no cuadra</h3>
+        <p>Efectivo, transferencia y MP mezclados. Nadie sabe qué hay en el cajón.</p>
+      </div>
+      <div class="prob reveal">
+        <div class="prob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.7 5.1A9.8 9.8 0 0 1 12 5c7 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7M6.6 6.6A13.2 13.2 0 0 0 2 12s3 7 10 7a9.8 9.8 0 0 0 5.4-1.6M2 2l20 20"/></svg></div>
+        <h3>Resultado a ciegas</h3>
+        <p>¿Qué unidad deja plata? Sin EERR por unidad, se decide por intuición.</p>
+      </div>
+      <div class="prob reveal">
+        <div class="prob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>Sin visión de futuro</h3>
+        <p>Se mira lo que pasó, nunca lo que viene. La liquidez se descubre tarde.</p>
+      </div>
+    </div>
+    <p class="prob-foot reveal">El problema no es el desorden: es decidir todos los días sin datos confiables.</p>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section id="como" style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap center">
+    <span class="eyebrow reveal">Cómo funciona</span>
+    <h2 class="section-title reveal">Operás arriba, se contabiliza abajo — solo</h2>
+    <p class="section-lead reveal">Una capa operativa y una financiera que comparten el mismo dato. Lo que registrás una vez, queda contabilizado para siempre.</p>
+    <div class="steps">
+      <div class="step reveal"><div class="sn">1</div><h3>Reservás</h3><p>Grilla por cancha, turnos y clases.</p></div>
+      <div class="step reveal"><div class="sn">2</div><h3>Cobrás</h3><p>Alquiler y consumos, por jugador.</p></div>
+      <div class="step reveal"><div class="sn">3</div><h3>Caja</h3><p>Efectivo físico, arqueado.</p></div>
+      <div class="step reveal"><div class="sn">4</div><h3>Se contabiliza</h3><p>EERR, flujo y deuda, al instante.</p></div>
+      <div class="step reveal"><div class="sn">5</div><h3>Decidís</h3><p>Resultado por unidad, en vivo.</p></div>
+    </div>
+    <p class="steps-foot reveal">Una sola carga. <strong>Cada movimiento operativo impacta a la vez en la caja, en el estado de resultados y en el flujo de caja.</strong></p>
+  </div>
+</section>
+
+<!-- ============ PLATFORM ============ -->
+<section id="plataforma">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">La plataforma completa</span>
+      <h2 class="section-title reveal">Todo lo que hace el sistema, de un vistazo</h2>
+      <p class="section-lead reveal">No es un módulo suelto: es la gestión integral del club. Esto es el alcance completo de lo que construimos.</p>
+    </div>
+    <div class="plat">
+      <div class="plat-col op reveal">
+        <h3>Operación</h3>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Reservas y grilla del día</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Reservas online para jugadores</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Turnos fijos y clases</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Mostrador: buffet y shop</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Caja con arqueo</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Inventario y stock</div>
+      </div>
+      <div class="plat-col fin reveal">
+        <h3>Finanzas</h3>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Estado de resultados (EERR)</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Flujo de caja</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Gastos por unidad</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Cuentas por pagar</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Tesorería y cuentas</div>
+      </div>
+      <div class="plat-col ctrl reveal">
+        <h3>Control</h3>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Tablero en vivo</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Roles y permisos</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Acceso remoto</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Condición fiscal</div>
+        <div class="plat-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Tarifas y configuración</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 1: GRILLA ============ -->
+<section style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap dive">
+    <div class="dive-text">
+      <span class="eyebrow reveal">Operación · Reservas</span>
+      <h2 class="section-title reveal">La grilla del día, cancha por cancha</h2>
+      <p class="section-lead reveal">Todo el día del club en una pantalla. Color por estado y ocupación en tiempo real.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Ocupación en vivo</h4><p>% ocupado y horas libres por cancha.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Estados claros</h4><p>Reservado, abierto, cerrado o cancelado.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Clases y turnos fijos</h4><p>Integrados en la misma grilla semanal.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Alerta de turnos abiertos</h4><p>Turnos viejos con plata sin cerrar.</p></div></div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="mockup">
+        <div class="mockup-bar"><i></i><i></i><i></i><span class="mb-title">Grilla del día — Hoy</span></div>
+        <div style="padding:14px;">
+          <div style="display:grid;grid-template-columns:38px repeat(3,1fr);gap:6px;margin-bottom:6px;">
+            <div></div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-align:center;">Central</div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-align:center;">Cancha 2</div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-align:center;">Cancha 3</div>
+          </div>
+          <div style="display:grid;grid-template-columns:38px repeat(3,1fr);gap:6px;margin-bottom:6px;">
+            <div style="font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:4px;">17:00</div>
+            <div style="border-radius:8px;height:46px;padding:7px 8px;font-size:10.5px;background:#e9f9ef;border-left:3px solid #16a34a;color:#14532d;"><b style="display:block;font-size:11px;">Martín G.</b>Cerrado</div>
+            <div style="border-radius:8px;height:46px;padding:7px 8px;font-size:10.5px;background:#f1ecfe;border-left:3px solid var(--violet);color:#4c2889;"><b style="display:block;font-size:11px;">Clase · Ana</b>17–18</div>
+            <div style="border-radius:8px;height:46px;border:1px dashed #cdd5df;color:#94a3b8;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10.5px;">Disponible</div>
+          </div>
+          <div style="display:grid;grid-template-columns:38px repeat(3,1fr);gap:6px;margin-bottom:6px;">
+            <div style="font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:4px;">18:30</div>
+            <div style="border-radius:8px;height:46px;padding:7px 8px;font-size:10.5px;background:#fef4e2;border-left:3px solid var(--amber);color:#7c4a03;"><b style="display:block;font-size:11px;">Lucía R.</b>Abierto</div>
+            <div style="border-radius:8px;height:46px;padding:7px 8px;font-size:10.5px;background:#f1f3f6;border-left:3px solid #94a3b8;color:#475569;"><b style="display:block;font-size:11px;">Fijo · Jue</b>Reservado</div>
+            <div style="border-radius:8px;height:46px;padding:7px 8px;font-size:10.5px;background:#e9f9ef;border-left:3px solid #16a34a;color:#14532d;"><b style="display:block;font-size:11px;">Diego F.</b>Cerrado</div>
+          </div>
+          <div style="margin:10px 6px 4px;display:flex;align-items:center;gap:9px;background:var(--amber-soft);border:1px solid #fde2b8;border-radius:10px;padding:9px 11px;font-size:11.5px;color:#92400e;font-weight:500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.1 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.1a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            Turno abierto hace 2 h · Central · plata sin cerrar
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESERVAS ONLINE (CANAL DEL JUGADOR) ============ -->
+<section id="reservas" style="background:#f4fbf5;border-top:1px solid #dcefe0;border-bottom:1px solid #dcefe0;">
+  <div class="wrap dive rev">
+    <div class="dive-text">
+      <span class="eyebrow reveal" style="color:var(--green-text);">Operación · Reservas online</span>
+      <h2 class="section-title reveal">Tus jugadores reservan online — y entra solo a la grilla</h2>
+      <p class="section-lead reveal">No es un marketplace de terceros: es el canal propio de tu club, con tu marca y sin comisiones. Cada reserva cae sola en la misma grilla y queda contabilizada — una sola fuente de verdad.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Tu propio link, sin comisiones</h4><p>Tu marca, tu canal. La reserva es tuya, no de un portal.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Disponibilidad real en vivo</h4><p>El jugador ve los horarios libres del momento, sin choques.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Seña online</h4><p>Cobrás la seña al reservar y bajás los ausentes.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Cae en la misma grilla</h4><p>Cero doble carga: la reserva del jugador y la del mostrador son el mismo dato.</p></div></div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="panel">
+        <div class="book-top">
+          <span class="bt-logo">T</span>
+          <div><div class="bt-name">Tucán Padel Center</div><div class="bt-sub">Reservá tu cancha</div></div>
+          <span class="bt-tag">En vivo</span>
+        </div>
+        <div class="book-dates">
+          <div class="book-date"><div class="d">05</div>Jue</div>
+          <div class="book-date on"><div class="d">06</div>Vie</div>
+          <div class="book-date"><div class="d">07</div>Sáb</div>
+          <div class="book-date"><div class="d">08</div>Dom</div>
+        </div>
+        <div class="book-label">Horarios — Cancha Central</div>
+        <div class="book-slots">
+          <div class="book-slot off">17:00</div>
+          <div class="book-slot off">18:30</div>
+          <div class="book-slot on">20:00</div>
+          <div class="book-slot">21:30</div>
+          <div class="book-slot">23:00</div>
+          <div class="book-slot off">00:30</div>
+        </div>
+        <div class="book-pay"><span>Seña para confirmar</span><b>$ 8.000</b></div>
+        <button class="book-btn">Señar y reservar · 20:00</button>
+        <div class="book-flow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          Tu reserva entra sola a la grilla del club y a la caja.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 2: CUENTA DEL TURNO ============ -->
+<section>
+  <div class="wrap dive rev">
+    <div class="dive-text">
+      <span class="eyebrow reveal">Operación · Cobro del turno</span>
+      <h2 class="section-title reveal">El turno, dividido jugador por jugador</h2>
+      <p class="section-lead reveal">La cuenta se reparte sola. El alquiler se divide entre los jugadores; los consumos se separan entre los del partido y los generales.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Alquiler dividido</h4><p>$32.000 ÷ 4 jugadores = $8.000 cada uno. Automático.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Consumos separados</h4><p>Los del partido se comparten; los generales se prorratean.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Quién pagó y quién debe</h4><p>Saldo por persona en vivo, incluyendo invitados.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Cierre seguro</h4><p>El turno solo se cierra cuando está 100% saldado.</p></div></div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="panel">
+        <div class="panel-head"><span class="pt">Cuenta del turno · Central</span><span class="pill">4 jugadores</span></div>
+        <div class="acct-row line"><span class="lbl"><span class="acct-ico" style="background:var(--primary-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B1F4D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4"/></svg></span> Alquiler de cancha</span><span class="amt">$ 32.000</span></div>
+        <div class="acct-row line"><span class="lbl"><span class="acct-ico" style="background:var(--amber-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg></span> Consumos del buffet</span><span class="amt">$ 9.600</span></div>
+        <div class="acct-total"><span class="lbl">Total de la cuenta</span><span class="amt">$ 41.600</span></div>
+        <div class="split">
+          <div class="split-card paid"><div class="av">M</div><div class="nm">Martín</div><div class="vl">Pagó</div></div>
+          <div class="split-card paid"><div class="av">L</div><div class="nm">Lucía</div><div class="vl">Pagó</div></div>
+          <div class="split-card"><div class="av">D</div><div class="nm">Diego</div><div class="vl">$ 10.400</div></div>
+          <div class="split-card"><div class="av">S</div><div class="nm">Sofía</div><div class="vl">$ 10.400</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MOTOR CONTABLE ============ -->
+<section style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">El cruce de información</span>
+      <h2 class="section-title reveal">Todo termina en el resultado, automáticamente</h2>
+      <p class="section-lead reveal">De cerrar un turno a vender una cerveza: cada acción operativa se traduce sola en asientos contables. Nadie carga el EERR a mano.</p>
+    </div>
+    <div class="motor reveal">
+      <div class="motor-grid">
+        <div class="motor-col">
+          <h4>Acción operativa</h4>
+          <div class="motor-item"><div class="mi-t">Cerrás un turno</div><div class="mi-d">Alquiler + consumos del partido</div></div>
+          <div class="motor-item"><div class="mi-t">Vendés una cerveza</div><div class="mi-d">Ingreso de buffet − costo (CMV)</div></div>
+          <div class="motor-item"><div class="mi-t">Pagás un proveedor</div><div class="mi-d">Sale de caja, baja la deuda</div></div>
+        </div>
+        <div class="motor-core">
+          <div class="mc-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+          <div class="mc-t">Motor contable</div>
+          <div class="mc-d">Una sola fuente de verdad. Lo operativo y lo contable son el mismo dato.</div>
+        </div>
+        <div class="motor-col motor-out">
+          <h4>Resultado automático</h4>
+          <div class="motor-item"><div class="mi-t">Estado de resultados</div><div class="mi-d">Ingresos por unidad y margen</div></div>
+          <div class="motor-item"><div class="mi-t">Caja y flujo de caja</div><div class="mi-d">Saldo real y proyección a futuro</div></div>
+          <div class="motor-item"><div class="mi-t">Cuentas por pagar</div><div class="mi-d">La deuda al proveedor, con vencimientos</div></div>
+        </div>
+      </div>
+      <div class="motor-foot">Cero doble carga · cero planillas paralelas · el resultado siempre al día</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 3: EERR ============ -->
+<section id="finanzas">
+  <div class="wrap dive">
+    <div class="dive-text">
+      <span class="eyebrow reveal">Finanzas · Estado de resultados</span>
+      <h2 class="section-title reveal">El resultado, con criterio contable</h2>
+      <p class="section-lead reveal">Devengado, IVA tratado como flujo y margen medido sobre el neto. No sobre las compras.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Cascada del resultado</h4><p>Ingresos − CMV − gastos, paso a paso.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Ingresos por unidad</h4><p>Canchas, clases, buffet y shop, separados.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Cómo se cobró</h4><p>Distribución por medio de pago del mes.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>IVA = flujo, no resultado</h4><p>El margen se mide sobre lo vendido.</p></div></div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="panel">
+        <div class="panel-head"><span class="pt">Ingresos por unidad · Mayo</span><span class="pill" style="background:var(--primary-soft);color:#0B1F4D;">Este mes</span></div>
+        <div class="eerr-bar-row"><span class="un">Canchas</span><div class="eerr-track"><div class="eerr-fill" style="width:88%;background:#0B1F4D;">$ 1.240.000</div></div></div>
+        <div class="eerr-bar-row"><span class="un">Buffet</span><div class="eerr-track"><div class="eerr-fill" style="width:46%;background:#39C54A;">$ 510.000</div></div></div>
+        <div class="eerr-bar-row"><span class="un">Clases</span><div class="eerr-track"><div class="eerr-fill" style="width:30%;background:#3E5C9A;">$ 320.000</div></div></div>
+        <div class="eerr-bar-row"><span class="un">Shop</span><div class="eerr-track"><div class="eerr-fill" style="width:18%;background:#D9F23B;color:#0B1F4D;">$ 190.000</div></div></div>
+        <div class="eerr-foot"><span class="l">Resultado del período</span><span class="r">+ $ 845.000</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIVE 4: FLUJO DE CAJA ============ -->
+<section style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap dive rev">
+    <div class="dive-text">
+      <span class="eyebrow reveal">Finanzas · Control financiero</span>
+      <h2 class="section-title reveal">Sabés cuánta caja vas a tener — antes de que falte</h2>
+      <p class="section-lead reveal">El flujo de caja no mira el pasado: arma el futuro con todo lo que ya está comprometido y avisa si la liquidez aprieta.</p>
+      <div class="dive-list">
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Saldo real de hoy</h4><p>El punto de partida: lo que hay en todas las cuentas, hoy.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Compromisos futuros</h4><p>Cuotas a proveedores, gastos recurrentes y reservas firmes.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>Proyección por período</h4><p>Semana a semana, el sistema arma el saldo que vas a tener.</p></div></div>
+        <div class="dive-li reveal"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><h4>El veredicto del sistema</h4><p>Avisa cuando el saldo proyectado se acerca al piso de caja.</p></div></div>
+      </div>
+    </div>
+    <div class="dive-visual reveal">
+      <div class="panel">
+        <div class="panel-head"><span class="pt">Proyección de liquidez</span><span class="pill">Horizonte 5 semanas</span></div>
+        <div class="cf-head" style="margin-bottom:6px;">
+          <div class="cf-kpi"><div class="k-l">Saldo proyectado</div><div class="k-v">$ 894.064</div></div>
+          <div class="cf-kpi"><div class="k-l">Piso de caja</div><div class="k-v">$ 894,1k</div></div>
+          <div class="cf-kpi ok"><div class="k-l">Liquidez</div><div class="k-v">Sin riesgo</div></div>
+        </div>
+        <svg class="cf-svg" viewBox="0 0 420 150" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="cfArea2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0B1F4D" stop-opacity="0.20"/>
+              <stop offset="100%" stop-color="#0B1F4D" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="110" x2="420" y2="110" stroke="#fca5a5" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="6" y="104" font-size="9" fill="#e11d48" font-family="Inter">Piso de caja</text>
+          <path d="M0,80 L80,70 L140,86 L140,150 L0,150 Z" fill="url(#cfArea2)"/>
+          <path d="M0,80 L80,70 L140,86" fill="none" stroke="#0B1F4D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M140,86 L210,74 L280,90 L350,82 L420,88" fill="none" stroke="#39C54A" stroke-width="3" stroke-dasharray="6 6" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="140" y1="40" x2="140" y2="140" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 4"/>
+          <circle cx="140" cy="86" r="4.5" fill="#fff" stroke="#0B1F4D" stroke-width="3"/>
+        </svg>
+        <div class="cf-legend"><span><span class="lg-real"></span> Real</span><span><span class="lg-proj"></span> Proyectado</span><span style="margin-left:auto;">▲ Hoy</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ROLES ============ -->
+<section id="roles">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Accesos y control</span>
+      <h2 class="section-title reveal">Cada rol ve lo que tiene que ver</h2>
+      <p class="section-lead reveal">El vendedor opera el día a día; el administrador maneja los números. Simple y seguro, sin información sensible expuesta.</p>
+    </div>
+    <div class="roles">
+      <div class="role admin reveal">
+        <div class="role-head">
+          <div class="role-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div><h3>Administrador</h3><div class="role-sub">Maneja los números y la configuración</div></div>
+        </div>
+        <div class="role-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Acceso total: finanzas, EERR y flujo de caja</div>
+        <div class="role-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Configuración: tarifas, productos, condición fiscal</div>
+        <div class="role-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Anulaciones y correcciones contables</div>
+      </div>
+      <div class="role vend reveal">
+        <div class="role-head">
+          <div class="role-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+          <div><h3>Vendedor</h3><div class="role-sub">Opera el día a día del club</div></div>
+        </div>
+        <div class="role-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Reservas, mostrador y cobros del turno</div>
+        <div class="role-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Apertura y cierre de su caja</div>
+        <div class="role-li no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg> Sin acceso a finanzas ni configuración</div>
+      </div>
+    </div>
+    <p class="steps-foot reveal">El dueño controla el resultado; el equipo opera tranquilo, sin tocar lo que no debe.</p>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section id="precios" style="background:var(--bg-soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Planes</span>
+      <h2 class="section-title reveal">Un precio claro, sin sorpresas</h2>
+      <p class="section-lead reveal">Empezás con lo operativo y sumás las finanzas cuando quieras. Sin permanencia: lo probás con los datos de tu club.</p>
+    </div>
+    <!-- TODO: reemplazá los precios de abajo por los valores reales de MatchGo -->
+    <div class="pricing">
+      <div class="plan reveal">
+        <h3>Operativo</h3>
+        <p class="plan-desc">Para ordenar el día a día del club y dejar las planillas.</p>
+        <div class="price">$ —<small> /mes</small></div>
+        <div class="price-note">por club · definir valor</div>
+        <div class="plan-list">
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Reservas y grilla del día</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Reservas online para jugadores</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Turnos fijos y clases</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Mostrador, buffet y stock</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Caja con arqueo</div>
+          <div class="plan-li off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg> Estado de resultados y flujo</div>
+          <div class="plan-li off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg> Tesorería y cuentas por pagar</div>
+        </div>
+        <a href="#demo" class="btn btn-ghost btn-lg" style="width:100%;">Pedí tu demo</a>
+      </div>
+      <div class="plan feat reveal">
+        <span class="plan-badge">Recomendado</span>
+        <h3>Completo</h3>
+        <p class="plan-desc">La operación + el control financiero. El club entero, contabilizado solo.</p>
+        <div class="price">$ —<small> /mes</small></div>
+        <div class="price-note">por club · definir valor</div>
+        <div class="plan-list">
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Todo lo del plan Operativo</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Estado de resultados por unidad</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Flujo de caja con proyección</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Tesorería, cuentas y CxP</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Gastos por unidad y recurrentes</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Tablero del dueño en vivo</div>
+        </div>
+        <a href="#demo" class="btn btn-primary btn-lg" style="width:100%;">Pedí tu demo</a>
+      </div>
+      <div class="plan reveal">
+        <h3>Multiclub</h3>
+        <p class="plan-desc">Para cadenas y grupos con más de un club o sede.</p>
+        <div class="price">A medida</div>
+        <div class="price-note">según cantidad de sedes</div>
+        <div class="plan-list">
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Todo lo del plan Completo</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Varias sedes en una cuenta</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Resultado consolidado y comparado</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Soporte prioritario</div>
+          <div class="plan-li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Acompañamiento en la puesta en marcha</div>
+        </div>
+        <a href="#demo" class="btn btn-ghost btn-lg" style="width:100%;">Hablemos</a>
+      </div>
+    </div>
+    <p class="pricing-note reveal">Todos los planes incluyen acceso remoto, roles y permisos, y actualizaciones. Sin costo de instalación en la etapa de clubes piloto.</p>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section>
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow reveal">Preguntas frecuentes</span>
+      <h2 class="section-title reveal">Lo que se suele preguntar</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Tengo que instalar algo?<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>No. MatchGo es 100% en la nube. Entrás desde una notebook, tablet o teléfono con internet — en el club o desde donde estés.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">Hoy llevo todo en Excel y cuadernos. ¿Puedo pasarme?<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Sí — el sistema nace para reemplazar las planillas paralelas. En la puesta en marcha cargamos tus canchas, horarios y tarifas, y empezás a operar desde la grilla. Lo que registrás una vez, queda contabilizado solo.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿De verdad no tengo que cargar la contabilidad a mano?<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Correcto. Cada turno que cobrás, cada venta del mostrador y cada gasto generan su asiento automáticamente. El dueño mira el estado de resultados y el flujo de caja — no planillas.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Sirve si tengo monotributo o soy responsable inscripto?<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Sí. El sistema contempla la condición fiscal del club: el responsable inscripto computa los gastos a neto (descuenta IVA) y el monotributista a total. El margen siempre se mide sobre el neto.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿El vendedor ve los números del club?<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>No. El vendedor opera reservas, mostrador, cobros y su caja. Las finanzas, el EERR y la configuración quedan reservados al administrador.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿En qué etapa está MatchGo?<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>En desarrollo activo, con clubes piloto operando. El núcleo —reservas, mostrador, caja, EERR, flujo de caja y tesorería— ya está funcionando. Por eso hoy te mostramos una demo en vivo con los datos de tu club.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section id="demo">
+  <div class="wrap">
+    <div class="cta-band reveal">
+      <h2>Mirá tu club como nunca lo viste</h2>
+      <p>Demo en vivo con los datos de tu club. Sin planillas, sin compromiso.</p>
+      <a href="#" class="btn btn-light btn-lg">Agendá tu demo</a>
+      <div class="hero-trust" style="margin-top:24px;">
+        <span><span class="dot"></span> Sin compromiso</span>
+        <span><span class="dot"></span> Acompañamiento en la puesta en marcha</span>
+        <span><span class="dot"></span> www.matchgo.com.ar</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#top" class="logo" aria-label="MatchGo — inicio">
+          <img src="assets/matchgo_logo.svg" alt="MatchGo" class="logo-img" />
+        </a>
+        <p>El sistema de gestión que contabiliza tu club solo. Operación y finanzas, una sola fuente de verdad.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Producto</h4>
+        <a href="#como">Cómo funciona</a>
+        <a href="#plataforma">La plataforma</a>
+        <a href="#finanzas">Finanzas</a>
+        <a href="#precios">Precios</a>
+      </div>
+      <div class="foot-col">
+        <h4>Recursos</h4>
+        <a href="#demo">Pedí tu demo</a>
+        <a href="#roles">Roles y permisos</a>
+        <a href="#precios">Preguntas frecuentes</a>
+      </div>
+      <div class="foot-col">
+        <h4>Contacto</h4>
+        <p>hola@matchgo.com.ar</p>
+        <p>www.matchgo.com.ar</p>
+        <p>Argentina</p>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 MatchGo. Todos los derechos reservados.</span>
+      <span>Hecho en Argentina 🇦🇷</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Mobile menu
+  var toggle = document.getElementById('navToggle');
+  var menu = document.getElementById('mobileMenu');
+  toggle.addEventListener('click', function () {
+    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+  });
+  menu.querySelectorAll('a').forEach(function (a) {
+    a.addEventListener('click', function () { menu.style.display = 'none'; });
+  });
+
+  // FAQ accordion
+  document.querySelectorAll('.faq-item').forEach(function (item) {
+    var q = item.querySelector('.faq-q');
+    var a = item.querySelector('.faq-a');
+    q.addEventListener('click', function () {
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(function (other) {
+        other.classList.remove('open');
+        other.querySelector('.faq-a').style.maxHeight = null;
+      });
+      if (!isOpen) {
+        item.classList.add('open');
+        a.style.maxHeight = a.scrollHeight + 'px';
+      }
+    });
+  });
+
+  // Scroll reveal
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+</script>
+
+</body>
+</html>

@@ -353,8 +353,29 @@ export function PersonasTurnoSection({
     medio: MedioPago,
     obs: string | null,
     monto: number,
+    nombreInvitado: string | null,
   ): Promise<void> {
     setError(null);
+    // Si es un invitado y se ingresó un nombre, lo persistimos en
+    // reserva_jugadores.nombre_libre ANTES de cobrar. Si el UPDATE falla, NO
+    // cobramos (return). Si luego falla el cobro, el nombre ya quedó guardado
+    // (aceptable — no es dinero). Campo vacío o jugador → se saltea.
+    if (saldo.tipo === 'invitado' && nombreInvitado) {
+      try {
+        await actualizar.mutateAsync({
+          id: saldo.reservaJugadorId,
+          reserva_id: reservaId,
+          changes: { nombre_libre: nombreInvitado },
+        });
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'No pudimos guardar el nombre del invitado.',
+        );
+        return;
+      }
+    }
     try {
       await cobrar.mutateAsync({
         reserva_jugador_id: saldo.reservaJugadorId,
@@ -518,6 +539,7 @@ export function PersonasTurnoSection({
                 <InvitadoCard
                   key={inv.id}
                   numero={idx + 1}
+                  nombreLibre={inv.nombre_libre}
                   saldo={saldo}
                   cobrosBloqueados={cobrosBloqueados}
                   cobrandoActivo={cobrandoId === inv.id}
@@ -859,6 +881,7 @@ interface JugadorCardProps {
     medio: MedioPago,
     obs: string | null,
     monto: number,
+    nombreInvitado: string | null,
   ) => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
@@ -996,6 +1019,7 @@ function JugadorCard({
         <CobrarPersonaInline
           nombre={label}
           saldo={saldo}
+          nombreLibreActual={persona.nombre_libre}
           onCancelar={onCancelarCobrar}
           onConfirmar={onConfirmarCobro}
           disabled={disabled}
@@ -1011,6 +1035,8 @@ function JugadorCard({
 
 interface InvitadoCardProps {
   numero: number;
+  /** nombre_libre actual del invitado (0065) — pre-rellena el campo de nombre. */
+  nombreLibre?: string | null;
   saldo: SaldoPersona | undefined;
   cobrosBloqueados: boolean;
   cobrandoActivo: boolean;
@@ -1021,6 +1047,7 @@ interface InvitadoCardProps {
     medio: MedioPago,
     obs: string | null,
     monto: number,
+    nombreInvitado: string | null,
   ) => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
@@ -1028,6 +1055,7 @@ interface InvitadoCardProps {
 
 function InvitadoCard({
   numero,
+  nombreLibre,
   saldo,
   cobrosBloqueados,
   cobrandoActivo,
@@ -1090,6 +1118,7 @@ function InvitadoCard({
         <CobrarPersonaInline
           nombre={label}
           saldo={saldo}
+          nombreLibreActual={nombreLibre}
           onCancelar={onCancelarCobrar}
           onConfirmar={onConfirmarCobro}
           disabled={disabled}
@@ -1276,25 +1305,34 @@ function AccionCobrar({
 function CobrarPersonaInline({
   nombre,
   saldo,
+  nombreLibreActual,
   onCancelar,
   onConfirmar,
   disabled,
 }: {
   nombre: string;
   saldo: SaldoPersona;
+  nombreLibreActual?: string | null;
   onCancelar: () => void;
   onConfirmar: (
     saldo: SaldoPersona,
     medio: MedioPago,
     obs: string | null,
     monto: number,
+    nombreInvitado: string | null,
   ) => Promise<void>;
   disabled: boolean;
 }) {
   const montoFieldId = useId();
+  const nombreInvitadoFieldId = useId();
   // Monto editable, pre-relleno con el saldo completo. Se guarda como string
   // para permitir edición libre; se parsea/valida al confirmar. Pesos enteros.
   const [montoStr, setMontoStr] = useState<string>(String(saldo.saldo));
+  // Nombre del invitado (0065): solo para tipo='invitado'. Pre-rellena con el
+  // nombre_libre actual; vacío si es "Invitado N" (label calculado).
+  const [nombreInvitado, setNombreInvitado] = useState<string>(
+    nombreLibreActual ?? '',
+  );
   const [medio, setMedio] = useState<MedioPago | null>('efectivo');
   const [obs, setObs] = useState('');
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
@@ -1327,6 +1365,7 @@ function CobrarPersonaInline({
       medio,
       obs.trim() === '' ? null : obs.trim(),
       montoNum,
+      nombreInvitado.trim() === '' ? null : nombreInvitado.trim(),
     );
   }
 
@@ -1339,6 +1378,26 @@ function CobrarPersonaInline({
       <h5 className="text-xs font-semibold text-foreground">
         Cobrar a {nombre}
       </h5>
+
+      {/* Nombre del invitado (0065) — solo para invitados. Al confirmar, si se
+          ingresó, se guarda en reserva_jugadores.nombre_libre antes de cobrar. */}
+      {saldo.tipo === 'invitado' && (
+        <div className="space-y-1">
+          <Label htmlFor={nombreInvitadoFieldId} className="text-xs">
+            Nombre del invitado (opcional)
+          </Label>
+          <Input
+            id={nombreInvitadoFieldId}
+            type="text"
+            value={nombreInvitado}
+            onChange={(e) => setNombreInvitado(e.target.value)}
+            disabled={disabled}
+            maxLength={120}
+            placeholder="Ej: Carlos García"
+            className="h-7 text-xs"
+          />
+        </div>
+      )}
 
       {/* Monto a cobrar — pre-relleno con el saldo, editable hacia abajo para
           cobro parcial (0064). */}
@@ -1403,15 +1462,27 @@ function CobrarPersonaInline({
         </div>
       </div>
 
+      {/* Observación contextual: con transferencia se vuelve "¿Quién
+          transfirió?" (el dato que la reconciliación de transferencias lee
+          desde reserva_pagos.observaciones). Mismo estado `obs`, misma cadena
+          aguas abajo — solo cambia la presentación. */}
       <div className="space-y-1">
-        <Label className="text-xs">Observación (opcional)</Label>
+        <Label className="text-xs">
+          {medio === 'transferencia'
+            ? '¿Quién transfirió? (opcional)'
+            : 'Observación (opcional)'}
+        </Label>
         <Input
           type="text"
           value={obs}
           onChange={(e) => setObs(e.target.value)}
           disabled={disabled}
-          maxLength={500}
-          placeholder="Notas internas…"
+          maxLength={medio === 'transferencia' ? 120 : 500}
+          placeholder={
+            medio === 'transferencia'
+              ? 'Nombre o alias del titular'
+              : 'Notas internas…'
+          }
           className="h-7 text-xs"
         />
       </div>

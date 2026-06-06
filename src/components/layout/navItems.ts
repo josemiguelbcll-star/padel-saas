@@ -5,6 +5,7 @@ import {
   Repeat,
   Users,
   Wallet,
+  ArrowLeftRight,
   ShoppingCart,
   Package,
   PieChart,
@@ -65,7 +66,15 @@ export const navItems: NavItem[] = [
     ],
   },
   { label: 'Jugadores', to: '/jugadores', icon: Users },
-  { label: 'Caja', to: '/caja', icon: Wallet },
+  {
+    label: 'Caja',
+    to: '/caja',
+    icon: Wallet,
+    children: [
+      { label: 'Efectivo', to: '/caja/efectivo', icon: Wallet },
+      { label: 'Transferencias', to: '/caja/transferencias', icon: ArrowLeftRight },
+    ],
+  },
   {
     label: 'Mostrador',
     to: '/buffet',

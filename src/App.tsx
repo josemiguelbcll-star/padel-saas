@@ -20,7 +20,7 @@ import {
   TesoreriaPage,
 } from '@/features/configuracion';
 import { BuffetPage } from '@/features/buffet';
-import { CajaPage } from '@/features/caja';
+import { CajaLayout, CajaPage, TransferenciasPage } from '@/features/caja';
 import {
   FinanzasPage,
   GastosPage,
@@ -91,7 +91,11 @@ export function App() {
 
         <Route path="buffet" element={<BuffetPage />} />
 
-        <Route path="caja" element={<CajaPage />} />
+        <Route path="caja" element={<CajaLayout />}>
+          <Route index element={<Navigate to="/caja/efectivo" replace />} />
+          <Route path="efectivo" element={<CajaPage />} />
+          <Route path="transferencias" element={<TransferenciasPage />} />
+        </Route>
 
         <Route path="finanzas" element={<FinanzasPage />} />
         <Route path="flujo-caja" element={<FlujoCajaPage />} />
