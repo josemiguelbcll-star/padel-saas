@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Calendar,
+  ChevronRight,
   Clock,
   Loader2,
   Plus,
@@ -17,6 +18,7 @@ import { GastosList } from './GastosList';
 import { NuevoGastoDialog } from './NuevoGastoDialog';
 import { RecurrentesPanel } from './RecurrentesPanel';
 import { useGastos } from './hooks/useGastos';
+import { useCuentasPorPagar } from './hooks/useCuentasPorPagar';
 import { useAnularGasto } from './hooks/useAnulaciones';
 
 const fechaGastoFmt = new Intl.DateTimeFormat('es-AR', {
@@ -53,6 +55,7 @@ type Tab = 'movimientos' | 'recurrentes';
  */
 export function GastosPage() {
   const gastosQuery = useGastos();
+  const cxpQuery = useCuentasPorPagar();
   const anular = useAnularGasto();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('movimientos');
@@ -84,10 +87,9 @@ export function GastosPage() {
   const mesActual = ahora.getMonth();
   const mesLabel = mesActualFmt.format(ahora);
 
-  const { totalMes, totalPendiente, cantMes } = useMemo(() => {
+  const { totalMes, cantMes } = useMemo(() => {
     const gastos = gastosQuery.data ?? [];
     let totalMes = 0;
-    let totalPendiente = 0;
     let cantMes = 0;
     for (const g of gastos) {
       const fecha = new Date(g.fecha_gasto + 'T00:00:00');
@@ -95,12 +97,20 @@ export function GastosPage() {
         totalMes += Number(g.monto);
         cantMes++;
       }
-      if (g.fecha_pago === null) {
-        totalPendiente += Number(g.monto);
-      }
     }
-    return { totalMes, totalPendiente, cantMes };
+    return { totalMes, cantMes };
   }, [gastosQuery.data, anioActual, mesActual]);
+
+  // Pendiente de pago = deuda REAL, derivada de las CUOTAS pendientes (misma
+  // fuente que el "Total adeudado" de CxP, useCuentasPorPagar) → ambos números
+  // coinciden por construcción. NO mirar gastos.fecha_pago: el gasto madre de
+  // una compra a plazo nace con fecha_pago NULL aunque su cuota esté pagada.
+  const { totalPendiente, cantPendiente } = useMemo(() => {
+    const cuotas = cxpQuery.data ?? [];
+    let totalPendiente = 0;
+    for (const c of cuotas) totalPendiente += c.monto;
+    return { totalPendiente, cantPendiente: cuotas.length };
+  }, [cxpQuery.data]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-6 md:py-8">
@@ -172,9 +182,10 @@ export function GastosPage() {
             <KpiCard
               label="Pendientes de pago"
               monto={totalPendiente}
-              subtitle="De todos los períodos · aún sin fecha de pago"
+              subtitle={`${cantPendiente} cuota${cantPendiente === 1 ? '' : 's'} por pagar`}
               icon={Clock}
               variant="warn"
+              to="/cxp"
             />
             <KpiCard
               label="Promedio diario del mes"
@@ -310,12 +321,15 @@ function KpiCard({
   subtitle,
   icon: Icon,
   variant,
+  to,
 }: {
   label: string;
   monto: number;
   subtitle: string;
   icon: LucideIcon;
   variant: 'negative' | 'warn' | 'neutral';
+  /** Si viene, la card es un link clickeable a esa ruta (cursor + hover). */
+  to?: string;
 }) {
   const color =
     variant === 'negative'
@@ -330,8 +344,8 @@ function KpiCard({
         ? 'hsl(var(--estado-senada) / 0.10)'
         : 'hsl(var(--muted) / 0.5)';
 
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
+  const contenido = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
@@ -346,7 +360,34 @@ function KpiCard({
       <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">
         {currencyFmt.format(monto)}
       </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{subtitle}</p>
-    </div>
+      <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+        {subtitle}
+        {to && (
+          <span className="ml-auto inline-flex items-center gap-0.5 font-medium text-foreground/60 transition-colors group-hover:text-foreground">
+            Ver detalle
+            <ChevronRight className="h-3 w-3" aria-hidden="true" />
+          </span>
+        )}
+      </p>
+    </>
   );
+
+  const base = 'rounded-lg border border-border bg-card p-4';
+
+  if (to) {
+    return (
+      <Link
+        to={to}
+        className={cn(
+          base,
+          'group block cursor-pointer transition-colors hover:border-foreground/20 hover:bg-muted/30',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        )}
+      >
+        {contenido}
+      </Link>
+    );
+  }
+
+  return <div className={base}>{contenido}</div>;
 }

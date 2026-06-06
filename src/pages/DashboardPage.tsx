@@ -45,6 +45,7 @@ import {
   useIngresosDiariosMes,
   type IngresosDiariosMes,
 } from '@/features/finanzas/hooks/useIngresosDiariosMes';
+import { BandaHoy } from '@/features/dashboard';
 
 // ─────────────────────────────────────────────────────────────────────
 // Formatters + constantes
@@ -215,6 +216,12 @@ function AdminDashboard({ anio, mes }: AdminDashboardProps) {
 
   return (
     <div className="space-y-5">
+      <BandaHoy />
+
+      <h2 className="border-t border-border pt-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Este mes
+      </h2>
+
       <KpiGrid
         actual={resumenActual.data ?? null}
         anterior={resumenAnterior.data ?? null}

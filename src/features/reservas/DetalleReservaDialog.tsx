@@ -168,9 +168,6 @@ function DetalleReservaBody({
   const estaCerrado = reserva.cerrado_en !== null;
   const estaCancelado = reserva.estado === 'cancelada';
 
-  // Cerrar: cualquier turno no cancelado y no cerrado.
-  const puedeCerrar = !estaCancelado && !estaCerrado;
-
   // Cancelar: solo turnos sin plata ni consumo, no cerrados. Mostramos el
   // motivo para que el vendedor entienda por qué no puede ANTES de apretar
   // (el server igual lo blinda con la 0055).
@@ -198,11 +195,15 @@ function DetalleReservaBody({
     new Date(),
   );
 
-  // "Todos pagaron" para el nudge de cierre: todas las personas saldadas
-  // (mismo cálculo per-persona de cuentaTurno que usa PersonasTurnoSection).
-  const todoSaldado = useMemo<boolean>(() => {
+  // Cuenta del turno per-persona (mismo cálculo que PersonasTurnoSection y que
+  // el guard de la RPC 0064): `todoSaldado` para el nudge/habilitación del
+  // cierre, y `saldoPendiente` (suma de saldos > 0) para el hint de bloqueo.
+  const { todoSaldado, saldoPendiente } = useMemo<{
+    todoSaldado: boolean;
+    saldoPendiente: number;
+  }>(() => {
     const personas = jugadoresQuery.data ?? [];
-    if (personas.length === 0) return false;
+    if (personas.length === 0) return { todoSaldado: false, saldoPendiente: 0 };
     const consumos = consumosQuery.data ?? [];
     const pagos = pagosQuery.data ?? [];
     const totalConsumosPartido = consumos
@@ -227,8 +228,17 @@ function DetalleReservaBody({
       })),
       desglose,
     });
-    return saldos.length > 0 && saldos.every((s) => s.estado === 'saldada');
+    return {
+      todoSaldado:
+        saldos.length > 0 && saldos.every((s) => s.estado === 'saldada'),
+      saldoPendiente: saldos.reduce((acc, s) => acc + s.saldo, 0),
+    };
   }, [jugadoresQuery.data, consumosQuery.data, pagosQuery.data, reserva.monto_total]);
+
+  // Cerrar: turno no cancelado, no cerrado Y saldado (0064). El guard de la RPC
+  // lo refuerza server-side; acá lo prevenimos para no ofrecer una acción que
+  // fallaría con saldo pendiente.
+  const puedeCerrar = !estaCancelado && !estaCerrado && todoSaldado;
 
   /**
    * Las mutations de reservas (actualizar y cobrar) devuelven un Reserva
@@ -467,17 +477,19 @@ function DetalleReservaBody({
           </div>
         ) : (
           <div className="flex flex-wrap items-end justify-end gap-2">
-            {puedeCerrar && !todoSaldado && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  void handleCerrarTurno();
-                }}
-                disabled={cerrarMutation.isPending}
+            {/* Saldo pendiente: no se ofrece "Cerrar turno" (la RPC 0064 lo
+                rechazaría). Hint con el total a cobrar antes de poder cerrar. */}
+            {!estaCancelado && !estaCerrado && !todoSaldado && saldoPendiente > 0 && (
+              <p
+                className="self-center text-[11px]"
+                style={{ color: 'hsl(var(--estado-senada))' }}
               >
-                {cerrarMutation.isPending ? 'Cerrando…' : 'Cerrar turno'}
-              </Button>
+                Hay{' '}
+                <span className="font-semibold tabular-nums">
+                  {fmtMoney(saldoPendiente)}
+                </span>{' '}
+                sin cobrar · Saldá el turno antes de cerrar.
+              </p>
             )}
             <div className="flex flex-col items-end gap-1">
               <Button

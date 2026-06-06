@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
   Check,
@@ -352,6 +352,7 @@ export function PersonasTurnoSection({
     saldo: SaldoPersona,
     medio: MedioPago,
     obs: string | null,
+    monto: number,
   ): Promise<void> {
     setError(null);
     try {
@@ -361,7 +362,13 @@ export function PersonasTurnoSection({
         fecha,
         medio_pago: medio,
         observaciones: obs,
+        // monto_esperado = saldo completo: valida anti-race el caso "cobro
+        // total". Para el parcial, la RPC valida monto <= saldo recalculado.
         monto_esperado: saldo.saldo,
+        // Cobro parcial: sólo mandamos `monto` si es MENOR al saldo. Si es
+        // igual, lo omitimos → la RPC cobra el saldo completo (comportamiento
+        // histórico, validación cruzada normal). cuenta_id: implícito por medio.
+        ...(monto < saldo.saldo ? { monto } : {}),
       });
       setCobrandoId(null);
     } catch (err) {
@@ -851,6 +858,7 @@ interface JugadorCardProps {
     saldo: SaldoPersona,
     medio: MedioPago,
     obs: string | null,
+    monto: number,
   ) => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
@@ -1012,6 +1020,7 @@ interface InvitadoCardProps {
     saldo: SaldoPersona,
     medio: MedioPago,
     obs: string | null,
+    monto: number,
   ) => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
@@ -1278,12 +1287,23 @@ function CobrarPersonaInline({
     saldo: SaldoPersona,
     medio: MedioPago,
     obs: string | null,
+    monto: number,
   ) => Promise<void>;
   disabled: boolean;
 }) {
+  const montoFieldId = useId();
+  // Monto editable, pre-relleno con el saldo completo. Se guarda como string
+  // para permitir edición libre; se parsea/valida al confirmar. Pesos enteros.
+  const [montoStr, setMontoStr] = useState<string>(String(saldo.saldo));
   const [medio, setMedio] = useState<MedioPago | null>('efectivo');
   const [obs, setObs] = useState('');
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
+
+  const montoNum = Number.parseInt(montoStr, 10);
+  const montoValido =
+    Number.isInteger(montoNum) && montoNum >= 1 && montoNum <= saldo.saldo;
+  const saldoRestante = montoValido ? saldo.saldo - montoNum : 0;
+  const esParcial = montoValido && saldoRestante > 0;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1292,7 +1312,22 @@ function CobrarPersonaInline({
       setErrorLocal('Elegí un medio de pago.');
       return;
     }
-    await onConfirmar(saldo, medio, obs.trim() === '' ? null : obs.trim());
+    if (!Number.isInteger(montoNum) || montoNum < 1) {
+      setErrorLocal('Ingresá un monto válido (mínimo $1).');
+      return;
+    }
+    if (montoNum > saldo.saldo) {
+      setErrorLocal(
+        `El monto no puede superar el saldo de ${fmtMoney(saldo.saldo)}.`,
+      );
+      return;
+    }
+    await onConfirmar(
+      saldo,
+      medio,
+      obs.trim() === '' ? null : obs.trim(),
+      montoNum,
+    );
   }
 
   return (
@@ -1302,8 +1337,46 @@ function CobrarPersonaInline({
       noValidate
     >
       <h5 className="text-xs font-semibold text-foreground">
-        Cobrar {fmtMoney(saldo.saldo)} a {nombre}
+        Cobrar a {nombre}
       </h5>
+
+      {/* Monto a cobrar — pre-relleno con el saldo, editable hacia abajo para
+          cobro parcial (0064). */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <Label htmlFor={montoFieldId} className="text-xs">
+            Monto a cobrar
+          </Label>
+          <span className="text-[11px] text-muted-foreground">
+            Saldo:{' '}
+            <span className="font-medium tabular-nums text-foreground">
+              {fmtMoney(saldo.saldo)}
+            </span>
+          </span>
+        </div>
+        <Input
+          id={montoFieldId}
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={saldo.saldo}
+          step={1}
+          value={montoStr}
+          onChange={(e) => setMontoStr(e.target.value)}
+          disabled={disabled}
+          className="h-8 text-sm tabular-nums"
+          aria-label={`Monto a cobrar a ${nombre}`}
+        />
+        {esParcial && (
+          <p className="text-[11px]" style={{ color: COLOR_WARN }}>
+            Quedará un saldo pendiente de{' '}
+            <span className="font-medium tabular-nums">
+              {fmtMoney(saldoRestante)}
+            </span>{' '}
+            para esta persona.
+          </p>
+        )}
+      </div>
 
       <div className="space-y-1">
         <Label className="text-xs">Medio de pago</Label>

@@ -1,11 +1,22 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CatalogoTab } from './CatalogoTab';
 import { MovimientosTab } from './MovimientosTab';
 import { ComprasTab } from './ComprasTab';
+import { ReposicionTab } from './ReposicionTab';
 
-type Tab = 'catalogo' | 'movimientos' | 'compras';
+type Tab = 'catalogo' | 'movimientos' | 'compras' | 'reposicion';
+
+function esTab(v: string | null): v is Tab {
+  return (
+    v === 'catalogo' ||
+    v === 'movimientos' ||
+    v === 'compras' ||
+    v === 'reposicion'
+  );
+}
 
 /**
  * Página principal del módulo de Inventario (Nivel A, Bloque 2).
@@ -18,7 +29,13 @@ type Tab = 'catalogo' | 'movimientos' | 'compras';
  *     / período).
  */
 export function InventarioPage() {
-  const [tab, setTab] = useState<Tab>('catalogo');
+  // Tab inicial desde la URL (?tab=reposicion) → deep-link desde la alarma del
+  // dashboard. Solo inicializa; el cambio de tab posterior no toca la URL.
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get('tab');
+    return esTab(t) ? t : 'catalogo';
+  });
 
   return (
     <div className="space-y-5">
@@ -37,6 +54,7 @@ export function InventarioPage() {
       {tab === 'catalogo' && <CatalogoTab />}
       {tab === 'movimientos' && <MovimientosTab />}
       {tab === 'compras' && <ComprasTab />}
+      {tab === 'reposicion' && <ReposicionTab />}
     </div>
   );
 }
@@ -50,6 +68,7 @@ const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
   { value: 'catalogo', label: 'Catálogo + stock' },
   { value: 'movimientos', label: 'Movimientos' },
   { value: 'compras', label: 'Compras' },
+  { value: 'reposicion', label: 'Reposición' },
 ];
 
 function TabsBar({ activa, onChange }: TabsBarProps) {

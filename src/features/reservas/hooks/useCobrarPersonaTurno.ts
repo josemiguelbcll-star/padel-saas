@@ -24,8 +24,28 @@ export interface CobrarPersonaTurnoInput {
    * coincide, RECHAZA con mensaje claro pidiendo refrescar.
    * Protege contra race con cambios concurrentes (otro vendedor
    * agregó consumo o quitó persona entre el render y el cobro).
+   *
+   * NOTA (0064): la validación cruzada con monto_esperado sólo aplica
+   * cuando NO se manda `monto` (cobro del saldo completo). En un cobro
+   * parcial la RPC valida `monto <= saldo` recalculado.
    */
   monto_esperado: number;
+  /**
+   * Monto a cobrar (0064). OPCIONAL:
+   *   - omitido → la RPC cobra el SALDO COMPLETO de la persona
+   *     (comportamiento histórico, no rompe callers).
+   *   - con valor → cobro PARCIAL: la RPC valida 0 < monto <= saldo y
+   *     prorratea el desglose alquiler/consumo proporcional al monto.
+   */
+  monto?: number;
+  /**
+   * Cuenta destino del cobro (tesorería, 0058). OPCIONAL:
+   *   - omitido → la RPC usa la cuenta default del medio de pago
+   *     (medio_cuenta_default).
+   *   - con valor → esa cuenta (validada server-side contra el club).
+   * El hook nunca lo mandaba hasta la Parte 2; ahora sí cuando viene.
+   */
+  cuenta_id?: number;
 }
 
 /**
@@ -66,6 +86,10 @@ export function useCobrarPersonaTurno(): UseMutationResult<
         p_medio_pago: input.medio_pago,
         p_observaciones: input.observaciones,
         p_monto_esperado: input.monto_esperado,
+        // 0058: cuenta destino; 0064: monto parcial. `?? null` → la RPC cae
+        // a su DEFAULT (cuenta del medio / saldo completo) cuando se omiten.
+        p_cuenta_id: input.cuenta_id ?? null,
+        p_monto: input.monto ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
