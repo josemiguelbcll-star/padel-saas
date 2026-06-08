@@ -41,7 +41,7 @@ export function OnboardingPage() {
   // Vendedores no entran al wizard. Lo gateamos acá además de en el item
   // del sidebar para defender la URL directa.
   if (user && user.rol !== 'admin') {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const canchasDone = (canchasQuery.data?.length ?? 0) > 0;
@@ -64,7 +64,7 @@ export function OnboardingPage() {
     if (step < 3) {
       setStep(clampStep(step + 1));
     } else {
-      navigate('/');
+      navigate('/app');
     }
   }
 

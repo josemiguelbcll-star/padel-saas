@@ -107,6 +107,14 @@ export interface Club {
    * compras.condicion_fiscal_club al recibir.
    */
   condicion_fiscal: CondicionFiscalClub;
+
+  // Perfil público B2C (0067).
+  descripcion: string | null;
+  lat: number | null;
+  lng: number | null;
+  instagram: string | null;
+  website: string | null;
+  perfil_publico_activo: boolean;
 }
 
 /**

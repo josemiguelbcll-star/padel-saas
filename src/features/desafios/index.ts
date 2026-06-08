@@ -1,0 +1,1 @@
+export { DesafiosPrototype } from './DesafiosPrototype';

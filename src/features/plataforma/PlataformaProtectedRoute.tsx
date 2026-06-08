@@ -64,7 +64,7 @@ export function PlataformaProtectedRoute({
   // No superadmin: si hay sesión de club, mandar a la app del club;
   // si no, al login.
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   return <Navigate to="/login" replace />;

@@ -1,0 +1,74 @@
+{
+  "name": "MatchGo",
+  "short_name": "MatchGo",
+  "description": "Reservá tu cancha y encontrá gente de tu comunidad para jugar pádel en Salta.",
+  "start_url": "/player",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1F4D",
+  "theme_color": "#0B1F4D",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "categories": ["sports", "lifestyle", "social"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/assets/padel-1.jpg",
+      "sizes": "1280x800",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "MatchGo — Reservá tu cancha"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Reservar cancha",
+      "short_name": "Reservar",
+      "description": "Ver clubes y turnos disponibles",
+      "url": "/player?tab=reservar&utm_source=shortcut",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Buscar partido",
+      "short_name": "Jugar",
+      "description": "Encontrá gente de tu comunidad para jugar",
+      "url": "/player?tab=jugar&utm_source=shortcut",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Mis partidos",
+      "short_name": "Partidos",
+      "description": "Ver mis reservas y historial",
+      "url": "/player?tab=partidos&utm_source=shortcut",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

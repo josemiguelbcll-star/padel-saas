@@ -242,6 +242,11 @@ function HorariosForm({ initial }: HorariosFormProps) {
             </button>
           ))}
         </div>
+        {!(DURACIONES_TURNO_VALIDAS as readonly number[]).includes(state.duracion_turno_default) && (
+          <p className="text-xs text-amber-600">
+            El valor guardado ({state.duracion_turno_default} min) no es válido. Elegí una duración de la lista y guardá para corregirlo.
+          </p>
+        )}
         {errors.duracion_turno_default && (
           <p className="text-xs text-destructive">
             {errors.duracion_turno_default}

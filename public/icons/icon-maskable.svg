@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    Maskable icon para Android adaptive icons.
+    Safe zone = círculo interno de 80% (radio 205px desde el centro 256,256).
+    Todo el contenido importante dentro de ese círculo.
+    Fondo llena TODO el cuadrado (sin rx).
+  -->
+  <rect width="512" height="512" fill="#0B1F4D"/>
+
+  <!-- M estilizada (un poco más pequeña para safe zone) -->
+  <path
+    d="M 120 400 L 175 126 L 256 230 L 337 126 L 392 400"
+    fill="none"
+    stroke="white"
+    stroke-width="54"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Pelota lima -->
+  <circle cx="346" cy="138" r="74" fill="#D9F23B"/>
+
+  <!-- Costura -->
+  <path d="M 322 116 Q 346 138 322 160" fill="none" stroke="#0B1F4D" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 370 116 Q 346 138 370 160" fill="none" stroke="#0B1F4D" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- Chevrones -->
+  <path d="M 130 312 L 150 328 L 130 344" fill="none" stroke="#39C54A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  <path d="M 150 312 L 172 328 L 150 344" fill="none" stroke="#39C54A" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>
+  <path d="M 172 312 L 196 328 L 172 344" fill="none" stroke="#39C54A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

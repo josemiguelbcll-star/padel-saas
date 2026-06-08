@@ -2,10 +2,52 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
-    <title>Padel SaaS</title>
+    <!-- Ícono principal (favicon + PWA) -->
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png" />
+
+    <!-- Viewport: viewport-fit=cover para iPhones con notch/dynamic island -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+
+    <!-- Theme color (marino MatchGo) — barra del sistema en Android -->
+    <meta name="theme-color" content="#0B1F4D" />
+
+    <!-- PWA general -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- ── iOS / Safari ─────────────────────────────────────────────── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- black-translucent: el contenido va detrás de la status bar (safe-area-inset funciona) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MatchGo" />
+    <!-- Ícono para "Agregar al inicio" en Safari -->
+    <link rel="apple-touch-icon" href="/icons/icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon.svg" />
+
+    <!-- Splash screens iOS (marino MatchGo mientras carga) -->
+    <!-- iPhone 14 Pro Max -->
+    <link rel="apple-touch-startup-image"
+      media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)"
+      href="/icons/splash-1290x2796.svg" />
+    <!-- iPhone 14 / 13 / 12 -->
+    <link rel="apple-touch-startup-image"
+      media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+      href="/icons/splash-1170x2532.svg" />
+    <!-- iPhone SE -->
+    <link rel="apple-touch-startup-image"
+      media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)"
+      href="/icons/splash-750x1334.svg" />
+
+    <!-- ── Open Graph (compartir en WhatsApp / redes) ────────────────── -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:title"       content="MatchGo — Pádel en Salta" />
+    <meta property="og:description" content="Reservá tu cancha y encontrá gente de tu comunidad para jugar." />
+    <meta property="og:image"       content="/assets/padel-1.jpg" />
+    <meta property="og:locale"      content="es_AR" />
+
+    <title>MatchGo — Reservá tu cancha</title>
     <!--
       Anti-flash del color de marca (0016 — etapa 1). Si el club tiene
       un color guardado en localStorage (lo escribe SessionProvider al

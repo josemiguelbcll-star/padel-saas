@@ -1,0 +1,1180 @@
+/* ============================================================
+   MatchGo Player App — CSS
+   Scope: .mg-player
+   Brand: marino #0B1F4D · green #39C54A · lima #D9F23B
+   Fonts: Poppins (display) · Inter (body)
+   ============================================================ */
+
+/* --- Google Fonts import --- */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700;800&family=Inter:wght@400;500;600&display=swap');
+
+/* ============================================================
+   CSS CUSTOM PROPERTIES — definidas en :root para que estén
+   disponibles en auth/onboarding (fuera de .mg-player)
+   ============================================================ */
+:root {
+  /* ── Brand ── */
+  --mgp-marino:    #0B1F4D;
+  --mgp-green:     #39C54A;
+  --mgp-lima:      #D9F23B;
+
+  /* ── Neutros ── */
+  --mgp-muted:     #64748B;
+  --mgp-bg:        #F8F9FC;
+  --mgp-surface:   #ffffff;
+  --mgp-border:    #E2E8F0;
+
+  /* ── Texto ── */
+  --mgp-text:      #1E293B;
+  --mgp-text-sub:  #374151;
+
+  /* ── Estados semánticos ── */
+  --mgp-success:     #16A34A;
+  --mgp-success-bg:  #F0FDF4;
+  --mgp-warning:     #D97706;
+  --mgp-warning-bg:  #FFFBEB;
+  --mgp-danger:      #DC2626;
+  --mgp-danger-bg:   #FEE2E2;
+  --mgp-info:        #2563EB;
+  --mgp-info-bg:     #EFF6FF;
+
+  /* ── Valle pricing ── */
+  --mgp-valle-text:  #4D7C0F;
+  --mgp-valle-bg:    #F7FEE7;
+  --mgp-valle-badge: #ECFCCB;
+
+  /* ── Spacing scale ── */
+  --mgp-sp-xs:  4px;
+  --mgp-sp-sm:  8px;
+  --mgp-sp-md:  12px;
+  --mgp-sp-lg:  16px;
+  --mgp-sp-xl:  24px;
+
+  /* ── Border radius ── */
+  --mgp-r-sm:   8px;
+  --mgp-r-md:   12px;
+  --mgp-r-lg:   16px;
+  --mgp-r-full: 9999px;
+
+  /* ── Fuentes ── */
+  --mgp-font-display: 'Poppins', sans-serif;
+  --mgp-font-body:    'Inter', sans-serif;
+}
+
+/* ============================================================
+   LAYOUT SHELL
+   ============================================================ */
+
+/* Root container */
+.mg-player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 430px;
+  height: 100dvh;
+  margin: 0 auto;
+  background-color: var(--mgp-bg);
+  font-family: var(--mgp-font-body);
+  color: var(--mgp-text);
+  overflow: hidden;
+}
+
+/* Scrollable content area */
+.mgp-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Bottom navigation bar */
+.mgp-bottomnav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  height: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background-color: var(--mgp-surface);
+  border-top: 1px solid var(--mgp-border);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  z-index: 100;
+}
+
+/* Individual tab */
+.mgp-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--mgp-muted);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-decoration: none;
+}
+
+.mgp-tab.active {
+  color: var(--mgp-marino);
+  font-weight: 600;
+}
+
+/* Tab icon */
+.mgp-tab-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tab label */
+.mgp-tab-label {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  font-family: var(--mgp-font-body);
+  line-height: 1;
+}
+
+/* Tab notification badge */
+.mgp-tab-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 18px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background-color: var(--mgp-green);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+
+.mgp-topbar {
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px;
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+  font-family: var(--mgp-font-body);
+}
+
+.mgp-topbar-sub {
+  opacity: 0.7;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+
+.mgp-card {
+  background-color: var(--mgp-surface);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.mgp-card-hero {
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.mgp-card-accent {
+  background-color: var(--mgp-lima);
+  color: var(--mgp-marino);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+/* ============================================================
+   TIPOGRAFÍA
+   ============================================================ */
+
+.mgp-display {
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 32px;
+  color: var(--mgp-marino);
+  line-height: 1;
+}
+
+.mgp-display-sm {
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.mgp-label {
+  font-family: var(--mgp-font-body);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mgp-muted);
+}
+
+.mgp-muted {
+  color: var(--mgp-muted);
+}
+
+/* ============================================================
+   SECCIONES
+   ============================================================ */
+
+.mgp-section {
+  margin-bottom: 20px;
+}
+
+.mgp-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mgp-section-h {
+  font-family: var(--mgp-font-body);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--mgp-marino);
+}
+
+.mgp-section-hint {
+  font-size: 12px;
+  color: var(--mgp-muted);
+}
+
+/* ============================================================
+   BOTONES
+   ============================================================ */
+
+.mgp-btn {
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px;
+  cursor: pointer;
+  border: none;
+  font-family: var(--mgp-font-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.mgp-btn:active {
+  transform: scale(0.97);
+}
+
+.mgp-btn-primary {
+  background-color: var(--mgp-green);
+  color: #ffffff;
+}
+
+.mgp-btn-secondary {
+  background-color: #F1F5F9;
+  color: var(--mgp-marino);
+}
+
+.mgp-btn-marino {
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+}
+
+.mgp-btn-outline {
+  border: 1.5px solid var(--mgp-border);
+  background: transparent;
+  color: var(--mgp-marino);
+}
+
+.mgp-btn-danger {
+  background-color: var(--mgp-danger-bg);
+  color: var(--mgp-danger);
+}
+
+.mgp-btn-full {
+  width: 100%;
+  display: flex;
+}
+
+.mgp-btn-sm {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+/* ============================================================
+   FEED / LISTAS DE ACTIVIDAD
+   ============================================================ */
+
+.mgp-feed-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #F1F5F9;
+  align-items: flex-start;
+}
+
+.mgp-feed-item:last-child {
+  border-bottom: none;
+}
+
+.mgp-feed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.mgp-feed-dot-green {
+  background-color: var(--mgp-green);
+}
+
+.mgp-feed-dot-lime {
+  background-color: var(--mgp-lima);
+}
+
+.mgp-feed-dot-red {
+  background-color: var(--mgp-danger);
+}
+
+.mgp-feed-text {
+  font-size: 13px;
+  color: var(--mgp-text-sub);
+  flex: 1;
+  line-height: 1.4;
+}
+
+.mgp-feed-time {
+  font-size: 11px;
+  color: var(--mgp-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   STATS GRID
+   ============================================================ */
+
+.mgp-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.mgp-stats-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.mgp-stat {
+  text-align: center;
+  padding: 12px 8px;
+  background-color: var(--mgp-bg);
+  border-radius: 12px;
+}
+
+.mgp-stat-val {
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--mgp-marino);
+  line-height: 1.1;
+}
+
+.mgp-stat-label {
+  font-size: 11px;
+  color: var(--mgp-muted);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   RANKING
+   ============================================================ */
+
+.mgp-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mgp-rank-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background-color: var(--mgp-surface);
+  border-radius: 12px;
+}
+
+.mgp-rank-row.me {
+  border: 2px solid var(--mgp-green);
+  background-color: #F0FDF4;
+}
+
+.mgp-rank-pos {
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  min-width: 32px;
+  color: var(--mgp-marino);
+  text-align: center;
+}
+
+.mgp-rank-avs {
+  width: 36px;
+  height: 36px;
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--mgp-font-body);
+}
+
+.mgp-rank-name {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.mgp-rank-pts {
+  font-size: 13px;
+  color: var(--mgp-muted);
+  margin-left: auto;
+}
+
+.mgp-rank-delta {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: right;
+}
+
+.mgp-rank-delta-up {
+  color: var(--mgp-green);
+}
+
+.mgp-rank-delta-dn {
+  color: var(--mgp-danger);
+}
+
+/* Podio */
+.mgp-podium {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 16px;
+  height: 120px;
+}
+
+.mgp-podium-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.mgp-podium-bar {
+  background-color: var(--mgp-marino);
+  border-radius: 8px 8px 0 0;
+  width: 72px;
+}
+
+.mgp-podium-1 {
+  height: 90px;
+  background-color: var(--mgp-lima);
+}
+
+.mgp-podium-2 {
+  height: 65px;
+  opacity: 0.85;
+}
+
+.mgp-podium-3 {
+  height: 45px;
+  opacity: 0.7;
+}
+
+/* ============================================================
+   SLOT CARDS (EXPLORAR)
+   ============================================================ */
+
+.mgp-club-card {
+  background-color: var(--mgp-surface);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.mgp-club-header {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mgp-club-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--mgp-marino);
+}
+
+.mgp-club-meta {
+  font-size: 12px;
+  color: var(--mgp-muted);
+}
+
+.mgp-slot-list {
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mgp-slot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background-color: var(--mgp-bg);
+}
+
+.mgp-slot.valle {
+  background-color: var(--mgp-valle-bg);
+  border-left: 3px solid var(--mgp-lima);
+}
+
+.mgp-slot-hora {
+  font-family: var(--mgp-font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--mgp-marino);
+}
+
+.mgp-slot-info {
+  font-size: 12px;
+  color: var(--mgp-muted);
+}
+
+.mgp-slot-precio {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--mgp-marino);
+}
+
+.mgp-slot-badge-valle {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mgp-valle-text);
+  background-color: var(--mgp-valle-badge);
+  padding: 2px 6px;
+  border-radius: var(--mgp-r-sm);
+}
+
+/* ============================================================
+   LOGROS / BADGES
+   ============================================================ */
+
+.mgp-logros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mgp-logro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: var(--mgp-bg);
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: var(--mgp-font-body);
+}
+
+.mgp-logro-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ============================================================
+   AUTH / ONBOARDING
+   ============================================================ */
+
+.mgp-auth {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px;
+  background-color: var(--mgp-surface);
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.mgp-auth-logo {
+  font-family: var(--mgp-font-display);
+  font-weight: 800;
+  font-size: 28px;
+  color: var(--mgp-marino);
+  margin-bottom: 4px;
+}
+
+.mgp-auth-sub {
+  font-size: 14px;
+  color: var(--mgp-muted);
+  margin-bottom: 32px;
+}
+
+.mgp-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid var(--mgp-border);
+  border-radius: var(--mgp-r-md);
+  font-size: 15px;
+  font-family: var(--mgp-font-body);
+  outline: none;
+  background-color: var(--mgp-surface);
+  color: var(--mgp-text);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+  margin-bottom: 12px;
+}
+
+.mgp-input:focus {
+  border-color: var(--mgp-marino);
+}
+
+.mgp-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mgp-muted);
+  font-size: 13px;
+  margin: 16px 0;
+}
+
+.mgp-divider::before,
+.mgp-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--mgp-border);
+}
+
+.mgp-onboarding {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background-color: var(--mgp-surface);
+  box-sizing: border-box;
+}
+
+.mgp-progress {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.mgp-progress-dot {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background-color: var(--mgp-border);
+}
+
+.mgp-progress-dot.done {
+  background-color: var(--mgp-marino);
+}
+
+.mgp-progress-dot.active {
+  background-color: var(--mgp-green);
+}
+
+/* ============================================================
+   CHIPS DE FILTRO
+   ============================================================ */
+
+.mgp-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.mgp-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.mgp-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid var(--mgp-border);
+  background-color: var(--mgp-surface);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--mgp-font-body);
+  color: #374151;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mgp-chip.active {
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+  border-color: var(--mgp-marino);
+}
+
+/* ============================================================
+   RESERVA CARD HERO
+   ============================================================ */
+
+.mgp-reserva-card {
+  background: linear-gradient(135deg, #0B1F4D 0%, #162d6b 100%);
+  border-radius: 16px;
+  padding: 20px;
+  color: #ffffff;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 20px rgba(11, 31, 77, 0.3);
+}
+
+.mgp-reserva-fecha {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.mgp-reserva-hora {
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.mgp-reserva-club {
+  font-size: 14px;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
+.mgp-reserva-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ============================================================
+   ALERTA DE DESAFÍO
+   ============================================================ */
+
+.mgp-alerta {
+  background-color: #FEF2F2;
+  border: 1.5px solid #FECACA;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.mgp-alerta-titulo {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--mgp-danger);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgp-alerta-sub {
+  font-size: 13px;
+  color: #374151;
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+.mgp-alerta-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================================
+   PERFIL HERO
+   ============================================================ */
+
+.mgp-perfil-hero {
+  background-color: var(--mgp-marino);
+  padding: 24px 20px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.mgp-av-grande {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  color: #ffffff;
+}
+
+.mgp-perfil-nombre {
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.mgp-perfil-cat {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.mgp-rating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-family: var(--mgp-font-display);
+  font-weight: 700;
+  font-size: 18px;
+  margin-top: 8px;
+}
+
+/* ============================================================
+   CHART LÍNEA DE RATING (SVG)
+   ============================================================ */
+
+.mgp-chart {
+  width: 100%;
+  overflow: hidden;
+}
+
+.mgp-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--mgp-muted);
+  margin-top: 4px;
+}
+
+/* ============================================================
+   PARTIDO CARD (Jugar — tablero comunitario)
+   ============================================================ */
+
+.mgp-partido-card {
+  background-color: var(--mgp-surface);
+  border-radius: var(--mgp-r-lg);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: var(--mgp-sp-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mgp-sp-md);
+}
+
+.mgp-partido-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.mgp-partido-fecha {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--mgp-marino);
+}
+
+.mgp-partido-club {
+  font-size: 12px;
+  color: var(--mgp-muted);
+  margin-top: 2px;
+}
+
+.mgp-partido-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--mgp-sp-sm);
+  border-top: 1px solid var(--mgp-border);
+}
+
+/* ── Avatar stack ── */
+.mgp-avatar-stack {
+  display: flex;
+  align-items: center;
+  gap: var(--mgp-sp-sm);
+}
+
+.mgp-avatar-slot {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--mgp-r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--mgp-font-body);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.mgp-avatar-slot.ocupado {
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+}
+
+.mgp-avatar-slot.libre {
+  background-color: var(--mgp-border);
+  color: var(--mgp-muted);
+  border: 2px dashed var(--mgp-muted);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.mgp-avatar-stack-label {
+  font-size: 12px;
+  color: var(--mgp-muted);
+  margin-left: var(--mgp-sp-xs);
+}
+
+/* ── Nivel badge ── */
+.mgp-nivel-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--mgp-r-full);
+  font-size: 11px;
+  font-weight: 700;
+  background-color: var(--mgp-bg);
+  color: var(--mgp-marino);
+  border: 1.5px solid var(--mgp-border);
+  white-space: nowrap;
+}
+
+.mgp-nivel-badge.abierto {
+  background-color: var(--mgp-success-bg);
+  color: var(--mgp-success);
+  border-color: transparent;
+}
+
+.mgp-nivel-badge.completo {
+  background-color: var(--mgp-marino);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+/* ── Match status pill ── */
+.mgp-match-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--mgp-r-full);
+}
+
+.mgp-match-status.abierto  { background: var(--mgp-success-bg); color: var(--mgp-success); }
+.mgp-match-status.casi     { background: var(--mgp-warning-bg);  color: var(--mgp-warning); }
+.mgp-match-status.completo { background: var(--mgp-info-bg);     color: var(--mgp-info);    }
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+
+.mgp-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mgp-sp-sm);
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--mgp-muted);
+}
+
+.mgp-empty-state-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: var(--mgp-sp-sm);
+}
+
+.mgp-empty-state-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--mgp-marino);
+}
+
+.mgp-empty-state-sub {
+  font-size: 13px;
+  color: var(--mgp-muted);
+  max-width: 220px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   NOTIFICATION (genérica — reemplaza mgp-alerta)
+   ============================================================ */
+
+.mgp-notification {
+  border-radius: var(--mgp-r-lg);
+  padding: 14px;
+  margin-bottom: var(--mgp-sp-md);
+  border-width: 1.5px;
+  border-style: solid;
+}
+
+.mgp-notification.info {
+  background-color: var(--mgp-info-bg);
+  border-color: #BFDBFE;
+}
+
+.mgp-notification.success {
+  background-color: var(--mgp-success-bg);
+  border-color: #BBF7D0;
+}
+
+.mgp-notification.warning {
+  background-color: var(--mgp-warning-bg);
+  border-color: #FDE68A;
+}
+
+.mgp-notification.danger {
+  background-color: var(--mgp-danger-bg);
+  border-color: #FECACA;
+}
+
+.mgp-notification-titulo {
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgp-notification.info    .mgp-notification-titulo { color: var(--mgp-info);    }
+.mgp-notification.success .mgp-notification-titulo { color: var(--mgp-success); }
+.mgp-notification.warning .mgp-notification-titulo { color: var(--mgp-warning); }
+.mgp-notification.danger  .mgp-notification-titulo { color: var(--mgp-danger);  }
+
+.mgp-notification-sub {
+  font-size: 13px;
+  color: var(--mgp-text-sub);
+  margin-top: 4px;
+  margin-bottom: var(--mgp-sp-md);
+  line-height: 1.4;
+}
+
+.mgp-notification-actions {
+  display: flex;
+  gap: var(--mgp-sp-sm);
+}
+
+/* ============================================================
+   RESERVA CONFIRMADA (bottom sheet / success)
+   ============================================================ */
+
+.mgp-booking-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.mgp-booking-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.mgp-booking-panel {
+  position: relative;
+  background-color: var(--mgp-surface);
+  border-radius: 20px 20px 0 0;
+  padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  max-height: 85dvh;
+  overflow-y: auto;
+  animation: mgp-slidein 0.25s ease;
+}
+
+.mgp-booking-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--mgp-r-full);
+  background-color: var(--mgp-border);
+  margin: 0 auto 20px;
+}
+
+/* ============================================================
+   ANIMACIONES
+   ============================================================ */
+
+@keyframes mgp-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes mgp-slidein {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.mgp-pulse {
+  animation: mgp-pulse 2s infinite;
+}
+
+.mgp-slidein {
+  animation: mgp-slidein 0.25s ease;
+}

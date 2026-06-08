@@ -55,47 +55,47 @@ export interface NavItem {
  * server-side aplica). No los gateamos en el sidebar.
  */
 export const navItems: NavItem[] = [
-  { label: 'Dashboard', to: '/', icon: LayoutDashboard },
+  { label: 'Dashboard', to: '/app', icon: LayoutDashboard },
   {
     label: 'Reservas',
-    to: '/reservas',
+    to: '/app/reservas',
     icon: CalendarDays,
     children: [
-      { label: 'Grilla del día', to: '/reservas', icon: CalendarClock },
-      { label: 'Turnos fijos', to: '/turnos-fijos', icon: Repeat },
+      { label: 'Grilla del día', to: '/app/reservas', icon: CalendarClock },
+      { label: 'Turnos fijos', to: '/app/turnos-fijos', icon: Repeat },
     ],
   },
-  { label: 'Jugadores', to: '/jugadores', icon: Users },
+  { label: 'Jugadores', to: '/app/jugadores', icon: Users },
   {
     label: 'Caja',
-    to: '/caja',
+    to: '/app/caja',
     icon: Wallet,
     children: [
-      { label: 'Efectivo', to: '/caja/efectivo', icon: Wallet },
-      { label: 'Transferencias', to: '/caja/transferencias', icon: ArrowLeftRight },
+      { label: 'Efectivo', to: '/app/caja/efectivo', icon: Wallet },
+      { label: 'Transferencias', to: '/app/caja/transferencias', icon: ArrowLeftRight },
     ],
   },
   {
     label: 'Mostrador',
-    to: '/buffet',
+    to: '/app/buffet',
     icon: ShoppingCart,
     children: [
-      { label: 'Buffet', to: '/buffet?linea=buffet' },
-      { label: 'Shop', to: '/buffet?linea=shop' },
+      { label: 'Buffet', to: '/app/buffet?linea=buffet' },
+      { label: 'Shop', to: '/app/buffet?linea=shop' },
     ],
   },
   {
     label: 'Finanzas',
-    to: '/finanzas',
+    to: '/app/finanzas',
     icon: PieChart,
     children: [
-      { label: 'Flujo de caja', to: '/flujo-caja', icon: LineChart },
-      { label: 'Gastos', to: '/gastos', icon: TrendingDown },
-      { label: 'Otros ingresos', to: '/otros-ingresos', icon: TrendingUp },
-      { label: 'Cuentas por pagar', to: '/cxp', icon: Receipt },
+      { label: 'Flujo de caja', to: '/app/flujo-caja', icon: LineChart },
+      { label: 'Gastos', to: '/app/gastos', icon: TrendingDown },
+      { label: 'Otros ingresos', to: '/app/otros-ingresos', icon: TrendingUp },
+      { label: 'Cuentas por pagar', to: '/app/cxp', icon: Receipt },
     ],
   },
-  { label: 'Inventario', to: '/inventario', icon: Package, adminOnly: true },
-  { label: 'Alarmas', to: '/alarmas', icon: Bell, disabled: true },
-  { label: 'Configuración', to: '/configuracion', icon: Settings },
+  { label: 'Inventario', to: '/app/inventario', icon: Package, adminOnly: true },
+  { label: 'Alarmas', to: '/app/alarmas', icon: Bell, disabled: true },
+  { label: 'Configuración', to: '/app/configuracion', icon: Settings },
 ];

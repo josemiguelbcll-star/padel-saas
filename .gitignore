@@ -11,3 +11,9 @@ coverage/
 *.tsbuildinfo
 docs/_maestro_extract.txt
 Clave Padel Saas suprabase.txt
+
+# Capacitor — proyectos nativos generados (regenerar con `npx cap add android/ios`)
+# Descomentá si querés versionar los proyectos nativos en el mismo repo.
+android/
+ios/
+.vercel

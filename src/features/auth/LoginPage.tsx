@@ -87,7 +87,7 @@ export function LoginPage() {
 
   // Usuario de club con sesión activa → SaaS del club.
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {

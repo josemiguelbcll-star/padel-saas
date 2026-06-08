@@ -18,6 +18,7 @@ import {
   UnidadesPage,
   CategoriasGastoPage,
   TesoreriaPage,
+  PerfilPublicoPage,
 } from '@/features/configuracion';
 import { BuffetPage } from '@/features/buffet';
 import { CajaLayout, CajaPage, TransferenciasPage } from '@/features/caja';
@@ -37,10 +38,17 @@ import {
 import { InventarioPage } from '@/features/inventario';
 import { ReservasPage } from '@/features/reservas';
 import { TurnosFijosPage } from '@/features/turnos-fijos';
+import { LandingPage, ClubProfilePage } from '@/features/landing';
+import { DesafiosPrototype } from '@/features/desafios';
+import { PlayerApp } from '@/features/player/PlayerApp';
 
 export function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/club/:slug" element={<ClubProfilePage />} />
+      <Route path="/prototipo/desafios" element={<DesafiosPrototype />} />
+      <Route path="/player" element={<PlayerApp />} />
       <Route path="/login" element={<LoginPage />} />
 
       {/* Panel de plataforma (superadmin del SaaS). Va FUERA del
@@ -64,7 +72,7 @@ export function App() {
           pantallas dedicadas para NO_USUARIO_ROW y FETCH_FAILED.
           Si el caller es superadmin, redirige a /plataforma. */}
       <Route
-        path="/"
+        path="/app"
         element={
           <ProtectedRoute>
             <AppShell />
@@ -92,7 +100,7 @@ export function App() {
         <Route path="buffet" element={<BuffetPage />} />
 
         <Route path="caja" element={<CajaLayout />}>
-          <Route index element={<Navigate to="/caja/efectivo" replace />} />
+          <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
           <Route path="efectivo" element={<CajaPage />} />
           <Route path="transferencias" element={<TransferenciasPage />} />
         </Route>
@@ -117,6 +125,7 @@ export function App() {
           <Route path="unidades" element={<UnidadesPage />} />
           <Route path="categorias-gasto" element={<CategoriasGastoPage />} />
           <Route path="cuentas" element={<TesoreriaPage />} />
+          <Route path="perfil-publico" element={<AdminOnlyRoute><PerfilPublicoPage /></AdminOnlyRoute>} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
@@ -134,7 +143,7 @@ export function App() {
 function AdminOnlyRoute({ children }: { children: ReactNode }) {
   const { user } = useSession();
   if (user?.rol !== 'admin') {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
   return <>{children}</>;
 }
