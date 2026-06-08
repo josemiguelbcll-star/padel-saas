@@ -36,7 +36,10 @@ const MESES  = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
 
 /** 'YYYY-MM-DD' → 'Sáb 13 jun' (sin problemas de zona horaria) */
 export function formatFechaReserva(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
+  const parts = isoDate.split('-').map(Number);
+  const y = parts[0] ?? 2000;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
   const date = new Date(y, m - 1, d); // constructor local, sin UTC
   return `${DIAS[date.getDay()]} ${d} ${MESES[m - 1]}`;
 }
