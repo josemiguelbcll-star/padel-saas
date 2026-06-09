@@ -41,6 +41,7 @@ import { TurnosFijosPage } from '@/features/turnos-fijos';
 import { LandingPage, ClubProfilePage } from '@/features/landing';
 import { DesafiosPrototype } from '@/features/desafios';
 import { PlayerApp } from '@/features/player/PlayerApp';
+import { NoticiasPage } from '@/features/admin/pages/NoticiasPage';
 
 export function App() {
   return (
@@ -96,6 +97,8 @@ export function App() {
         <Route path="inventario" element={<AdminOnlyRoute><InventarioPage /></AdminOnlyRoute>} />
 
         <Route path="jugadores" element={<JugadoresPage />} />
+
+        <Route path="noticias" element={<NoticiasPage />} />
 
         <Route path="buffet" element={<BuffetPage />} />
 

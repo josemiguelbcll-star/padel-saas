@@ -1,7 +1,7 @@
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva } from '../hooks/useMyReservas';
-import { FeedCentral } from '../components/FeedCentral';
+import { FeedCentralSimple } from '../components/FeedCentralSimple';
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -129,7 +129,7 @@ export function HomeTab({ onGoReservar, onGoJugar, onGoPartidos, proximaReserva 
         <div className="mgp-section-title">
           <span className="mgp-section-h">Feed central</span>
         </div>
-        <FeedCentral />
+        <FeedCentralSimple />
       </div>
 
     </div>

@@ -15,6 +15,7 @@ import {
   Receipt,
   Bell,
   Settings,
+  Smartphone,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -66,6 +67,7 @@ export const navItems: NavItem[] = [
     ],
   },
   { label: 'Jugadores', to: '/app/jugadores', icon: Users },
+  { label: 'Noticias', to: '/app/noticias', icon: Smartphone },
   {
     label: 'Caja',
     to: '/app/caja',
