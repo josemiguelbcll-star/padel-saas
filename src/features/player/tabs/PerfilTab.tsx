@@ -5,6 +5,7 @@ import { EditPerfilScreen } from './EditPerfilScreen';
 import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva, colorEstado, labelEstado } from '../hooks/useMyReservas';
 import { AmigosPanel } from '../components/AmigosPanel';
+import { DesafiosPanel } from '../components/DesafiosPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -235,6 +236,14 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
             Comunidad
           </p>
           <AmigosPanel />
+        </div>
+
+        {/* ── Desafios ────────────────────────────────────────── */}
+        <div style={{ padding: '20px 16px 0' }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0B1F4D', margin: '0 0 12px' }}>
+            Desafios
+          </p>
+          <DesafiosPanel />
         </div>
 
         {/* ── Historial ────────────────────────────────────────── */}
