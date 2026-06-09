@@ -1,4 +1,5 @@
-import { useQuery, useCallback, useState } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export interface Amigo {
@@ -108,6 +109,8 @@ export function useJugadorAmigos() {
         .select('id')
         .eq('auth_user_id', user.id)
         .single();
+
+      if (!jugadorApp) throw new Error('Perfil de jugador no encontrado');
 
       // Determinar el orden correcto de IDs
       const id1 = jugadorApp.id < amigoId ? jugadorApp.id : amigoId;

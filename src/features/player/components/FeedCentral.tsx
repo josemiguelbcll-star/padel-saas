@@ -1,4 +1,4 @@
-import { MapPin, Users, Trophy, Clock } from 'lucide-react';
+import { Users, Trophy, Clock } from 'lucide-react';
 import { useClubPosts } from '../hooks/useClubPosts';
 import { useTurnosAbiertosApp } from '../hooks/useTurnosAbiertosApp';
 
@@ -6,7 +6,10 @@ const DIAS  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 function formatearFecha(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
+  const parts = iso.split('-').map(Number);
+  const y = parts[0] ?? new Date().getFullYear();
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
   const dt = new Date(y, m - 1, d);
   return `${DIAS[dt.getDay()]} ${d} ${MESES[m - 1]}`;
 }

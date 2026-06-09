@@ -4,6 +4,7 @@ import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import { EditPerfilScreen } from './EditPerfilScreen';
 import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva, colorEstado, labelEstado } from '../hooks/useMyReservas';
+import { AmigosPanel } from '../components/AmigosPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -226,6 +227,14 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
               {proximas.map(r => <ReservaCard key={r.id} r={r} />)}
             </div>
           )}
+        </div>
+
+        {/* ── Amigos ──────────────────────────────────────────── */}
+        <div style={{ padding: '20px 16px 0' }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0B1F4D', margin: '0 0 12px' }}>
+            Comunidad
+          </p>
+          <AmigosPanel />
         </div>
 
         {/* ── Historial ────────────────────────────────────────── */}

@@ -1,4 +1,5 @@
-import { useQuery, useCallback, useState } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export interface Desafio {
