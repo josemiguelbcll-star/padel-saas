@@ -50,9 +50,9 @@ export function FeedCentralSimple() {
               key={noticia.id}
               className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-md transition"
             >
-              {/* Imagen (si existe) */}
+              {/* Imagen (si existe) - Instagram 4:5 */}
               {noticia.imagen_url && (
-                <div className="relative w-full bg-gray-100 aspect-video overflow-hidden">
+                <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4/5', background: '#F1F5F9' }}>
                   <img
                     src={noticia.imagen_url}
                     alt={noticia.titulo}

@@ -171,8 +171,8 @@ export function NoticiasPage() {
               />
 
               {imagePreview && (
-                <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0' }}>
-                  <img src={imagePreview} alt="Preview" style={{ width: '100%', height: 'auto', maxHeight: '200px', objectFit: 'cover' }} />
+                <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0', aspectRatio: '4/5', background: '#F1F5F9' }}>
+                  <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               )}
             </div>
