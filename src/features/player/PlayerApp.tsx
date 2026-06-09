@@ -91,7 +91,7 @@ const TAB_TITLE: Record<PlayerTab, string> = {
 
 export function PlayerApp() {
   const { phase, login, completeOnboarding, logout } = usePlayerSession();
-  const { proximas, historial, isLoading: isLoadingReservas } = useMyReservas();
+  const { proximas, historial, isLoading: isLoadingReservas, reload } = useMyReservas();
   const [tab, setTab] = useState<PlayerTab>('home');
   const [clubSlug, setClubSlug] = useState<string | null>(null);
 
@@ -157,6 +157,12 @@ export function PlayerApp() {
           <ClubProfilePage
             slugProp={clubSlug}
             onBack={() => setClubSlug(null)}
+            onReservaCreada={() => {
+              setClubSlug(null);
+              setTab('partidos');
+              // Recargar reservas para mostrar la nueva
+              reload();
+            }}
           />
         ) : (
           <>

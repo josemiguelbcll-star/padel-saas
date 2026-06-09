@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Clock, Phone, Globe, Instagram,
-  ChevronLeft, Search, SlidersHorizontal, CalendarDays,
+  ChevronLeft, Search, SlidersHorizontal, CalendarDays, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 import { useClubPublico, type FotoClub, type CanchaPublica } from './hooks/useClubPublico';
 import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibilidadClub';
+import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -28,9 +29,196 @@ function calcDuracion(hi: string, hf: string): number {
 }
 function formatTime(t: string) { return t.length >= 5 ? t.slice(0, 5) : t; }
 
+function formatFechaBooking(iso: string): string {
+  const DIAS  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date((y ?? 2000), (m ?? 1) - 1, d ?? 1);
+  return `${DIAS[dt.getDay()]} ${d} ${MESES[(m ?? 1) - 1]}`;
+}
+
+// ─── types ─────────────────────────────────────────────────────────────────
+
+interface BookingSlot {
+  cancha_id:    number;
+  cancha_nombre: string;
+  hora_inicio:  string;
+  hora_fin:     string;
+  duracion_min: number;
+}
+
+// ─── BookingBottomSheet ────────────────────────────────────────────────────
+
+interface BookingBottomSheetProps {
+  slot:            BookingSlot;
+  fecha:           string;
+  clubNombre:      string;
+  onClose:         () => void;
+  onReservaCreada: () => void;
+}
+
+function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada }: BookingBottomSheetProps) {
+  const { reservar, isLoading, error } = useReservarDesdeApp();
+  const [result, setResult] = useState<ReservaAppConfirmada | null>(null);
+
+  async function handleConfirmar() {
+    const res = await reservar({
+      cancha_id:    slot.cancha_id,
+      fecha,
+      hora_inicio:  slot.hora_inicio,
+      duracion_min: slot.duracion_min,
+    });
+    if (res) setResult(res);
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+        onClick={result ? undefined : onClose}
+      />
+
+      {/* Sheet */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl bg-white shadow-2xl"
+        style={{ maxHeight: '85dvh', overflowY: 'auto' }}>
+
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full bg-gray-200" />
+        </div>
+
+        {!result ? (
+          /* ── Paso 1: Confirmar ── */
+          <div className="px-5 pb-10 pt-2">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-black text-gray-900">Confirmar reserva</h2>
+              <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Detalles */}
+            <div className="mb-5 space-y-3 rounded-2xl bg-gray-50 p-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Club</span>
+                <span className="font-bold text-gray-900">{clubNombre}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Cancha</span>
+                <span className="font-bold text-gray-900">{slot.cancha_nombre}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Fecha</span>
+                <span className="font-bold text-gray-900">{formatFechaBooking(fecha)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Horario</span>
+                <span className="font-bold text-gray-900">
+                  {formatTime(slot.hora_inicio)} – {formatTime(slot.hora_fin)}
+                  <span className="ml-1 text-xs font-normal text-gray-500">({slot.duracion_min} min)</span>
+                </span>
+              </div>
+            </div>
+
+            <p className="mb-5 text-center text-xs text-gray-400">
+              El precio y la seña los ves en el siguiente paso una vez confirmado.
+            </p>
+
+            {error && (
+              <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleConfirmar}
+              disabled={isLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B1F4D] py-4 text-base font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60"
+            >
+              {isLoading
+                ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />Reservando...</>
+                : 'Reservar ahora →'}
+            </button>
+          </div>
+        ) : (
+          /* ── Paso 2: Éxito + instrucciones de pago ── */
+          <div className="px-5 pb-10 pt-2">
+            {/* Encabezado éxito */}
+            <div className="mb-5 flex flex-col items-center gap-2 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                <svg width={28} height={28} viewBox="0 0 24 24" fill="none"
+                  stroke="#16A34A" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-black text-gray-900">¡Reserva confirmada!</h2>
+              <p className="text-sm text-gray-500">
+                {result.cancha_nombre} · {formatFechaBooking(result.fecha)} · {formatTime(result.hora_inicio)}
+              </p>
+            </div>
+
+            {/* Montos */}
+            <div className="mb-5 rounded-2xl bg-gray-50 p-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Total del turno</span>
+                <span className="font-bold text-gray-900">${result.monto_total.toLocaleString('es-AR')}</span>
+              </div>
+              <div className="mt-2 flex justify-between text-sm">
+                <span className="text-gray-500">Seña ({result.sena_porcentaje}%)</span>
+                <span className="font-black text-[#0B1F4D]">${result.monto_sena.toLocaleString('es-AR')}</span>
+              </div>
+            </div>
+
+            {/* Instrucciones de pago */}
+            <div className="mb-5 rounded-2xl border-2 border-[#0B1F4D]/10 bg-blue-50 p-4">
+              <p className="mb-2 text-xs font-black uppercase tracking-wider text-[#0B1F4D]/60">
+                Cómo pagar la seña
+              </p>
+              {result.cbu_alias ? (
+                <>
+                  <p className="text-sm text-gray-700">
+                    Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias:
+                  </p>
+                  <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
+                    <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>
+                    {result.nombre_banco && (
+                      <p className="mt-0.5 text-xs text-gray-400">{result.nombre_banco}</p>
+                    )}
+                  </div>
+                  {result.instagram && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Enviá el comprobante por Instagram{' '}
+                      <strong>@{result.instagram.replace('@', '')}</strong>
+                    </p>
+                  )}
+                </>
+              ) : result.instagram ? (
+                <p className="text-sm text-gray-700">
+                  Escribinos por Instagram <strong>@{result.instagram.replace('@', '')}</strong> para coordinar el pago de la seña.
+                </p>
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Contactá al club para coordinar el pago de la seña antes de la fecha.
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={onReservaCreada}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#39C54A] py-4 text-base font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
+            >
+              Ver mis reservas →
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── data helpers ──────────────────────────────────────────────────────────
 
-/** Unique disponible hora_inicio values, sorted. */
 function availableTimes(slots: SlotDisponible[]): string[] {
   const set = new Set<string>();
   for (const s of slots) if (s.disponible) set.add(s.hora_inicio.slice(0, 5));
@@ -43,7 +231,6 @@ interface CourtAvail {
   slots: SlotDisponible[];
 }
 
-/** Courts with available slots at a given hora (HH:MM). */
 function courtsAtTime(slots: SlotDisponible[], hora: string): CourtAvail[] {
   const map = new Map<number, CourtAvail>();
   for (const s of slots) {
@@ -59,18 +246,31 @@ function courtsAtTime(slots: SlotDisponible[], hora: string): CourtAvail[] {
 // ─── CourtCard ─────────────────────────────────────────────────────────────
 
 interface CourtCardProps {
-  court: CourtAvail;
-  cancha: CanchaPublica | undefined;
-  contactHref: string | null;
-  contactIsExternal: boolean;
-  hasTelefono: boolean;
+  court:               CourtAvail;
+  cancha:              CanchaPublica | undefined;
+  contactHref:         string | null;
+  contactIsExternal:   boolean;
+  hasTelefono:         boolean;
+  fromPlayer:          boolean;
+  selectedHour:        string;
+  onReservar?:         (slot: BookingSlot) => void;
 }
 
-function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono }: CourtCardProps) {
+function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono, fromPlayer, selectedHour, onReservar }: CourtCardProps) {
   const sorted = [...court.slots].sort(
     (a, b) => calcDuracion(a.hora_inicio, a.hora_fin) - calcDuracion(b.hora_inicio, b.hora_fin),
   );
   const [selFin, setSelFin] = useState(sorted[0]?.hora_fin ?? '');
+
+  function handleReservar() {
+    onReservar?.({
+      cancha_id:    court.canchaId,
+      cancha_nombre: court.canchaName,
+      hora_inicio:  selectedHour.length === 5 ? selectedHour + ':00' : selectedHour,
+      hora_fin:     selFin,
+      duracion_min: calcDuracion(selectedHour, selFin),
+    });
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -112,7 +312,14 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono 
 
       {/* CTA */}
       <div className="border-t border-border/40 px-4 py-3">
-        {contactHref ? (
+        {fromPlayer ? (
+          <button
+            onClick={handleReservar}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B1F4D] py-3 text-sm font-extrabold text-white transition active:scale-[0.98] hover:opacity-90"
+          >
+            Reservar →
+          </button>
+        ) : contactHref ? (
           <a
             href={contactHref}
             target={contactIsExternal ? '_blank' : undefined}
@@ -135,7 +342,15 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono 
 
 const DAYS_AHEAD = 7;
 
-export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBack?: () => void } = {}) {
+export function ClubProfilePage({
+  slugProp,
+  onBack,
+  onReservaCreada,
+}: {
+  slugProp?:        string;
+  onBack?:          () => void;
+  onReservaCreada?: () => void;
+} = {}) {
   const params = useParams<{ slug: string }>();
   const slug = slugProp ?? params.slug;
   const [searchParams] = useSearchParams();
@@ -149,20 +364,21 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
     paramFecha && paramFecha >= todayISO() ? paramFecha : todayISO(),
   );
   const [selectedHour, setSelectedHour] = useState<string | null>(paramHora);
+  const [bookingSlot,  setBookingSlot]  = useState<BookingSlot | null>(null);
 
   const dispQuery = useDisponibilidadClub(slug ?? '', fecha);
   const allSlots  = dispQuery.data ?? [];
   const times     = availableTimes(allSlots);
 
-  function pickDate(d: string) {
-    setFecha(d);
-    setSelectedHour(null);
-  }
-  function toggleHour(h: string) {
-    setSelectedHour(prev => prev === h ? null : h);
+  function pickDate(d: string) { setFecha(d); setSelectedHour(null); }
+  function toggleHour(h: string) { setSelectedHour(prev => prev === h ? null : h); }
+
+  function handleReservaCreada() {
+    setBookingSlot(null);
+    if (onReservaCreada) onReservaCreada();
+    else if (onBack) onBack();
   }
 
-  // ── loading / error ────────────────────────────────────────────────────
   if (isLoading) return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -200,7 +416,6 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
   const canchasMap = new Map(canchas.map(c => [c.id, c]));
   const courts = selectedHour ? courtsAtTime(allSlots, selectedHour) : [];
 
-  // Apply club's brand color as CSS variable for primary
   const brandStyle = club.color_primario_hsl
     ? ({ '--primary': club.color_primario_hsl } as React.CSSProperties)
     : undefined;
@@ -208,8 +423,19 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
   return (
     <div className="min-h-screen bg-background pb-28 sm:pb-12" style={brandStyle}>
 
+      {/* Booking bottom sheet */}
+      {bookingSlot && (
+        <BookingBottomSheet
+          slot={bookingSlot}
+          fecha={fecha}
+          clubNombre={club.nombre}
+          onClose={() => setBookingSlot(null)}
+          onReservaCreada={handleReservaCreada}
+        />
+      )}
+
       {/* ── Sticky top nav ── */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border/40 supports-[backdrop-filter]:bg-background/85">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border/40 supports-[backdrop-filter]:bg-background/85">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
           {onBack ? (
             <button onClick={onBack} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-muted-foreground shadow-sm transition hover:bg-muted">
@@ -240,9 +466,8 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
         {portada ? (
           <img src={portada.url} alt={club.nombre} className="h-full w-full object-cover" loading="eager" />
         ) : (
-          /* Foto real de cancha como fallback — Pexels licencia libre */
           <img
-            src={`https://images.pexels.com/photos/32474981/pexels-photo-32474981/free-photo-of-indoor-padel-court-with-blue-surface.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600&fit=crop`}
+            src="https://images.pexels.com/photos/32474981/pexels-photo-32474981/free-photo-of-indoor-padel-court-with-blue-surface.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600&fit=crop"
             alt={club.nombre}
             className="h-full w-full object-cover"
             loading="eager"
@@ -277,7 +502,7 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
       </div>
 
       {/* ── Date strip (sticky) ── */}
-      <div className="sticky top-[61px] z-40 bg-background border-b border-border/40 shadow-sm">
+      <div className="sticky top-[61px] z-30 bg-background border-b border-border/40 shadow-sm">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {DAYS.map(d => {
@@ -285,9 +510,7 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
               const isToday = d === todayISO();
               const isSel   = d === fecha;
               return (
-                <button
-                  key={d}
-                  onClick={() => pickDate(d)}
+                <button key={d} onClick={() => pickDate(d)}
                   className={cn(
                     'flex min-w-[52px] shrink-0 flex-col items-center rounded-2xl px-3 py-2 transition-all duration-150',
                     isSel ? 'bg-primary text-primary-foreground shadow-md scale-105' : 'text-muted-foreground hover:bg-muted/60',
@@ -314,23 +537,18 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
 
         {/* ── TIME PICKER ── */}
         <div>
-          {/* Section header */}
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Elegí un horario</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">Solo se muestran turnos con canchas disponibles</p>
             </div>
             {selectedHour && (
-              <button
-                onClick={() => setSelectedHour(null)}
-                className="text-xs font-bold text-primary underline underline-offset-2"
-              >
+              <button onClick={() => setSelectedHour(null)} className="text-xs font-bold text-primary underline underline-offset-2">
                 Ver todos
               </button>
             )}
           </div>
 
-          {/* Loading skeleton */}
           {dispQuery.isLoading && (
             <div className="flex flex-wrap gap-2">
               {[1,2,3,4,5,6,7,8].map(i => (
@@ -339,7 +557,6 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
             </div>
           )}
 
-          {/* No availability */}
           {!dispQuery.isLoading && times.length === 0 && (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-muted/20 py-10 text-center">
               <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
@@ -348,15 +565,12 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
             </div>
           )}
 
-          {/* Time chips */}
           {!dispQuery.isLoading && times.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {times.map(h => {
                 const sel = selectedHour === h;
                 return (
-                  <button
-                    key={h}
-                    onClick={() => toggleHour(h)}
+                  <button key={h} onClick={() => toggleHour(h)}
                     className={cn(
                       'min-w-[72px] rounded-2xl border-2 px-4 py-3 text-center transition-all duration-150',
                       sel
@@ -375,16 +589,14 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
         {/* ── COURT LIST ── */}
         {selectedHour && courts.length > 0 && (
           <div className="space-y-3">
-            {/* Section header */}
             <div>
               <h2 className="text-base font-black text-foreground">
-                Reservar una cancha
+                {fromPlayer ? 'Elegí una cancha para reservar' : 'Reservar una cancha'}
               </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {courts.length === 1 ? '1 cancha disponible' : `${courts.length} canchas disponibles`} a las <span className="font-bold text-foreground">{selectedHour}</span>
               </p>
             </div>
-
             {courts.map(court => (
               <CourtCard
                 key={court.canchaId}
@@ -393,19 +605,21 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
                 contactHref={contactHref}
                 contactIsExternal={contactIsExternal}
                 hasTelefono={hasTelefono}
+                fromPlayer={fromPlayer}
+                selectedHour={selectedHour}
+                onReservar={setBookingSlot}
               />
             ))}
           </div>
         )}
 
-        {/* No courts for selected time (edge case) */}
         {selectedHour && courts.length === 0 && !dispQuery.isLoading && (
           <div className="rounded-2xl border border-dashed border-border bg-muted/20 py-8 text-center">
             <p className="text-sm text-muted-foreground">Sin canchas disponibles a las {selectedHour}.</p>
           </div>
         )}
 
-        {/* ── INFO section ── */}
+        {/* ── INFO ── */}
         {(club.descripcion || club.hora_apertura || club.direccion || club.telefono || club.website || club.instagram) && (
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             <div className="px-5 pt-4 pb-3 border-b border-border/40">
@@ -483,8 +697,8 @@ export function ClubProfilePage({ slugProp, onBack }: { slugProp?: string; onBac
         )}
       </div>
 
-      {/* ── Sticky bottom CTA (mobile only) ── */}
-      {contactHref && (
+      {/* ── Sticky bottom CTA (solo si NO es player app y hay contacto) ── */}
+      {!fromPlayer && contactHref && (
         <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border/40 bg-background/95 px-4 py-3 backdrop-blur sm:hidden supports-[backdrop-filter]:bg-background/85">
           <a
             href={contactHref}
