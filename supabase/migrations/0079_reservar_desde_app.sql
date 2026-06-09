@@ -50,7 +50,7 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Completá tu perfil antes de reservar'; END IF;
 
   SELECT c.club_id, c.nombre INTO v_club_id, v_cancha_nombre
-  FROM canchas c WHERE c.id = p_cancha_id AND c.activo = TRUE;
+  FROM canchas c WHERE c.id = p_cancha_id AND c.activa = TRUE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Cancha no disponible'; END IF;
 
   SELECT cl.nombre, cl.cbu_alias, cl.nombre_banco, cl.sena_porcentaje, cl.instagram
@@ -70,9 +70,9 @@ BEGIN
     RAISE EXCEPTION 'El turno ya no está disponible. Elegí otro horario.';
   END IF;
 
-  SELECT id, precio INTO v_tarifa_id, v_monto_total
+  SELECT id, monto INTO v_tarifa_id, v_monto_total
   FROM tarifas
-  WHERE cancha_id = p_cancha_id AND activo = TRUE
+  WHERE cancha_id = p_cancha_id AND activa = TRUE
     AND hora_inicio <= p_hora_inicio AND hora_fin > p_hora_inicio
     AND (vigente_desde IS NULL OR vigente_desde <= p_fecha)
     AND (vigente_hasta IS NULL OR vigente_hasta >= p_fecha)

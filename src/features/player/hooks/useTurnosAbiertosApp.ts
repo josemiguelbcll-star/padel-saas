@@ -32,7 +32,7 @@ export function useTurnosAbiertosApp() {
           duracion_min, tarifa_id,
           club: clubes(nombre),
           cancha: canchas(nombre),
-          tarifa: tarifas(precio)
+          tarifa: tarifas(monto)
         `)
         .gte('fecha', hoy)
         .lte('fecha', en7Dias)
@@ -62,7 +62,7 @@ export function useTurnosAbiertosApp() {
             hora_inicio: res.hora_inicio,
             hora_fin: horaFinStr,
             duracion_min: res.duracion_min,
-            precio: res.tarifa?.precio || 0,
+            precio: res.tarifa?.monto || 0,
             cantidad_jugadores: 0,
             vacias: 0,
           });

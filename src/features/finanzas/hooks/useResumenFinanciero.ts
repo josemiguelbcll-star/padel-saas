@@ -129,8 +129,8 @@ export function useResumenFinanciero(
       const desdeISO = `${desde}T00:00:00`;
       const hastaISO = `${hasta}T23:59:59`;
 
-      // 5 queries en paralelo. Lecturas simples; la RLS filtra por club.
-      const [pagosRes, ventasRes, clasesRes, otrosIngRes, gastosRes] =
+      // 6 queries en paralelo. Lecturas simples; la RLS filtra por club.
+      const [pagosRes, ventasRes, clasesRes, otrosIngRes, gastosRes, itemsConPrecioRes] =
         await Promise.all([
           // 1. reserva_pagos del mes (criterio: fecha_hora del cobro).
           //    Reembolsos restan. Traemos el desglose alquiler/consumo +
@@ -180,9 +180,16 @@ export function useResumenFinanciero(
             .gte('fecha_gasto', desde)
             .lte('fecha_gasto', hasta)
             .order('fecha_gasto', { ascending: false }),
+          // 6. venta_items con precio_unitario incluido, para poder desglosar
+          //    ingresos buffet vs shop (0024).
+          supabase
+            .from('venta_items')
+            .select('cantidad, precio_unitario, costo_unitario, linea, ventas!inner(fecha_hora)')
+            .gte('ventas.fecha_hora', desdeISO)
+            .lte('ventas.fecha_hora', hastaISO),
         ]);
 
-      for (const r of [pagosRes, ventasRes, clasesRes, otrosIngRes, gastosRes]) {
+      for (const r of [pagosRes, ventasRes, clasesRes, otrosIngRes, gastosRes, itemsConPrecioRes]) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
       }
 
@@ -207,10 +214,6 @@ export function useResumenFinanciero(
 
       const ventas = (ventasRes.data ?? []) as Array<{ id: number; monto_total: number; fecha_hora: string }>;
 
-      // Re-fetch ligero de venta_items con precio_unitario incluido,
-      // para poder desglosar ingresos buffet vs shop. El itemsRes
-      // anterior no incluía precio_unitario; lo agregamos acá. (En una
-      // iteración futura, se unifica en una sola query.)
       type VentaItemFull = {
         cantidad: number;
         precio_unitario: number;
@@ -218,13 +221,7 @@ export function useResumenFinanciero(
         linea: Linea;
         ventas: { fecha_hora: string } | null;
       };
-      const { data: itemsConPrecio, error: itemsPrecioErr } = await supabase
-        .from('venta_items')
-        .select('cantidad, precio_unitario, costo_unitario, linea, ventas!inner(fecha_hora)')
-        .gte('ventas.fecha_hora', desdeISO)
-        .lte('ventas.fecha_hora', hastaISO);
-      if (itemsPrecioErr) throw new Error(mapPostgrestError(itemsPrecioErr));
-      const itemsFull = (itemsConPrecio ?? []) as unknown as VentaItemFull[];
+      const itemsFull = (itemsConPrecioRes.data ?? []) as unknown as VentaItemFull[];
 
       let ingresoBuffet = 0;
       let ingresoShop = 0;

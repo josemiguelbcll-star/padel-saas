@@ -55,6 +55,7 @@ export function useHorariosClub(): UseQueryResult<HorariosClub, Error> {
       return data as HorariosClub;
     },
     enabled: !!club,
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache en memoria
   });
 }
 

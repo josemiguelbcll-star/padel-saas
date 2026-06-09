@@ -45,17 +45,27 @@ export function usePlayerSession(): PlayerSessionState {
   useEffect(() => {
     // ── Verificar sesión inicial ────────────────────────────────────────────
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { setPhase('auth'); return; }
-      setPhase(await fetchPhase(session.user.id));
+      try {
+        if (!session) { setPhase('auth'); return; }
+        setPhase(await fetchPhase(session.user.id));
+      } catch (err) {
+        console.error('[usePlayerSession] Error checking initial session:', err);
+        setPhase('auth');
+      }
     });
 
     // ── Escuchar cambios de auth (login, logout, OAuth callback, refresh) ──
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!session) { setPhase('auth'); return; }
+        try {
+          if (!session) { setPhase('auth'); return; }
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          setPhase(await fetchPhase(session.user.id));
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+            setPhase(await fetchPhase(session.user.id));
+          }
+        } catch (err) {
+          console.error('[usePlayerSession] Error in onAuthStateChange:', err);
+          setPhase('auth');
         }
       },
     );

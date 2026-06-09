@@ -61,6 +61,7 @@ export function useClases(): UseQueryResult<ClaseConProfesor[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as unknown as ClaseConProfesor[];
     },
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache en memoria
   });
 }
 

@@ -83,6 +83,7 @@ export function useMyReservas() {
   const [isLoading,    setIsLoading]    = useState(true);
   const [error,        setError]        = useState<string | null>(null);
   const [sinTelefono,  setSinTelefono]  = useState(false);
+  const [userId,       setUserId]       = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -93,10 +94,6 @@ export function useMyReservas() {
       if (rpcError) throw rpcError;
       const rows = (data as MiReservaReal[]) ?? [];
       setReservas(rows);
-      // Si la función devolvió vacío, puede ser porque no hay teléfono registrado
-      // (lo detectamos al intentar cargar — la función devuelve RETURN sin filas).
-      // No podemos distinguir "vacío por sin teléfono" de "vacío por sin reservas"
-      // directamente desde aquí. Se deja para el componente verificar el perfil.
     } catch (err) {
       console.error('[useMyReservas] error:', err);
       setError('No se pudieron cargar tus reservas');
@@ -105,7 +102,28 @@ export function useMyReservas() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // 1. Obtener la sesión inicial
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null);
+    });
+
+    // 2. Escuchar cambios en el estado de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
+      load();
+    } else {
+      setReservas([]);
+      setIsLoading(false);
+    }
+  }, [userId, load]);
 
   const proximas  = reservas.filter(r =>  r.es_futura);
   const historial = reservas.filter(r => !r.es_futura);

@@ -41,6 +41,7 @@ export function useCanchas(): UseQueryResult<Cancha[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Cancha[];
     },
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache en memoria
   });
 }
 

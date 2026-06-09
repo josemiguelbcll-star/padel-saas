@@ -37,6 +37,7 @@ export function useFranjasTurno(): UseQueryResult<FranjaTurno[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as FranjaTurno[];
     },
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache en memoria
   });
 }
 
