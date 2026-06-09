@@ -7,7 +7,7 @@ import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva, colorEstado, labelEstado } from '../hooks/useMyReservas';
 import { AmigosPanel } from '../components/AmigosPanel';
 import { DesafiosPanel } from '../components/DesafiosPanel';
-import { AdminPanel } from '../components/AdminPanel';
+import { AdminPanelV2 } from '../components/AdminPanelV2';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -254,11 +254,9 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
           <div style={{ padding: '20px 16px 0' }}>
             {clubes.map(club => (
               <div key={club.club_id} style={{ marginBottom: 20 }}>
-                <AdminPanel
+                <AdminPanelV2
                   clubId={club.club_id}
                   clubNombre={club.nombre}
-                  tarifas={[]}
-                  productos={[]}
                 />
               </div>
             ))}

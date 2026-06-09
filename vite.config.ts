@@ -18,4 +18,11 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
   },
+  preview: {
+    // allowedHosts: 'all' permite acceder via tunnels (Cloudflare, ngrok, etc.)
+    // Solo para dev/testing — en producción esto no aplica (se usa Vercel/hosting real)
+    allowedHosts: true,
+    host: '0.0.0.0',
+    port: 5000,
+  },
 });
