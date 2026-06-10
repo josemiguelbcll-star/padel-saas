@@ -72,12 +72,19 @@ BEGIN
 
   SELECT id, monto INTO v_tarifa_id, v_monto_total
   FROM tarifas
-  WHERE cancha_id = p_cancha_id AND activa = TRUE
-    AND hora_inicio <= p_hora_inicio AND hora_fin > p_hora_inicio
+  WHERE club_id = v_club_id AND activa = TRUE
     AND (vigente_desde IS NULL OR vigente_desde <= p_fecha)
     AND (vigente_hasta IS NULL OR vigente_hasta >= p_fecha)
+    AND (
+      dias_semana IS NULL
+      OR EXTRACT(ISODOW FROM p_fecha)::INT = ANY(dias_semana)
+    )
+    AND (
+      (desde_hora IS NULL AND hasta_hora IS NULL)
+      OR (p_hora_inicio >= desde_hora AND p_hora_inicio < hasta_hora)
+    )
     AND (duracion_min IS NULL OR duracion_min = p_duracion_min)
-  ORDER BY duracion_min NULLS LAST, vigente_desde DESC NULLS LAST
+  ORDER BY (duracion_min IS NOT NULL) DESC, prioridad DESC, id DESC
   LIMIT 1;
 
   IF v_tarifa_id IS NULL THEN
