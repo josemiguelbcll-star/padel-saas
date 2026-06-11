@@ -81,7 +81,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
 
       {/* Sheet */}
       <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl bg-white shadow-2xl"
-        style={{ maxHeight: '85dvh', overflowY: 'auto' }}>
+        style={{ maxHeight: '78dvh', overflowY: 'auto' }}>
 
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
