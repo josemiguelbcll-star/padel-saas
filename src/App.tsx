@@ -60,7 +60,7 @@ export function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/club/:slug" element={<ClubProfilePage />} />
         <Route path="/prototipo/desafios" element={<DesafiosPrototype />} />
-        <Route path="/player" element={<PlayerApp />} />
+        <Route path="/player/*" element={<PlayerApp />} />
         <Route path="/login" element={<LoginPage />} />
 
         {/* Panel de plataforma (superadmin del SaaS). Va FUERA del

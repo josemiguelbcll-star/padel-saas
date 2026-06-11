@@ -1,5 +1,6 @@
 import './player.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePlayerSession } from './hooks/usePlayerSession';
 import { useMyReservas } from './hooks/useMyReservas';
 import { PlayerLoginPage } from './auth/PlayerLoginPage';
@@ -90,10 +91,35 @@ const TAB_TITLE: Record<PlayerTab, string> = {
 };
 
 export function PlayerApp() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { phase, login, completeOnboarding, logout } = usePlayerSession();
   const { proximas, historial, isLoading: isLoadingReservas, reload } = useMyReservas();
   const [tab, setTab] = useState<PlayerTab>('home');
   const [clubSlug, setClubSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    const pathPart = location.pathname.replace(/\/+$/, '').split('/').slice(2).join('/');
+    if (pathPart === 'reservar') {
+      setTab('reservar');
+      return;
+    }
+    if (pathPart === 'jugar') {
+      setTab('jugar');
+      return;
+    }
+    if (pathPart === 'partidos') {
+      setTab('partidos');
+      return;
+    }
+    if (pathPart === 'perfil') {
+      setTab('perfil');
+      return;
+    }
+    if (pathPart === '' || pathPart === '/') {
+      setTab('home');
+    }
+  }, [location.pathname]);
 
   // ── Splash ────────────────────────────────────────────────────
   if (phase === 'loading') {
@@ -168,9 +194,9 @@ export function PlayerApp() {
           <>
             {tab === 'home'     && (
               <HomeTab
-                onGoReservar={() => setTab('reservar')}
-                onGoJugar={() => setTab('jugar')}
-                onGoPartidos={() => setTab('partidos')}
+                onGoReservar={() => { navigate('/player/reservar'); setTab('reservar'); }}
+                onGoJugar={() => { navigate('/player/jugar'); setTab('jugar'); }}
+                onGoPartidos={() => { navigate('/player/partidos'); setTab('partidos'); }}
                 proximaReserva={proximas[0] ?? null}
               />
             )}
@@ -185,7 +211,7 @@ export function PlayerApp() {
             )}
             {tab === 'perfil'   && (
               <PerfilTab
-                onLogout={logout}
+                onLogout={() => { navigate('/player/perfil'); setTab('perfil'); logout(); }}
                 proximas={proximas}
                 historial={historial}
                 isLoadingReservas={isLoadingReservas}
@@ -201,7 +227,10 @@ export function PlayerApp() {
           <button
             key={item.id}
             className={`mgp-tab${tab === item.id ? ' active' : ''}`}
-            onClick={() => setTab(item.id)}
+            onClick={() => {
+              setTab(item.id);
+              navigate(item.id === 'home' ? '/player' : `/player/${item.id}`);
+            }}
           >
             {/* Badge en Jugar: partidos disponibles */}
             {item.id === 'jugar' && JUGAR_BADGE > 0 && (
