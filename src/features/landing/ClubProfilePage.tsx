@@ -134,10 +134,10 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
             <button
               onClick={handleConfirmar}
               disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B1F4D] py-4 text-base font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B1F4D] py-5 text-lg font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60"
             >
               {isLoading
-                ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />Reservando...</>
+                ? <><div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />Reservando...</>
                 : 'Reservar ahora →'}
             </button>
           </div>
@@ -206,7 +206,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
 
             <button
               onClick={onReservaCreada}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#39C54A] py-4 text-base font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#39C54A] py-5 text-lg font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
             >
               Ver mis reservas →
             </button>
@@ -311,11 +311,11 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono,
       </div>
 
       {/* CTA */}
-      <div className="border-t border-border/40 px-4 py-3">
+      <div className="border-t border-border/40 px-4 py-4">
         {fromPlayer ? (
           <button
             onClick={handleReservar}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B1F4D] py-3 text-sm font-extrabold text-white transition active:scale-[0.98] hover:opacity-90"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B1F4D] py-4 text-base font-extrabold text-white transition active:scale-[0.98] hover:opacity-90"
           >
             Reservar →
           </button>
@@ -324,7 +324,7 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono,
             href={contactHref}
             target={contactIsExternal ? '_blank' : undefined}
             rel={contactIsExternal ? 'noopener noreferrer' : undefined}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-extrabold text-primary-foreground transition active:scale-[0.98] hover:opacity-90"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-base font-extrabold text-primary-foreground transition active:scale-[0.98] hover:opacity-90"
           >
             {hasTelefono
               ? <><Phone className="h-4 w-4" />Llamar para reservar</>
