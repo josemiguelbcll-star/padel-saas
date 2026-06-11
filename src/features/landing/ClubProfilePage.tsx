@@ -81,7 +81,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
 
       {/* Sheet */}
       <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl bg-white shadow-2xl"
-        style={{ maxHeight: '78dvh', overflowY: 'auto' }}>
+        style={{ maxHeight: '62dvh', overflowY: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom, 18px) + 20px)' }}>
 
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
@@ -134,7 +134,8 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
             <button
               onClick={handleConfirmar}
               disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B1F4D] py-5 text-lg font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-3xl bg-[#0B1F4D] py-5 text-lg font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60"
+              style={{ minHeight: '56px' }}
             >
               {isLoading
                 ? <><div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />Reservando...</>
@@ -159,7 +160,8 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
             </div>
 
             {/* Montos */}
-            <div className="mb-5 rounded-2xl bg-gray-50 p-4">
+            <div className="mb-5 rounded-2xl bg-gray-50 p-4"
+            style={{ marginBottom: '18px' }}>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Total del turno</span>
                 <span className="font-bold text-gray-900">${result.monto_total.toLocaleString('es-AR')}</span>
