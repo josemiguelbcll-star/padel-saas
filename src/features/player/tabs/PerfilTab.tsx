@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
-import { useAdminClubes } from '../hooks/useAdminClubes';
 import { EditPerfilScreen } from './EditPerfilScreen';
 import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva, colorEstado, labelEstado } from '../hooks/useMyReservas';
 import { AmigosPanel } from '../components/AmigosPanel';
 import { DesafiosPanel } from '../components/DesafiosPanel';
-import { AdminPanelV2 } from '../components/AdminPanelV2';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -134,7 +132,6 @@ interface PerfilTabProps {
 
 export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: PerfilTabProps) {
   const { profile, saveProfile, isSaving, iniciales } = usePlayerProfile();
-  const { clubes, esAdmin } = useAdminClubes();
   const [editOpen, setEditOpen] = useState(false);
 
   // Nombre a mostrar: alias si tiene, sino nombre, sino fallback
@@ -249,19 +246,6 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
           <DesafiosPanel />
         </div>
 
-        {/* ── Admin Panel (solo si es admin) ──────────────────── */}
-        {esAdmin && clubes.length > 0 && (
-          <div style={{ padding: '20px 16px 0' }}>
-            {clubes.map(club => (
-              <div key={club.club_id} style={{ marginBottom: 20 }}>
-                <AdminPanelV2
-                  clubId={club.club_id}
-                  clubNombre={club.nombre}
-                />
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* ── Historial ────────────────────────────────────────── */}
         {!isLoadingReservas && historial.length > 0 && (

@@ -97,29 +97,37 @@ export function PlayerApp() {
   const { proximas, historial, isLoading: isLoadingReservas, reload } = useMyReservas();
   const [tab, setTab] = useState<PlayerTab>('home');
   const [clubSlug, setClubSlug] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
-    const pathPart = location.pathname.replace(/\/+$/, '').split('/').slice(2).join('/');
-    if (pathPart === 'reservar') {
+    const pathParts = location.pathname.replace(/\/+$/, '').split('/').slice(2);
+    const first = pathParts[0] ?? '';
+    if (first === 'reservar') {
       setTab('reservar');
       return;
     }
-    if (pathPart === 'jugar') {
+    if (first === 'jugar') {
       setTab('jugar');
       return;
     }
-    if (pathPart === 'partidos') {
+    if (first === 'partidos') {
       setTab('partidos');
       return;
     }
-    if (pathPart === 'perfil') {
+    if (first === 'perfil') {
       setTab('perfil');
       return;
     }
-    if (pathPart === '' || pathPart === '/') {
+    if (first === '' || first === '/') {
       setTab('home');
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timeout = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [notification]);
 
   // ── Splash ────────────────────────────────────────────────────
   if (phase === 'loading') {
@@ -177,6 +185,34 @@ export function PlayerApp() {
         )}
       </div>
 
+      {notification && (
+        <div style={{
+          background: '#DBEAFE',
+          border: '1px solid #BFDBFE',
+          color: '#1D4ED8',
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          margin: '12px 16px 0',
+          borderRadius: 16,
+          fontSize: 14,
+        }}>
+          <span>{notification}</span>
+          <button
+            onClick={() => setNotification(null)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#2563EB',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >Cerrar</button>
+        </div>
+      )}
+
       {/* ── Contenido ──────────────────────────────────────────── */}
       <div className="mgp-content">
         {clubSlug ? (
@@ -186,6 +222,7 @@ export function PlayerApp() {
             onReservaCreada={() => {
               setClubSlug(null);
               setTab('partidos');
+              setNotification('¡Reserva confirmada! Revisa Mis partidos para ver los detalles.');
               // Recargar reservas para mostrar la nueva
               reload();
             }}

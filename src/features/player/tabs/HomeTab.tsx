@@ -5,14 +5,6 @@ import { FeedCentralSimple } from '../components/FeedCentralSimple';
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function getSaludo(): string {
-  const h = new Date().getHours();
-  if (h >= 6 && h < 12) return 'Buenos días';
-  if (h >= 12 && h < 20) return 'Buenas tardes';
-  return 'Buenas noches';
-}
-
-// ── Componente ────────────────────────────────────────────────
 
 interface HomeTabProps {
   onGoReservar:   () => void;
@@ -29,13 +21,37 @@ export function HomeTab({ onGoReservar, onGoJugar, onGoPartidos, proximaReserva 
     <div style={{ padding: '20px 16px 0' }}>
 
       {/* ── Greeting ── */}
-      <div className="mgp-section">
-        <p className="mgp-display-sm" style={{ color: 'var(--mgp-marino)', marginBottom: 2 }}>
-          {getSaludo()} 👋
-        </p>
-        {nombreMostrar && (
-          <p className="mgp-muted" style={{ fontSize: 13 }}>{nombreMostrar}</p>
-        )}
+      <div className="mgp-section" style={{ paddingTop: 4, paddingBottom: 8 }}>
+        <div style={{
+          background: '#EEF2FF',
+          border: '1px solid #C7D2FE',
+          borderRadius: 24,
+          padding: '20px 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
+                {nombreMostrar ? `Hola, ${nombreMostrar}` : 'Hola 👋'}
+              </p>
+              <p style={{ margin: '8px 0 0', color: '#475569', fontSize: 14, lineHeight: 1.6 }}>
+                Reservá canchas, revisá tus próximas fechas y mantenete conectado con tu club.
+              </p>
+            </div>
+            <div style={{
+              width: 46,
+              height: 46,
+              borderRadius: 18,
+              background: '#0B1F4D',
+              display: 'grid',
+              placeItems: 'center',
+            }}>
+              <span style={{ color: '#fff', fontSize: 22, lineHeight: 1 }}>🎾</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Próxima reserva ── */}

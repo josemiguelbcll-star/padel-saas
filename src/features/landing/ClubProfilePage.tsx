@@ -37,6 +37,11 @@ function formatFechaBooking(iso: string): string {
   return `${DIAS[dt.getDay()]} ${d} ${MESES[(m ?? 1) - 1]}`;
 }
 
+function isPastDateTime(fecha: string, hora: string) {
+  const dt = new Date(`${fecha}T${hora}`);
+  return dt.getTime() < Date.now();
+}
+
 // ─── types ─────────────────────────────────────────────────────────────────
 
 interface BookingSlot {
@@ -60,8 +65,13 @@ interface BookingBottomSheetProps {
 function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada }: BookingBottomSheetProps) {
   const { reservar, isLoading, error } = useReservarDesdeApp();
   const [result, setResult] = useState<ReservaAppConfirmada | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   async function handleConfirmar() {
+    if (isPastDateTime(fecha, slot.hora_inicio)) {
+      setLocalError('No se pueden reservar horarios en el pasado. Elegí otro horario.');
+      return;
+    }
     const res = await reservar({
       cancha_id:    slot.cancha_id,
       fecha,
@@ -123,6 +133,11 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
 
            
 
+            {localError && (
+              <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {localError}
+              </div>
+            )}
             {error && (
               <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
                 {error}
@@ -219,9 +234,15 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
 
 // ─── data helpers ──────────────────────────────────────────────────────────
 
-function availableTimes(slots: SlotDisponible[]): string[] {
+function availableTimes(slots: SlotDisponible[], fecha: string): string[] {
   const set = new Set<string>();
-  for (const s of slots) if (s.disponible) set.add(s.hora_inicio.slice(0, 5));
+  const esHoy = fecha === todayISO();
+  for (const s of slots) {
+    if (!s.disponible) continue;
+    const hora = s.hora_inicio.slice(0, 5);
+    if (esHoy && isPastDateTime(fecha, hora)) continue;
+    set.add(hora);
+  }
   return [...set].sort();
 }
 
@@ -252,11 +273,12 @@ interface CourtCardProps {
   contactIsExternal:   boolean;
   hasTelefono:         boolean;
   fromPlayer:          boolean;
+  fecha:               string;
   selectedHour:        string;
   onReservar?:         (slot: BookingSlot) => void;
 }
 
-function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono, fromPlayer, selectedHour, onReservar }: CourtCardProps) {
+function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono, fromPlayer, fecha, selectedHour, onReservar }: CourtCardProps) {
   const sorted = [...court.slots].sort(
     (a, b) => calcDuracion(a.hora_inicio, a.hora_fin) - calcDuracion(b.hora_inicio, b.hora_fin),
   );
@@ -315,9 +337,11 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono,
         {fromPlayer ? (
           <button
             onClick={handleReservar}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B1F4D] py-4 text-base font-extrabold text-white transition active:scale-[0.98] hover:opacity-90"
+            disabled={!selectedHour || isPastDateTime(fecha, selectedHour)}
+            title={isPastDateTime(fecha, selectedHour) ? 'No se puede reservar un horario pasado' : undefined}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B1F4D] py-4 text-base font-extrabold text-white transition active:scale-[0.98] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Reservar →
+            {isPastDateTime(fecha, selectedHour) ? 'Horario pasado' : 'Reservar →'}
           </button>
         ) : contactHref ? (
           <a
@@ -360,17 +384,26 @@ export function ClubProfilePage({
   const backHref    = fromPlayer ? '/player' : '/';
 
   const { data, isLoading, isError } = useClubPublico(slug ?? '');
-  const [fecha, setFecha] = useState(() =>
+  const [initialFecha] = useState(() =>
     paramFecha && paramFecha >= todayISO() ? paramFecha : todayISO(),
   );
-  const [selectedHour, setSelectedHour] = useState<string | null>(paramHora);
+  const [fecha, setFecha] = useState(initialFecha);
+  const [selectedHour, setSelectedHour] = useState<string | null>(() => {
+    if (!paramHora) return null;
+    if (isPastDateTime(initialFecha, paramHora)) return null;
+    return paramHora;
+  });
   const [bookingSlot,  setBookingSlot]  = useState<BookingSlot | null>(null);
 
   const dispQuery = useDisponibilidadClub(slug ?? '', fecha);
   const allSlots  = dispQuery.data ?? [];
-  const times     = availableTimes(allSlots);
+  const times     = availableTimes(allSlots, fecha);
 
-  function pickDate(d: string) { setFecha(d); setSelectedHour(null); }
+  function pickDate(d: string) {
+    if (d < todayISO()) return;
+    setFecha(d);
+    setSelectedHour(null);
+  }
   function toggleHour(h: string) { setSelectedHour(prev => prev === h ? null : h); }
 
   function handleReservaCreada() {
@@ -414,7 +447,8 @@ export function ClubProfilePage({
 
   const DAYS = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(todayISO(), i));
   const canchasMap = new Map(canchas.map(c => [c.id, c]));
-  const courts = selectedHour ? courtsAtTime(allSlots, selectedHour) : [];
+  const selectedHourSafe = selectedHour && times.includes(selectedHour) ? selectedHour : null;
+  const courts = selectedHourSafe ? courtsAtTime(allSlots, selectedHourSafe) : [];
 
   const brandStyle = club.color_primario_hsl
     ? ({ '--primary': club.color_primario_hsl } as React.CSSProperties)
@@ -606,6 +640,7 @@ export function ClubProfilePage({
                 contactIsExternal={contactIsExternal}
                 hasTelefono={hasTelefono}
                 fromPlayer={fromPlayer}
+                fecha={fecha}
                 selectedHour={selectedHour}
                 onReservar={setBookingSlot}
               />
