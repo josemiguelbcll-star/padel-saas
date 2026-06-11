@@ -121,9 +121,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
               </div>
             </div>
 
-            <p className="mb-5 text-center text-xs text-gray-400">
-              El precio y la seña los ves en el siguiente paso una vez confirmado.
-            </p>
+           
 
             {error && (
               <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
