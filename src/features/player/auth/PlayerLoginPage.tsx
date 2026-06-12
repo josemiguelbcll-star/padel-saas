@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/network';
 
 interface PlayerLoginPageProps {
   /** @deprecated — no-op; la transición la maneja onAuthStateChange */
@@ -10,6 +11,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
   const [mode,            setMode]            = useState<'login' | 'register'>('login');
   const [email,           setEmail]           = useState('');
   const [password,        setPassword]        = useState('');
+  const [showPassword,    setShowPassword]    = useState(false);
   const [isLoading,       setIsLoading]       = useState(false);
   const [error,           setError]           = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState(false);
@@ -31,11 +33,19 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
 
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await withTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          8000,
+          'player-login',
+        );
         if (error) throw error;
         // usePlayerSession detecta SIGNED_IN vía onAuthStateChange — no hace falta hacer nada más
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await withTimeout(
+          supabase.auth.signUp({ email, password }),
+          8000,
+          'player-register',
+        );
         if (error) throw error;
         setRegisterSuccess(true);
       }
@@ -60,13 +70,8 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
   // ── Pantalla post-registro: "revisá tu email" ─────────────────────────────
   if (registerSuccess) {
     return (
-      <div style={{
-        minHeight: '100dvh',
-        background: '#0B1F4D',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '0 24px', boxSizing: 'border-box',
-      }}>
-        <div style={{ textAlign: 'center', maxWidth: 320 }}>
+      <div className="mgp-auth" style={{ background: '#0B1F4D' }}>
+        <div className="mgp-auth-card" style={{ textAlign: 'center', maxWidth: 320 }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
             background: '#39C54A',
@@ -112,13 +117,8 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
 
   // ── Pantalla principal de login / registro ─────────────────────────────────
   return (
-    <div style={{
-      minHeight: '100dvh',
-      background: '#F0F4F8',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '0 16px', boxSizing: 'border-box',
-    }}>
-      <div style={{
+    <div className="mgp-auth" style={{ background: '#F0F4F8' }}>
+      <div className="mgp-auth-card" style={{
         width: '100%', maxWidth: 380,
         background: '#ffffff', borderRadius: 24,
         padding: 32,
@@ -163,16 +163,39 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
             disabled={isLoading}
           />
 
-          <input
-            className="mgp-input"
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={e => { setPassword(e.target.value); setError(null); }}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            required
-            disabled={isLoading}
-          />
+          <div className="mgp-password-field">
+            <input
+              className="mgp-input mgp-input-password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Contraseña"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError(null); }}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              className="mgp-password-toggle"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              tabIndex={-1}
+            >
+              {showPassword ? (
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.05 10.05 0 0 1 12 20c-5.52 0-10-4.48-10-10 0-2.1.63-4.04 1.71-5.66" />
+                  <path d="M1 1l22 22" />
+                  <path d="M9.88 9.88A3 3 0 0 0 14.12 14.12" />
+                  <path d="M12 6a9.77 9.77 0 0 1 6.65 2.47" />
+                </svg>
+              ) : (
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+            </button>
+          </div>
 
           <button
             type="submit"

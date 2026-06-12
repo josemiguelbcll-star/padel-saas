@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/network';
 
 export interface Amigo {
   id:             string; // UUID del jugador_app
@@ -23,30 +24,72 @@ export function useJugadorAmigos() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa');
 
-      const { data: jugadorApp } = await supabase
-        .from('jugadores_app')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single();
+      const { data: jugadorApp } = await withTimeout(
+        supabase
+          .from('jugadores_app')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .single(),
+        8000,
+        'useJugadorAmigos:jugadores_app',
+      );
 
       if (!jugadorApp) throw new Error('Perfil de jugador no encontrado');
 
-      // Obtener amigos (ambos sentidos de la relación)
-      const { data, error } = await supabase
-        .from('jugador_amigos')
-        .select(`
-          jugador_app_id_1, jugador_app_id_2, confirmado, vinculado_en,
-          jugador_1: jugador_app_id_1(id, nombre_display, alias, genero, categoria, avatars_path),
-          jugador_2: jugador_app_id_2(id, nombre_display, alias, genero, categoria, avatars_path)
-        `)
-        .or(`jugador_app_id_1.eq.${jugadorApp.id},jugador_app_id_2.eq.${jugadorApp.id}`);
+      const { data: relaciones, error } = await withTimeout(
+        supabase
+          .from('jugador_amigos')
+          .select('jugador_app_id_1, jugador_app_id_2, confirmado, vinculado_en')
+          .or(`jugador_app_id_1.eq.${jugadorApp.id},jugador_app_id_2.eq.${jugadorApp.id}`),
+        8000,
+        'useJugadorAmigos:jugador_amigos',
+      );
 
       if (error) throw error;
+      const rels = (relaciones ?? []) as Array<{
+        jugador_app_id_1: string;
+        jugador_app_id_2: string;
+        confirmado: boolean;
+        vinculado_en: string;
+      }>;
 
-      return (data ?? []).map((rel: any) => {
-        // Identificar cuál es el amigo (el que NO es el usuario actual)
-        const es1 = rel.jugador_app_id_1 === jugadorApp.id;
-        const amigoData = es1 ? rel.jugador_2 : rel.jugador_1;
+      const friendIds = rels.map((rel) =>
+        rel.jugador_app_id_1 === jugadorApp.id ? rel.jugador_app_id_2 : rel.jugador_app_id_1,
+      );
+
+      if (friendIds.length === 0) {
+        return [];
+      }
+
+      const { data: amigosRows, error: amigosError } = await withTimeout(
+        supabase
+          .from('jugadores_app')
+          .select('id, nombre_display, alias, genero, categoria, avatars_path')
+          .in('id', friendIds),
+        8000,
+        'useJugadorAmigos:jugadores_app_friends',
+      );
+
+      if (amigosError) throw amigosError;
+      const amigosMap = new Map(
+        (amigosRows ?? []).map((row: any) => [row.id as string, row] as const),
+      );
+
+      return rels.map((rel) => {
+        const friendId = rel.jugador_app_id_1 === jugadorApp.id ? rel.jugador_app_id_2 : rel.jugador_app_id_1;
+        const amigoData = amigosMap.get(friendId);
+        if (!amigoData) {
+          return {
+            id: friendId,
+            nombre_display: 'Jugador desconocido',
+            alias: null,
+            genero: null,
+            categoria: null,
+            avatars_path: null,
+            confirmado: rel.confirmado,
+            vinculado_en: rel.vinculado_en,
+          } as Amigo;
+        }
 
         return {
           id: amigoData.id,

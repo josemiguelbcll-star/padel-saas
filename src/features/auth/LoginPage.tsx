@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ export function LoginPage() {
   const { user, plataformaAdmin, loading, error: sessionError } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -127,13 +129,20 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-8 shadow-sm">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Iniciar sesión
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Ingresá tus credenciales para acceder al panel del club.
-          </p>
+        <div className="space-y-4 text-center">
+          <img
+            src="/assets/matchgo_logo.svg"
+            alt="MatchGo"
+            className="mx-auto h-12 w-auto"
+          />
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Iniciar sesión
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Ingresá tus credenciales para acceder al panel del club.
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -147,27 +156,48 @@ export function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               disabled={submitting}
               aria-invalid={errors.email ? true : undefined}
+              aria-describedby={errors.email ? 'email-error' : undefined}
               required
             />
             {errors.email && (
-              <p className="text-xs text-destructive">{errors.email}</p>
+              <p id="email-error" className="text-xs text-destructive">
+                {errors.email}
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              aria-invalid={errors.password ? true : undefined}
-              required
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting}
+                aria-invalid={errors.password ? true : undefined}
+                aria-describedby={errors.password ? 'password-error' : undefined}
+                required
+                className="pr-10"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {errors.password && (
-              <p className="text-xs text-destructive">{errors.password}</p>
+              <p id="password-error" className="text-xs text-destructive">
+                {errors.password}
+              </p>
             )}
           </div>
 

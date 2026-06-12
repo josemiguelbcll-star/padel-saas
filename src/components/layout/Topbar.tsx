@@ -83,21 +83,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       {/* Estado de caja — lee el estado real (useCajaAbierta) y linkea a /caja. */}
       <CajaEstadoBadge />
 
-      {/* Campana de alarmas — placeholder con contador 0 hasta que exista
-          el módulo Alarmas. */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="relative"
-        aria-label="Alarmas (0 pendientes)"
-        disabled
-      >
-        <Bell className="h-5 w-5" />
-        <span className="absolute right-1 top-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground">
-          0
-        </span>
-      </Button>
+      {/* El módulo de alarmas aún no existe en el Topbar, por eso no mostramos
+          un placeholder confuso en la UI. */}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

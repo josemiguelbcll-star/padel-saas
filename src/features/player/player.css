@@ -70,9 +70,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 430px;
-  height: 100dvh;
+  width: min(100%, 1200px);
+  max-width: 1200px;
+  min-height: 100dvh;
   margin: 0 auto;
   background-color: var(--mgp-bg);
   font-family: var(--mgp-font-body);
@@ -84,7 +84,7 @@
 .mgp-content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding: 20px 16px 100px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -94,8 +94,7 @@
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
+  width: min(100%, 1200px);
   height: calc(60px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background-color: var(--mgp-surface);
@@ -103,6 +102,12 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   z-index: 100;
+}
+
+@media (min-width: 1024px) {
+  .mgp-bottomnav {
+    width: min(100%, 1200px);
+  }
 }
 
 /* Individual tab */
@@ -173,6 +178,29 @@
   background-color: var(--mgp-marino);
   color: #ffffff;
   font-family: var(--mgp-font-body);
+}
+
+.mgp-topbar, .mgp-bottomnav, .mgp-content {
+  width: 100%;
+}
+
+@media (min-width: 720px) {
+  .mgp-content {
+    padding: 24px 32px 120px;
+  }
+
+  .mgp-topbar {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mgp-bottomnav {
+    max-width: 1200px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }
 
 .mgp-topbar-sub {
@@ -641,14 +669,37 @@
 
 .mgp-auth {
   width: 100%;
-  height: 100dvh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 32px;
+  padding: 32px 16px;
   background-color: var(--mgp-surface);
   text-align: center;
   box-sizing: border-box;
+}
+
+.mgp-auth-card {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+@media (min-width: 720px) {
+  .mgp-auth {
+    padding: 48px 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mgp-auth {
+    padding: 72px 48px;
+  }
+
+  .mgp-auth-card {
+    box-shadow: 0 10px 40px rgba(11, 31, 77, 0.08);
+    border-radius: 32px;
+  }
 }
 
 .mgp-auth-logo {
@@ -678,6 +729,35 @@
   box-sizing: border-box;
   transition: border-color 0.15s ease;
   margin-bottom: 12px;
+}
+
+.mgp-password-field {
+  position: relative;
+}
+
+.mgp-input-password {
+  padding-right: 48px;
+}
+
+.mgp-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mgp-muted);
+  cursor: pointer;
+}
+
+.mgp-password-toggle:hover {
+  color: var(--mgp-marino);
 }
 
 .mgp-input:focus {

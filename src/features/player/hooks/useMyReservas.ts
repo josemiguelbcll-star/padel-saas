@@ -12,6 +12,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/network';
 
 export interface MiReservaReal {
   id:            number;
@@ -90,7 +91,9 @@ export function useMyReservas() {
     setError(null);
     setSinTelefono(false);
     try {
-      const { data, error: rpcError } = await supabase.rpc('fn_mis_reservas_app');
+      // Llamada RPC con timeout para evitar bloqueos aleatorios
+      const rpcPromise = supabase.rpc('fn_mis_reservas_app');
+      const { data, error: rpcError } = await withTimeout(rpcPromise, 8000, 'fn_mis_reservas_app');
       if (rpcError) throw rpcError;
       const rows = (data as MiReservaReal[]) ?? [];
       setReservas(rows);

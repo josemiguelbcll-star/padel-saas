@@ -1,5 +1,5 @@
 import './player.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePlayerSession } from './hooks/usePlayerSession';
 import { useMyReservas } from './hooks/useMyReservas';
