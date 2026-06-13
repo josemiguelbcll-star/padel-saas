@@ -18,7 +18,7 @@ export function reservasDelDiaQueryKey(fecha: string): readonly [string, string]
  */
 export interface ReservaConTitular extends Reserva {
   /** Datos mínimos del titular (jugador con jugador_id). NULL si la reserva no tiene titular registrado. */
-  jugador: { nombre: string } | null;
+  jugador: { nombre: string; telefono: string | null } | null;
 }
 
 /**
@@ -40,7 +40,7 @@ export function useReservasDelDia(
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reservas')
-        .select('*, jugador:jugador_id(nombre)')
+        .select('*, jugador:jugador_id(nombre, telefono)')
         .eq('fecha', fecha)
         .order('hora_inicio', { ascending: true });
       if (error) throw new Error(mapPostgrestError(error));

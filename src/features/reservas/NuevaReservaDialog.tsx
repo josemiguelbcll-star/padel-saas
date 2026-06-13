@@ -21,11 +21,11 @@ import {
 import { useCrearReserva, type CrearReservaInput } from './hooks/useCrearReserva';
 import {
   ESTADOS_INICIALES,
-  MEDIOS_PAGO,
   nuevaReservaCamposSchema,
   type EstadoInicial,
   type MedioPagoForm,
 } from './nuevaReservaSchema';
+import { useSession } from '@/features/auth';
 import {
   formatearFechaAmigable,
   formatearHora,
@@ -92,6 +92,8 @@ const MEDIO_PAGO_LABEL: Record<MedioPagoForm, string> = {
   tarjeta: 'Tarjeta',
   otro: 'Otro',
 };
+
+const MEDIOS_PAGO_SIN_MP = ['efectivo', 'transferencia', 'tarjeta', 'otro'] as const;
 
 const ESTADO_LABEL: Record<EstadoInicial, string> = {
   pendiente: 'Pendiente',
@@ -196,10 +198,20 @@ function NuevaReservaBodyReady({
   // Si el usuario editó el monto a mano, no lo pisamos al recalcular la
   // tarifa por duración (espejo de montoPagadoTouched).
   const [montoTotalTouched, setMontoTotalTouched] = useState(false);
-  const [estado, setEstado] = useState<EstadoInicial>('pendiente');
+  const { club } = useSession();
+  const depositoCfg = (club?.config as any)?.deposito ?? {};
+  const depositoObligatorio = depositoCfg.obligatorio === true;
+  const [estado, setEstado] = useState<EstadoInicial>(
+    depositoObligatorio ? 'senada' : 'pendiente',
+  );
   const [montoPagado, setMontoPagado] = useState<string>('0');
   const [montoPagadoTouched, setMontoPagadoTouched] = useState(false);
-  const [medioPago, setMedioPago] = useState<MedioPagoForm | null>(null);
+  const [medioPago, setMedioPago] = useState<MedioPagoForm | null>(
+    depositoObligatorio ? 'transferencia' : null,
+  );
+  const mediosPagoDisponibles: readonly MedioPagoForm[] = depositoObligatorio
+    ? ['transferencia']
+    : MEDIOS_PAGO_SIN_MP;
   const [observaciones, setObservaciones] = useState<string>('');
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -224,11 +236,14 @@ function NuevaReservaBodyReady({
       setMedioPago(null);
     } else if (nuevo === 'senada') {
       setMontoPagado('');
-      // Sugerencia: efectivo como medio por defecto, el más usado.
-      setMedioPago((m) => m ?? 'efectivo');
+      setMedioPago((m) =>
+        m ?? (depositoObligatorio ? 'transferencia' : 'efectivo'),
+      );
     } else if (nuevo === 'pagada') {
       setMontoPagado(montoTotal);
-      setMedioPago((m) => m ?? 'efectivo');
+      setMedioPago((m) =>
+        m ?? (depositoObligatorio ? 'transferencia' : 'efectivo'),
+      );
     }
   }
 
@@ -490,12 +505,12 @@ function NuevaReservaBodyReady({
         <div className="space-y-2">
           <Label>Estado</Label>
           <div className="flex flex-wrap gap-1.5">
-            {ESTADOS_INICIALES.map((e) => (
+                {ESTADOS_INICIALES.map((e) => (
               <button
                 key={e}
                 type="button"
-                onClick={() => cambiarEstado(e)}
-                disabled={isPending}
+                    onClick={() => cambiarEstado(e)}
+                    disabled={isPending || (depositoObligatorio && e === 'pendiente')}
                 aria-pressed={estado === e}
                 className={cn(
                   'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
@@ -505,9 +520,9 @@ function NuevaReservaBodyReady({
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-background text-foreground hover:bg-muted',
                 )}
-              >
-                {ESTADO_LABEL[e]}
-              </button>
+                  >
+                    {ESTADO_LABEL[e]}
+                  </button>
             ))}
           </div>
         </div>
@@ -540,7 +555,7 @@ function NuevaReservaBodyReady({
             <div className="space-y-2">
               <Label>Medio de pago</Label>
               <div className="flex flex-wrap gap-1.5">
-                {MEDIOS_PAGO.map((m) => (
+                {mediosPagoDisponibles.map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -564,6 +579,19 @@ function NuevaReservaBodyReady({
                 <p className="text-xs text-destructive">{errors.medio_pago}</p>
               )}
             </div>
+            {club && ((club.config as any)?.deposito ?? {}).transferencia_alias && medioPago === 'transferencia' && (
+              <div className="rounded-md border border-border bg-background p-3 text-sm">
+                <div className="font-medium">Alias para transferir</div>
+                <div className="mt-1 break-words">{((club.config as any).deposito.transferencia_alias)}</div>
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" onClick={() => {
+                    void navigator.clipboard?.writeText(((club.config as any).deposito.transferencia_alias || ''));
+                  }}>
+                    Copiar alias
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

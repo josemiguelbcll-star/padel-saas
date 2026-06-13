@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
 import {
   Dialog,
   DialogContent,
@@ -239,6 +240,35 @@ function DetalleReservaBody({
   // lo refuerza server-side; acá lo prevenimos para no ofrecer una acción que
   // fallaría con saldo pendiente.
   const puedeCerrar = !estaCancelado && !estaCerrado && todoSaldado;
+  const telefonoTitular = reserva.jugador?.telefono
+    ? normalizarTelefono(reserva.jugador.telefono)
+    : null;
+  const wspUrl = telefonoTitular
+    ? `https://wa.me/${telefonoTitular.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+        `Hola ${reserva.jugador?.nombre ?? 'jugador'}, tu turno en ${cancha.nombre} para el ${formatearFechaAmigable(reserva.fecha)} a las ${formatearHora(reserva.hora_inicio)} está confirmado.`,
+      )}`
+    : null;
+
+  async function handleEnviarWhatsAppYConfirmar(): Promise<void> {
+    if (!wspUrl) return;
+    window.open(wspUrl, '_blank');
+    if (reserva.estado === 'pendiente') {
+      try {
+        const updated = await actualizarMutation.mutateAsync({
+          id: reserva.id,
+          fecha: reserva.fecha,
+          changes: { estado: 'senada' },
+        });
+        applyReservaUpdate(updated);
+      } catch (err) {
+        setAccionError(
+          err instanceof Error
+            ? err.message
+            : 'No pudimos confirmar la reserva después de abrir WhatsApp.',
+        );
+      }
+    }
+  }
 
   /**
    * Las mutations de reservas (actualizar y cobrar) devuelven un Reserva
@@ -492,6 +522,25 @@ function DetalleReservaBody({
               </p>
             )}
             <div className="flex flex-col items-end gap-1">
+              {wspUrl ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setAccionError(null);
+                    void handleEnviarWhatsAppYConfirmar();
+                  }}
+                  disabled={cerrarMutation.isPending || actualizarMutation.isLoading}
+                >
+                  {reserva.estado === 'pendiente'
+                    ? 'Enviar WhatsApp y confirmar'
+                    : 'Enviar WhatsApp'}
+                </Button>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  Titular sin teléfono válido. Agregá el número en la ficha del jugador para enviar WhatsApp.
+                </p>
+              )}
               <Button
                 type="button"
                 variant="ghost"

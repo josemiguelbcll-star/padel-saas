@@ -45,6 +45,13 @@ export function PerfilPublicoPage() {
   const [descripcion, setDescripcion] = useState(club?.descripcion ?? '');
   const [instagram, setInstagram] = useState(club?.instagram ?? '');
   const [website, setWebsite] = useState(club?.website ?? '');
+  const depositoCfg = (club?.config as any)?.deposito ?? {};
+  const [depositoObligatorio, setDepositoObligatorio] = useState<boolean>(
+    depositoCfg.obligatorio ?? false,
+  );
+  const [transferenciaAlias, setTransferenciaAlias] = useState<string>(
+    depositoCfg.transferencia_alias ?? '',
+  );
   const [coordsRaw, setCoordsRaw] = useState(
     club?.lat && club?.lng ? `${club.lat}, ${club.lng}` : '',
   );
@@ -116,6 +123,14 @@ export function PerfilPublicoPage() {
         website: website.trim() || null,
         lat: parsed?.lat ?? null,
         lng: parsed?.lng ?? null,
+        // Guardar configuración personalizada en la columna `config`
+        config: {
+          ...(club?.config ?? {}),
+          deposito: {
+            obligatorio: depositoObligatorio,
+            transferencia_alias: transferenciaAlias || null,
+          },
+        },
       };
       const { error } = await supabase
         .from('clubes')
@@ -341,6 +356,38 @@ export function PerfilPublicoPage() {
                 </p>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* ── Configuración de depósito / seña ── */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="mb-4 font-semibold">Depósito / Seña</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                id="deposito-obligatorio"
+                type="checkbox"
+                checked={depositoObligatorio}
+                onChange={(e) => setDepositoObligatorio(e.target.checked)}
+                disabled={!isAdmin}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="deposito-obligatorio">Obligar pago de seña al reservar</Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="transferencia-alias">Alias / CBU para transferencias</Label>
+              <Input
+                id="transferencia-alias"
+                value={transferenciaAlias}
+                onChange={(e) => setTransferenciaAlias(e.target.value)}
+                disabled={!isAdmin}
+                placeholder="Alias o CBU del club (p.ej. alias@banco)"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Por ahora, el pago de la seña se hace por transferencia usando el alias del club.
+            </p>
           </div>
         </section>
 
