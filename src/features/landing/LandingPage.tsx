@@ -1,186 +1,11 @@
 import './landing.css';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useClubsPublicos } from './hooks/useClubsPublicos';
-import { useNominatimAutocomplete, haversineKm, type NominatimPlace } from './hooks/useNominatimAutocomplete';
-import { useDisponibilidadBulk } from './hooks/useDisponibilidadBulk';
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysFromToday(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatFechaShort(iso: string): string {
-  if (iso === todayISO()) return 'Hoy';
-  if (iso === addDaysFromToday(1)) return 'Mañana';
-  const s = new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', {
-    weekday: 'short', day: 'numeric', month: 'short',
-  });
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-type TimeFilter = 'todos' | 'manana' | 'tarde' | 'noche';
-
-function pasaFiltro(hora: string, f: TimeFilter): boolean {
-  const h = parseInt(hora.slice(0, 2));
-  if (f === 'manana') return h >= 8 && h < 13;
-  if (f === 'tarde') return h >= 13 && h < 19;
-  if (f === 'noche') return h >= 19;
-  return true;
-}
-
-interface SelectedPlace {
-  displayName: string;
-  /** bounding box [south, north, west, east] */
-  bbox: [number, number, number, number] | null;
-  /** center for geolocation-based search */
-  lat: number | null;
-  lng: number | null;
-}
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const faqRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const clubsQuery = useClubsPublicos();
-
-  // Date + time filter state
-  const [selectedFecha, setSelectedFecha] = useState<string>(todayISO);
-  const [fechaDropdownOpen, setFechaDropdownOpen] = useState(false);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('todos');
-  const fechaRef = useRef<HTMLDivElement>(null);
-
-  // Location search state
-  const [locInput, setLocInput] = useState('');
-  const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [geoLoading, setGeoLoading] = useState(false);
-  const locRef = useRef<HTMLDivElement>(null);
-
-  const { results: nominatimResults, loading: nominatimLoading } = useNominatimAutocomplete(
-    selectedPlace ? '' : locInput
-  );
-
-  // Disponibilidad bulk para el landing
-  const bulkQuery = useDisponibilidadBulk(selectedFecha);
-  const slotsMap = bulkQuery.data;
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (locRef.current && !locRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-      if (fechaRef.current && !fechaRef.current.contains(e.target as Node)) {
-        setFechaDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  // Show dropdown when results arrive
-  useEffect(() => {
-    if (nominatimResults.length > 0) setDropdownOpen(true);
-  }, [nominatimResults]);
-
-  function selectPlace(place: NominatimPlace) {
-    const [s, n, w, e] = place.boundingbox.map(Number) as [number, number, number, number];
-    const label =
-      place.address.city ??
-      place.address.town ??
-      place.address.village ??
-      place.display_name.split(',')[0] ??
-      place.display_name;
-    setSelectedPlace({
-      displayName: label,
-      bbox: [s, n, w, e],
-      lat: Number(place.lat),
-      lng: Number(place.lon),
-    });
-    setLocInput(label);
-    setDropdownOpen(false);
-  }
-
-  function clearLocation() {
-    setSelectedPlace(null);
-    setLocInput('');
-    setDropdownOpen(false);
-  }
-
-  async function useMyLocation() {
-    if (!navigator.geolocation) return;
-    setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=10`,
-            { headers: { 'Accept-Language': 'es', 'User-Agent': 'MatchGo/1.0 (matchgo.ar)' } }
-          );
-          const data = await res.json();
-          const label =
-            data.address?.city ?? data.address?.town ?? data.address?.village ?? 'Mi ubicación';
-          setSelectedPlace({ displayName: label, bbox: null, lat: latitude, lng: longitude });
-          setLocInput(label);
-        } catch {
-          setSelectedPlace({ displayName: 'Mi ubicación', bbox: null, lat: latitude, lng: longitude });
-          setLocInput('Mi ubicación');
-        } finally {
-          setGeoLoading(false);
-        }
-      },
-      () => setGeoLoading(false),
-      { timeout: 8000 }
-    );
-  }
-
-  const allClubs = clubsQuery.data ?? [];
-
-  const clubs = (() => {
-    if (!selectedPlace) {
-      // No place selected: show all (or filter by raw text if user typed but didn't pick)
-      const q = locInput.trim().toLowerCase();
-      if (!q) return allClubs;
-      return allClubs.filter((c) =>
-        [c.ciudad, c.provincia, c.nombre].filter(Boolean).join(' ').toLowerCase().includes(q)
-      );
-    }
-
-    const { bbox, lat: cLat, lng: cLng } = selectedPlace;
-
-    return allClubs.filter((c) => {
-      if (c.lat != null && c.lng != null) {
-        if (bbox) {
-          const [south, north, west, east] = bbox;
-          return c.lat >= south && c.lat <= north && c.lng >= west && c.lng <= east;
-        }
-        // geolocation fallback: 30 km radius
-        if (cLat != null && cLng != null) {
-          return haversineKm(cLat, cLng, c.lat, c.lng) <= 30;
-        }
-      }
-      // no coords on club — fallback text match
-      return [c.ciudad, c.provincia, c.nombre]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(selectedPlace.displayName.toLowerCase());
-    });
-  })();
-
-  function handleSearch() {
-    // filter is live; Buscar button / Enter just closes dropdown
-    setDropdownOpen(false);
-  }
 
   useEffect(() => {
     const io = new IntersectionObserver(
@@ -234,14 +59,14 @@ export function LandingPage() {
               <img src="/assets/matchgo_logo.svg" alt="MatchGo" className="logo-img" />
             </a>
             <nav className="nav-links">
-              <a href="#canchas">Reservá</a>
+              <Link to="/player">Reservá</Link>
               <a href="#deportes">Deportes</a>
               <a href="#comojugador">Cómo funciona</a>
               <a href="#software">Software para clubes</a>
             </nav>
             <div className="nav-cta">
               <Link to="/login" className="btn btn-ghost" style={{ fontSize: '0.85rem' }}>Iniciar sesión</Link>
-              <a href="#canchas" className="btn btn-primary">Reservá tu cancha</a>
+              <Link to="/player" className="btn btn-primary">Reservá tu cancha</Link>
             </div>
             <button
               className="nav-toggle"
@@ -266,17 +91,17 @@ export function LandingPage() {
           </div>
         </div>
         <div className="mobile-menu" style={{ display: menuOpen ? 'flex' : 'none' }}>
-          <a href="#canchas" onClick={() => setMenuOpen(false)}>Reservá</a>
+          <Link to="/player" onClick={() => setMenuOpen(false)}>Reservá</Link>
           <a href="#deportes" onClick={() => setMenuOpen(false)}>Deportes</a>
           <a href="#comojugador" onClick={() => setMenuOpen(false)}>Cómo funciona</a>
           <a href="#software" onClick={() => setMenuOpen(false)}>Software para clubes</a>
-          <a href="#canchas" className="btn btn-primary" onClick={() => setMenuOpen(false)}>Reservá tu cancha</a>
+          <Link to="/player" className="btn btn-primary" onClick={() => setMenuOpen(false)}>Reservá tu cancha</Link>
           <Link to="/login" className="btn btn-ghost" onClick={() => setMenuOpen(false)}>Iniciar sesión</Link>
         </div>
       </header>
 
       {/* ===== HERO B2C ===== */}
-      <section className="hero-b2c" id="reservar">
+      <section className="hero-b2c" id="reservar" style={{ paddingBottom: '120px' }}>
         <div className="hb-bg">
           <img src="/assets/act-padel-a.jpg" alt="Jugadores de pádel" />
         </div>
@@ -285,232 +110,10 @@ export function LandingPage() {
           <div className="wrap">
             <span className="rc-eyebrow">Pádel y tenis · disponibilidad en vivo</span>
             <h1>Tu próximo partido, <span className="hl">a un click</span></h1>
-            <p className="hb-lead">
+            <p className="hb-lead" style={{ marginBottom: '32px' }}>
               Encontrá tu club, mirá la disponibilidad real y reservá tu cancha en segundos. Sin llamados, sin esperar respuesta por WhatsApp.
             </p>
-            <div className="hb-search">
-              <div className="rc-search">
-                <div className="rc-field">
-                  <span className="fl">Deporte</span>
-                  <span className="fv">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    Pádel
-                  </span>
-                </div>
-                <div className="rc-field rc-field-loc" ref={locRef}>
-                  <span className="fl">Ubicación</span>
-                  <label className="fv">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    <input
-                      className="rc-loc-input"
-                      type="text"
-                      placeholder="Ciudad o provincia…"
-                      value={locInput}
-                      onChange={(e) => { setLocInput(e.target.value); setSelectedPlace(null); setDropdownOpen(true); }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      onFocus={() => nominatimResults.length > 0 && setDropdownOpen(true)}
-                      autoComplete="off"
-                    />
-                    {locInput && (
-                      <button className="rc-loc-clear" onClick={clearLocation} type="button" aria-label="Limpiar">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
-                    )}
-                  </label>
-                  <button className="rc-geo-btn" onClick={useMyLocation} type="button" title="Usar mi ubicación" disabled={geoLoading}>
-                    {geoLoading ? (
-                      <svg className="rc-geo-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><path d="M12 1v2M12 21v2M1 12h2M21 12h2"/></svg>
-                    )}
-                  </button>
-                  {/* Autocomplete dropdown */}
-                  {dropdownOpen && (nominatimResults.length > 0 || nominatimLoading) && (
-                    <div className="rc-loc-dropdown">
-                      {nominatimLoading && nominatimResults.length === 0 ? (
-                        <div className="rc-loc-dd-loading">Buscando…</div>
-                      ) : (
-                        nominatimResults.map((place) => {
-                          const label =
-                            place.address.city ?? place.address.town ?? place.address.village ?? place.display_name.split(',')[0];
-                          const sub = place.display_name.replace(label + ', ', '').split(',').slice(0, 2).join(',');
-                          return (
-                            <button
-                              key={place.place_id}
-                              className="rc-loc-dd-item"
-                              onMouseDown={(e) => { e.preventDefault(); selectPlace(place); }}
-                              type="button"
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                              <span>
-                                <span className="rc-loc-dd-main">{label}</span>
-                                <span className="rc-loc-dd-sub">{sub}</span>
-                              </span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="rc-field rc-field-fecha" ref={fechaRef}>
-                  <span className="fl">Fecha</span>
-                  <button
-                    className="fv rc-fecha-trigger"
-                    type="button"
-                    onClick={() => setFechaDropdownOpen((v) => !v)}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    {formatFechaShort(selectedFecha)}
-                  </button>
-                  {fechaDropdownOpen && (
-                    <div className="rc-fecha-dropdown">
-                      {[0, 1, 2, 3].map((n) => {
-                        const d = addDaysFromToday(n);
-                        const isOn = selectedFecha === d;
-                        const label = n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : (() => {
-                          const s = new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'short' });
-                          return s.charAt(0).toUpperCase() + s.slice(1);
-                        })();
-                        return (
-                          <button key={d} type="button" className={`rc-fecha-dd-item${isOn ? ' on' : ''}`}
-                            onMouseDown={(e) => { e.preventDefault(); setSelectedFecha(d); setFechaDropdownOpen(false); }}>
-                            {label}
-                          </button>
-                        );
-                      })}
-                      <div className="rc-fecha-dd-sep" />
-                      <label className="rc-fecha-dd-custom">
-                        <span>Otra fecha</span>
-                        <input
-                          type="date"
-                          value={selectedFecha}
-                          min={todayISO()}
-                          max={addDaysFromToday(30)}
-                          onChange={(e) => { if (e.target.value) { setSelectedFecha(e.target.value); setFechaDropdownOpen(false); } }}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-                <button className="rc-go" onClick={handleSearch} type="button">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  Buscar
-                </button>
-              </div>
-            </div>
-            <div className="rc-chips">
-              <span className="rc-chip">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Confirmación instantánea
-              </span>
-              <span className="rc-chip">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Sin registro obligatorio
-              </span>
-              <span className="rc-chip">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Disponibilidad en tiempo real
-              </span>
-            </div>
 
-            {/* ===== FILTRO DE HORARIO ===== */}
-            <div className="rc-time-filters">
-              {([
-                { key: 'todos',  label: 'Cualquier hora' },
-                { key: 'manana', label: 'Mañana · 8–13h' },
-                { key: 'tarde',  label: 'Tarde · 13–19h' },
-                { key: 'noche',  label: 'Noche · 19h+' },
-              ] as { key: TimeFilter; label: string }[]).map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`rc-time-chip${timeFilter === key ? ' on' : ''}`}
-                  onClick={() => setTimeFilter(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* ===== CLUBES INLINE (visible sin scroll) ===== */}
-            {(clubsQuery.isLoading || allClubs.length > 0) && (
-              <div className="rc-clubs-inline" id="canchas">
-                <p className="rc-clubs-title">
-                  {(selectedPlace || locInput.trim()) && clubs.length > 0
-                    ? `${clubs.length} club${clubs.length !== 1 ? 'es' : ''} cerca de ${selectedPlace?.displayName ?? locInput}`
-                    : 'Clubes en la plataforma'}
-                </p>
-                {clubsQuery.isLoading ? (
-                  <div className="rc-clubs-grid">
-                    {[1, 2, 3].map((i) => <div key={i} className="rc-club-skeleton" />)}
-                  </div>
-                ) : clubs.length === 0 ? (
-                  <p className="rc-clubs-empty">
-                    Sin clubes cerca de "{selectedPlace?.displayName ?? locInput}" ·{' '}
-                    <button onClick={clearLocation}>Ver todos</button>
-                  </p>
-                ) : (
-                  <div className="rc-clubs-grid">
-                    {clubs.map((club) => {
-                      const allHoras = slotsMap?.get(club.slug) ?? [];
-                      const filtered = allHoras.filter((h) => pasaFiltro(h, timeFilter));
-                      const shown = filtered.slice(0, 5);
-                      const extra = filtered.length - shown.length;
-                      return (
-                        <div key={club.id} className="rc-club-card-v2">
-                          <Link to={`/club/${club.slug}?fecha=${selectedFecha}`} className="rc-ccv2-main">
-                            <div className="rc-ccv2-img">
-                              {club.portada_url ? (
-                                <img src={club.portada_url} alt={club.nombre} />
-                              ) : (
-                                <div className="rc-ccv2-ph">
-                                  <span>{club.nombre.charAt(0).toUpperCase()}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="rc-ccv2-info">
-                              <span className="rc-ccv2-name">{club.nombre}</span>
-                              {(club.ciudad || club.provincia) && (
-                                <span className="rc-ccv2-loc">
-                                  {[club.ciudad, club.provincia].filter(Boolean).join(', ')}
-                                </span>
-                              )}
-                            </div>
-                          </Link>
-                          <div className="rc-ccv2-slots">
-                            {bulkQuery.isLoading ? (
-                              <>{[1, 2, 3].map((i) => <span key={i} className="rc-ccv2-slot-sk" />)}</>
-                            ) : filtered.length === 0 ? (
-                              <span className="rc-ccv2-no-slots">
-                                {allHoras.length > 0 ? 'Sin turnos en este horario' : 'Consultá disponibilidad'}
-                              </span>
-                            ) : (
-                              <>
-                                {shown.map((hora) => (
-                                  <Link
-                                    key={hora}
-                                    to={`/club/${club.slug}?fecha=${selectedFecha}&hora=${hora}`}
-                                    className="rc-ccv2-slot"
-                                  >
-                                    {hora}
-                                  </Link>
-                                ))}
-                                {extra > 0 && (
-                                  <Link to={`/club/${club.slug}?fecha=${selectedFecha}`} className="rc-ccv2-more">
-                                    +{extra}
-                                  </Link>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </section>
@@ -588,7 +191,6 @@ export function LandingPage() {
               </p>
               <div className="sw-cta">
                 <a href="#plataforma" className="btn btn-primary btn-lg">Ver funcionalidades</a>
-                <a href="#precios" className="btn btn-ghost btn-lg">Ver planes y precios</a>
               </div>
             </div>
             <div className="sw-photo reveal">
@@ -1345,73 +947,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ===== PRICING ===== */}
-      <section id="precios" style={{ background: 'var(--bg-soft)' }}>
-        <div className="wrap">
-          <div className="center">
-            <span className="eyebrow">Precios</span>
-            <h2 className="section-title">Sin sorpresas, sin letra chica</h2>
-            <p className="section-lead">Planes pensados para el tamaño de tu club.</p>
-          </div>
-          <div className="pricing reveal">
-            <div className="plan">
-              <h3>Starter</h3>
-              <p className="plan-desc">Para clubes que están empezando a digitalizar su operación.</p>
-              <div className="price">$29.900 <small>/ mes</small></div>
-              <div className="price-note">IVA incluido · Factura electrónica</div>
-              <ul className="plan-list">
-                {['Hasta 4 canchas', 'Grilla de reservas', 'Cobros y caja básica', 'Reportes mensuales', '1 usuario admin + 2 vendedores'].map((f) => (
-                  <li key={f} className="plan-li">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    {f}
-                  </li>
-                ))}
-                {['Buffet y stock', 'EERR por unidad', 'Turnos fijos'].map((f) => (
-                  <li key={f} className="plan-li off">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <a href="#demo" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>Empezar gratis 30 días</a>
-            </div>
-            <div className="plan feat">
-              <div className="plan-badge">Más popular</div>
-              <h3>Pro</h3>
-              <p className="plan-desc">Para clubes que quieren control financiero real y operación sin errores.</p>
-              <div className="price">$59.900 <small>/ mes</small></div>
-              <div className="price-note">IVA incluido · Factura electrónica</div>
-              <ul className="plan-list">
-                {['Canchas ilimitadas', 'Todo lo de Starter', 'Buffet con stock y POS', 'Turnos fijos y clases', 'EERR por unidad de negocio', 'Flujo de caja real + proyectado', 'Compras y proveedores', 'Usuarios ilimitados'].map((f) => (
-                  <li key={f} className="plan-li">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <a href="#demo" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Empezar gratis 30 días</a>
-            </div>
-            <div className="plan">
-              <h3>Escala</h3>
-              <p className="plan-desc">Para grupos multi-sede que necesitan visibilidad consolidada.</p>
-              <div className="price" style={{ fontSize: '22px', paddingTop: '6px' }}>A medida</div>
-              <div className="price-note">Presupuesto según tu operación</div>
-              <ul className="plan-list">
-                {['Todo lo de Pro', 'Multi-sede centralizado', 'Dashboard corporativo', 'Integración con sistemas propios', 'SLA de disponibilidad dedicado', 'Soporte prioritario'].map((f) => (
-                  <li key={f} className="plan-li">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <a href="#demo" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>Hablar con ventas</a>
-            </div>
-          </div>
-          <p className="pricing-note">
-            Todos los planes incluyen onboarding gratuito · Sin permanencia · Cancelás cuando querés
-          </p>
-        </div>
-      </section>
+
 
       {/* ===== FAQ ===== */}
       <section>
@@ -1445,27 +981,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ===== CTA BAND ===== */}
-      <section id="demo">
-        <div className="wrap">
-          <div className="cta-band reveal">
-            <h2>¿Listo para digitalizar tu club?</h2>
-            <p>
-              Probá MatchGo 30 días sin cargo. Sin tarjeta, sin permanencia.
-              Configuración en menos de un día.
-            </p>
-            <div className="hero-cta" style={{ justifyContent: 'center', marginBottom: '24px' }}>
-              <a href="mailto:hola@matchgo.ar" className="btn btn-primary btn-lg">Pedir demo gratis</a>
-              <a href="tel:+5491100000000" className="btn btn-ghost btn-lg" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)' }}>Llamanos</a>
-            </div>
-            <div className="hero-trust" style={{ justifyContent: 'center', color: '#94a3b8' }}>
-              <span><span className="dot" />Sin tarjeta de crédito</span>
-              <span><span className="dot" />Onboarding incluido</span>
-              <span><span className="dot" />Cancelás cuando querés</span>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       {/* ===== FOOTER ===== */}
       <footer>
@@ -1482,7 +998,7 @@ export function LandingPage() {
             </div>
             <div className="foot-col">
               <h4>Jugadores</h4>
-              <a href="#canchas">Reservar cancha</a>
+              <Link to="/player">Reservar cancha</Link>
               <a href="#deportes">Deportes</a>
               <a href="#comojugador">Cómo funciona</a>
             </div>
@@ -1490,8 +1006,7 @@ export function LandingPage() {
               <h4>Clubes</h4>
               <a href="#software">Software</a>
               <a href="#plataforma">Plataforma</a>
-              <a href="#precios">Precios</a>
-              <a href="#demo">Demo</a>
+
             </div>
             <div className="foot-col">
               <h4>Contacto</h4>
