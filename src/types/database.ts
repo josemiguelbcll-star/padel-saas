@@ -108,13 +108,16 @@ export interface Club {
    */
   condicion_fiscal: CondicionFiscalClub;
 
-  // Perfil público B2C (0067).
+  // Perfil público B2C (0067) & Reservas desde app (0079).
   descripcion: string | null;
   lat: number | null;
   lng: number | null;
   instagram: string | null;
   website: string | null;
   perfil_publico_activo: boolean;
+  cbu_alias?: string | null;
+  nombre_banco?: string | null;
+  sena_porcentaje?: number;
 }
 
 /**

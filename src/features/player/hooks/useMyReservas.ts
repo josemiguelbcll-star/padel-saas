@@ -53,7 +53,7 @@ export function formatHoraReserva(timeStr: string): string {
 /** Label legible del estado de la reserva */
 export function labelEstado(estado: string): string {
   switch (estado) {
-    case 'pendiente':  return 'Pendiente';
+    case 'pendiente':  return 'Pendiente de seña';
     case 'senada':     return 'Señada';
     case 'pagada':     return 'Pagada';
     case 'jugada':     return 'Jugada';

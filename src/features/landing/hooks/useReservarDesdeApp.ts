@@ -15,6 +15,8 @@ export interface ReservaAppConfirmada {
   nombre_banco:    string | null;
   instagram:       string | null;
   sena_porcentaje: number;
+  sena_tipo?:      'porcentaje' | 'fijo';
+  sena_valor?:     number;
 }
 
 export function useReservarDesdeApp() {

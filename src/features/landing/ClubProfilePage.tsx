@@ -166,7 +166,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
-              <h2 className="text-lg font-black text-gray-900">¡Reserva confirmada!</h2>
+              <h2 className="text-lg font-black text-gray-900">¡Pre-reserva realizada!</h2>
               <p className="text-sm text-gray-500">
                 {result.cancha_nombre} · {formatFechaBooking(result.fecha)} · {formatTime(result.hora_inicio)}
               </p>
@@ -180,7 +180,9 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
                 <span className="font-bold text-gray-900">${result.monto_total.toLocaleString('es-AR')}</span>
               </div>
               <div className="mt-2 flex justify-between text-sm">
-                <span className="text-gray-500">Seña ({result.sena_porcentaje}%)</span>
+                <span className="text-gray-500">
+                  {result.sena_tipo === 'fijo' ? 'Seña (Monto fijo)' : `Seña (${result.sena_porcentaje}%)`}
+                </span>
                 <span className="font-black text-[#0B1F4D]">${result.monto_sena.toLocaleString('es-AR')}</span>
               </div>
             </div>
@@ -193,7 +195,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
               {result.cbu_alias ? (
                 <>
                   <p className="text-sm text-gray-700">
-                    Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias:
+                    Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias para que el club confirme tu reserva:
                   </p>
                   <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
                     <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>

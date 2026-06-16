@@ -222,7 +222,7 @@ export function PlayerApp() {
             onReservaCreada={() => {
               setClubSlug(null);
               setTab('partidos');
-              setNotification('¡Reserva confirmada! Revisa Mis partidos para ver los detalles.');
+              setNotification('¡Pre-reserva realizada! Recordá enviar la seña para confirmar tu turno.');
               // Recargar reservas para mostrar la nueva
               reload();
             }}

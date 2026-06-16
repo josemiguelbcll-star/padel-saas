@@ -52,6 +52,12 @@ export function PerfilPublicoPage() {
   const [transferenciaAlias, setTransferenciaAlias] = useState<string>(
     depositoCfg.transferencia_alias ?? '',
   );
+  const [depositoTipo, setDepositoTipo] = useState<'porcentaje' | 'fijo'>(
+    depositoCfg.tipo ?? 'porcentaje',
+  );
+  const [depositoValor, setDepositoValor] = useState<string>(
+    depositoCfg.valor?.toString() ?? '50',
+  );
   const [coordsRaw, setCoordsRaw] = useState(
     club?.lat && club?.lng ? `${club.lat}, ${club.lng}` : '',
   );
@@ -117,18 +123,23 @@ export function PerfilPublicoPage() {
       if (coordsRaw.trim() && !parsed) {
         throw new Error('Coordenadas inválidas. Pegá el formato de Google Maps: -34.603, -58.381');
       }
+      const senaValorNum = Number(depositoValor) || 0;
       const patch: Record<string, unknown> = {
         descripcion: descripcion.trim() || null,
         instagram: instagram.trim().replace(/^@/, '') || null,
         website: website.trim() || null,
         lat: parsed?.lat ?? null,
         lng: parsed?.lng ?? null,
+        // Mantener sena_porcentaje sincronizado en la columna correspondiente si es porcentaje
+        sena_porcentaje: depositoTipo === 'porcentaje' ? Math.min(100, Math.max(10, Math.round(senaValorNum))) : (club?.sena_porcentaje ?? 50),
         // Guardar configuración personalizada en la columna `config`
         config: {
           ...(club?.config ?? {}),
           deposito: {
             obligatorio: depositoObligatorio,
             transferencia_alias: transferenciaAlias || null,
+            tipo: depositoTipo,
+            valor: senaValorNum,
           },
         },
       };
@@ -374,6 +385,56 @@ export function PerfilPublicoPage() {
               />
               <Label htmlFor="deposito-obligatorio">Obligar pago de seña al reservar</Label>
             </div>
+
+            {depositoObligatorio && (
+              <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tipo de seña</Label>
+                  <div className="flex gap-4 mt-1">
+                    <label className="flex items-center gap-2 text-sm font-normal cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deposito-tipo"
+                        value="porcentaje"
+                        checked={depositoTipo === 'porcentaje'}
+                        onChange={() => setDepositoTipo('porcentaje')}
+                        disabled={!isAdmin}
+                        className="h-4 w-4"
+                      />
+                      Porcentaje del total (%)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-normal cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deposito-tipo"
+                        value="fijo"
+                        checked={depositoTipo === 'fijo'}
+                        onChange={() => setDepositoTipo('fijo')}
+                        disabled={!isAdmin}
+                        className="h-4 w-4"
+                      />
+                      Monto fijo ($)
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="deposito-valor">
+                    {depositoTipo === 'porcentaje' ? 'Porcentaje de la seña (10-100%)' : 'Monto de la seña ($)'}
+                  </Label>
+                  <Input
+                    id="deposito-valor"
+                    type="number"
+                    min={depositoTipo === 'porcentaje' ? 10 : 0}
+                    max={depositoTipo === 'porcentaje' ? 100 : undefined}
+                    value={depositoValor}
+                    onChange={(e) => setDepositoValor(e.target.value)}
+                    disabled={!isAdmin}
+                    placeholder={depositoTipo === 'porcentaje' ? '50' : '3000'}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="transferencia-alias">Alias / CBU para transferencias</Label>
