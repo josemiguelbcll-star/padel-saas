@@ -86,7 +86,7 @@ const BUCKETS: ReadonlyArray<BucketDef> = [
  * El día efectivo es clamp(diaPlantilla, ultimoDelMes) — NO addMonths.
  * Estado se computa con la fecha local del día.
  */
-export function RecurrentesPanel() {
+export function RecurrentesPanel({ readOnly }: { readOnly?: boolean }) {
   const ahora = new Date();
   const anio = ahora.getFullYear();
   const mes = ahora.getMonth();
@@ -248,13 +248,15 @@ export function RecurrentesPanel() {
               </p>
             )}
           </div>
-          <Button
-            type="button"
-            onClick={() => { setEditandoFila(null); setOpenNueva(true); }}
-          >
-            <Plus className="h-4 w-4" />
-            Nueva plantilla
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              onClick={() => { setEditandoFila(null); setOpenNueva(true); }}
+            >
+              <Plus className="h-4 w-4" />
+              Nueva plantilla
+            </Button>
+          )}
         </div>
       </header>
 
@@ -276,7 +278,7 @@ export function RecurrentesPanel() {
       )}
 
       {recurrentesQuery.data && cards.length === 0 && (
-        <EmptyState onCrear={() => { setEditandoFila(null); setOpenNueva(true); }} />
+        <EmptyState onCrear={() => { setEditandoFila(null); setOpenNueva(true); }} readOnly={readOnly} />
       )}
 
       {recurrentesQuery.data && cards.length > 0 && (
@@ -313,6 +315,7 @@ export function RecurrentesPanel() {
                       onEditar={() => { setEditandoFila(c.fila); setOpenNueva(true); }}
                       onDesactivar={() => setDesactivarFila(c.fila)}
                       onEliminar={() => setEliminarFila(c.fila)}
+                      readOnly={readOnly}
                     />
                   ))}
                 </div>
@@ -548,7 +551,7 @@ function ResumenStat({
   );
 }
 
-function EmptyState({ onCrear }: { onCrear: () => void }) {
+function EmptyState({ onCrear, readOnly }: { onCrear: () => void; readOnly?: boolean }) {
   return (
     <div className="rounded-md border border-dashed border-border p-8 text-center">
       <Repeat className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
@@ -556,10 +559,12 @@ function EmptyState({ onCrear }: { onCrear: () => void }) {
         Todavía no cargaste plantillas recurrentes. Empezá con las que se
         repiten cada mes: alquiler, luz, sueldos.
       </p>
-      <Button type="button" onClick={onCrear} className="mt-3">
-        <Plus className="h-4 w-4" />
-        Crear primera plantilla
-      </Button>
+      {!readOnly && (
+        <Button type="button" onClick={onCrear} className="mt-3">
+          <Plus className="h-4 w-4" />
+          Crear primera plantilla
+        </Button>
+      )}
     </div>
   );
 }

@@ -17,6 +17,8 @@ import type { MotivoAnulacionTipo } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useCajaAbierta } from '@/features/caja/hooks/useCajaAbierta';
 import {
   useCuentasPorPagar,
@@ -156,6 +158,9 @@ function clasificar(
 // ─────────────────────────────────────────────────────────────────────
 
 export function CuentasPorPagarPage() {
+  const { user } = useSession();
+  const canEdit = getPermiso(user, 'finanzas', 'editar');
+
   const query = useCuentasPorPagar();
   const pagosQuery = usePagosCuotaRecientes();
   const cajaQuery = useCajaAbierta();
@@ -424,6 +429,7 @@ export function CuentasPorPagarPage() {
                 def={def}
                 cuotas={lista}
                 onPagar={(c) => setCuotaSeleccionada(c)}
+                canEdit={canEdit}
               />
             );
           })}
@@ -437,6 +443,7 @@ export function CuentasPorPagarPage() {
           setAnularError(null);
           setPagoAAnular(p);
         }}
+        canEdit={canEdit}
       />
 
       <PagarCuotaDialog
@@ -520,9 +527,11 @@ function cuotaLabel(c: {
 function PagosRecientesSection({
   query,
   onAnular,
+  canEdit,
 }: {
   query: ReturnType<typeof usePagosCuotaRecientes>;
   onAnular: (p: PagoCuotaReciente) => void;
+  canEdit: boolean;
 }) {
   // Solo mostramos la sección si hay pagos recientes — si no, no hay
   // nada que corregir y no agregamos ruido.
@@ -583,14 +592,16 @@ function PagosRecientesSection({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => onAnular(p)}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
-              Anular pago
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => onAnular(p)}
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                Anular pago
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -650,9 +661,10 @@ interface BucketSectionProps {
   def: BucketDef;
   cuotas: Array<CuentaPorPagarFila & { bucket: Bucket }>;
   onPagar: (c: CuentaPorPagarFila) => void;
+  canEdit: boolean;
 }
 
-function BucketSection({ def, cuotas, onPagar }: BucketSectionProps) {
+function BucketSection({ def, cuotas, onPagar, canEdit }: BucketSectionProps) {
   const Icon = def.icon;
   const total = cuotas.reduce((acc, c) => acc + c.monto, 0);
 
@@ -684,6 +696,7 @@ function BucketSection({ def, cuotas, onPagar }: BucketSectionProps) {
             cuota={c}
             urgente={def.urgent}
             onPagar={() => onPagar(c)}
+            canEdit={canEdit}
           />
         ))}
       </ul>
@@ -699,10 +712,12 @@ function CuotaRow({
   cuota,
   urgente,
   onPagar,
+  canEdit,
 }: {
   cuota: CuentaPorPagarFila;
   urgente: boolean;
   onPagar: () => void;
+  canEdit: boolean;
 }) {
   const cuotaLabel = cuota.es_anticipo
     ? 'Anticipo'
@@ -757,9 +772,11 @@ function CuotaRow({
         )}
       </div>
 
-      <Button type="button" size="sm" onClick={onPagar}>
-        Pagar
-      </Button>
+      {canEdit && (
+        <Button type="button" size="sm" onClick={onPagar}>
+          Pagar
+        </Button>
+      )}
     </li>
   );
 }

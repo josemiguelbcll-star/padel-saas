@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLogoClubUrl } from '@/lib/clubBrand';
-import { useClubPublico, type FotoClub, type CanchaPublica } from './hooks/useClubPublico';
+import { useClubPublico, type FotoClub, type CanchaPublica, type ClubPublico } from './hooks/useClubPublico';
 import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibilidadClub';
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
 
@@ -57,15 +57,17 @@ interface BookingSlot {
 interface BookingBottomSheetProps {
   slot:            BookingSlot;
   fecha:           string;
-  clubNombre:      string;
+  club:            ClubPublico;
   onClose:         () => void;
   onReservaCreada: () => void;
 }
 
-function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada }: BookingBottomSheetProps) {
+function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: BookingBottomSheetProps) {
   const { reservar, isLoading, error } = useReservarDesdeApp();
   const [result, setResult] = useState<ReservaAppConfirmada | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [metodoPago, setMetodoPago] = useState<'transferencia' | 'mercadopago'>('transferencia');
+  const [redirectingMP, setRedirectingMP] = useState(false);
 
   async function handleConfirmar() {
     if (isPastDateTime(fecha, slot.hora_inicio)) {
@@ -78,7 +80,33 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
       hora_inicio:  slot.hora_inicio,
       duracion_min: slot.duracion_min,
     });
-    if (res) setResult(res);
+    if (res) {
+      setResult(res);
+      if (metodoPago === 'mercadopago') {
+        setRedirectingMP(true);
+        try {
+          const response = await fetch('/api/create-preference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reserva_id: res.reserva_id,
+              club_id: club.id,
+              origin_url: window.location.origin,
+            }),
+          });
+          const data = await response.json();
+          if (data.init_point) {
+            window.location.href = data.init_point;
+          } else {
+            throw new Error(data.error || 'No se pudo generar el link de pago.');
+          }
+        } catch (err: any) {
+          console.error('[BookingBottomSheet] Error al crear preferencia:', err);
+          setLocalError('Reserva realizada, pero no pudimos redirigirte a Mercado Pago: ' + err.message);
+          setRedirectingMP(false);
+        }
+      }
+    }
   }
 
   return (
@@ -112,7 +140,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
             <div className="mb-5 space-y-3 rounded-2xl bg-gray-50 p-4">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Club</span>
-                <span className="font-bold text-gray-900">{clubNombre}</span>
+                <span className="font-bold text-gray-900">{club.nombre}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Cancha</span>
@@ -133,6 +161,41 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
 
            
 
+            {/* Selector de método de pago si Mercado Pago está habilitado */}
+            {club.mercadopago_habilitado && (
+              <div className="mb-5 space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                  Método de pago de seña
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setMetodoPago('transferencia')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition text-center ${
+                      metodoPago === 'transferencia'
+                        ? 'border-[#0B1F4D] bg-[#0B1F4D]/5 text-[#0B1F4D]'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="font-bold text-sm">Transferencia</span>
+                    <span className="text-[10px] opacity-75">CBU / Alias</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMetodoPago('mercadopago')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition text-center ${
+                      metodoPago === 'mercadopago'
+                        ? 'border-[#0B1F4D] bg-[#0B1F4D]/5 text-[#0B1F4D]'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="font-bold text-sm">Mercado Pago</span>
+                    <span className="text-[10px] opacity-75">Tarjeta / Saldo</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {localError && (
               <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
                 {localError}
@@ -152,7 +215,7 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
             >
               {isLoading
                 ? <><div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />Reservando...</>
-                : 'Reservar ahora →'}
+                : metodoPago === 'mercadopago' ? 'Pre-reservar y pagar →' : 'Reservar ahora →'}
             </button>
           </div>
         ) : (
@@ -188,38 +251,83 @@ function BookingBottomSheet({ slot, fecha, clubNombre, onClose, onReservaCreada 
             </div>
 
             {/* Instrucciones de pago */}
-            <div className="mb-5 rounded-2xl border-2 border-[#0B1F4D]/10 bg-blue-50 p-4">
-              <p className="mb-2 text-xs font-black uppercase tracking-wider text-[#0B1F4D]/60">
-                Cómo pagar la seña
-              </p>
-              {result.cbu_alias ? (
-                <>
-                  <p className="text-sm text-gray-700">
-                    Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias para que el club confirme tu reserva:
-                  </p>
-                  <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
-                    <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>
-                    {result.nombre_banco && (
-                      <p className="mt-0.5 text-xs text-gray-400">{result.nombre_banco}</p>
-                    )}
+            {metodoPago === 'mercadopago' ? (
+              <div className="mb-5 rounded-2xl border-2 border-green-200 bg-green-50 p-4 text-center">
+                <p className="text-sm font-semibold text-green-800 mb-3">
+                  {redirectingMP 
+                    ? 'Redirigiéndote a Mercado Pago...' 
+                    : 'Hacé click abajo para pagar tu seña de forma segura.'}
+                </p>
+                {redirectingMP ? (
+                  <div className="flex justify-center py-4">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-200 border-t-green-600" />
                   </div>
-                  {result.instagram && (
-                    <p className="mt-2 text-xs text-gray-500">
-                      Enviá el comprobante por Instagram{' '}
-                      <strong>@{result.instagram.replace('@', '')}</strong>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setRedirectingMP(true);
+                      try {
+                        const response = await fetch('/api/create-preference', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            reserva_id: result.reserva_id,
+                            club_id: club.id,
+                            origin_url: window.location.origin,
+                          }),
+                        });
+                        const data = await response.json();
+                        if (data.init_point) {
+                          window.location.href = data.init_point;
+                        } else {
+                          throw new Error(data.error || 'No se pudo generar el link de pago.');
+                        }
+                      } catch (err: any) {
+                        console.error('[BookingBottomSheet] Error al crear preferencia:', err);
+                        setLocalError('Error al redirigir: ' + err.message);
+                        setRedirectingMP(false);
+                      }
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#009EE3] py-4 text-base font-extrabold text-white transition active:scale-[0.98]"
+                  >
+                    Pagar seña con Mercado Pago
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mb-5 rounded-2xl border-2 border-[#0B1F4D]/10 bg-blue-50 p-4">
+                <p className="mb-2 text-xs font-black uppercase tracking-wider text-[#0B1F4D]/60">
+                  Cómo pagar la seña
+                </p>
+                {result.cbu_alias ? (
+                  <>
+                    <p className="text-sm text-gray-700">
+                      Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias para que el club confirme tu reserva:
                     </p>
-                  )}
-                </>
-              ) : result.instagram ? (
-                <p className="text-sm text-gray-700">
-                  Escribinos por Instagram <strong>@{result.instagram.replace('@', '')}</strong> para coordinar el pago de la seña.
-                </p>
-              ) : (
-                <p className="text-sm text-gray-700">
-                  Contactá al club para coordinar el pago de la seña antes de la fecha.
-                </p>
-              )}
-            </div>
+                    <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
+                      <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>
+                      {result.nombre_banco && (
+                        <p className="mt-0.5 text-xs text-gray-400">{result.nombre_banco}</p>
+                      )}
+                    </div>
+                    {result.instagram && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Enviá el comprobante por Instagram{' '}
+                        <strong>@{result.instagram.replace('@', '')}</strong>
+                      </p>
+                    )}
+                  </>
+                ) : result.instagram ? (
+                  <p className="text-sm text-gray-700">
+                    Escribinos por Instagram <strong>@{result.instagram.replace('@', '')}</strong> para coordinar el pago de la seña.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-700">
+                    Contactá al club para coordinar el pago de la seña antes de la fecha.
+                  </p>
+                )}
+              </div>
+            )}
 
             <button
               onClick={onReservaCreada}
@@ -464,7 +572,7 @@ export function ClubProfilePage({
         <BookingBottomSheet
           slot={bookingSlot}
           fecha={fecha}
-          clubNombre={club.nombre}
+          club={club}
           onClose={() => setBookingSlot(null)}
           onReservaCreada={handleReservaCreada}
         />

@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import {
   useDeleteJugador,
   useJugadores,
@@ -27,6 +28,7 @@ import {
 export function JugadoresPage() {
   const { user } = useSession();
   const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'reservas', 'editar');
 
   const jugadoresQuery = useJugadores();
   const deleteMutation = useDeleteJugador();
@@ -90,10 +92,12 @@ export function JugadoresPage() {
             estadísticas. Sólo el nombre es obligatorio.
           </p>
         </div>
-        <Button type="button" onClick={openNew} className="shrink-0">
-          <Plus className="h-4 w-4" />
-          Agregar jugador
-        </Button>
+        {canEdit && (
+          <Button type="button" onClick={openNew} className="shrink-0">
+            <Plus className="h-4 w-4" />
+            Agregar jugador
+          </Button>
+        )}
       </header>
 
       {/* Buscador */}
@@ -117,6 +121,7 @@ export function JugadoresPage() {
         jugadores={jugadoresFiltrados}
         busquedaActiva={busqueda.trim() !== ''}
         isAdmin={isAdmin}
+        canEdit={canEdit}
         onEdit={openEdit}
         onDelete={requestDelete}
       />
@@ -186,6 +191,7 @@ interface JugadoresTableProps {
   jugadores: Jugador[];
   busquedaActiva: boolean;
   isAdmin: boolean;
+  canEdit: boolean;
   onEdit: (j: Jugador) => void;
   onDelete: (j: Jugador) => void;
 }
@@ -195,6 +201,7 @@ function JugadoresTable({
   jugadores,
   busquedaActiva,
   isAdmin,
+  canEdit,
   onEdit,
   onDelete,
 }: JugadoresTableProps) {
@@ -294,18 +301,20 @@ function JugadoresTable({
               </td>
               <td className="px-3 py-3">
                 <div className="flex justify-end gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(j)}
-                    aria-label={`Editar ${j.nombre}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(j)}
+                      aria-label={`Editar ${j.nombre}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
                   {/* Eliminar: cosmético solo admin. La seguridad real
                       la da la RLS jugadores_delete (admin-only). */}
-                  {isAdmin && (
+                  {isAdmin && canEdit && (
                     <Button
                       type="button"
                       variant="ghost"

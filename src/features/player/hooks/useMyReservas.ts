@@ -106,12 +106,7 @@ export function useMyReservas() {
   }, []);
 
   useEffect(() => {
-    // 1. Obtener la sesión inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null);
-    });
-
-    // 2. Escuchar cambios en el estado de autenticación
+    // Escuchar cambios en el estado de autenticación (el primer disparo entrega el estado inicial)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
     });

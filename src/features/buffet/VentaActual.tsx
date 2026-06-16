@@ -21,6 +21,7 @@ interface VentaActualProps {
   onIncrement: (productoId: number) => void;
   onDecrement: (productoId: number) => void;
   onCerrar: () => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -40,6 +41,7 @@ export function VentaActual({
   onIncrement,
   onDecrement,
   onCerrar,
+  readOnly,
 }: VentaActualProps) {
   const vacio = items.length === 0;
 
@@ -80,6 +82,7 @@ export function VentaActual({
                     variant="outline"
                     size="icon"
                     onClick={() => onDecrement(item.producto.id)}
+                    disabled={readOnly}
                     aria-label={`Quitar uno de ${item.producto.nombre}`}
                     className="h-7 w-7"
                   >
@@ -93,7 +96,7 @@ export function VentaActual({
                     variant="outline"
                     size="icon"
                     onClick={() => onIncrement(item.producto.id)}
-                    disabled={item.cantidad >= item.producto.stock_actual}
+                    disabled={item.cantidad >= item.producto.stock_actual || readOnly}
                     aria-label={`Sumar uno de ${item.producto.nombre}`}
                     className="h-7 w-7"
                   >
@@ -118,10 +121,11 @@ export function VentaActual({
           <Button
             type="button"
             onClick={onCerrar}
+            disabled={readOnly}
             className="w-full"
             size="lg"
           >
-            Cerrar venta
+            {readOnly ? 'Solo lectura' : 'Cerrar venta'}
           </Button>
         </>
       )}

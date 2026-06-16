@@ -25,6 +25,7 @@ interface DiaColumnaTurnosFijosProps {
   /** Crear un turno fijo que arranca en `inicioMin` con `duracionMin`. */
   onCrearSlot: (inicioMin: number, duracionMin: number) => void;
   onEditarTurno: (t: TurnoFijo) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -52,6 +53,7 @@ export function DiaColumnaTurnosFijos({
   resolverTitular,
   onCrearSlot,
   onEditarTurno,
+  readOnly,
 }: DiaColumnaTurnosFijosProps) {
   const altura = ((cierreMin - aperturaMin) / granularidadMin) * slotHeight;
   const topDe = (min: number) => ((min - aperturaMin) / granularidadMin) * slotHeight;
@@ -76,7 +78,7 @@ export function DiaColumnaTurnosFijos({
       ))}
 
       {/* Slots disponibles (90'). */}
-      {slotsDisponibles.map((s) => (
+      {!readOnly && slotsDisponibles.map((s) => (
         <button
           key={`slot-${s.inicioMin}`}
           type="button"
@@ -131,11 +133,13 @@ export function DiaColumnaTurnosFijos({
           <button
             key={o.turno.id}
             type="button"
-            onClick={() => onEditarTurno(o.turno)}
+            disabled={readOnly}
+            onClick={() => !readOnly && onEditarTurno(o.turno)}
             title={`${resolverTitular(o.turno)} · ${formatearHora(minutosToHora(o.inicioMin))}–${formatearHora(minutosToHora(o.finMin))} · ${o.turno.duracion_min} min`}
             className={cn(
               'absolute inset-x-0.5 overflow-hidden rounded-md border px-1.5 py-1 text-left shadow-sm transition-shadow',
-              'hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              !readOnly && 'hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              readOnly && 'cursor-default',
               cruza
                 ? 'border-destructive/50 bg-destructive/10'
                 : 'border-primary/40 bg-primary/10',

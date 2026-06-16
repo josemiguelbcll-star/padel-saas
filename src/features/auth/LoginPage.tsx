@@ -31,6 +31,13 @@ export function LoginPage() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Estados para recuperación de contraseña
+  const [mode, setMode] = useState<'login' | 'recover'>('login');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoverySent, setRecoverySent] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+
   // Orden estricto: respetar loading PRIMERO. Si decidimos redirigir o
   // mostrar el form mientras la sesión está resolviéndose, puede
   // rebotar (ej. el superadmin queda como user=null, plataformaAdmin=null
@@ -120,10 +127,35 @@ export function LoginPage() {
       setErrors({ form: mapAuthError(error) });
       return;
     }
-    // El SessionProvider va a tomar el SIGNED_IN y cargar el perfil
-    // (plataforma_admins primero, después usuarios+club). Este
-    // componente se re-renderiza con plataformaAdmin o user seteado y
-    // redirige al destino correcto (/plataforma o /).
+  }
+
+  async function handleRecoverySubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setRecoveryError(null);
+
+    const emailTrimmed = recoveryEmail.trim();
+    if (!emailTrimmed) {
+      setRecoveryError('Ingresá tu email.');
+      return;
+    }
+    if (!emailTrimmed.includes('@')) {
+      setRecoveryError('Ingresá un email válido.');
+      return;
+    }
+
+    setRecoverySubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailTrimmed, {
+        redirectTo: `${window.location.origin}/reset-password?type=admin`,
+      });
+      if (error) throw error;
+      setRecoverySent(true);
+    } catch (err: any) {
+      console.error('[LoginPage] Error recovery:', err);
+      setRecoveryError(err.message || 'Error al enviar las instrucciones. Intentá de nuevo.');
+    } finally {
+      setRecoverySubmitting(false);
+    }
   }
 
   return (
@@ -135,86 +167,169 @@ export function LoginPage() {
             alt="MatchGo"
             className="mx-auto h-12 w-auto"
           />
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Iniciar sesión
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Ingresá tus credenciales para acceder al panel del club.
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
-              aria-invalid={errors.email ? true : undefined}
-              aria-describedby={errors.email ? 'email-error' : undefined}
-              required
-            />
-            {errors.email && (
-              <p id="email-error" className="text-xs text-destructive">
-                {errors.email}
+          
+          {mode === 'login' ? (
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                Iniciar sesión
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Ingresá tus credenciales para acceder al panel del club.
               </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Contraseña</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={submitting}
-                aria-invalid={errors.password ? true : undefined}
-                aria-describedby={errors.password ? 'password-error' : undefined}
-                required
-                className="pr-10"
-              />
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
             </div>
-            {errors.password && (
-              <p id="password-error" className="text-xs text-destructive">
-                {errors.password}
+          ) : (
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                Recuperar contraseña
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Te enviaremos un email con las instrucciones para reponer tu clave.
               </p>
-            )}
-          </div>
-
-          {errors.form && (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-            >
-              {errors.form}
             </div>
           )}
+        </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? 'Ingresando…' : 'Iniciar sesión'}
-          </Button>
-        </form>
+        {mode === 'login' ? (
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+                aria-invalid={errors.email ? true : undefined}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+                required
+              />
+              {errors.email && (
+                <p id="email-error" className="text-xs text-destructive">
+                  {errors.email}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Contraseña</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('recover');
+                    setRecoveryError(null);
+                    setRecoverySent(false);
+                    setRecoveryEmail(email);
+                  }}
+                  className="text-xs text-primary hover:underline transition"
+                  tabIndex={-1}
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                  aria-invalid={errors.password ? true : undefined}
+                  aria-describedby={errors.password ? 'password-error' : undefined}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {errors.password && (
+                <p id="password-error" className="text-xs text-destructive">
+                  {errors.password}
+                </p>
+              )}
+            </div>
+
+            {errors.form && (
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                {errors.form}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? 'Ingresando…' : 'Iniciar sesión'}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={handleRecoverySubmit} className="space-y-4" noValidate>
+            {recoverySent ? (
+              <div className="space-y-4 text-center">
+                <div className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                  Hemos enviado un enlace de recuperación a <strong>{recoveryEmail}</strong>. Por favor, revisá tu bandeja de entrada.
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setMode('login');
+                    setRecoverySent(false);
+                  }}
+                >
+                  Volver al inicio de sesión
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="recoveryEmail">Email de tu cuenta</Label>
+                  <Input
+                    id="recoveryEmail"
+                    type="email"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    disabled={recoverySubmitting}
+                    required
+                    placeholder="tu@email.com"
+                  />
+                  {recoveryError && (
+                    <p className="text-xs text-destructive">
+                      {recoveryError}
+                    </p>
+                  )}
+                </div>
+
+                <Button type="submit" className="w-full" disabled={recoverySubmitting}>
+                  {recoverySubmitting ? 'Enviando…' : 'Enviar instrucciones'}
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => setMode('login')}
+                  className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition underline"
+                >
+                  Volver al inicio de sesión
+                </button>
+              </>
+            )}
+          </form>
+        )}
       </div>
     </div>
   );
 }
+

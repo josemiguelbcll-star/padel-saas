@@ -26,6 +26,7 @@ interface ConsumosTurnoSectionProps {
    * NO se mezcla con la lógica de pagos (eso es paso 4).
    */
   montoAlquiler: number;
+  readOnly?: boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ interface ConsumosTurnoSectionProps {
 export function ConsumosTurnoSection({
   reservaId,
   montoAlquiler,
+  readOnly,
 }: ConsumosTurnoSectionProps) {
   const consumosQuery = useReservaConsumos(reservaId);
   const cargar = useCargarConsumoTurno();
@@ -206,6 +208,7 @@ export function ConsumosTurnoSection({
                   void handleQuitarUltimoDelGrupo(g);
                 }}
                 disabled={anyPending}
+                readOnly={readOnly}
               />
             ))}
           </ul>
@@ -230,7 +233,7 @@ export function ConsumosTurnoSection({
             </div>
             <ConsumosCatalogo onAdd={handleAgregar} disabled={cargar.isPending} />
           </div>
-        ) : (
+        ) : !readOnly ? (
           <Button
             type="button"
             variant="outline"
@@ -244,7 +247,7 @@ export function ConsumosTurnoSection({
             <Plus className="h-3.5 w-3.5" />
             Agregar consumo
           </Button>
-        )}
+        ) : null}
       </div>
 
       {error && (
@@ -294,10 +297,12 @@ function ConsumoGrupoRow({
   grupo,
   onQuitarUno,
   disabled,
+  readOnly,
 }: {
   grupo: ConsumoGrupo;
   onQuitarUno: () => void;
   disabled: boolean;
+  readOnly?: boolean;
 }) {
   const esPartido = grupo.tipo_reparto === 'partido';
 
@@ -326,21 +331,23 @@ function ConsumoGrupoRow({
       <span className="w-20 shrink-0 text-right text-sm font-medium tabular-nums text-foreground">
         {currencyFmt.format(grupo.subtotal_total)}
       </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={onQuitarUno}
-        disabled={disabled}
-        aria-label={`Quitar 1 unidad de ${grupo.producto_nombre}`}
-        title={`Quitar 1 unidad (queda ${grupo.cantidad_total - 1})`}
-        className={cn(
-          'h-7 w-7 shrink-0 text-muted-foreground',
-          'hover:bg-destructive/10 hover:text-destructive',
-        )}
-      >
-        <X className="h-3.5 w-3.5" />
-      </Button>
+      {!readOnly && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onQuitarUno}
+          disabled={disabled}
+          aria-label={`Quitar 1 unidad de ${grupo.producto_nombre}`}
+          title={`Quitar 1 unidad (queda ${grupo.cantidad_total - 1})`}
+          className={cn(
+            'h-7 w-7 shrink-0 text-muted-foreground',
+            'hover:bg-destructive/10 hover:text-destructive',
+          )}
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      )}
     </li>
   );
 }

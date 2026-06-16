@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { navItems, type NavItem, type NavSubItem } from './navItems';
+import { getPermiso } from '@/lib/permisos';
 
 /**
  * Sidebar fijo de escritorio. En mobile (<md) no se renderiza y el
@@ -34,11 +35,21 @@ interface SidebarNavProps {
 
 export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
-  const visibles = useMemo(
-    () => navItems.filter((item) => !(item.adminOnly && !isAdmin)),
-    [isAdmin],
-  );
+  const visibles = useMemo(() => {
+    return navItems.filter((item) => {
+      let moduloKey: string | null = null;
+      if (item.label === 'Reservas' || item.label === 'Jugadores') moduloKey = 'reservas';
+      else if (item.label === 'Noticias') moduloKey = 'noticias';
+      else if (item.label === 'Caja') moduloKey = 'caja';
+      else if (item.label === 'Mostrador') moduloKey = 'mostrador';
+      else if (item.label === 'Finanzas') moduloKey = 'finanzas';
+      else if (item.label === 'Inventario') moduloKey = 'inventario';
+      else if (item.label === 'Configuración') moduloKey = 'configuracion';
+
+      if (!moduloKey) return true; // Dashboard u otros
+      return getPermiso(user, moduloKey, 'ver');
+    });
+  }, [user]);
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
       {visibles.map((item) => (

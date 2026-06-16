@@ -17,24 +17,16 @@ export interface ActualizarUsuarioInput {
     nombre?: string;
     rol?: Rol;
     activo?: boolean;
+    permisos?: any;
   };
 }
 
 /**
- * Actualiza nombre, rol y/o activo de un usuario del club. UPDATE
+ * Actualiza nombre, rol, activo y/o permisos de un usuario del club. UPDATE
  * directo via supabase — la RLS `usuarios_update_solo_admin` (0002)
  * restringe a admin del club, y el GRANT column-level (0018) limita
- * las columnas updateables a `(nombre, rol, activo, email)`. El
- * trigger `tr_proteger_ultimo_admin_activo` (0018) es la red de
- * seguridad: bloquea cualquier UPDATE que dejaría al club sin admin
- * activo, con un RAISE EXCEPTION en castellano que mapPostgrestError
- * pasa directo al usuario.
- *
- * Mensajes posibles que el usuario puede ver (todos via dbErrors):
- *   - "No se puede desactivar ni cambiar de rol al último admin
- *      activo del club. Asigná otro admin antes."
- *   - "new row violates row-level security policy" (si no es admin).
- *   - Plus genéricos de red/Postgres.
+ * las columnas updateables. El trigger `tr_proteger_ultimo_admin_activo` (0018)
+ * es la red de seguridad.
  */
 export function useActualizarUsuario(): UseMutationResult<
   Usuario,
@@ -49,7 +41,8 @@ export function useActualizarUsuario(): UseMutationResult<
       if (
         changes.nombre === undefined &&
         changes.rol === undefined &&
-        changes.activo === undefined
+        changes.activo === undefined &&
+        changes.permisos === undefined
       ) {
         throw new Error('No hay cambios para guardar.');
       }
@@ -57,7 +50,7 @@ export function useActualizarUsuario(): UseMutationResult<
         .from('usuarios')
         .update(changes)
         .eq('id', id)
-        .select('id, club_id, nombre, rol, activo, fecha_alta, email')
+        .select('id, club_id, nombre, rol, activo, fecha_alta, email, permisos')
         .single();
       if (error) throw new Error(mapPostgrestError(error));
       return data as Usuario;

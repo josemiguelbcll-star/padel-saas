@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
 
 interface ConfigTab {
   label: string;
@@ -43,6 +44,16 @@ const tabs: ConfigTab[] = [
  * authenticated del club.
  */
 export function ConfiguracionLayout() {
+  const { user } = useSession();
+  const isAdmin = user?.rol === 'admin';
+
+  const visibleTabs = tabs.filter((tab) => {
+    if (tab.to === '/app/configuracion/perfil-publico') {
+      return isAdmin;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -57,7 +68,7 @@ export function ConfiguracionLayout() {
 
       <nav className="border-b border-border" aria-label="Secciones de configuración">
         <ul className="flex flex-wrap gap-1">
-          {tabs.map((tab) => (
+          {visibleTabs.map((tab) => (
             <li key={tab.to}>
               <NavLink
                 to={tab.to}

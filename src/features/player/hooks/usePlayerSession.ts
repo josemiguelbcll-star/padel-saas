@@ -1,16 +1,3 @@
-/**
- * usePlayerSession — maneja el ciclo de vida de auth del jugador B2C.
- *
- * Fases:
- *   loading    → verificando sesión con Supabase
- *   auth       → sin sesión activa → mostrar PlayerLoginPage
- *   onboarding → sesión activa pero sin perfil completo → mostrar PlayerOnboarding
- *   app        → sesión + perfil → mostrar la app
- *
- * La transición auth→onboarding|app la gatilla onAuthStateChange automáticamente.
- * La transición onboarding→app la gatilla completeOnboarding() después de guardar.
- */
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/network';
@@ -31,14 +18,14 @@ export interface PlayerSessionState {
 }
 
 async function fetchPhase(userId: string): Promise<'onboarding' | 'app'> {
-  // Hacemos la consulta con timeout para evitar quedarse colgado
+  // Hacemos la consulta con timeout para evitar quedarse colgado, extendido a 15s
   const promise = supabase
     .from('jugadores_app')
     .select('nombre_display')
     .eq('auth_user_id', userId)
     .maybeSingle();
 
-  const { data } = await (withTimeout(promise as any, 8000, 'fetchPhase:jugadores_app') as any);
+  const { data } = await (withTimeout(promise as any, 15000, 'fetchPhase:jugadores_app') as any);
   return data?.nombre_display ? 'app' : 'onboarding';
 }
 
@@ -46,34 +33,27 @@ export function usePlayerSession(): PlayerSessionState {
   const [phase, setPhase] = useState<PlayerPhase>('loading');
 
   useEffect(() => {
-    // ── Verificar sesión inicial (con timeout y logs) ───────────────────────
-    void (async () => {
-      try {
-        const res = await withTimeout(supabase.auth.getSession(), 8000, 'auth.getSession');
-        const session = (res as any).data?.session;
-        if (!session) { setPhase('auth'); return; }
-        setPhase(await fetchPhase(session.user.id));
-      } catch (err) {
-        console.error('[usePlayerSession] Error checking initial session:', err);
-        setPhase('auth');
-      }
-    })();
-
-    // ── Escuchar cambios de auth (login, logout, OAuth callback, refresh) ──
+    // ── Escuchar cambios de auth (login, logout, OAuth callback, refresh, INITIAL_SESSION) ──
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         try {
-          if (!session) { setPhase('auth'); return; }
+          if (!session) {
+            setPhase('auth');
+            return;
+          }
 
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          if (
+            event === 'INITIAL_SESSION' ||
+            event === 'SIGNED_IN' ||
+            event === 'TOKEN_REFRESHED' ||
+            event === 'USER_UPDATED'
+          ) {
             try {
               const next = await fetchPhase(session.user.id);
               setPhase(next);
             } catch (err) {
               console.warn('[usePlayerSession] fetchPhase timeout/error onAuthStateChange, manteniendo sesión:', err);
-              // No forzar logout por un timeout del backend. Si el usuario ya tiene
-              // sesión, preferimos mantener la app visible y permitir que la UI
-              // falle con un error recuperable más adelante.
+              // Si hay error de conexión pero hay sesión activa, asumimos 'app' para no echar al usuario a la pantalla de login
               setPhase('app');
             }
           }
@@ -115,13 +95,12 @@ export function usePlayerSession(): PlayerSessionState {
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = async () => {
     await supabase.auth.signOut();
-    // onAuthStateChange detecta el SIGNED_OUT y setea 'auth'
   };
 
   return {
     phase,
     completeOnboarding,
     logout,
-    login: () => { /* no-op: la transición la maneja onAuthStateChange */ },
+    login: () => { /* no-op */ },
   };
 }

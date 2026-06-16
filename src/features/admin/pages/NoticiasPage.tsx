@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import { Trash2, Upload } from 'lucide-react';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useNoticiasClub, useCrearNoticia, useEliminarNoticia } from '../hooks/useNoticiasClub';
 
 export function NoticiasPage() {
   const { user } = useSession();
   const clubId = user?.club_id;
+  const canEdit = getPermiso(user, 'noticias', 'editar');
 
   if (!clubId) {
     return <div style={{ padding: '24px', textAlign: 'center' }}>Cargando...</div>;
@@ -120,151 +122,153 @@ export function NoticiasPage() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: canEdit ? '1fr 1fr' : '1fr', gap: '32px' }}>
         {/* ── CREAR NOTICIA ── */}
-        <div
-          style={{
-            background: '#fff',
-            border: '1.5px solid #E2E8F0',
-            borderRadius: '16px',
-            padding: '24px',
-          }}
-        >
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#0B1F4D', marginTop: 0 }}>
-            ➕ Crear noticia
-          </h2>
+        {canEdit && (
+          <div
+            style={{
+              background: '#fff',
+              border: '1.5px solid #E2E8F0',
+              borderRadius: '16px',
+              padding: '24px',
+            }}
+          >
+            <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#0B1F4D', marginTop: 0 }}>
+              ➕ Crear noticia
+            </h2>
 
-          <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Imagen */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '8px' }}>
-                📸 Imagen
-              </label>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  border: '2px dashed #CBD5E1',
-                  borderRadius: '12px',
-                  background: '#F8FAFC',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#0B1F4D')}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#64748B' }}>
-                  <Upload size={18} />
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>
-                    {imageFile ? '✓ Imagen seleccionada' : 'Click para subir'}
-                  </span>
+            <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Imagen */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '8px' }}>
+                  📸 Imagen
+                </label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    border: '2px dashed #CBD5E1',
+                    borderRadius: '12px',
+                    background: '#F8FAFC',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#0B1F4D')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#64748B' }}>
+                    <Upload size={18} />
+                    <span style={{ fontSize: '13px', fontWeight: '500' }}>
+                      {imageFile ? '✓ Imagen seleccionada' : 'Click para subir'}
+                    </span>
+                  </div>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSelectImage}
+                  style={{ display: 'none' }}
+                />
+
+                {imagePreview && (
+                  <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0', aspectRatio: '4/5', background: '#F1F5F9' }}>
+                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Título */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
+                  📝 Título (máx 120 caracteres)
+                </label>
+                <input
+                  type="text"
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  placeholder="Ej: Oferta especial del mes"
+                  maxLength={120}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontFamily: 'inherit',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px' }}>
+                  {titulo.length}/120
                 </div>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleSelectImage}
-                style={{ display: 'none' }}
-              />
+              </div>
 
-              {imagePreview && (
-                <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0', aspectRatio: '4/5', background: '#F1F5F9' }}>
-                  <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {/* Descripción */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
+                  💬 Descripción (opcional)
+                </label>
+                <textarea
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder="Cuéntale a los jugadores de qué se trata esta noticia..."
+                  maxLength={300}
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontFamily: 'inherit',
+                    boxSizing: 'border-box',
+                    resize: 'vertical',
+                  }}
+                />
+                <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px' }}>
+                  {descripcion.length}/300
+                </div>
+              </div>
+
+              {/* Errores */}
+              {error && (
+                <div style={{ padding: '12px', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '8px', fontSize: '12px', color: '#DC2626' }}>
+                  ❌ {error}
                 </div>
               )}
-            </div>
 
-            {/* Título */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                📝 Título (máx 120 caracteres)
-              </label>
-              <input
-                type="text"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                placeholder="Ej: Oferta especial del mes"
-                maxLength={120}
+              {/* Success */}
+              {success && (
+                <div style={{ padding: '12px', background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: '8px', fontSize: '12px', color: '#166534' }}>
+                  ✅ Noticia publicada correctamente
+                </div>
+              )}
+
+              {/* Botón Submit */}
+              <button
+                type="submit"
+                disabled={isSubmitting || uploadingImage || !titulo.trim()}
                 style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1.5px solid #E2E8F0',
+                  padding: '12px',
+                  background: '#0B5BE5',
+                  color: '#fff',
+                  border: 'none',
                   borderRadius: '8px',
-                  fontSize: '13px',
-                  fontFamily: 'inherit',
-                  boxSizing: 'border-box',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  cursor: isSubmitting || uploadingImage ? 'not-allowed' : 'pointer',
+                  opacity: isSubmitting || uploadingImage || !titulo.trim() ? 0.6 : 1,
+                  transition: 'opacity 0.2s',
                 }}
-              />
-              <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px' }}>
-                {titulo.length}/120
-              </div>
-            </div>
-
-            {/* Descripción */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                💬 Descripción (opcional)
-              </label>
-              <textarea
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Cuéntale a los jugadores de qué se trata esta noticia..."
-                maxLength={300}
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontFamily: 'inherit',
-                  boxSizing: 'border-box',
-                  resize: 'vertical',
-                }}
-              />
-              <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px' }}>
-                {descripcion.length}/300
-              </div>
-            </div>
-
-            {/* Errores */}
-            {error && (
-              <div style={{ padding: '12px', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '8px', fontSize: '12px', color: '#DC2626' }}>
-                ❌ {error}
-              </div>
-            )}
-
-            {/* Success */}
-            {success && (
-              <div style={{ padding: '12px', background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: '8px', fontSize: '12px', color: '#166534' }}>
-                ✅ Noticia publicada correctamente
-              </div>
-            )}
-
-            {/* Botón Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting || uploadingImage || !titulo.trim()}
-              style={{
-                padding: '12px',
-                background: '#0B5BE5',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                fontSize: '14px',
-                cursor: isSubmitting || uploadingImage ? 'not-allowed' : 'pointer',
-                opacity: isSubmitting || uploadingImage || !titulo.trim() ? 0.6 : 1,
-                transition: 'opacity 0.2s',
-              }}
-            >
-              {isSubmitting || uploadingImage ? '⏳ Publicando...' : '🚀 Publicar noticia'}
-            </button>
-          </form>
-        </div>
+              >
+                {isSubmitting || uploadingImage ? '⏳ Publicando...' : '🚀 Publicar noticia'}
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* ── NOTICIAS PUBLICADAS ── */}
         <div>
@@ -309,24 +313,26 @@ export function NoticiasPage() {
                   </div>
 
                   {/* Botón eliminar */}
-                  <button
-                    onClick={() => handleEliminar(noticia.id)}
-                    style={{
-                      padding: '8px',
-                      background: '#FEE2E2',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      color: '#DC2626',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                    title="Eliminar"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => handleEliminar(noticia.id)}
+                      style={{
+                        padding: '8px',
+                        background: '#FEE2E2',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        color: '#DC2626',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                      title="Eliminar"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

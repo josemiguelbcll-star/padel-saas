@@ -31,7 +31,7 @@ export function useUsuariosClub(): UseQueryResult<Usuario[], Error> {
       }
       const { data, error } = await supabase
         .from('usuarios')
-        .select('id, club_id, nombre, rol, activo, fecha_alta, email')
+        .select('id, club_id, nombre, rol, activo, fecha_alta, email, permisos')
         .order('activo', { ascending: false })
         .order('fecha_alta', { ascending: true });
       if (error) throw new Error(mapPostgrestError(error));

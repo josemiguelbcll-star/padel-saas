@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { AbrirCajaDialog } from './AbrirCajaDialog';
 import { CerrarCajaDialog } from './CerrarCajaDialog';
 import { MovimientosCajaList } from './MovimientosCajaList';
@@ -61,6 +63,9 @@ const horaFmt = new Intl.DateTimeFormat('es-AR', {
  * en los reportes financieros (módulo futuro).
  */
 export function CajaPage() {
+  const { user } = useSession();
+  const canEdit = getPermiso(user, 'caja', 'editar');
+
   const cajaQuery = useCajaAbierta();
   const [abrirOpen, setAbrirOpen] = useState(false);
   const [salidaOpen, setSalidaOpen] = useState(false);
@@ -96,7 +101,7 @@ export function CajaPage() {
       )}
 
       {cajaQuery.data === null && !cajaQuery.isLoading && (
-        <SinCajaAbierta onAbrir={() => setAbrirOpen(true)} />
+        <SinCajaAbierta onAbrir={() => setAbrirOpen(true)} canEdit={canEdit} />
       )}
 
       {cajaQuery.data && (
@@ -104,6 +109,7 @@ export function CajaPage() {
           caja={cajaQuery.data}
           onRegistrarSalida={() => setSalidaOpen(true)}
           onCerrar={() => setCerrarOpen(true)}
+          canEdit={canEdit}
         />
       )}
 
@@ -130,7 +136,7 @@ export function CajaPage() {
 // Estado B: sin caja abierta
 // ─────────────────────────────────────────────────────────────────────
 
-function SinCajaAbierta({ onAbrir }: { onAbrir: () => void }) {
+function SinCajaAbierta({ onAbrir, canEdit }: { onAbrir: () => void; canEdit: boolean }) {
   return (
     <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -144,10 +150,16 @@ function SinCajaAbierta({ onAbrir }: { onAbrir: () => void }) {
         Mientras no haya caja, los cobros en efectivo se van a rechazar.
       </p>
       <div className="mt-4">
-        <Button type="button" onClick={onAbrir}>
-          <Plus className="h-4 w-4" />
-          Abrir caja del día
-        </Button>
+        {canEdit ? (
+          <Button type="button" onClick={onAbrir}>
+            <Plus className="h-4 w-4" />
+            Abrir caja del día
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground bg-muted/40 p-2.5 rounded border border-border inline-block">
+            No tenés permisos para abrir la caja.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -161,12 +173,14 @@ interface CajaAbiertaContentProps {
   caja: import('@/types/database').TurnoCaja;
   onRegistrarSalida: () => void;
   onCerrar: () => void;
+  canEdit: boolean;
 }
 
 function CajaAbiertaContent({
   caja,
   onRegistrarSalida,
   onCerrar,
+  canEdit,
 }: CajaAbiertaContentProps) {
   const resumenQuery = useResumenCajaAbierta(caja.id);
   const movimientosQuery = useMovimientosCaja(caja.id);
@@ -200,19 +214,27 @@ function CajaAbiertaContent({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onRegistrarSalida}
-            >
-              <ArrowDownCircle className="h-4 w-4" />
-              Registrar movimiento
-            </Button>
-            <Button type="button" size="sm" onClick={onCerrar}>
-              <Lock className="h-4 w-4" />
-              Cerrar caja
-            </Button>
+            {canEdit ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onRegistrarSalida}
+                >
+                  <ArrowDownCircle className="h-4 w-4" />
+                  Registrar movimiento
+                </Button>
+                <Button type="button" size="sm" onClick={onCerrar}>
+                  <Lock className="h-4 w-4" />
+                  Cerrar caja
+                </Button>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground italic bg-muted/40 px-2.5 py-1.5 rounded border border-border">
+                Solo lectura
+              </span>
+            )}
           </div>
         </div>
       </div>

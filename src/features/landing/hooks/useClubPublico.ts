@@ -20,6 +20,11 @@ export interface ClubPublico {
   instagram: string | null;
   website: string | null;
   portada_url: string | null;
+  sena_obligatoria?: boolean;
+  sena_tipo?: 'porcentaje' | 'fijo' | null;
+  sena_valor?: number | null;
+  sena_alias?: string | null;
+  mercadopago_habilitado?: boolean;
 }
 
 export interface CanchaPublica {

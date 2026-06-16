@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, Calendar, Clock, Loader2, Plus, TrendingUp } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { Button } from '@/components/ui/button';
 import { NuevoOtroIngresoDialog } from './NuevoOtroIngresoDialog';
 import { OtrosIngresosList } from './OtrosIngresosList';
@@ -28,6 +30,9 @@ const mesActualFmt = new Intl.DateTimeFormat('es-AR', {
  * desde el resumen financiero.
  */
 export function OtrosIngresosPage() {
+  const { user } = useSession();
+  const canEdit = getPermiso(user, 'finanzas', 'editar');
+
   const query = useOtrosIngresos();
   const [open, setOpen] = useState(false);
 
@@ -78,10 +83,12 @@ export function OtrosIngresosPage() {
               entra a la caja del día.
             </p>
           </div>
-          <Button type="button" onClick={() => setOpen(true)} className="shrink-0">
-            <Plus className="h-4 w-4" />
-            Registrar ingreso
-          </Button>
+          {canEdit && (
+            <Button type="button" onClick={() => setOpen(true)} className="shrink-0">
+              <Plus className="h-4 w-4" />
+              Registrar ingreso
+            </Button>
+          )}
         </div>
       </header>
 

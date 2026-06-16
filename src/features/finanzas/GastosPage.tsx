@@ -13,6 +13,8 @@ import { Link } from 'react-router-dom';
 import type { Gasto } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { AnularDialog } from './AnularDialog';
 import { GastosList } from './GastosList';
 import { NuevoGastoDialog } from './NuevoGastoDialog';
@@ -54,6 +56,9 @@ type Tab = 'movimientos' | 'recurrentes';
  * recurrentes.
  */
 export function GastosPage() {
+  const { user } = useSession();
+  const canEdit = getPermiso(user, 'finanzas', 'editar');
+
   const gastosQuery = useGastos();
   const cxpQuery = useCuentasPorPagar();
   const anular = useAnularGasto();
@@ -136,7 +141,7 @@ export function GastosPage() {
               correspondiente. Si pagás en efectivo, entra a la caja del día.
             </p>
           </div>
-          {tab === 'movimientos' && (
+          {tab === 'movimientos' && canEdit && (
             <Button type="button" onClick={() => setOpen(true)} className="shrink-0">
               <Plus className="h-4 w-4" />
               Registrar gasto
@@ -225,17 +230,17 @@ export function GastosPage() {
             {gastosQuery.data && (
               <GastosList
                 gastos={gastosQuery.data}
-                onAnular={(g) => {
+                onAnular={canEdit ? (g) => {
                   setAnularError(null);
                   setGastoAAnular(g);
-                }}
+                } : undefined}
               />
             )}
           </section>
         </div>
       )}
 
-      {tab === 'recurrentes' && <RecurrentesPanel />}
+      {tab === 'recurrentes' && <RecurrentesPanel readOnly={!canEdit} />}
 
       <NuevoGastoDialog open={open} onOpenChange={setOpen} />
 

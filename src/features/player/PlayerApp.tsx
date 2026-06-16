@@ -1,6 +1,6 @@
 import './player.css';
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePlayerSession } from './hooks/usePlayerSession';
 import { useMyReservas } from './hooks/useMyReservas';
 import { PlayerLoginPage } from './auth/PlayerLoginPage';
@@ -98,6 +98,62 @@ export function PlayerApp() {
   const [tab, setTab] = useState<PlayerTab>('home');
   const [clubSlug, setClubSlug] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paymentStatus = searchParams.get('payment_status') || searchParams.get('status');
+  const reservaId = searchParams.get('reserva_id') || searchParams.get('external_reference');
+  const paymentId = searchParams.get('payment_id');
+
+  useEffect(() => {
+    if (paymentStatus === 'approved' && reservaId && paymentId) {
+      setNotification('Confirmando tu pago de seña en Mercado Pago...');
+      void (async () => {
+        try {
+          const response = await fetch('/api/confirm-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reserva_id: Number(reservaId),
+              payment_id: paymentId,
+            }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            setNotification('¡Pago de seña confirmado exitosamente! Tu reserva está asegurada.');
+            reload();
+          } else {
+            setNotification('Seña registrada, pero hubo un detalle al verificar: ' + (data.error || 'Verificando con el club.'));
+          }
+        } catch (err) {
+          console.error('[PlayerApp] Error al confirmar pago:', err);
+          setNotification('El pago fue realizado, pero no pudimos sincronizarlo en tiempo real. El club lo verificará manualmente.');
+        } finally {
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete('payment_status');
+          newParams.delete('status');
+          newParams.delete('reserva_id');
+          newParams.delete('external_reference');
+          newParams.delete('payment_id');
+          newParams.delete('collection_id');
+          newParams.delete('collection_status');
+          newParams.delete('preference_id');
+          newParams.delete('site_id');
+          newParams.delete('processing_mode');
+          newParams.delete('merchant_account_id');
+          setSearchParams(newParams, { replace: true });
+        }
+      })();
+    } else if (paymentStatus && paymentStatus !== 'approved') {
+      setNotification('El pago con Mercado Pago no se pudo completar o fue rechazado. Podés intentar de nuevo.');
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('payment_status');
+      newParams.delete('status');
+      newParams.delete('reserva_id');
+      newParams.delete('external_reference');
+      newParams.delete('payment_id');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [paymentStatus, reservaId, paymentId]);
 
   useEffect(() => {
     const pathParts = location.pathname.replace(/\/+$/, '').split('/').slice(2);

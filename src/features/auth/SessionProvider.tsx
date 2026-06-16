@@ -50,7 +50,7 @@ const initialState: SessionState = {
  * exponer `Club.estado` al frontend.
  */
 const USUARIO_WITH_CLUB_SELECT =
-  'id, club_id, nombre, rol, activo, fecha_alta, email, ' +
+  'id, club_id, nombre, rol, activo, fecha_alta, email, permisos, ' +
   'clubes(id, nombre, slug, direccion, ciudad, provincia, telefono, email, plan, activo, fecha_alta, config, ' +
   'hora_apertura, hora_cierre, duracion_turno_default, color_primario_hsl, logo_path, plan_id, estado, modalidad_caja, condicion_fiscal)';
 
@@ -112,20 +112,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // === 1. PLATAFORMA_ADMINS PRIMERO ===
-        // Si el usuario está en plataforma_admins (y activo), entra como
-        // superadmin SIN importar que también tenga fila en `usuarios`.
-        // Caso real: el owner del SaaS también era admin del club Signo
-        // Padel — tiene fila vieja en `usuarios` que no se puede borrar
-        // por FKs (cobros/ventas), y fila nueva en `plataforma_admins`.
-        // Acá decidimos que la nueva tiene precedencia.
-        const { data: plataformaRow, error: plataformaError } = await supabase
-          .from('plataforma_admins')
-          .select('id, nombre, email, activo')
-          .eq('id', session.user.id)
-          .maybeSingle();
+        // === 1. PLATAFORMA_ADMINS Y USUARIOS EN PARALELO ===
+        // Ejecutamos ambas consultas en paralelo para acelerar el inicio
+        const [plataformaRes, usuarioRes] = await Promise.all([
+          supabase
+            .from('plataforma_admins')
+            .select('id, nombre, email, activo')
+            .eq('id', session.user.id)
+            .maybeSingle(),
+          supabase
+            .from('usuarios')
+            .select(USUARIO_WITH_CLUB_SELECT)
+            .eq('id', session.user.id)
+            .maybeSingle()
+        ]);
 
         if (!mounted) return;
+
+        const { data: plataformaRow, error: plataformaError } = plataformaRes;
+        const { data, error } = usuarioRes;
 
         if (plataformaError) {
           console.error(
@@ -167,14 +172,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         // === 2. FLUJO NORMAL — usuarios (admin/vendedor de club) ===
-        const { data, error } = await supabase
-          .from('usuarios')
-          .select(USUARIO_WITH_CLUB_SELECT)
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (!mounted) return;
-
         if (error) {
           setState({
             user: null,
@@ -301,13 +298,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    void supabase.auth.getSession().then(({ data }) => {
-      void load(data.session);
-    });
-
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Si recibimos INITIAL_SESSION y no hay sesión, pasamos a loading: false directo
+      // para evitar transiciones innecesarias
+      if (event === 'INITIAL_SESSION' && !session) {
+        setState({
+          user: null,
+          club: null,
+          plataformaAdmin: null,
+          modulosHabilitados: [],
+          loading: false,
+          error: null,
+        });
+        return;
+      }
       setState((prev) => ({ ...prev, loading: true }));
       void load(session);
     });

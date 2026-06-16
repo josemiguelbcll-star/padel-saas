@@ -1,4 +1,4 @@
-import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Upload, Trash2, Star, ExternalLink, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,118 @@ export function PerfilPublicoPage() {
   );
   const [coordsError, setCoordsError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Estados para Mercado Pago
+  const [mpLoading, setMpLoading] = useState(true);
+  const [mpAccessToken, setMpAccessToken] = useState('');
+  const [mpPublicKey, setMpPublicKey] = useState('');
+  const [mpConectado, setMpConectado] = useState(false);
+
+  useEffect(() => {
+    const clubId = club?.id;
+    if (!clubId) return;
+    async function loadMpConfig() {
+      try {
+        const { data } = await supabase
+          .from('club_mercadopago_config')
+          .select('access_token, public_key')
+          .eq('club_id', clubId)
+          .maybeSingle();
+
+        if (data) {
+          setMpAccessToken(data.access_token);
+          setMpPublicKey(data.public_key || '');
+          setMpConectado(true);
+        }
+      } catch (err) {
+        console.error('Error al cargar config de Mercado Pago:', err);
+      } finally {
+        setMpLoading(false);
+      }
+    }
+    void loadMpConfig();
+  }, [club?.id]);
+
+  async function handleConectarMP() {
+    if (!club?.id) return;
+    if (!mpAccessToken.trim() || !mpPublicKey.trim()) {
+      alert('Por favor ingresá tu Access Token y tu Public Key de Mercado Pago.');
+      return;
+    }
+
+    try {
+      setSaveError(null);
+      const { error: mpConfigError } = await supabase
+        .from('club_mercadopago_config')
+        .upsert({
+          club_id: club.id,
+          access_token: mpAccessToken.trim(),
+          public_key: mpPublicKey.trim(),
+        });
+
+      if (mpConfigError) throw mpConfigError;
+
+      const newConfig = {
+        ...(club.config as any ?? {}),
+        mercadopago: {
+          conectado: true,
+        },
+      };
+
+      const { error: clubUpdateError } = await supabase
+        .from('clubes')
+        .update({ config: newConfig })
+        .eq('id', club.id);
+
+      if (clubUpdateError) throw clubUpdateError;
+
+      setMpConectado(true);
+      updateClub({ config: newConfig });
+      alert('¡Mercado Pago conectado exitosamente!');
+    } catch (err: any) {
+      console.error('Error al conectar Mercado Pago:', err);
+      alert('Error al conectar Mercado Pago: ' + (err.message || String(err)));
+    }
+  }
+
+  async function handleDesconectarMP() {
+    if (!club?.id) return;
+    if (!window.confirm('¿Estás seguro de que deseas desconectar Mercado Pago? Los jugadores ya no podrán pagar la seña a través de esta plataforma.')) {
+      return;
+    }
+
+    try {
+      const { error: mpDeleteError } = await supabase
+        .from('club_mercadopago_config')
+        .delete()
+        .eq('club_id', club.id);
+
+      if (mpDeleteError) throw mpDeleteError;
+
+      const newConfig = {
+        ...(club.config as any ?? {}),
+        mercadopago: {
+          conectado: false,
+        },
+      };
+
+      const { error: clubUpdateError } = await supabase
+        .from('clubes')
+        .update({ config: newConfig })
+        .eq('id', club.id);
+
+      if (clubUpdateError) throw clubUpdateError;
+
+      setMpConectado(false);
+      setMpAccessToken('');
+      setMpPublicKey('');
+      updateClub({ config: newConfig });
+      alert('Mercado Pago desconectado exitosamente.');
+    } catch (err: any) {
+      console.error('Error al desconectar Mercado Pago:', err);
+      alert('Error al desconectar Mercado Pago: ' + (err.message || String(err)));
+    }
+  }
 
   function parseCoords(raw: string): { lat: number; lng: number } | null {
     // Normaliza guiones unicode (−, –, —) → hyphen estándar, elimina
@@ -447,8 +559,89 @@ export function PerfilPublicoPage() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Por ahora, el pago de la seña se hace por transferencia usando el alias del club.
+              El pago por transferencia bancaria sirve como fallback. Los jugadores verán este alias al realizar la reserva.
             </p>
+
+            {/* Integración de Mercado Pago */}
+            <div className="border-t border-border pt-6 mt-6 space-y-4">
+              <h3 className="font-semibold text-sm">Integración con Mercado Pago</h3>
+              <p className="text-xs text-muted-foreground">
+                Permití a tus jugadores pagar la seña de su reserva de forma inmediata usando Mercado Pago. El dinero se acreditará directamente en tu cuenta.
+              </p>
+
+              {mpLoading ? (
+                <p className="text-xs text-muted-foreground">Cargando configuración de Mercado Pago...</p>
+              ) : mpConectado ? (
+                <div className="space-y-4 rounded-lg border border-green-200 bg-green-50/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-green-500" />
+                      <p className="text-sm font-semibold text-green-800">Conectado a Mercado Pago</p>
+                    </div>
+                    {isAdmin && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDesconectarMP}
+                      >
+                        Desconectar
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Clave pública (Public Key):</p>
+                    <code className="text-xs font-mono bg-background px-2 py-1 rounded border border-border block overflow-x-auto">
+                      {mpPublicKey ? `${mpPublicKey.slice(0, 15)}...${mpPublicKey.slice(-5)}` : 'No configurada'}
+                    </code>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-xs font-semibold text-foreground">Configurá tus credenciales de Mercado Pago:</p>
+                  
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="mp-public-key" className="text-xs">Public Key (Clave Pública)</Label>
+                      <Input
+                        id="mp-public-key"
+                        type="text"
+                        placeholder="APP_USR-..."
+                        value={mpPublicKey}
+                        onChange={(e) => setMpPublicKey(e.target.value)}
+                        disabled={!isAdmin}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="mp-access-token" className="text-xs">Access Token (Token de Acceso)</Label>
+                      <Input
+                        id="mp-access-token"
+                        type="password"
+                        placeholder="APP_USR-..."
+                        value={mpAccessToken}
+                        onChange={(e) => setMpAccessToken(e.target.value)}
+                        disabled={!isAdmin}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-muted-foreground">
+                    Podés obtener estas credenciales en tu panel de desarrollador de Mercado Pago (Sección: Credenciales de producción). No las compartas con nadie.
+                  </p>
+
+                  {isAdmin && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-xs"
+                      onClick={handleConectarMP}
+                    >
+                      Conectar cuenta de Mercado Pago
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 

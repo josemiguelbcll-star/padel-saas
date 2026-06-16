@@ -74,6 +74,7 @@ interface DetalleClaseDialogProps {
   fecha: string | null;
   /** Pagos existentes para (clase, fecha). Vacío si nunca se cobró. */
   pagosIniciales: ClaseCobro[];
+  readOnly?: boolean;
 }
 
 /**
@@ -97,6 +98,7 @@ export function DetalleClaseDialog({
   cancha,
   fecha,
   pagosIniciales,
+  readOnly,
 }: DetalleClaseDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,6 +113,7 @@ export function DetalleClaseDialog({
             fecha={fecha}
             pagosIniciales={pagosIniciales}
             onClose={() => onOpenChange(false)}
+            readOnly={readOnly}
           />
         )}
       </DialogContent>
@@ -124,6 +127,7 @@ interface DetalleClaseBodyProps {
   fecha: string;
   pagosIniciales: ClaseCobro[];
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 function DetalleClaseBody({
@@ -132,12 +136,13 @@ function DetalleClaseBody({
   fecha,
   pagosIniciales,
   onClose,
+  readOnly,
 }: DetalleClaseBodyProps) {
   const { user } = useSession();
   // Gateo cosmético del botón "Borrar". La seguridad real la da la RLS
   // clase_cobros_delete_solo_admin. Aunque un vendedor lograra disparar
   // el DELETE, postgres lo rechaza con 42501.
-  const isAdmin = user?.rol === 'admin';
+  const isAdmin = user?.rol === 'admin' && !readOnly;
 
   // Estado local de pagos: arranca con la prop, se actualiza al
   // agregar/borrar para reflejar sin esperar al refetch.
@@ -336,7 +341,7 @@ function DetalleClaseBody({
         {/* Agregar pago: toggle + mini-form. Modelo B: sin input de
             monto — el server resuelve desde la tarifa de clase. El
             botón Cobrar se deshabilita si no hay tarifa configurada. */}
-        {!agregando && (
+        {!agregando && !readOnly && (
           <div className="space-y-2">
             {sinTarifa && (
               <div

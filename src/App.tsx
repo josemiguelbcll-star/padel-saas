@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { lazy, Suspense } from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
-import { LoginPage } from '@/features/auth/LoginPage';
+import { LoginPage, ResetPasswordPage } from '@/features/auth';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { useSession } from '@/features/auth/useSession';
 import { AppShell } from '@/components/layout/AppShell';
@@ -10,6 +10,7 @@ import { PlayerApp } from '@/features/player/PlayerApp';
 import { DesafiosPrototype } from '@/features/desafios';
 import { OnboardingGate } from '@/features/onboarding/OnboardingGate';
 import { PlataformaProtectedRoute } from '@/features/plataforma/PlataformaProtectedRoute';
+import { getPermiso } from '@/lib/permisos';
 
 // Lazy-loaded pages
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -62,6 +63,8 @@ export function App() {
         <Route path="/prototipo/desafios" element={<DesafiosPrototype />} />
         <Route path="/player/*" element={<PlayerApp />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+
 
         {/* Panel de plataforma (superadmin del SaaS). Va FUERA del
             ProtectedRoute del club: el superadmin no tiene club. Su
@@ -102,30 +105,30 @@ export function App() {
 
           <Route path="onboarding" element={<OnboardingPage />} />
 
-          <Route path="reservas" element={<ReservasPage />} />
-          <Route path="turnos-fijos" element={<TurnosFijosPage />} />
+          <Route path="reservas" element={<ModuleRoute modulo="reservas"><ReservasPage /></ModuleRoute>} />
+          <Route path="turnos-fijos" element={<ModuleRoute modulo="reservas"><TurnosFijosPage /></ModuleRoute>} />
 
-          <Route path="inventario" element={<AdminOnlyRoute><InventarioPage /></AdminOnlyRoute>} />
+          <Route path="inventario" element={<ModuleRoute modulo="inventario"><InventarioPage /></ModuleRoute>} />
 
-          <Route path="jugadores" element={<JugadoresPage />} />
+          <Route path="jugadores" element={<ModuleRoute modulo="reservas"><JugadoresPage /></ModuleRoute>} />
 
-          <Route path="noticias" element={<NoticiasPage />} />
+          <Route path="noticias" element={<ModuleRoute modulo="noticias"><NoticiasPage /></ModuleRoute>} />
 
-          <Route path="buffet" element={<BuffetPage />} />
+          <Route path="buffet" element={<ModuleRoute modulo="mostrador"><BuffetPage /></ModuleRoute>} />
 
-          <Route path="caja" element={<CajaLayout />}>
+          <Route path="caja" element={<ModuleRoute modulo="caja"><CajaLayout /></ModuleRoute>}>
             <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
             <Route path="efectivo" element={<CajaPage />} />
             <Route path="transferencias" element={<TransferenciasPage />} />
           </Route>
 
-          <Route path="finanzas" element={<FinanzasPage />} />
-          <Route path="flujo-caja" element={<FlujoCajaPage />} />
-          <Route path="gastos" element={<GastosPage />} />
-          <Route path="otros-ingresos" element={<OtrosIngresosPage />} />
-          <Route path="cxp" element={<CuentasPorPagarPage />} />
+          <Route path="finanzas" element={<ModuleRoute modulo="finanzas"><FinanzasPage /></ModuleRoute>} />
+          <Route path="flujo-caja" element={<ModuleRoute modulo="finanzas"><FlujoCajaPage /></ModuleRoute>} />
+          <Route path="gastos" element={<ModuleRoute modulo="finanzas"><GastosPage /></ModuleRoute>} />
+          <Route path="otros-ingresos" element={<ModuleRoute modulo="finanzas"><OtrosIngresosPage /></ModuleRoute>} />
+          <Route path="cxp" element={<ModuleRoute modulo="finanzas"><CuentasPorPagarPage /></ModuleRoute>} />
 
-          <Route path="configuracion" element={<ConfiguracionLayout />}>
+          <Route path="configuracion" element={<ModuleRoute modulo="configuracion"><ConfiguracionLayout /></ModuleRoute>}>
             <Route index element={<Navigate to="marca" replace />} />
             <Route path="marca" element={<MarcaPage />} />
             <Route path="usuarios" element={<UsuariosPage />} />
@@ -158,6 +161,15 @@ export function App() {
 function AdminOnlyRoute({ children }: { children: ReactNode }) {
   const { user } = useSession();
   if (user?.rol !== 'admin') {
+    return <Navigate to="/app" replace />;
+  }
+  return <>{children}</>;
+}
+
+function ModuleRoute({ children, modulo }: { children: ReactNode; modulo: string }) {
+  const { user } = useSession();
+  const ver = getPermiso(user, modulo, 'ver');
+  if (!ver) {
     return <Navigate to="/app" replace />;
   }
   return <>{children}</>;

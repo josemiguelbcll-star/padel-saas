@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
 import { useClases } from '@/features/configuracion/hooks/useClases';
 import { useFranjasTurno } from '@/features/configuracion/hooks/useFranjasTurno';
@@ -82,7 +83,7 @@ function addDaysISO(iso: string, days: number): string {
  */
 export function TurnosFijosPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'reservas', 'editar');
 
   const turnosQuery = useTurnosFijos();
   const canchasQuery = useCanchas();
@@ -177,7 +178,7 @@ export function TurnosFijosPage() {
             próximas semanas para que aparezcan en la grilla de reservas.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button
             type="button"
             onClick={() => {
@@ -233,7 +234,7 @@ export function TurnosFijosPage() {
               size="sm"
               variant="outline"
               onClick={handleMaterializar}
-              disabled={materializar.isPending || turnos.length === 0}
+              disabled={materializar.isPending || turnos.length === 0 || !canEdit}
             >
               <CalendarPlus className="h-3.5 w-3.5" />
               {materializar.isPending ? 'Generando…' : 'Generar'}
@@ -322,6 +323,7 @@ export function TurnosFijosPage() {
             setNuevoOpen(true);
           }}
           onEditarTurno={openEditar}
+          readOnly={!canEdit}
         />
       )}
 
@@ -329,7 +331,7 @@ export function TurnosFijosPage() {
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <Repeat className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
           <p className="mt-2 text-sm text-muted-foreground">
-            {isAdmin
+            {canEdit
               ? 'Todavía no cargaste turnos fijos. Agregá el primero — son la base de la ocupación recurrente del club.'
               : 'El administrador todavía no configuró turnos fijos.'}
           </p>
@@ -378,7 +380,7 @@ export function TurnosFijosPage() {
                     )}
                   </div>
 
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="flex shrink-0 items-center gap-1.5">
                       <Button
                         type="button"

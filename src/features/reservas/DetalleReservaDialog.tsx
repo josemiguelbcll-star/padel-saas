@@ -80,6 +80,7 @@ interface DetalleReservaDialogProps {
   onOpenChange: (open: boolean) => void;
   reserva: ReservaConTitular | null;
   cancha: Cancha | null;
+  readOnly?: boolean;
 }
 
 /**
@@ -102,6 +103,7 @@ export function DetalleReservaDialog({
   onOpenChange,
   reserva,
   cancha,
+  readOnly,
 }: DetalleReservaDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,6 +126,7 @@ export function DetalleReservaDialog({
             initialReserva={reserva}
             cancha={cancha}
             onClose={() => onOpenChange(false)}
+            readOnly={readOnly}
           />
         )}
       </DialogContent>
@@ -135,12 +138,14 @@ interface DetalleReservaBodyProps {
   initialReserva: ReservaConTitular;
   cancha: Cancha;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 function DetalleReservaBody({
   initialReserva,
   cancha,
   onClose,
+  readOnly,
 }: DetalleReservaBodyProps) {
   // Estado local de la reserva: arranca con la prop, se actualiza con
   // los returns de las mutations para reflejar cambios sin esperar a
@@ -252,7 +257,7 @@ function DetalleReservaBody({
   async function handleEnviarWhatsAppYConfirmar(): Promise<void> {
     if (!wspUrl) return;
     window.open(wspUrl, '_blank');
-    if (reserva.estado === 'pendiente') {
+    if (reserva.estado === 'pendiente' && !readOnly) {
       try {
         const updated = await actualizarMutation.mutateAsync({
           id: reserva.id,
@@ -350,6 +355,7 @@ function DetalleReservaBody({
           montoAlquiler={reserva.monto_total}
           fecha={reserva.fecha}
           estadoReserva={reserva.estado}
+          readOnly={readOnly}
         />
 
         {/* Cuenta del alquiler — referencia contable compacta.
@@ -396,6 +402,7 @@ function DetalleReservaBody({
         <ConsumosTurnoSection
           reservaId={reserva.id}
           montoAlquiler={reserva.monto_total}
+          readOnly={readOnly}
         />
 
         {/* Pagos */}
@@ -415,6 +422,7 @@ function DetalleReservaBody({
             });
             applyReservaUpdate(updated);
           }}
+          readOnly={readOnly}
         />
 
       </div>
@@ -441,7 +449,7 @@ function DetalleReservaBody({
         {/* Nudge "todos pagaron, ¿cerrás?" — aviso suave con el botón a mano.
             El cierre NO es automático: aunque esté todo pagado se puede
             seguir consumiendo, por eso se cierra a mano. */}
-        {puedeCerrar && todoSaldado && !confirmingCancel && (
+        {puedeCerrar && todoSaldado && !confirmingCancel && !readOnly && (
           <div
             className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
             style={{
@@ -532,7 +540,7 @@ function DetalleReservaBody({
                   }}
                   disabled={cerrarMutation.isPending || actualizarMutation.isPending}
                 >
-                  {reserva.estado === 'pendiente'
+                  {reserva.estado === 'pendiente' && !readOnly
                     ? 'Enviar WhatsApp y confirmar'
                     : 'Enviar WhatsApp'}
                 </Button>
@@ -541,19 +549,21 @@ function DetalleReservaBody({
                   Titular sin teléfono válido. Agregá el número en la ficha del jugador para enviar WhatsApp.
                 </p>
               )}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setAccionError(null);
-                  setConfirmingCancel(true);
-                }}
-                disabled={!puedeCancelar}
-                title={motivoNoCancelable ?? undefined}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground disabled:hover:bg-transparent"
-              >
-                Cancelar reserva
-              </Button>
+              {!readOnly && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setAccionError(null);
+                    setConfirmingCancel(true);
+                  }}
+                  disabled={!puedeCancelar}
+                  title={motivoNoCancelable ?? undefined}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground disabled:hover:bg-transparent"
+                >
+                  Cancelar reserva
+                </Button>
+              )}
               {!puedeCancelar && motivoNoCancelable && (
                 <span className="text-[11px] text-muted-foreground">
                   {motivoNoCancelable}
@@ -654,9 +664,10 @@ function PagoRow({ pago }: { pago: ReservaPago }) {
 interface ObservacionesSectionProps {
   reserva: ReservaConTitular;
   onSave: (value: string | null) => Promise<void>;
+  readOnly?: boolean;
 }
 
-function ObservacionesSection({ reserva, onSave }: ObservacionesSectionProps) {
+function ObservacionesSection({ reserva, onSave, readOnly }: ObservacionesSectionProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(reserva.observaciones ?? '');
   const [pending, setPending] = useState(false);
@@ -685,20 +696,22 @@ function ObservacionesSection({ reserva, onSave }: ObservacionesSectionProps) {
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <Label>Observaciones</Label>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setValue(reserva.observaciones ?? '');
-              setError(null);
-              setEditing(true);
-            }}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Pencil className="h-3 w-3" />
-            Editar
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setValue(reserva.observaciones ?? '');
+                setError(null);
+                setEditing(true);
+              }}
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3 w-3" />
+              Editar
+            </Button>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           {reserva.observaciones ?? (

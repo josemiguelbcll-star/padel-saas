@@ -36,7 +36,7 @@ export function ProveedorFormDialog({
 }: ProveedorFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <ProveedorFormBody
           key={initialValue?.id ?? 'new'}
           initialValue={initialValue}
@@ -265,50 +265,52 @@ function ProveedorFormBody({ initialValue, onDone }: ProveedorFormBodyProps) {
           </FieldBlock>
         </div>
 
-        <FieldBlock
-          id="prov-que-provee"
-          label="Qué provee"
-          error={errors.que_provee}
-          hint="Texto libre. Ej: bebidas y snacks; pelotas y palas; alfajores."
-        >
-          <textarea
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FieldBlock
             id="prov-que-provee"
-            value={state.que_provee}
-            onChange={(e) => setField('que_provee', e.target.value)}
-            maxLength={1000}
-            disabled={isPending}
-            aria-invalid={errors.que_provee ? true : undefined}
-            rows={2}
-            className={cn(
-              'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-            )}
-            placeholder="Ej: gaseosas, aguas, snacks salados"
-          />
-        </FieldBlock>
+            label="Qué provee"
+            error={errors.que_provee}
+            hint="Texto libre. Ej: bebidas y snacks; pelotas y palas; alfajores."
+          >
+            <textarea
+              id="prov-que-provee"
+              value={state.que_provee}
+              onChange={(e) => setField('que_provee', e.target.value)}
+              maxLength={1000}
+              disabled={isPending}
+              aria-invalid={errors.que_provee ? true : undefined}
+              rows={2}
+              className={cn(
+                'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+              placeholder="Ej: gaseosas, aguas, snacks salados"
+            />
+          </FieldBlock>
 
-        <FieldBlock
-          id="prov-condiciones"
-          label="Condiciones de pago"
-          error={errors.condiciones_pago}
-          hint="Texto libre. Ej: 30/60/90, contado contra entrega, FOB 15 días."
-        >
-          <textarea
+          <FieldBlock
             id="prov-condiciones"
-            value={state.condiciones_pago}
-            onChange={(e) => setField('condiciones_pago', e.target.value)}
-            maxLength={1000}
-            disabled={isPending}
-            aria-invalid={errors.condiciones_pago ? true : undefined}
-            rows={2}
-            className={cn(
-              'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-            )}
-          />
-        </FieldBlock>
+            label="Condiciones de pago"
+            error={errors.condiciones_pago}
+            hint="Texto libre. Ej: 30/60/90, contado contra entrega, FOB 15 días."
+          >
+            <textarea
+              id="prov-condiciones"
+              value={state.condiciones_pago}
+              onChange={(e) => setField('condiciones_pago', e.target.value)}
+              maxLength={1000}
+              disabled={isPending}
+              aria-invalid={errors.condiciones_pago ? true : undefined}
+              rows={2}
+              className={cn(
+                'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+            />
+          </FieldBlock>
+        </div>
 
         <FieldBlock
           id="prov-notas"

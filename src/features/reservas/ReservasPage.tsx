@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Clock, LayoutGrid } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import type {
   Cancha,
   ClaseCobro,
@@ -64,6 +66,9 @@ function fechaDesdeUrl(raw: string | null): string {
  *   - Todo OK → GrillaDia.
  */
 export function ReservasPage() {
+  const { user: yo } = useSession();
+  const canEdit = getPermiso(yo, 'reservas', 'editar');
+
   const [searchParams, setSearchParams] = useSearchParams();
   const fecha = fechaDesdeUrl(searchParams.get('fecha'));
 
@@ -181,6 +186,10 @@ export function ReservasPage() {
     hora: string,
     duracionesPermitidas: number[],
   ): void {
+    if (!canEdit) {
+      alert('No tenés permisos para registrar reservas.');
+      return;
+    }
     const cancha = canchasActivas.find((c) => c.id === canchaId);
     if (!cancha) return;
     setNuevoSlot({
@@ -265,6 +274,7 @@ export function ReservasPage() {
         }}
         reserva={selectedDetalle?.reserva ?? null}
         cancha={selectedDetalle?.cancha ?? null}
+        readOnly={!canEdit}
       />
 
       <DetalleClaseDialog
@@ -276,6 +286,7 @@ export function ReservasPage() {
         cancha={selectedClase?.cancha ?? null}
         fecha={selectedClase?.fecha ?? null}
         pagosIniciales={selectedClase?.pagosIniciales ?? []}
+        readOnly={!canEdit}
       />
     </div>
   );

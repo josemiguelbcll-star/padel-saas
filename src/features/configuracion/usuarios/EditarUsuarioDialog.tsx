@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useActualizarUsuario } from '@/features/configuracion/hooks/useActualizarUsuario';
 import type { Rol, Usuario } from '@/types/database';
 import { editarUsuarioSchema } from './usuarioSchema';
+import { SECCIONES_PERMISOS } from '@/lib/permisos';
 
 interface EditarUsuarioDialogProps {
   open: boolean;
@@ -31,14 +32,6 @@ type FieldErrors = Partial<Record<'nombre' | 'rol' | 'form', string>>;
 /**
  * Modal para editar nombre y rol de un usuario. Incluye sección de
  * activar/desactivar con confirmación inline.
- *
- * Si el usuario es el último admin activo del club, NO se ofrece
- * desactivarlo NI degradarlo a vendedor (el trigger lo bloquearía
- * igual server-side, pero ocultar la opción es mejor UX). El radio
- * de rol se renderiza con el "Vendedor" deshabilitado en ese caso.
- *
- * Si el usuario que se está editando es vos mismo, al desactivar se
- * muestra un warning extra ("vas a perder acceso inmediato").
  */
 export function EditarUsuarioDialog({
   open,
@@ -51,6 +44,7 @@ export function EditarUsuarioDialog({
 
   const [nombre, setNombre] = useState(usuario.nombre);
   const [rol, setRol] = useState<Rol>(usuario.rol);
+  const [permisos, setPermisos] = useState<any>(usuario.permisos || {});
   const [confirmingDesactivar, setConfirmingDesactivar] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -62,10 +56,11 @@ export function EditarUsuarioDialog({
     if (open) {
       setNombre(usuario.nombre);
       setRol(usuario.rol);
+      setPermisos(usuario.permisos || {});
       setConfirmingDesactivar(false);
       setErrors({});
     }
-  }, [open, usuario.id, usuario.nombre, usuario.rol]);
+  }, [open, usuario.id, usuario.nombre, usuario.rol, usuario.permisos]);
 
   function handleOpenChange(next: boolean): void {
     if (pending) return;
@@ -89,9 +84,12 @@ export function EditarUsuarioDialog({
       return;
     }
 
-    const changes: { nombre?: string; rol?: Rol } = {};
+    const changes: { nombre?: string; rol?: Rol; permisos?: any } = {};
     if (parsed.data.nombre !== usuario.nombre) changes.nombre = parsed.data.nombre;
     if (parsed.data.rol !== usuario.rol) changes.rol = parsed.data.rol;
+    if (rol === 'vendedor' && JSON.stringify(permisos) !== JSON.stringify(usuario.permisos)) {
+      changes.permisos = permisos;
+    }
 
     if (Object.keys(changes).length === 0) {
       onOpenChange(false);
@@ -157,7 +155,7 @@ export function EditarUsuarioDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar usuario</DialogTitle>
           <DialogDescription>
@@ -166,7 +164,7 @@ export function EditarUsuarioDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleGuardar} className="space-y-3" noValidate>
+        <form onSubmit={handleGuardar} className="space-y-4" noValidate>
           <div className="space-y-1">
             <Label htmlFor="editar-usuario-nombre">Nombre</Label>
             <Input
@@ -224,6 +222,94 @@ export function EditarUsuarioDialog({
               </p>
             )}
           </div>
+
+          {rol === 'vendedor' && (
+            <div className="space-y-3 rounded-md border border-border p-3 bg-muted/20">
+              <div>
+                <Label className="text-sm font-semibold">Permisos del vendedor</Label>
+                <p className="text-xs text-muted-foreground">
+                  Definí a qué módulos tiene acceso y si puede realizar modificaciones.
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                {SECCIONES_PERMISOS.map((seccion) => {
+                  const config = permisos?.modulos?.[seccion.key] || {
+                    ver: seccion.key !== 'inventario',
+                    editar: seccion.key !== 'inventario' && seccion.key !== 'configuracion',
+                  };
+
+                  const handleToggle = (tipo: 'ver' | 'editar', checked: boolean) => {
+                    const currentConfig = {
+                      ...(permisos?.modulos?.[seccion.key] || config),
+                      [tipo]: checked,
+                    };
+
+                    if (tipo === 'ver' && !checked) {
+                      currentConfig.editar = false;
+                    }
+                    if (tipo === 'editar' && checked) {
+                      currentConfig.ver = true;
+                    }
+
+                    setPermisos((prev: any) => ({
+                      ...prev,
+                      modulos: {
+                        ...(prev?.modulos || {}),
+                        [seccion.key]: currentConfig,
+                      },
+                    }));
+                  };
+
+                  return (
+                    <div key={seccion.key} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-medium text-foreground">{seccion.label}</span>
+                          <p className="text-[10px] text-muted-foreground leading-tight max-w-[280px]">
+                            {seccion.descripcion}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              id={`perm-${seccion.key}-ver`}
+                              checked={config.ver}
+                              onChange={(e) => handleToggle('ver', e.target.checked)}
+                              className="h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
+                            />
+                            <Label htmlFor={`perm-${seccion.key}-ver`} className="text-[11px] font-normal cursor-pointer select-none">
+                              Ver
+                            </Label>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              id={`perm-${seccion.key}-editar`}
+                              checked={config.editar}
+                              disabled={!config.ver}
+                              onChange={(e) => handleToggle('editar', e.target.checked)}
+                              className="h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary disabled:opacity-50"
+                            />
+                            <Label 
+                              htmlFor={`perm-${seccion.key}-editar`} 
+                              className={cn(
+                                "text-[11px] font-normal cursor-pointer select-none",
+                                !config.ver && "text-muted-foreground cursor-not-allowed"
+                              )}
+                            >
+                              Editar
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {errors.form && (
             <div

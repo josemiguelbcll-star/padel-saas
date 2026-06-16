@@ -390,6 +390,11 @@ export interface Usuario {
    * para casos edge (auth.users sin email).
    */
   email: string | null;
+  /**
+   * Permisos granulares del usuario (para rol vendedor).
+   * Estructura: { modulos?: { [moduloKey: string]: { ver: boolean; editar: boolean } } }
+   */
+  permisos?: any;
 }
 
 export interface Cancha {

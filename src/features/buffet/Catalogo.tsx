@@ -33,6 +33,7 @@ interface CatalogoProps {
   cart: Map<number, number>;
   /** Click en una card → suma 1 unidad de ese producto al carrito. */
   onAdd: (productoId: number) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -49,7 +50,7 @@ interface CatalogoProps {
  *
  * El costo NO se muestra: es información interna del club.
  */
-export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
+export function Catalogo({ productos, cart, onAdd, readOnly }: CatalogoProps) {
   // El filtro de línea vive en el querystring (?linea=buffet|shop)
   // para que los sub-items del sidebar puedan deep-linkear al POS con
   // un filtro pre-aplicado. Si el querystring no está o tiene un valor
@@ -185,6 +186,7 @@ export function Catalogo({ productos, cart, onAdd }: CatalogoProps) {
               producto={p}
               cartCantidad={cart.get(p.id) ?? 0}
               onAdd={onAdd}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -229,12 +231,13 @@ interface ProductoCardProps {
   producto: ProductoConStock;
   cartCantidad: number;
   onAdd: (productoId: number) => void;
+  readOnly?: boolean;
 }
 
-function ProductoCard({ producto, cartCantidad, onAdd }: ProductoCardProps) {
+function ProductoCard({ producto, cartCantidad, onAdd, readOnly }: ProductoCardProps) {
   const noStock = producto.stock_actual <= 0;
   const atMax = !noStock && cartCantidad >= producto.stock_actual;
-  const disabled = noStock || atMax;
+  const disabled = noStock || atMax || readOnly;
 
   const stockText = noStock
     ? 'Sin stock'

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
 import { Catalogo } from './Catalogo';
 import { CerrarVentaDialog } from './CerrarVentaDialog';
@@ -26,6 +28,9 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
  * temporal "Venta registrada por $X" (~5s).
  */
 export function BuffetPage() {
+  const { user } = useSession();
+  const canEdit = getPermiso(user, 'mostrador', 'editar');
+
   const productosQuery = useProductosConStock();
   const productos = useMemo(
     () => productosQuery.data ?? [],
@@ -162,13 +167,14 @@ export function BuffetPage() {
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-          <Catalogo productos={productos} cart={cart} onAdd={addOne} />
+          <Catalogo productos={productos} cart={cart} onAdd={addOne} readOnly={!canEdit} />
           <VentaActual
             items={items}
             total={total}
             onIncrement={incrementOne}
             onDecrement={decrementOne}
             onCerrar={() => setCerrarOpen(true)}
+            readOnly={!canEdit}
           />
         </div>
       )}

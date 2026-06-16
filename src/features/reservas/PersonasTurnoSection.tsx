@@ -123,11 +123,20 @@ interface PersonasTurnoSectionProps {
  * detección de reserva legacy pagada, GREATEST(0, ...) para "pagó de
  * más" sin crédito.
  */
+interface PersonasTurnoSectionProps {
+  reservaId: number;
+  montoAlquiler: number;
+  fecha: string;
+  estadoReserva: EstadoReserva;
+  readOnly?: boolean;
+}
+
 export function PersonasTurnoSection({
   reservaId,
   montoAlquiler,
   fecha,
   estadoReserva,
+  readOnly,
 }: PersonasTurnoSectionProps) {
   const jugadoresQuery = useReservaJugadores(reservaId);
   const consumosQuery = useReservaConsumos(reservaId);
@@ -519,6 +528,7 @@ export function PersonasTurnoSection({
                   onConfirmarCobro={handleConfirmarCobro}
                   onQuitar={() => handleQuitar(j.id)}
                   disabled={anyPending}
+                  readOnly={readOnly}
                 />
               );
             })}
@@ -552,6 +562,7 @@ export function PersonasTurnoSection({
                   onConfirmarCobro={handleConfirmarCobro}
                   onQuitar={() => handleQuitar(inv.id)}
                   disabled={anyPending}
+                  readOnly={readOnly}
                 />
               );
             })}
@@ -604,7 +615,7 @@ export function PersonasTurnoSection({
             </Button>
           </div>
         </div>
-      ) : (
+      ) : !readOnly ? (
         <div className="flex flex-wrap gap-2 rounded-md border border-dashed border-border/70 p-2">
           <Button
             type="button"
@@ -634,7 +645,7 @@ export function PersonasTurnoSection({
             Invitado
           </Button>
         </div>
-      )}
+      ) : null}
 
       {error && (
         <div
@@ -885,6 +896,7 @@ interface JugadorCardProps {
   ) => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
+  readOnly?: boolean;
 }
 
 function JugadorCard({
@@ -902,6 +914,7 @@ function JugadorCard({
   onConfirmarCobro,
   onQuitar,
   disabled,
+  readOnly,
 }: JugadorCardProps) {
   const esTitular = persona.es_titular;
   const tieneFicha = persona.jugador_id !== null && persona.jugador?.nombre;
@@ -947,37 +960,37 @@ function JugadorCard({
 
           <ContextoLinea
             saldo={saldo}
-            puedeAsignarNombre={puedeAsignarNombre}
+            puedeAsignarNombre={puedeAsignarNombre && !readOnly}
             asignandoActivo={vinculandoActivo}
             onPedirAsignar={onPedirVincular}
             disabled={disabled}
           />
         </div>
 
-        <MontoEstado saldo={saldo} />
+      <MontoEstado saldo={saldo} />
 
-        <AccionCobrar
-          saldo={saldo}
-          cobrosBloqueados={cobrosBloqueados}
-          cobrandoActivo={cobrandoActivo}
+      <AccionCobrar
+        saldo={saldo}
+        cobrosBloqueados={cobrosBloqueados || !!readOnly}
+        cobrandoActivo={cobrandoActivo}
+        disabled={disabled}
+        onPedirCobrar={onPedirCobrar}
+      />
+
+      {!esTitular && !readOnly && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onQuitar}
           disabled={disabled}
-          onPedirCobrar={onPedirCobrar}
-        />
-
-        {!esTitular && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onQuitar}
-            disabled={disabled}
-            aria-label={`Quitar a ${label}`}
-            className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </div>
+          aria-label={`Quitar a ${label}`}
+          className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      )}
+    </div>
 
       {/* Mini-form: asignar/vincular ficha */}
       {vinculandoActivo && (
@@ -1051,6 +1064,7 @@ interface InvitadoCardProps {
   ) => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
+  readOnly?: boolean;
 }
 
 function InvitadoCard({
@@ -1064,6 +1078,7 @@ function InvitadoCard({
   onConfirmarCobro,
   onQuitar,
   disabled,
+  readOnly,
 }: InvitadoCardProps) {
   const label = `Invitado ${numero}`;
   const estado = saldo && saldo.parteTotal > 0 ? saldo.estado : null;
@@ -1094,24 +1109,26 @@ function InvitadoCard({
 
         <AccionCobrar
           saldo={saldo}
-          cobrosBloqueados={cobrosBloqueados}
+          cobrosBloqueados={cobrosBloqueados || !!readOnly}
           cobrandoActivo={cobrandoActivo}
           disabled={disabled}
           onPedirCobrar={onPedirCobrar}
           compacta
         />
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onQuitar}
-          disabled={disabled}
-          aria-label={`Quitar ${label}`}
-          className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
+        {!readOnly && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onQuitar}
+            disabled={disabled}
+            aria-label={`Quitar ${label}`}
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       {cobrandoActivo && saldo && saldo.saldo > 0 && (

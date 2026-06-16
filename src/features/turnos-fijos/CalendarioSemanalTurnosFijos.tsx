@@ -67,6 +67,7 @@ interface CalendarioSemanalTurnosFijosProps {
   onCrearEnSlot: (prefill: TurnoFijoPrefill) => void;
   /** Click en un turno fijo existente → editar. */
   onEditarTurno: (t: TurnoFijo) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -86,6 +87,7 @@ export function CalendarioSemanalTurnosFijos({
   clases,
   onCrearEnSlot,
   onEditarTurno,
+  readOnly,
 }: CalendarioSemanalTurnosFijosProps) {
   const [canchaIdSel, setCanchaIdSel] = useState<number | null>(null);
 
@@ -335,6 +337,7 @@ export function CalendarioSemanalTurnosFijos({
                 resolverTitular={resolverTitular}
                 onCrearSlot={(inicioMin, duracionMin) => handleCrear(d.dia, inicioMin, duracionMin)}
                 onEditarTurno={onEditarTurno}
+                readOnly={readOnly}
               />
             ))}
           </div>

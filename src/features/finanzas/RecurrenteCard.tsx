@@ -49,6 +49,7 @@ interface RecurrenteCardProps {
   onEditar: () => void;
   onDesactivar: () => void;
   onEliminar: () => void;
+  readOnly?: boolean;
 }
 
 const ESTADO_TONO: Record<
@@ -82,6 +83,7 @@ export function RecurrenteCard({
   onEditar,
   onDesactivar,
   onEliminar,
+  readOnly,
 }: RecurrenteCardProps) {
   const { fila, estado, diaEfectivo, realesDelMes } = data;
   const tono = ESTADO_TONO[estado];
@@ -115,7 +117,8 @@ export function RecurrenteCard({
           )}
         </div>
 
-        <div className="relative">
+        {!readOnly && (
+          <div className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
@@ -172,6 +175,7 @@ export function RecurrenteCard({
             </>
           )}
         </div>
+        )}
       </header>
 
       {/* Monto */}
@@ -230,31 +234,33 @@ export function RecurrenteCard({
       {/* Acción primaria. Si ya hay un real del mes, el backend rechaza
           cargar otro (uno-por-mes, 0049) → ofrecemos "Corregir" (anular
           el real + recargar) en lugar de "Cargar otro". */}
-      <div className="mt-3 flex">
-        {estado === 'cargado' ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onCorregir}
-            className="w-full"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Corregir
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={onCargarReal}
-            className="w-full"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Cargar real
-          </Button>
-        )}
-      </div>
+      {!readOnly && (
+        <div className="mt-3 flex">
+          {estado === 'cargado' ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onCorregir}
+              className="w-full"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Corregir
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={onCargarReal}
+              className="w-full"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Cargar real
+            </Button>
+          )}
+        </div>
+      )}
     </article>
   );
 }
