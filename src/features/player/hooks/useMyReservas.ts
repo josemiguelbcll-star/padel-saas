@@ -124,7 +124,7 @@ export function useMyReservas() {
   }, [userId, load]);
 
   const proximas  = reservas.filter(r =>  r.es_futura);
-  const historial = reservas.filter(r => !r.es_futura);
+  const historial = reservas.filter(r => !r.es_futura).slice(0, 3);
 
   return { proximas, historial, isLoading, error, sinTelefono, reload: load };
 }

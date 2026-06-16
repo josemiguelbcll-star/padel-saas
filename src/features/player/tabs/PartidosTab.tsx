@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva, labelEstado, colorEstado } from '../hooks/useMyReservas';
+import { DetalleReservaDrawer } from '../components/DetalleReservaDrawer';
 
 interface PartidosTabProps {
   proximas:  MiReservaReal[];
@@ -20,7 +22,7 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
-function ProximaCard({ r }: { r: MiReservaReal }) {
+function ProximaCard({ r, onVerDetalle }: { r: MiReservaReal; onVerDetalle: () => void }) {
   return (
     <div className="mgp-card" style={{ marginBottom: 0 }}>
       {/* Estado + fecha */}
@@ -70,7 +72,11 @@ function ProximaCard({ r }: { r: MiReservaReal }) {
 
       {/* Acción */}
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="mgp-btn mgp-btn-outline mgp-btn-sm" style={{ flex: 1 }}>
+        <button
+          className="mgp-btn mgp-btn-outline mgp-btn-sm"
+          style={{ flex: 1 }}
+          onClick={onVerDetalle}
+        >
           Ver detalle
         </button>
       </div>
@@ -78,10 +84,10 @@ function ProximaCard({ r }: { r: MiReservaReal }) {
   );
 }
 
-function HistorialRow({ r }: { r: MiReservaReal }) {
+function HistorialRow({ r, onVerDetalle }: { r: MiReservaReal; onVerDetalle: () => void }) {
   const c = colorEstado(r.estado);
   return (
-    <div className="mgp-feed-item">
+    <div className="mgp-feed-item" onClick={onVerDetalle} style={{ cursor: 'pointer' }}>
       <div
         className="mgp-feed-dot"
         style={{
@@ -117,6 +123,8 @@ function LoadingSkeleton() {
 }
 
 export function PartidosTab({ proximas, historial, isLoading }: PartidosTabProps) {
+  const [selectedReserva, setSelectedReserva] = useState<MiReservaReal | null>(null);
+
   return (
     <div style={{ padding: 16 }}>
 
@@ -138,7 +146,9 @@ export function PartidosTab({ proximas, historial, isLoading }: PartidosTabProps
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {proximas.map(r => <ProximaCard key={r.id} r={r} />)}
+            {proximas.map(r => (
+              <ProximaCard key={r.id} r={r} onVerDetalle={() => setSelectedReserva(r)} />
+            ))}
           </div>
         )}
       </div>
@@ -152,11 +162,16 @@ export function PartidosTab({ proximas, historial, isLoading }: PartidosTabProps
           </div>
 
           <div className="mgp-card" style={{ padding: '4px 16px' }}>
-            {historial.map(r => <HistorialRow key={r.id} r={r} />)}
+            {historial.map(r => (
+              <HistorialRow key={r.id} r={r} onVerDetalle={() => setSelectedReserva(r)} />
+            ))}
           </div>
         </div>
       )}
 
+      {selectedReserva && (
+        <DetalleReservaDrawer r={selectedReserva} onClose={() => setSelectedReserva(null)} />
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva, colorEstado, labelEstado } from '../hooks/useMyReservas';
 import { AmigosPanel } from '../components/AmigosPanel';
 import { DesafiosPanel } from '../components/DesafiosPanel';
+import { DetalleReservaDrawer } from '../components/DetalleReservaDrawer';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,12 +76,16 @@ function ReservaCard({ r }: { r: MiReservaReal }) {
   );
 }
 
-function HistorialRow({ r }: { r: MiReservaReal }) {
+function HistorialRow({ r, onVerDetalle }: { r: MiReservaReal; onVerDetalle: () => void }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '13px 0', borderBottom: '1px solid #F1F5F9',
-    }}>
+    <div 
+      onClick={onVerDetalle}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '13px 0', borderBottom: '1px solid #F1F5F9',
+        cursor: 'pointer'
+      }}
+    >
       <div>
         <p style={{ fontSize: 14, fontWeight: 600, color: '#1E293B', margin: 0 }}>{r.club_nombre}</p>
         <p style={{ fontSize: 12, color: '#64748B', margin: '2px 0 0' }}>
@@ -133,6 +138,7 @@ interface PerfilTabProps {
 export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: PerfilTabProps) {
   const { profile, saveProfile, isSaving, iniciales } = usePlayerProfile();
   const [editOpen, setEditOpen] = useState(false);
+  const [selectedReserva, setSelectedReserva] = useState<MiReservaReal | null>(null);
 
   // Nombre a mostrar: alias si tiene, sino nombre, sino fallback
   const displayName = profile.alias || profile.nombre || 'Tu nombre';
@@ -254,7 +260,9 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
               <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0B1F4D', margin: 0 }}>Historial</p>
               <span style={{ fontSize: 12, color: '#94A3B8' }}>últimas {historial.length}</span>
             </div>
-            {historial.map(h => <HistorialRow key={h.id} r={h} />)}
+            {historial.map(h => (
+              <HistorialRow key={h.id} r={h} onVerDetalle={() => setSelectedReserva(h)} />
+            ))}
           </div>
         )}
 
@@ -301,6 +309,9 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
           <p style={{ textAlign: 'center', fontSize: 11, color: '#CBD5E1', marginTop: 20 }}>MatchGo · v1.0.0</p>
         </div>
       </div>
+      {selectedReserva && (
+        <DetalleReservaDrawer r={selectedReserva} onClose={() => setSelectedReserva(null)} />
+      )}
     </>
   );
 }
