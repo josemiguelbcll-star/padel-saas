@@ -24,26 +24,26 @@ export function useJugadorAmigos() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa');
 
-      const { data: jugadorApp } = await withTimeout(
+      const { data: jugadorApp } = await (withTimeout(
         supabase
           .from('jugadores_app')
           .select('id')
           .eq('auth_user_id', user.id)
-          .single(),
+          .single() as any,
         8000,
         'useJugadorAmigos:jugadores_app',
-      );
+      ) as any);
 
       if (!jugadorApp) throw new Error('Perfil de jugador no encontrado');
 
-      const { data: relaciones, error } = await withTimeout(
+      const { data: relaciones, error } = await (withTimeout(
         supabase
           .from('jugador_amigos')
           .select('jugador_app_id_1, jugador_app_id_2, confirmado, vinculado_en')
-          .or(`jugador_app_id_1.eq.${jugadorApp.id},jugador_app_id_2.eq.${jugadorApp.id}`),
+          .or(`jugador_app_id_1.eq.${jugadorApp.id},jugador_app_id_2.eq.${jugadorApp.id}`) as any,
         8000,
         'useJugadorAmigos:jugador_amigos',
-      );
+      ) as any);
 
       if (error) throw error;
       const rels = (relaciones ?? []) as Array<{
@@ -61,18 +61,18 @@ export function useJugadorAmigos() {
         return [];
       }
 
-      const { data: amigosRows, error: amigosError } = await withTimeout(
+      const { data: amigosRows, error: amigosError } = await (withTimeout(
         supabase
           .from('jugadores_app')
           .select('id, nombre_display, alias, genero, categoria, avatars_path')
-          .in('id', friendIds),
+          .in('id', friendIds) as any,
         8000,
         'useJugadorAmigos:jugadores_app_friends',
-      );
+      ) as any);
 
       if (amigosError) throw amigosError;
-      const amigosMap = new Map(
-        (amigosRows ?? []).map((row: any) => [row.id as string, row] as const),
+      const amigosMap = new Map<string, any>(
+        (amigosRows ?? []).map((row: any) => [row.id as string, row]),
       );
 
       return rels.map((rel) => {

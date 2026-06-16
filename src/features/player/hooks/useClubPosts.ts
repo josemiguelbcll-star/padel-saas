@@ -13,6 +13,10 @@ export interface ClubPost {
   vigente_desde: string | null;
   vigente_hasta: string | null;
   creado_en:     string;
+  expira_en:     string | null;
+  badge:         string | null;
+  cta_texto:     string | null;
+  cta_link:      string | null;
 }
 
 export function useClubPosts() {
@@ -24,6 +28,7 @@ export function useClubPosts() {
         .select(`
           id, club_id, usuario_id, titulo, contenido, tipo,
           imagen_url, vigente_desde, vigente_hasta, creado_en,
+          expira_en, badge, cta_texto, cta_link,
           clubes(nombre)
         `)
         .eq('activo', true)
@@ -44,6 +49,10 @@ export function useClubPosts() {
         vigente_desde: post.vigente_desde,
         vigente_hasta: post.vigente_hasta,
         creado_en: post.creado_en,
+        expira_en: post.expira_en,
+        badge: post.badge,
+        cta_texto: post.cta_texto,
+        cta_link: post.cta_link,
       })) as ClubPost[];
     },
     staleTime: 1000 * 60 * 2, // 2 min

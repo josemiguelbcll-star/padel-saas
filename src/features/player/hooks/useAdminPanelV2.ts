@@ -5,17 +5,16 @@ export interface PostFormData {
   titulo: string;
   contenido: string;
   tipo: 'noticia' | 'promo' | 'torneo' | 'otro';
-  imagen_url?: string;
-  badge?: string;
-  cta_texto?: string;
-  cta_link?: string;
-  duracion_horas?: number;
+  imagen_url?: string | null;
+  badge?: string | null;
+  cta_texto?: string | null;
+  cta_link?: string | null;
+  duracion_horas?: number | null;
 }
 
 export function useAdminPanelV2() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   /**
    * Subir imagen a Storage
@@ -129,7 +128,6 @@ export function useAdminPanelV2() {
   return {
     isLoading,
     error,
-    uploadProgress,
     subirImagen,
     crearPost,
     darMeGusta,

@@ -530,7 +530,7 @@ function DetalleReservaBody({
                     setAccionError(null);
                     void handleEnviarWhatsAppYConfirmar();
                   }}
-                  disabled={cerrarMutation.isPending || actualizarMutation.isLoading}
+                  disabled={cerrarMutation.isPending || actualizarMutation.isPending}
                 >
                   {reserva.estado === 'pendiente'
                     ? 'Enviar WhatsApp y confirmar'

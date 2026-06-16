@@ -6,12 +6,12 @@ import { useNoticiasClub, useCrearNoticia, useEliminarNoticia } from '../hooks/u
 export function NoticiasPage() {
   const { user } = useSession();
   const clubId = user?.club_id;
-  const clubNombre = user?.club?.nombre || 'Tu club';
 
   if (!clubId) {
     return <div style={{ padding: '24px', textAlign: 'center' }}>Cargando...</div>;
   }
-  const { data: noticias, isLoading, refetch } = useNoticiasClub(clubId);
+  const clubIdNum = clubId;
+  const { data: noticias, isLoading, refetch } = useNoticiasClub(clubIdNum);
   const { createNoticia, subirImagen } = useCrearNoticia();
   const eliminarNoticia = useEliminarNoticia();
 
@@ -72,11 +72,11 @@ export function NoticiasPage() {
       // Subir imagen si seleccionó
       if (imageFile) {
         setUploadingImage(true);
-        imagenUrl = await subirImagen(imageFile, clubId);
+        imagenUrl = await subirImagen(imageFile, clubIdNum);
       }
 
       // Crear noticia
-      await createNoticia(clubId, titulo, descripcion, imagenUrl);
+      await createNoticia(clubIdNum, titulo, descripcion, imagenUrl);
 
       // Reset
       setTitulo('');

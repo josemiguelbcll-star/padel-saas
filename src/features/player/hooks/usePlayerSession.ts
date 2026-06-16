@@ -38,7 +38,7 @@ async function fetchPhase(userId: string): Promise<'onboarding' | 'app'> {
     .eq('auth_user_id', userId)
     .maybeSingle();
 
-  const { data } = await withTimeout(promise, 8000, 'fetchPhase:jugadores_app');
+  const { data } = await (withTimeout(promise as any, 8000, 'fetchPhase:jugadores_app') as any);
   return data?.nombre_display ? 'app' : 'onboarding';
 }
 
