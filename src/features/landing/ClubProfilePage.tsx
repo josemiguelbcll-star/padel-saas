@@ -66,7 +66,9 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
   const { reservar, isLoading, error } = useReservarDesdeApp();
   const [result, setResult] = useState<ReservaAppConfirmada | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [metodoPago, setMetodoPago] = useState<'transferencia' | 'mercadopago'>('transferencia');
+  const [metodoPago, setMetodoPago] = useState<'transferencia' | 'mercadopago'>(
+    club.mercadopago_habilitado ? 'mercadopago' : 'transferencia'
+  );
   const [redirectingMP, setRedirectingMP] = useState(false);
 
   async function handleConfirmar() {
@@ -295,36 +297,81 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
                 )}
               </div>
             ) : (
-              <div className="mb-5 rounded-2xl border-2 border-[#0B1F4D]/10 bg-blue-50 p-4">
-                <p className="mb-2 text-xs font-black uppercase tracking-wider text-[#0B1F4D]/60">
-                  Cómo pagar la seña
-                </p>
-                {result.cbu_alias ? (
-                  <>
-                    <p className="text-sm text-gray-700">
-                      Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias para que el club confirme tu reserva:
-                    </p>
-                    <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
-                      <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>
-                      {result.nombre_banco && (
-                        <p className="mt-0.5 text-xs text-gray-400">{result.nombre_banco}</p>
-                      )}
-                    </div>
-                    {result.instagram && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Enviá el comprobante por Instagram{' '}
-                        <strong>@{result.instagram.replace('@', '')}</strong>
+              <div className="space-y-4">
+                <div className="rounded-2xl border-2 border-[#0B1F4D]/10 bg-blue-50 p-4">
+                  <p className="mb-2 text-xs font-black uppercase tracking-wider text-[#0B1F4D]/60">
+                    Cómo pagar la seña
+                  </p>
+                  {result.cbu_alias ? (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias para que el club confirme tu reserva:
                       </p>
+                      <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
+                        <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>
+                        {result.nombre_banco && (
+                          <p className="mt-0.5 text-xs text-gray-400">{result.nombre_banco}</p>
+                        )}
+                      </div>
+                      {result.instagram && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Enviá el comprobante por Instagram{' '}
+                          <strong>@{result.instagram.replace('@', '')}</strong>
+                        </p>
+                      )}
+                    </>
+                  ) : result.instagram ? (
+                    <p className="text-sm text-gray-700">
+                      Escribinos por Instagram <strong>@{result.instagram.replace('@', '')}</strong> para coordinar el pago de la seña.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-700">
+                      Contactá al club para coordinar el pago de la seña antes de la fecha.
+                    </p>
+                  )}
+                </div>
+
+                {club.mercadopago_habilitado && (
+                  <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-4 text-center">
+                    <p className="text-sm font-semibold text-green-800 mb-3">
+                      ¿Preferís pagar online? Podés pagar la seña de forma segura con Mercado Pago.
+                    </p>
+                    {redirectingMP ? (
+                      <div className="flex justify-center py-4">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-200 border-t-green-600" />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          setRedirectingMP(true);
+                          try {
+                            const response = await fetch('/api/create-preference', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                reserva_id: result.reserva_id,
+                                club_id: club.id,
+                                origin_url: window.location.origin,
+                              }),
+                            });
+                            const data = await response.json();
+                            if (data.init_point) {
+                              window.location.href = data.init_point;
+                            } else {
+                              throw new Error(data.error || 'No se pudo generar el link de pago.');
+                            }
+                          } catch (err: any) {
+                            console.error('[BookingBottomSheet] Error al crear preferencia:', err);
+                            setLocalError('Error al redirigir: ' + err.message);
+                            setRedirectingMP(false);
+                          }
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#009EE3] py-4 text-base font-extrabold text-white transition active:scale-[0.98]"
+                      >
+                        Pagar seña con Mercado Pago
+                      </button>
                     )}
-                  </>
-                ) : result.instagram ? (
-                  <p className="text-sm text-gray-700">
-                    Escribinos por Instagram <strong>@{result.instagram.replace('@', '')}</strong> para coordinar el pago de la seña.
-                  </p>
-                ) : (
-                  <p className="text-sm text-gray-700">
-                    Contactá al club para coordinar el pago de la seña antes de la fecha.
-                  </p>
+                  </div>
                 )}
               </div>
             )}

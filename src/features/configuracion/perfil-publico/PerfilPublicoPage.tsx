@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { Upload, Trash2, Star, ExternalLink, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,9 +67,41 @@ export function PerfilPublicoPage() {
 
   // Estados para Mercado Pago
   const [mpLoading, setMpLoading] = useState(true);
-  const [mpAccessToken, setMpAccessToken] = useState('');
-  const [mpPublicKey, setMpPublicKey] = useState('');
   const [mpConectado, setMpConectado] = useState(false);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [connectingMP, setConnectingMP] = useState(false);
+
+  useEffect(() => {
+    const mpConnection = searchParams.get('mp_connection');
+    const errorReason = searchParams.get('error_reason');
+
+    if (mpConnection === 'success') {
+      alert('¡Mercado Pago conectado exitosamente!');
+      setMpConectado(true);
+      if (club?.id) {
+        void (async () => {
+          const { data } = await supabase
+            .from('clubes')
+            .select('config')
+            .eq('id', club.id)
+            .single();
+          if (data?.config) {
+            updateClub({ config: data.config });
+          }
+        })();
+      }
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('mp_connection');
+      setSearchParams(newParams, { replace: true });
+    } else if (mpConnection === 'error') {
+      alert(`No se pudo conectar Mercado Pago. Motivo: ${errorReason || 'error_desconocido'}`);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('mp_connection');
+      newParams.delete('error_reason');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, club?.id, updateClub]);
 
   useEffect(() => {
     const clubId = club?.id;
@@ -77,13 +110,11 @@ export function PerfilPublicoPage() {
       try {
         const { data } = await supabase
           .from('club_mercadopago_config')
-          .select('access_token, public_key')
+          .select('club_id')
           .eq('club_id', clubId)
           .maybeSingle();
 
         if (data) {
-          setMpAccessToken(data.access_token);
-          setMpPublicKey(data.public_key || '');
           setMpConectado(true);
         }
       } catch (err) {
@@ -97,43 +128,26 @@ export function PerfilPublicoPage() {
 
   async function handleConectarMP() {
     if (!club?.id) return;
-    if (!mpAccessToken.trim() || !mpPublicKey.trim()) {
-      alert('Por favor ingresá tu Access Token y tu Public Key de Mercado Pago.');
-      return;
-    }
-
+    setConnectingMP(true);
     try {
-      setSaveError(null);
-      const { error: mpConfigError } = await supabase
-        .from('club_mercadopago_config')
-        .upsert({
+      const response = await fetch('/api/mercadopago-oauth-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           club_id: club.id,
-          access_token: mpAccessToken.trim(),
-          public_key: mpPublicKey.trim(),
-        });
-
-      if (mpConfigError) throw mpConfigError;
-
-      const newConfig = {
-        ...(club.config as any ?? {}),
-        mercadopago: {
-          conectado: true,
-        },
-      };
-
-      const { error: clubUpdateError } = await supabase
-        .from('clubes')
-        .update({ config: newConfig })
-        .eq('id', club.id);
-
-      if (clubUpdateError) throw clubUpdateError;
-
-      setMpConectado(true);
-      updateClub({ config: newConfig });
-      alert('¡Mercado Pago conectado exitosamente!');
+          origin: window.location.origin,
+        }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'No se pudo iniciar el flujo de conexión.');
+      }
     } catch (err: any) {
-      console.error('Error al conectar Mercado Pago:', err);
-      alert('Error al conectar Mercado Pago: ' + (err.message || String(err)));
+      console.error('[PerfilPublicoPage] Error al conectar MP:', err);
+      alert('Error al conectar con Mercado Pago: ' + err.message);
+      setConnectingMP(false);
     }
   }
 
@@ -166,8 +180,6 @@ export function PerfilPublicoPage() {
       if (clubUpdateError) throw clubUpdateError;
 
       setMpConectado(false);
-      setMpAccessToken('');
-      setMpPublicKey('');
       updateClub({ config: newConfig });
       alert('Mercado Pago desconectado exitosamente.');
     } catch (err: any) {
@@ -585,58 +597,38 @@ export function PerfilPublicoPage() {
                         size="sm"
                         onClick={handleDesconectarMP}
                       >
-                        Desconectar
+                        Desconectar cuenta
                       </Button>
                     )}
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Clave pública (Public Key):</p>
-                    <code className="text-xs font-mono bg-background px-2 py-1 rounded border border-border block overflow-x-auto">
-                      {mpPublicKey ? `${mpPublicKey.slice(0, 15)}...${mpPublicKey.slice(-5)}` : 'No configurada'}
-                    </code>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Los pagos de señas de las reservas se acreditarán directamente en tu cuenta asociada de Mercado Pago.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4 rounded-lg border border-border bg-muted/40 p-4">
-                  <p className="text-xs font-semibold text-foreground">Configurá tus credenciales de Mercado Pago:</p>
-                  
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="mp-public-key" className="text-xs">Public Key (Clave Pública)</Label>
-                      <Input
-                        id="mp-public-key"
-                        type="text"
-                        placeholder="APP_USR-..."
-                        value={mpPublicKey}
-                        onChange={(e) => setMpPublicKey(e.target.value)}
-                        disabled={!isAdmin}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="mp-access-token" className="text-xs">Access Token (Token de Acceso)</Label>
-                      <Input
-                        id="mp-access-token"
-                        type="password"
-                        placeholder="APP_USR-..."
-                        value={mpAccessToken}
-                        onChange={(e) => setMpAccessToken(e.target.value)}
-                        disabled={!isAdmin}
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">Conectá tu cuenta de Mercado Pago</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      No necesitas copiar ni pegar tokens. Hacé click abajo, inicia sesión en Mercado Pago para autorizar la aplicación de MatchGo, y tu cuenta quedará conectada de forma automática y segura.
+                    </p>
                   </div>
-
-                  <p className="text-[10px] text-muted-foreground">
-                    Podés obtener estas credenciales en tu panel de desarrollador de Mercado Pago (Sección: Credenciales de producción). No las compartas con nadie.
-                  </p>
 
                   {isAdmin && (
                     <Button
                       type="button"
-                      variant="outline"
-                      className="w-full text-xs"
+                      disabled={connectingMP}
                       onClick={handleConectarMP}
+                      className="w-full flex items-center justify-center gap-2 bg-[#009EE3] hover:bg-[#0087c2] text-white font-extrabold py-3 rounded-xl transition"
                     >
-                      Conectar cuenta de Mercado Pago
+                      {connectingMP ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          Iniciando conexión...
+                        </>
+                      ) : (
+                        'Conectar con Mercado Pago'
+                      )}
                     </Button>
                   )}
                 </div>

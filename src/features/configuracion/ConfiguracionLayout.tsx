@@ -31,7 +31,7 @@ const tabs: ConfigTab[] = [
   // medio→cuenta por defecto. ABM admin; saldo derivado (Etapa 1 = inicial).
   { label: 'Cuentas', to: '/app/configuracion/cuentas' },
   // Perfil público B2C (0067): página del club en el marketplace.
-  { label: 'Perfil público', to: '/app/configuracion/perfil-publico' },
+  { label: 'Perfil público / Mercado Pago', to: '/app/configuracion/perfil-publico' },
 ];
 
 /**
