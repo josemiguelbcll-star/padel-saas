@@ -11,6 +11,7 @@ import { JugarTab } from './tabs/JugarTab';
 import { PartidosTab } from './tabs/PartidosTab';
 import { PerfilTab } from './tabs/PerfilTab';
 import { ClubProfilePage } from '@/features/landing';
+import { NotificationsBell } from './components/NotificationsDialog';
 
 type PlayerTab = 'home' | 'reservar' | 'jugar' | 'partidos' | 'perfil';
 
@@ -234,10 +235,13 @@ export function PlayerApp() {
             Volver
           </button>
         ) : (
-          <>
-            <strong style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18 }}>MatchGo</strong>
-            <div className="mgp-topbar-sub">{TAB_TITLE[tab]}</div>
-          </>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div>
+              <strong style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18 }}>MatchGo</strong>
+              <div className="mgp-topbar-sub">{TAB_TITLE[tab]}</div>
+            </div>
+            <NotificationsBell />
+          </div>
         )}
       </div>
 
