@@ -68,6 +68,7 @@ export function PerfilPublicoPage() {
   // Estados para Mercado Pago
   const [mpLoading, setMpLoading] = useState(true);
   const [mpConectado, setMpConectado] = useState(false);
+  const [mpTitular, setMpTitular] = useState<string>('');
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [connectingMP, setConnectingMP] = useState(false);
@@ -81,6 +82,16 @@ export function PerfilPublicoPage() {
       setMpConectado(true);
       if (club?.id) {
         void (async () => {
+          // Cargar datos del titular recién enlazado
+          const { data: mpData } = await supabase
+            .from('club_mercadopago_config')
+            .select('titular_nombre')
+            .eq('club_id', club.id)
+            .maybeSingle();
+          if (mpData) {
+            setMpTitular(mpData.titular_nombre || '');
+          }
+
           const { data } = await supabase
             .from('clubes')
             .select('config')
@@ -110,12 +121,13 @@ export function PerfilPublicoPage() {
       try {
         const { data } = await supabase
           .from('club_mercadopago_config')
-          .select('club_id')
+          .select('club_id, titular_nombre')
           .eq('club_id', clubId)
           .maybeSingle();
 
         if (data) {
           setMpConectado(true);
+          setMpTitular(data.titular_nombre || '');
         }
       } catch (err) {
         console.error('Error al cargar config de Mercado Pago:', err);
@@ -272,6 +284,9 @@ export function PerfilPublicoPage() {
         .update(patch)
         .eq('id', club!.id);
       if (error) throw error;
+
+      // CBU y Alias de Mercado Pago se gestionan automáticamente a través de la cuenta enlazada, por lo que no requieren guardado manual.
+
       return patch;
     },
     onSuccess: (patch) => {
@@ -601,8 +616,30 @@ export function PerfilPublicoPage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Los pagos de señas de las reservas se acreditarán directamente en tu cuenta asociada de Mercado Pago.
+
+                  {mpTitular && (
+                    <div className="rounded border border-green-200/60 bg-white/40 px-3 py-2 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Titular de cuenta:</span> {mpTitular}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2 border-t border-green-200/40">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-green-800 font-semibold">CBU / CVU de Cobro (Mercado Pago)</Label>
+                      <div className="rounded border border-green-200/60 bg-white/40 px-3 py-2 text-xs text-muted-foreground select-all">
+                        (Automático - Cuenta Mercado Pago)
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-green-800 font-semibold">Alias de Cobro (Mercado Pago)</Label>
+                      <div className="rounded border border-green-200/60 bg-white/40 px-3 py-2 text-xs text-muted-foreground select-all">
+                        (Automático - Cuenta Mercado Pago)
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground leading-normal mt-2">
+                    💡 <strong>Nota de integración:</strong> Por motivos de seguridad bancaria (normativas BCRA), la API de Mercado Pago no expone el CBU/CVU ni el Alias de tu cuenta a aplicaciones externas. No te preocupes: el dinero de tus reservas cobradas a través de Mercado Pago se acreditará automáticamente en el saldo de la cuenta de Mercado Pago detallada arriba.
                   </p>
                 </div>
               ) : (

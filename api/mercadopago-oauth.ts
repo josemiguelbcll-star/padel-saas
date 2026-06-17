@@ -73,13 +73,61 @@ export default async function handler(req: any, res: any) {
     // Inicializar cliente de Supabase con Service Role para saltar RLS
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Guardar credenciales en tabla privada
+    // Intentar traer el perfil del usuario para obtener el nombre del titular y datos de la cuenta
+    let titularNombre = '';
+    try {
+      const userResponse = await fetch('https://api.mercadolibre.com/users/me', {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+        },
+      });
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        const fname = userData.first_name || '';
+        const lname = userData.last_name || '';
+        const email = userData.email || '';
+        const nickname = userData.nickname || '';
+        const nameParts = `${fname} ${lname}`.trim();
+        const details = [nickname, email].filter(Boolean).join(' - ');
+        if (nameParts && details) {
+          titularNombre = `${nameParts} (${details})`;
+        } else {
+          titularNombre = nameParts || details || 'Usuario de Mercado Pago';
+        }
+      } else {
+        console.error('[mercadopago-oauth] Error al obtener info del usuario:', await userResponse.text());
+      }
+    } catch (userErr) {
+      console.error('[mercadopago-oauth] Excepción al traer info del usuario:', userErr);
+    }
+
+    // Buscar si ya existe configuración de CBU y alias para preservarlos en el upsert
+    let existingCbu = null;
+    let existingAlias = null;
+    try {
+      const { data: existingConfig } = await supabase
+        .from('club_mercadopago_config')
+        .select('cbu, alias')
+        .eq('club_id', Number(clubId))
+        .maybeSingle();
+      if (existingConfig) {
+        existingCbu = existingConfig.cbu;
+        existingAlias = existingConfig.alias;
+      }
+    } catch (dbErr) {
+      console.error('[mercadopago-oauth] Error al consultar config existente:', dbErr);
+    }
+
+    // 1. Guardar credenciales y datos del titular en tabla privada
     const { error: upsertError } = await supabase
       .from('club_mercadopago_config')
       .upsert({
         club_id: Number(clubId),
         access_token: access_token,
         public_key: public_key || null,
+        titular_nombre: titularNombre || null,
+        cbu: existingCbu,
+        alias: existingAlias,
       });
 
     if (upsertError) {
