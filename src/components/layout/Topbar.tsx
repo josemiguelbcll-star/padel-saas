@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Menu } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Menu, Bell } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -13,6 +15,7 @@ import {
 import { useSession } from '@/features/auth';
 import { CajaEstadoBadge } from '@/features/caja';
 import { getLogoClubUrl } from '@/lib/clubBrand';
+import { useLiveNotifications } from '@/hooks/useLiveNotifications';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -34,6 +37,7 @@ function rolLabel(rol: 'admin' | 'vendedor' | undefined): string {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { user, club, signOut } = useSession();
+  const { notifications, unreadCount, markAllAsRead } = useLiveNotifications();
 
   // Logo: si el path falla cargar (archivo borrado, network, path
   // stale tras un cleanup parcial), caemos elegante a "solo nombre"
@@ -83,8 +87,70 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       {/* Estado de caja — lee el estado real (useCajaAbierta) y linkea a /caja. */}
       <CajaEstadoBadge />
 
-      {/* El módulo de alarmas aún no existe en el Topbar, por eso no mostramos
-          un placeholder confuso en la UI. */}
+      {/* Campanita de Alarmas / Notificaciones */}
+      <DropdownMenu onOpenChange={(open) => { if (open) markAllAsRead(); }}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="relative rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Notificaciones"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute right-1.5 top-1.5 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500"></span>
+              </span>
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-80 p-2">
+          <DropdownMenuLabel className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold">
+            <span>Notificaciones de reservas</span>
+            {unreadCount > 0 && (
+              <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+                {unreadCount} nuevas
+              </span>
+            )}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          
+          <div className="max-h-64 overflow-y-auto py-1">
+            {notifications.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                No hay notificaciones recientes
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={cn(
+                    "flex flex-col gap-0.5 rounded-md px-2 py-2 text-xs transition-colors hover:bg-muted/50",
+                    !n.read && "bg-primary/5 font-medium"
+                  )}
+                >
+                  <div className="flex items-center justify-between text-foreground">
+                    <span className="font-semibold truncate max-w-[170px]">
+                      {n.jugadorNombre}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {n.horaInicio.slice(0, 5)} hs ({n.fecha.split('-').reverse().slice(0, 2).join('/')})
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Reservó la cancha <span className="font-medium text-foreground">{n.canchaNombre}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild className="cursor-pointer justify-center text-center text-xs text-primary font-medium hover:bg-primary/5 focus:bg-primary/5">
+            <Link to="/app/reservas">Ver todas las reservas</Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

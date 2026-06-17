@@ -236,7 +236,7 @@ function PanelParaAtender() {
   if (cantViejos > 0) {
     alarmas.push({
       id: 'turnos-viejos',
-      to: '/reservas',
+      to: '/app/reservas',
       severidad: 'rojo',
       icon: Clock,
       titulo: `${cantViejos} ${
@@ -248,7 +248,7 @@ function PanelParaAtender() {
   if (cobroRes && cobroRes.cantidad > 0) {
     alarmas.push({
       id: 'cobro-pendiente',
-      to: '/reservas',
+      to: '/app/reservas',
       severidad: 'ambar',
       icon: Wallet,
       titulo: `${cobroRes.cantidad} ${

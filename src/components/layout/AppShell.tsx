@@ -19,7 +19,7 @@ export function AppShell() {
       <Sidebar />
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-64 p-0 flex flex-col h-full">
           {/* Visually-hidden title para a11y del Radix Dialog */}
           <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
           <SidebarBrand />

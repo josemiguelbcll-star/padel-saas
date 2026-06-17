@@ -22,9 +22,7 @@ export function Sidebar() {
 export function SidebarBrand() {
   return (
     <div className="flex h-14 items-center border-b border-border px-6">
-      <span className="text-base font-semibold tracking-tight text-foreground">
-        Padel SaaS
-      </span>
+      <img src="/matchgo_logo.svg" alt="MatchGo" className="h-7 w-auto object-contain" />
     </div>
   );
 }

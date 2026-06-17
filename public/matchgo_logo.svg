@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300">
+  <!-- isotipo escala 0.85: tope alineado con cap-top de MatchGo -->
+  <g transform="translate(40,42) scale(0.85)">
+    <path d="M40 220 L70 40 L150 120 L250 40" fill="none" stroke="#0B1F4D" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M170 170 L240 100" fill="none" stroke="#39C54A" stroke-width="28" stroke-linecap="round"/>
+    <circle cx="175" cy="205" r="28" fill="#D9F23B"/>
+    <path d="M153 190 Q175 205 153 220" fill="none" stroke="#0B1F4D" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M197 190 Q175 205 197 220" fill="none" stroke="#0B1F4D" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M70 192 L86 205 L70 218"  fill="none" stroke="#39C54A" stroke-width="7"  stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+    <path d="M96 192 L112 205 L96 218"  fill="none" stroke="#39C54A" stroke-width="8"  stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+    <path d="M122 192 L140 205 L122 218" fill="none" stroke="#39C54A" stroke-width="9"  stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- wordmark pegado al isotipo, tope alineado -->
+  <text x="288" y="170" font-family="Arial, Helvetica, sans-serif"
+        font-size="130" font-weight="700" fill="#0B1F4D">Match<tspan fill="#39C54A">Go</tspan></text>
+
+  <!-- tagline centrada solo bajo el wordmark (x288 a ~x840) -->
+  <text x="564" y="218" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="600"
+        letter-spacing="3" fill="#0B1F4D">GESTIÓN EFICIENTE PARA CLUBES</text>
+</svg>

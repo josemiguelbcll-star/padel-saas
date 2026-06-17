@@ -98,6 +98,5 @@ export const navItems: NavItem[] = [
     ],
   },
   { label: 'Inventario', to: '/app/inventario', icon: Package, adminOnly: true },
-  { label: 'Alarmas', to: '/app/alarmas', icon: Bell, disabled: true },
   { label: 'Configuración', to: '/app/configuracion', icon: Settings },
 ];
