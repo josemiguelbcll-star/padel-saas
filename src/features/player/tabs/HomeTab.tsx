@@ -1,10 +1,9 @@
+import { useState } from 'react';
+import { Search, Users, Calendar, Trophy } from 'lucide-react';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import type { MiReservaReal } from '../hooks/useMyReservas';
 import { formatFechaReserva, formatHoraReserva } from '../hooks/useMyReservas';
 import { FeedCentralSimple } from '../components/FeedCentralSimple';
-
-// ── Helpers ───────────────────────────────────────────────────
-
 
 interface HomeTabProps {
   onGoReservar:   () => void;
@@ -14,52 +13,116 @@ interface HomeTabProps {
 }
 
 export function HomeTab({ onGoReservar, onGoJugar, onGoPartidos, proximaReserva }: HomeTabProps) {
-  const { profile } = usePlayerProfile();
+  const { profile, isLoading } = usePlayerProfile();
   const nombreMostrar = profile.alias || profile.nombre || '';
 
-  return (
-    <div style={{ padding: '20px 16px 0' }}>
+  // Hover states for the quick access tiles to maintain smooth CSS transitions inline
+  const [hoverTile, setHoverTile] = useState<'reservar' | 'jugar' | 'partidos' | null>(null);
 
-      {/* ── Greeting ── */}
-      <div className="mgp-section" style={{ paddingTop: 4, paddingBottom: 8 }}>
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {/* Shimmer de la tarjeta de saludo */}
         <div style={{
-          background: '#EEF2FF',
-          border: '1px solid #C7D2FE',
-          borderRadius: 24,
-          padding: '20px 18px',
+          background: 'linear-gradient(135deg, #0B1F4D 0%, #17326D 100%)',
+          borderRadius: 20,
+          padding: '22px 20px',
+          height: 120,
           display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          opacity: 0.6,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div>
-              <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
-                {nombreMostrar ? `Hola, ${nombreMostrar}` : 'Hola 👋'}
-              </p>
-              <p style={{ margin: '8px 0 0', color: '#475569', fontSize: 14, lineHeight: 1.6 }}>
-                Reservá canchas, revisá tus próximas fechas y mantenete conectado con tu club.
-              </p>
-            </div>
-            <div style={{
-              width: 46,
-              height: 46,
-              borderRadius: 18,
-              background: '#0B1F4D',
-              display: 'grid',
-              placeItems: 'center',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+            <div className="animate-pulse" style={{ width: 120, height: 14, borderRadius: 4, background: 'rgba(255, 255, 255, 0.12)' }} />
+            <div className="animate-pulse" style={{ width: 180, height: 22, borderRadius: 6, background: 'rgba(255, 255, 255, 0.2)' }} />
+          </div>
+          <div className="animate-pulse" style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(255, 255, 255, 0.15)' }} />
+        </div>
+
+        {/* Shimmer del acceso rápido */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="animate-pulse" style={{ height: 92, borderRadius: 16, background: '#ffffff', border: '1.5px solid #E2E8F0' }} />
+          ))}
+        </div>
+
+        {/* Shimmer del feed */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="animate-pulse" style={{ width: 130, height: 16, borderRadius: 4, background: '#E2E8F0' }} />
+          <div className="animate-pulse" style={{ width: '100%', height: 180, borderRadius: 20, background: '#ffffff', border: '1.5px solid #E2E8F0' }} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Greeting Hero Card ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0B1F4D 0%, #17326D 100%)',
+        borderRadius: 20,
+        padding: '22px 20px',
+        color: '#ffffff',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 8px 30px rgba(11, 31, 77, 0.16)',
+      }}>
+        <div style={{
+          position: 'absolute',
+          right: -24,
+          top: -24,
+          width: 120,
+          height: 120,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(217, 242, 59, 0.15) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, position: 'relative', zIndex: 1 }}>
+          <div style={{ flex: 1 }}>
+            <span style={{
+              background: 'rgba(217, 242, 59, 0.2)',
+              color: '#D9F23B',
+              fontSize: 10,
+              fontWeight: 800,
+              padding: '3px 8px',
+              borderRadius: 99,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              display: 'inline-block',
+              marginBottom: 6,
             }}>
-              <span style={{ color: '#fff', fontSize: 22, lineHeight: 1 }}>🎾</span>
-            </div>
+              Comunidad MatchGo
+            </span>
+            <h2 style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Poppins', sans-serif", margin: 0, color: '#ffffff', letterSpacing: '-0.02em' }}>
+              {nombreMostrar ? `¡Hola, ${nombreMostrar}! 👋` : '¡Hola jugador! 👋'}
+            </h2>
+            <p style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.8)', margin: '6px 0 0', lineHeight: '1.4' }}>
+              Reservá canchas, buscá partidos y mantenete conectado con tu club de pádel.
+            </p>
+          </div>
+          <div style={{
+            width: 46,
+            height: 46,
+            borderRadius: 14,
+            background: '#D9F23B',
+            display: 'grid',
+            placeItems: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(217, 242, 59, 0.3)',
+          }}>
+            <Trophy className="h-5 w-5 text-[#0B1F4D]" strokeWidth={2.5} />
           </div>
         </div>
       </div>
 
       {/* ── Próxima reserva ── */}
-      <div className="mgp-section">
+      <div>
         {proximaReserva ? (
-          <div className="mgp-reserva-card">
+          <div className="mgp-reserva-card" style={{ marginBottom: 0 }}>
             <p className="mgp-label" style={{ color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>
-              PRÓXIMA RESERVA
+              PRÓXIMA FECHA
             </p>
             <p className="mgp-reserva-fecha">
               {formatFechaReserva(proximaReserva.fecha)} · {proximaReserva.club_nombre}
@@ -69,14 +132,14 @@ export function HomeTab({ onGoReservar, onGoJugar, onGoPartidos, proximaReserva 
             <div className="mgp-reserva-actions">
               <button
                 className="mgp-btn mgp-btn-sm"
-                style={{ border: '1.5px solid rgba(255,255,255,0.4)', background: 'transparent', color: '#fff' }}
+                style={{ border: '1.5px solid rgba(255,255,255,0.4)', background: 'transparent', color: '#fff', fontWeight: 600 }}
                 onClick={onGoPartidos}
               >
                 Ver detalle
               </button>
               <button
                 className="mgp-btn mgp-btn-sm"
-                style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}
+                style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', fontWeight: 600 }}
                 onClick={onGoJugar}
               >
                 Buscar jugadores
@@ -85,66 +148,170 @@ export function HomeTab({ onGoReservar, onGoJugar, onGoPartidos, proximaReserva 
           </div>
         ) : (
           <div style={{
-            background: 'rgba(255,255,255,0.06)',
-            border: '1.5px solid rgba(255,255,255,0.1)',
-            borderRadius: 18, padding: '20px 18px',
-            display: 'flex', flexDirection: 'column', gap: 10,
+            background: '#ffffff',
+            border: '1px solid var(--mgp-border)',
+            borderRadius: 18,
+            padding: '20px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
           }}>
-            <p className="mgp-label" style={{ color: 'rgba(255,255,255,0.45)', margin: 0 }}>
-              SIN PRÓXIMAS RESERVAS
+            <p style={{
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: '0.05em',
+              color: 'var(--mgp-muted)',
+              margin: 0,
+              textTransform: 'uppercase',
+            }}>
+              Sin reservas activas
             </p>
-            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
-              Explorá los clubes y reservá tu cancha 🎾
+            <p style={{ color: 'var(--mgp-text-sub)', fontSize: 13, margin: 0, lineHeight: 1.4 }}>
+              ¿Listo para entrar a la cancha? Reservá tu turno de forma inmediata.
             </p>
             <button
               className="mgp-btn mgp-btn-primary mgp-btn-sm"
-              style={{ alignSelf: 'flex-start' }}
+              style={{ alignSelf: 'flex-start', background: 'var(--mgp-marino)', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: 99, padding: '8px 16px', fontSize: 12 }}
               onClick={onGoReservar}
             >
-              Explorar canchas →
+              Reservar cancha →
             </button>
           </div>
         )}
       </div>
 
       {/* ── Acceso rápido ── */}
-      <div className="mgp-section">
-        <div className="mgp-section-title">
-          <span className="mgp-section-h">Acceso rápido</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+      <div style={{ marginTop: 8 }}>
+        <p style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--mgp-marino)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          margin: '0 0 12px 2px',
+        }}>
+          Acceso rápido
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           <button
-            className="mgp-btn mgp-btn-primary mgp-btn-full"
-            style={{ flexDirection: 'column', gap: 4, padding: '14px 8px', borderRadius: 14 }}
             onClick={onGoReservar}
+            onMouseEnter={() => setHoverTile('reservar')}
+            onMouseLeave={() => setHoverTile(null)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px 12px',
+              borderRadius: 16,
+              background: '#ffffff',
+              border: `1.5px solid ${hoverTile === 'reservar' ? 'var(--mgp-green)' : 'var(--mgp-border)'}`,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease-in-out',
+              gap: 8,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+              transform: hoverTile === 'reservar' ? 'translateY(-2px)' : 'none',
+            }}
           >
-            <span style={{ fontSize: 22 }}>🔍</span>
-            <span style={{ fontSize: 12 }}>Reservar</span>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: 'rgba(57, 197, 74, 0.1)',
+              display: 'grid',
+              placeItems: 'center',
+              color: 'var(--mgp-green)',
+            }}>
+              <Search size={18} strokeWidth={2.5} />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--mgp-marino)' }}>Reservar</span>
           </button>
+
           <button
-            className="mgp-btn mgp-btn-secondary mgp-btn-full"
-            style={{ flexDirection: 'column', gap: 4, padding: '14px 8px', borderRadius: 14 }}
             onClick={onGoJugar}
+            onMouseEnter={() => setHoverTile('jugar')}
+            onMouseLeave={() => setHoverTile(null)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px 12px',
+              borderRadius: 16,
+              background: '#ffffff',
+              border: `1.5px solid ${hoverTile === 'jugar' ? 'var(--mgp-green)' : 'var(--mgp-border)'}`,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease-in-out',
+              gap: 8,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+              transform: hoverTile === 'jugar' ? 'translateY(-2px)' : 'none',
+            }}
           >
-            <span style={{ fontSize: 22 }}>🤝</span>
-            <span style={{ fontSize: 12 }}>Jugar</span>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: 'rgba(217, 242, 59, 0.15)',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#a0b916',
+            }}>
+              <Users size={18} strokeWidth={2.5} />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--mgp-marino)' }}>Jugar</span>
           </button>
+
           <button
-            className="mgp-btn mgp-btn-marino mgp-btn-full"
-            style={{ flexDirection: 'column', gap: 4, padding: '14px 8px', borderRadius: 14 }}
             onClick={onGoPartidos}
+            onMouseEnter={() => setHoverTile('partidos')}
+            onMouseLeave={() => setHoverTile(null)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px 12px',
+              borderRadius: 16,
+              background: '#ffffff',
+              border: `1.5px solid ${hoverTile === 'partidos' ? 'var(--mgp-green)' : 'var(--mgp-border)'}`,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease-in-out',
+              gap: 8,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+              transform: hoverTile === 'partidos' ? 'translateY(-2px)' : 'none',
+            }}
           >
-            <span style={{ fontSize: 22 }}>📅</span>
-            <span style={{ fontSize: 12 }}>Mis canchas</span>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: 'rgba(11, 31, 77, 0.05)',
+              display: 'grid',
+              placeItems: 'center',
+              color: 'var(--mgp-marino)',
+            }}>
+              <Calendar size={18} strokeWidth={2.5} />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--mgp-marino)' }}>Mis canchas</span>
           </button>
         </div>
       </div>
 
       {/* ── Feed central ── */}
-      <div className="mgp-section">
-        <div className="mgp-section-title">
-          <span className="mgp-section-h">Feed central</span>
-        </div>
+      <div style={{ marginTop: 8 }}>
+        <p style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--mgp-marino)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          margin: '0 0 12px 2px',
+        }}>
+          Novedades del club
+        </p>
         <FeedCentralSimple />
       </div>
 

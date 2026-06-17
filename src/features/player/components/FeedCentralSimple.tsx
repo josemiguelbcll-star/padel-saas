@@ -42,17 +42,14 @@ export function FeedCentralSimple() {
       {/* Noticias */}
       {noticias && noticias.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 px-2">
-            📱 Noticias
-          </h3>
           {noticias.map((noticia) => (
             <div
               key={noticia.id}
               className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-md transition"
             >
-              {/* Imagen (si existe) - Instagram 4:5 */}
+              {/* Imagen (si existe) - Formato banner 16:9 */}
               {noticia.imagen_url && (
-                <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4/5', background: '#F1F5F9' }}>
+                <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', background: '#F1F5F9' }}>
                   <img
                     src={noticia.imagen_url}
                     alt={noticia.titulo}

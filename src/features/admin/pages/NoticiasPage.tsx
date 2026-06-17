@@ -1,8 +1,14 @@
 import { useState, useRef } from 'react';
-import { Trash2, Upload } from 'lucide-react';
+import { Trash2, Upload, Pencil, X, Newspaper } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
-import { useNoticiasClub, useCrearNoticia, useEliminarNoticia } from '../hooks/useNoticiasClub';
+import { 
+  useNoticiasClub, 
+  useCrearNoticia, 
+  useEliminarNoticia, 
+  useEditarNoticia, 
+  type NoticiaFeed 
+} from '../hooks/useNoticiasClub';
 
 export function NoticiasPage() {
   const { user } = useSession();
@@ -10,11 +16,17 @@ export function NoticiasPage() {
   const canEdit = getPermiso(user, 'noticias', 'editar');
 
   if (!clubId) {
-    return <div style={{ padding: '24px', textAlign: 'center' }}>Cargando...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[300px] text-muted-foreground text-sm">
+        Cargando datos del club...
+      </div>
+    );
   }
+
   const clubIdNum = clubId;
   const { data: noticias, isLoading, refetch } = useNoticiasClub(clubIdNum);
   const { createNoticia, subirImagen } = useCrearNoticia();
+  const { editNoticia } = useEditarNoticia();
   const eliminarNoticia = useEliminarNoticia();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +36,7 @@ export function NoticiasPage() {
   const [descripcion, setDescripcion] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [editingNoticia, setEditingNoticia] = useState<NoticiaFeed | null>(null);
 
   // Estado UI
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,19 +44,17 @@ export function NoticiasPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─────────────────────────────────────────────────────────────────
-
   function handleSelectImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setError('Imagen muy grande (máximo 10MB)');
+      setError('La imagen es muy grande (máximo 10MB)');
       return;
     }
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Solo JPG, PNG o WebP');
+      setError('Solo se permiten formatos JPG, PNG o WebP');
       return;
     }
 
@@ -57,6 +68,33 @@ export function NoticiasPage() {
     reader.readAsDataURL(file);
   }
 
+  function handleRemoveImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
+  function handleStartEdit(noticia: NoticiaFeed) {
+    setEditingNoticia(noticia);
+    setTitulo(noticia.titulo);
+    setDescripcion(noticia.descripcion || '');
+    setImagePreview(noticia.imagen_url);
+    setImageFile(null);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleCancelEdit() {
+    setEditingNoticia(null);
+    setTitulo('');
+    setDescripcion('');
+    setImagePreview(null);
+    setImageFile(null);
+    setError(null);
+  }
+
   async function handlePublicar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -68,19 +106,29 @@ export function NoticiasPage() {
 
     try {
       setIsSubmitting(true);
+      let imagenUrl: string | null = null;
 
-      let imagenUrl: string | undefined;
-
-      // Subir imagen si seleccionó
-      if (imageFile) {
-        setUploadingImage(true);
-        imagenUrl = await subirImagen(imageFile, clubIdNum);
+      if (imagePreview) {
+        if (imageFile) {
+          setUploadingImage(true);
+          imagenUrl = await subirImagen(imageFile, clubIdNum);
+        } else {
+          // Si no hay archivo nuevo pero la preview tiene contenido, mantenemos la imagen existente
+          imagenUrl = editingNoticia?.imagen_url || null;
+        }
+      } else {
+        // Si no hay preview, eliminamos la imagen
+        imagenUrl = null;
       }
 
-      // Crear noticia
-      await createNoticia(clubIdNum, titulo, descripcion, imagenUrl);
+      if (editingNoticia) {
+        await editNoticia(editingNoticia.id, titulo.trim(), descripcion.trim(), imagenUrl);
+        setEditingNoticia(null);
+      } else {
+        await createNoticia(clubIdNum, titulo.trim(), descripcion.trim(), imagenUrl || undefined);
+      }
 
-      // Reset
+      // Reset form
       setTitulo('');
       setDescripcion('');
       setImageFile(null);
@@ -90,7 +138,7 @@ export function NoticiasPage() {
       setTimeout(() => setSuccess(false), 3000);
       refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al publicar');
+      setError(err instanceof Error ? err.message : 'Error al guardar la noticia');
     } finally {
       setIsSubmitting(false);
       setUploadingImage(false);
@@ -98,247 +146,247 @@ export function NoticiasPage() {
   }
 
   async function handleEliminar(noticiaId: number) {
-    if (!confirm('¿Eliminar esta noticia?')) return;
+    if (!confirm('¿Estás seguro de que deseas eliminar esta noticia?')) return;
 
     try {
       await eliminarNoticia(noticiaId);
+      // Si estábamos editando la noticia eliminada, cancelamos la edición
+      if (editingNoticia?.id === noticiaId) {
+        handleCancelEdit();
+      }
       refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al eliminar');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────
-
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#0B1F4D', margin: 0 }}>
-          📱 Noticias del Feed
+      <div className="flex flex-col gap-2 pb-4 border-b border-border">
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#0B1F4D] flex items-center gap-2">
+          <Newspaper className="h-7 w-7 text-primary" />
+          Feed de Noticias
         </h1>
-        <p style={{ fontSize: '14px', color: '#64748B', margin: '8px 0 0' }}>
-          Carga noticias que verán todos los jugadores en la app
+        <p className="text-sm text-muted-foreground">
+          Publicá y gestioná noticias, promociones y avisos para que los jugadores los vean en su feed principal.
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: canEdit ? '1fr 1fr' : '1fr', gap: '32px' }}>
-        {/* ── CREAR NOTICIA ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* ── SECCIÓN DE FORMULARIO (CREAR O EDITAR) ── */}
         {canEdit && (
-          <div
-            style={{
-              background: '#fff',
-              border: '1.5px solid #E2E8F0',
-              borderRadius: '16px',
-              padding: '24px',
-            }}
-          >
-            <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#0B1F4D', marginTop: 0 }}>
-              ➕ Crear noticia
-            </h2>
-
-            <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Imagen */}
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '8px' }}>
-                  📸 Imagen
-                </label>
+          <div className="lg:col-span-5 bg-card rounded-2xl border border-border p-5 md:p-6 shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-bold text-[#0B1F4D]">
+                {editingNoticia ? '📝 Editar noticia' : '➕ Crear noticia'}
+              </h2>
+              {editingNoticia && (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    width: '100%',
-                    padding: '16px',
-                    border: '2px dashed #CBD5E1',
-                    borderRadius: '12px',
-                    background: '#F8FAFC',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#0B1F4D')}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
+                  onClick={handleCancelEdit}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#64748B' }}>
-                    <Upload size={18} />
-                    <span style={{ fontSize: '13px', fontWeight: '500' }}>
-                      {imageFile ? '✓ Imagen seleccionada' : 'Click para subir'}
-                    </span>
-                  </div>
+                  <X size={14} /> Cancelar edición
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleSelectImage}
-                  style={{ display: 'none' }}
-                />
+              )}
+            </div>
 
-                {imagePreview && (
-                  <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0', aspectRatio: '4/5', background: '#F1F5F9' }}>
-                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                )}
+            <form onSubmit={handlePublicar} className="space-y-5">
+              {/* Carga de Imagen */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                  Imagen de la noticia
+                </label>
+                <div className="flex flex-col gap-3">
+                  {imagePreview ? (
+                    <div className="relative rounded-xl overflow-hidden border border-border bg-muted aspect-[4/5] max-h-[280px] w-full flex items-center justify-center">
+                      <img 
+                        src={imagePreview} 
+                        alt="Vista previa" 
+                        className="w-full h-full object-cover" 
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 transition shadow"
+                        title="Eliminar imagen"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-8 border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 rounded-xl bg-muted/40 hover:bg-muted/60 transition flex flex-col items-center justify-center gap-2 group text-muted-foreground hover:text-foreground"
+                    >
+                      <Upload size={24} className="group-hover:scale-110 transition duration-200 text-muted-foreground/75" />
+                      <span className="text-xs font-semibold">Subir imagen promocional</span>
+                      <span className="text-[10px] text-muted-foreground/60">Sugerido: Formato vertical 4:5</span>
+                    </button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSelectImage}
+                    className="hidden"
+                  />
+                </div>
               </div>
 
               {/* Título */}
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                  📝 Título (máx 120 caracteres)
+              <div className="space-y-1">
+                <label htmlFor="title-input" className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                  Título (máx 120 caracteres)
                 </label>
                 <input
+                  id="title-input"
                   type="text"
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ej: Oferta especial del mes"
+                  placeholder="Ej: ¡Este finde abrimos nueva cancha!"
                   maxLength={120}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1.5px solid #E2E8F0',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontFamily: 'inherit',
-                    boxSizing: 'border-box',
-                  }}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  required
                 />
-                <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px' }}>
+                <div className="text-[10px] text-right text-muted-foreground">
                   {titulo.length}/120
                 </div>
               </div>
 
               {/* Descripción */}
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                  💬 Descripción (opcional)
+              <div className="space-y-1">
+                <label htmlFor="description-input" className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                  Descripción (opcional, máx 300 caracteres)
                 </label>
                 <textarea
+                  id="description-input"
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
-                  placeholder="Cuéntale a los jugadores de qué se trata esta noticia..."
+                  placeholder="Describí los detalles de la noticia..."
                   maxLength={300}
                   rows={4}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1.5px solid #E2E8F0',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontFamily: 'inherit',
-                    boxSizing: 'border-box',
-                    resize: 'vertical',
-                  }}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                 />
-                <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '4px' }}>
+                <div className="text-[10px] text-right text-muted-foreground">
                   {descripcion.length}/300
                 </div>
               </div>
 
-              {/* Errores */}
               {error && (
-                <div style={{ padding: '12px', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '8px', fontSize: '12px', color: '#DC2626' }}>
-                  ❌ {error}
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
+                  ⚠️ {error}
                 </div>
               )}
 
-              {/* Success */}
               {success && (
-                <div style={{ padding: '12px', background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: '8px', fontSize: '12px', color: '#166534' }}>
-                  ✅ Noticia publicada correctamente
+                <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-xs text-green-600">
+                  {editingNoticia ? '✓ Noticia editada con éxito' : '✓ Noticia publicada con éxito'}
                 </div>
               )}
 
-              {/* Botón Submit */}
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={isSubmitting || uploadingImage || !titulo.trim()}
-                style={{
-                  padding: '12px',
-                  background: '#0B5BE5',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  fontSize: '14px',
-                  cursor: isSubmitting || uploadingImage ? 'not-allowed' : 'pointer',
-                  opacity: isSubmitting || uploadingImage || !titulo.trim() ? 0.6 : 1,
-                  transition: 'opacity 0.2s',
-                }}
+                className="w-full py-2.5 px-4 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
-                {isSubmitting || uploadingImage ? '⏳ Publicando...' : '🚀 Publicar noticia'}
+                {isSubmitting || uploadingImage 
+                  ? '⏳ Guardando...' 
+                  : editingNoticia 
+                    ? 'Actualizar noticia' 
+                    : 'Publicar noticia'
+                }
               </button>
             </form>
           </div>
         )}
 
-        {/* ── NOTICIAS PUBLICADAS ── */}
-        <div>
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#0B1F4D', marginTop: 0, marginBottom: '16px' }}>
+        {/* ── SECCIÓN DE LISTADO DE NOTICIAS PUBLICADAS ── */}
+        <div className={canEdit ? 'lg:col-span-7 space-y-4' : 'lg:col-span-12 space-y-4'}>
+          <h2 className="text-lg font-bold text-[#0B1F4D]">
             📌 Noticias publicadas ({noticias?.length || 0})
           </h2>
 
           {isLoading ? (
-            <div style={{ textAlign: 'center', padding: '32px', color: '#94A3B8' }}>Cargando...</div>
+            <div className="flex flex-col items-center justify-center py-12 border border-border rounded-2xl bg-card">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent mb-2" />
+              <p className="text-sm text-muted-foreground">Cargando feed...</p>
+            </div>
           ) : noticias && noticias.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
               {noticias.map((noticia) => (
                 <div
                   key={noticia.id}
-                  style={{
-                    background: '#fff',
-                    border: '1.5px solid #E2E8F0',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    display: 'flex',
-                    gap: '12px',
-                  }}
+                  className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-start hover:shadow-sm transition"
                 >
-                  {/* Imagen thumbnail */}
-                  {noticia.imagen_url && (
-                    <div style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: '#F1F5F9' }}>
-                      <img src={noticia.imagen_url} alt={noticia.titulo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {/* Thumbnail */}
+                  {noticia.imagen_url ? (
+                    <div className="w-full sm:w-20 h-40 sm:h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border">
+                      <img 
+                        src={noticia.imagen_url} 
+                        alt={noticia.titulo} 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full sm:w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border flex items-center justify-center text-muted-foreground/30">
+                      <Newspaper size={28} />
                     </div>
                   )}
 
                   {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#0B1F4D', margin: '0 0 4px' }}>
-                      {noticia.titulo}
-                    </p>
-                    <p style={{ fontSize: '12px', color: '#64748B', margin: '0 0 6px', lineHeight: '1.4' }}>
-                      {noticia.descripcion}
-                    </p>
-                    <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0 }}>
-                      {new Date(noticia.creado_en).toLocaleDateString('es-AR')}
-                    </p>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-bold text-[#0B1F4D] text-sm line-clamp-2">
+                        {noticia.titulo}
+                      </h3>
+                    </div>
+                    {noticia.descripcion && (
+                      <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                        {noticia.descripcion}
+                      </p>
+                    )}
+                    <span className="text-[10px] text-muted-foreground/75 block pt-1">
+                      {new Date(noticia.creado_en).toLocaleDateString('es-AR', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </span>
                   </div>
 
-                  {/* Botón eliminar */}
+                  {/* Acciones */}
                   {canEdit && (
-                    <button
-                      onClick={() => handleEliminar(noticia.id)}
-                      style={{
-                        padding: '8px',
-                        background: '#FEE2E2',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        color: '#DC2626',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                      title="Eliminar"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex sm:flex-col gap-2 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border flex-shrink-0 justify-end">
+                      <button
+                        onClick={() => handleStartEdit(noticia)}
+                        className="flex-1 sm:flex-none p-2 bg-muted hover:bg-muted/80 hover:text-primary rounded-lg transition text-muted-foreground flex items-center justify-center gap-1.5 text-xs font-semibold"
+                        title="Editar"
+                      >
+                        <Pencil size={15} />
+                        <span className="sm:hidden">Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleEliminar(noticia.id)}
+                        className="flex-1 sm:flex-none p-2 bg-destructive/10 hover:bg-destructive/20 hover:text-destructive rounded-lg transition text-destructive flex items-center justify-center gap-1.5 text-xs font-semibold"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={15} />
+                        <span className="sm:hidden">Eliminar</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', background: '#F8FAFC', borderRadius: '12px' }}>
-              No hay noticias publicadas aún
+            <div className="text-center py-12 border-2 border-dashed border-border rounded-2xl bg-muted/20 text-muted-foreground flex flex-col items-center justify-center gap-2">
+              <Newspaper size={36} className="text-muted-foreground/40" />
+              <p className="text-sm font-semibold">No hay noticias publicadas</p>
+              <p className="text-xs text-muted-foreground/70">Comenzá cargando tu primera noticia promocional.</p>
             </div>
           )}
         </div>

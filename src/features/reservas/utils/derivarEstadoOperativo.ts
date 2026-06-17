@@ -26,8 +26,9 @@ export interface DerivarEstadoOperativoInput {
  *
  *   1. CANCELADO  → estado = 'cancelada' (terminal del enum).
  *   2. CERRADO    → cerrado_en IS NOT NULL (cierre manual, terminal).
- *   3. ABIERTO    → llegó la hora de inicio  O  hay consumo/pago (y no cerrado).
- *   4. RESERVADO  → resto (no llegó la hora y sin consumo ni pago).
+ *   3. RESERVADO  → estado = 'pendiente' (se queda reservado hasta que se pague la seña o el club lo confirme).
+ *   4. ABIERTO    → llegó la hora de inicio  O  hay consumo/pago (y no cerrado ni pendiente).
+ *   5. RESERVADO  → resto (no llegó la hora y sin consumo ni pago).
  *
  * `now` se pasa explícito (testable y permite que la grilla lo memoice). La
  * transición RESERVADO→ABIERTO por hora es continua: recalcular con un `now`
@@ -46,6 +47,10 @@ export function derivarEstadoOperativo(
   // que fechaUtils / LineaAhora; evita drift por UTC).
   const inicio = new Date(`${input.fecha}T${input.hora_inicio}`);
   const llegoLaHora = now.getTime() >= inicio.getTime();
+
+  // Si no pagó la seña y no está confirmada por el club (sigue 'pendiente'),
+  // no pasa a 'abierto' (alquilada) y se queda en 'reservado'.
+  if (input.estado === 'pendiente') return 'reservado';
 
   if (llegoLaHora || input.tieneConsumo || input.tienePago) return 'abierto';
   return 'reservado';

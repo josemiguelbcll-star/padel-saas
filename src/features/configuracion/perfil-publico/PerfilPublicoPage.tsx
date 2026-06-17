@@ -623,23 +623,8 @@ export function PerfilPublicoPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2 border-t border-green-200/40">
-                    <div className="space-y-1">
-                      <Label className="text-[11px] text-green-800 font-semibold">CBU / CVU de Cobro (Mercado Pago)</Label>
-                      <div className="rounded border border-green-200/60 bg-white/40 px-3 py-2 text-xs text-muted-foreground select-all">
-                        (Automático - Cuenta Mercado Pago)
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px] text-green-800 font-semibold">Alias de Cobro (Mercado Pago)</Label>
-                      <div className="rounded border border-green-200/60 bg-white/40 px-3 py-2 text-xs text-muted-foreground select-all">
-                        (Automático - Cuenta Mercado Pago)
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-muted-foreground leading-normal mt-2">
-                    💡 <strong>Nota de integración:</strong> Por motivos de seguridad bancaria (normativas BCRA), la API de Mercado Pago no expone el CBU/CVU ni el Alias de tu cuenta a aplicaciones externas. No te preocupes: el dinero de tus reservas cobradas a través de Mercado Pago se acreditará automáticamente en el saldo de la cuenta de Mercado Pago detallada arriba.
+                  <p className="text-[11px] text-muted-foreground leading-normal pt-2 border-t border-green-200/40">
+                    Los pagos de señas de las reservas se acreditarán automáticamente en el saldo de la cuenta de Mercado Pago vinculada arriba.
                   </p>
                 </div>
               ) : (

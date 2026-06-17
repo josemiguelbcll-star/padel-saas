@@ -22,6 +22,7 @@ export function useNoticiasClub(clubId: number) {
         .from('noticias_feed')
         .select('*')
         .eq('club_id', clubId)
+        .eq('activo', true)
         .order('creado_en', { ascending: false });
 
       if (error) throw error;
@@ -79,6 +80,31 @@ export function useCrearNoticia() {
   };
 
   return { createNoticia, subirImagen };
+}
+
+/**
+ * Hook para editar noticia
+ */
+export function useEditarNoticia() {
+  const editNoticia = async (
+    noticiaId: number,
+    titulo: string,
+    descripcion: string,
+    imagenUrl?: string | null
+  ) => {
+    const { error } = await supabase
+      .from('noticias_feed')
+      .update({
+        titulo: titulo,
+        descripcion: descripcion,
+        imagen_url: imagenUrl,
+      })
+      .eq('id', noticiaId);
+
+    if (error) throw error;
+  };
+
+  return { editNoticia };
 }
 
 /**

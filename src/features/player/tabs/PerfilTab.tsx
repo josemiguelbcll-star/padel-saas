@@ -136,13 +136,74 @@ interface PerfilTabProps {
 }
 
 export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: PerfilTabProps) {
-  const { profile, saveProfile, isSaving, iniciales } = usePlayerProfile();
+  const { profile, saveProfile, isSaving, isLoading, iniciales } = usePlayerProfile();
   const [editOpen, setEditOpen] = useState(false);
   const [selectedReserva, setSelectedReserva] = useState<MiReservaReal | null>(null);
 
   // Nombre a mostrar: alias si tiene, sino nombre, sino fallback
   const displayName = profile.alias || profile.nombre || 'Tu nombre';
   const displaySub  = profile.categoria ? CAT_LABEL[profile.categoria] : profile.email || profile.telefono || '';
+
+  if (isLoading) {
+    return (
+      <div style={{
+        height: '100%',
+        background: '#F8F9FC',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '0 0 40px',
+        gap: 20,
+      }}>
+        {/* Shimmer del Hero */}
+        <div style={{
+          width: '100%',
+          background: '#0B1F4D',
+          padding: '38px 20px 42px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          boxShadow: '0 4px 20px rgba(11, 31, 77, 0.15)',
+        }}>
+          {/* Avatar Skeleton */}
+          <div className="animate-pulse" style={{
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.12)',
+            border: '3px solid rgba(255,255,255,0.1)',
+          }} />
+          {/* Nombre Skeleton */}
+          <div className="animate-pulse" style={{
+            width: 160,
+            height: 24,
+            borderRadius: 6,
+            background: 'rgba(255, 255, 255, 0.2)',
+          }} />
+          {/* Subtítulo/Categoría Skeleton */}
+          <div className="animate-pulse" style={{
+            width: 100,
+            height: 14,
+            borderRadius: 4,
+            background: 'rgba(255, 255, 255, 0.1)',
+          }} />
+        </div>
+
+        {/* Contenido general skeleton */}
+        <div style={{ width: '100%', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="animate-pulse" style={{ width: 140, height: 16, borderRadius: 4, background: '#E2E8F0' }} />
+            <div className="animate-pulse" style={{ width: '100%', height: 110, borderRadius: 16, background: '#ffffff', border: '1.5px solid #E2E8F0' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="animate-pulse" style={{ width: 100, height: 16, borderRadius: 4, background: '#E2E8F0' }} />
+            <div className="animate-pulse" style={{ width: '100%', height: 90, borderRadius: 16, background: '#ffffff', border: '1.5px solid #E2E8F0' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

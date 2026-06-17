@@ -100,7 +100,8 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
           if (data.init_point) {
             window.location.href = data.init_point;
           } else {
-            throw new Error(data.error || 'No se pudo generar el link de pago.');
+            const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
+            throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
           }
         } catch (err: any) {
           console.error('[BookingBottomSheet] Error al crear preferencia:', err);
@@ -278,12 +279,13 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
                             origin_url: window.location.origin,
                           }),
                         });
-                        const data = await response.json();
-                        if (data.init_point) {
-                          window.location.href = data.init_point;
-                        } else {
-                          throw new Error(data.error || 'No se pudo generar el link de pago.');
-                        }
+                         const data = await response.json();
+                         if (data.init_point) {
+                           window.location.href = data.init_point;
+                         } else {
+                           const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
+                           throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
+                         }
                       } catch (err: any) {
                         console.error('[BookingBottomSheet] Error al crear preferencia:', err);
                         setLocalError('Error al redirigir: ' + err.message);
@@ -354,12 +356,13 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
                                 origin_url: window.location.origin,
                               }),
                             });
-                            const data = await response.json();
-                            if (data.init_point) {
-                              window.location.href = data.init_point;
-                            } else {
-                              throw new Error(data.error || 'No se pudo generar el link de pago.');
-                            }
+                             const data = await response.json();
+                             if (data.init_point) {
+                               window.location.href = data.init_point;
+                             } else {
+                               const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
+                               throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
+                             }
                           } catch (err: any) {
                             console.error('[BookingBottomSheet] Error al crear preferencia:', err);
                             setLocalError('Error al redirigir: ' + err.message);

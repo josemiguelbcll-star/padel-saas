@@ -1,13 +1,11 @@
 /**
  * usePlayerProfile — perfil del jugador B2C, persistido en Supabase.
  *
- * Lee/escribe en jugadores_app. Resiliente a migración 0077 pendiente:
- * si las columnas alias/telefono/genero/categoria no existen aún, la
- * carga cae back a nombre_display + foto_url y el upsert guarda solo
- * los campos garantizados.
+ * Lee/escribe en jugadores_app, optimizado con React Query para cacheo y baja latencia.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
 export type Categoria =
@@ -46,7 +44,10 @@ async function resolveAvatarUrl(userId: string, dataUri: string): Promise<string
       .from('avatars')
       .upload(path, blob, { upsert: true, contentType: blob.type });
 
-    if (error) { console.error('[profile] avatar upload:', error.message); return null; }
+    if (error) { 
+      console.error('[profile] avatar upload:', error.message); 
+      return null; 
+    }
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
     return `${publicUrl}?t=${Date.now()}`;
@@ -55,8 +56,6 @@ async function resolveAvatarUrl(userId: string, dataUri: string): Promise<string
     return null;
   }
 }
-
-// ── Tipos internos para el row de DB ─────────────────────────────────────────
 
 interface JugadorRow {
   nombre_display: string;
@@ -70,68 +69,55 @@ interface JugadorRow {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function usePlayerProfile() {
-  const [profile,   setProfile]   = useState<PlayerProfile>(DEFAULT);
-  const [isSaving,  setIsSaving]  = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  // ── Carga inicial ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
+  // Cargar perfil con React Query (Caché por 15 minutos, refresco en background)
+  const { data: profile = DEFAULT, isLoading, refetch } = useQuery<PlayerProfile>({
+    queryKey: ['player-profile'],
+    queryFn: async (): Promise<PlayerProfile> => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return DEFAULT;
 
-    async function load() {
-      setIsLoading(true);
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+      // Consulta completa
+      const { data: full, error: e1 } = await supabase
+        .from('jugadores_app')
+        .select('nombre_display, alias, telefono, genero, categoria, foto_url')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
 
-        // Intenta query completa (requiere migración 0077)
-        const { data: full, error: e1 } = await supabase
+      let row: JugadorRow | null = null;
+
+      if (e1) {
+        // Fallback a columnas base (0075) si falla
+        const { data: base } = await supabase
           .from('jugadores_app')
-          .select('nombre_display, alias, telefono, genero, categoria, foto_url')
+          .select('nombre_display, foto_url')
           .eq('auth_user_id', user.id)
           .maybeSingle();
-
-        let row: JugadorRow | null = null;
-
-        if (e1) {
-          // Columnas nuevas no existen aún — fallback a columnas base (0075)
-          console.warn('[profile] columnas extendidas no disponibles, usando base:', e1.message);
-          const { data: base } = await supabase
-            .from('jugadores_app')
-            .select('nombre_display, foto_url')
-            .eq('auth_user_id', user.id)
-            .maybeSingle();
-          row = base as JugadorRow | null;
-        } else {
-          row = full as JugadorRow | null;
-        }
-
-        if (!cancelled) {
-          setProfile({
-            nombre:     row?.nombre_display            ?? '',
-            alias:      row?.alias                     ?? '',
-            telefono:   row?.telefono                  ?? '',
-            email:      user.email                     ?? '',
-            categoria:  (row?.categoria as Categoria)  ?? '',
-            genero:     (row?.genero    as Genero)     ?? '',
-            avatar_url: row?.foto_url                  ?? null,
-          });
-        }
-      } catch (err) {
-        console.error('[profile] load error:', err);
-      } finally {
-        if (!cancelled) setIsLoading(false);
+        row = base as JugadorRow | null;
+      } else {
+        row = full as JugadorRow | null;
       }
-    }
 
-    load();
-    return () => { cancelled = true; };
-  }, []);
+      if (!row) return { ...DEFAULT, email: user.email ?? '' };
 
-  // ── Guardar ───────────────────────────────────────────────────────────────
-  const saveProfile = useCallback(async (updates: PlayerProfile): Promise<void> => {
-    setIsSaving(true);
-    try {
+      return {
+        nombre:     row.nombre_display            ?? '',
+        alias:      row.alias                     ?? '',
+        telefono:   row.telefono                  ?? '',
+        email:      user.email                     ?? '',
+        categoria:  (row.categoria as Categoria)  ?? '',
+        genero:     (row.genero    as Genero)     ?? '',
+        avatar_url: row.foto_url                  ?? null,
+      };
+    },
+    staleTime: 1000 * 60 * 15, // Considerar datos frescos por 15 minutos
+    gcTime: 1000 * 60 * 30,    // Mantener en memoria inactiva por 30 minutos
+  });
+
+  // Mutación para guardar perfil
+  const mutation = useMutation<PlayerProfile, Error, PlayerProfile>({
+    mutationFn: async (updates: PlayerProfile): Promise<PlayerProfile> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Sin sesión activa');
 
@@ -142,7 +128,7 @@ export function usePlayerProfile() {
 
       const nombreCorto = updates.nombre.trim().split(' ')[0] ?? updates.nombre.trim();
 
-      // Intenta upsert completo (requiere migración 0077)
+      // Upsert completo
       const { error: e1 } = await supabase.from('jugadores_app').upsert(
         {
           auth_user_id:   user.id,
@@ -160,8 +146,7 @@ export function usePlayerProfile() {
       if (e1) {
         const isColumnMissing = e1.message.includes('column') || e1.message.includes('does not exist');
         if (isColumnMissing) {
-          // Fallback: guardar solo columnas garantizadas (0075)
-          console.warn('[profile] columnas extendidas no disponibles, guardando base:', e1.message);
+          // Fallback a columnas base (0075)
           const { error: e2 } = await supabase.from('jugadores_app').upsert(
             {
               auth_user_id:   user.id,
@@ -177,11 +162,17 @@ export function usePlayerProfile() {
         }
       }
 
-      setProfile({ ...updates, avatar_url: resolvedAvatar ?? null });
-    } finally {
-      setIsSaving(false);
-    }
-  }, []);
+      return { ...updates, avatar_url: resolvedAvatar };
+    },
+    onSuccess: (updatedProfile) => {
+      // Actualizar caché de React Query inmediatamente
+      queryClient.setQueryData(['player-profile'], updatedProfile);
+    },
+  });
+
+  const saveProfile = useCallback(async (updates: PlayerProfile): Promise<void> => {
+    await mutation.mutateAsync(updates);
+  }, [mutation]);
 
   /** Iniciales para el avatar fallback */
   const iniciales = (profile.alias || profile.nombre)
@@ -191,5 +182,12 @@ export function usePlayerProfile() {
     .map(w => w[0]?.toUpperCase() ?? '')
     .join('');
 
-  return { profile, saveProfile, isSaving, isLoading, iniciales };
+  return { 
+    profile, 
+    saveProfile, 
+    isSaving: mutation.isPending, 
+    isLoading, 
+    iniciales,
+    refetch 
+  };
 }

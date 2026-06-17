@@ -80,7 +80,7 @@ export default async function handler(req: any, res: any) {
     const itemTitle = `Seña Reserva - ${clubNombre}${canchaNombre ? ` (Cancha: ${canchaNombre})` : ''}`;
 
     // 4. Crear preferencia en Mercado Pago
-    const mpResponse = await fetch('https://api.mercadopago.com/v1/checkout/preferences', {
+    const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${mpConfig.access_token}`,
@@ -109,7 +109,10 @@ export default async function handler(req: any, res: any) {
     if (!mpResponse.ok) {
       const errorText = await mpResponse.text();
       console.error('[create-preference] Error creando preferencia en Mercado Pago:', errorText);
-      return res.status(500).json({ error: 'Error al comunicarse con Mercado Pago' });
+      return res.status(500).json({ 
+        error: 'Error al comunicarse con Mercado Pago', 
+        details: errorText 
+      });
     }
 
     const mpData = await mpResponse.json();

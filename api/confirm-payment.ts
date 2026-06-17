@@ -77,7 +77,10 @@ export default async function handler(req: any, res: any) {
     if (!mpResponse.ok) {
       const errorText = await mpResponse.text();
       console.error('[confirm-payment] Error consultando pago en Mercado Pago:', errorText);
-      return res.status(500).json({ error: 'Error al comunicarse con Mercado Pago' });
+      return res.status(500).json({ 
+        error: 'Error al comunicarse con Mercado Pago', 
+        details: errorText 
+      });
     }
 
     const paymentData = await mpResponse.json();
