@@ -13,7 +13,6 @@ import {
   TrendingDown,
   TrendingUp,
   Receipt,
-  Bell,
   Settings,
   Smartphone,
   type LucideIcon,

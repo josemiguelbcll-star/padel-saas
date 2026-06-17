@@ -45,13 +45,14 @@ export function useLiveNotifications() {
   // Fetch initial notifications (last 5 reservations)
   useEffect(() => {
     if (!club?.id) return;
+    const clubId = club.id;
 
     async function fetchInitial() {
       try {
         const { data, error } = await supabase
           .from('reservas')
           .select('id, fecha, hora_inicio, cancha:cancha_id(nombre), jugador:jugador_id(nombre), fecha_alta')
-          .eq('club_id', club.id)
+          .eq('club_id', clubId)
           .order('fecha_alta', { ascending: false })
           .limit(5);
 
@@ -83,16 +84,17 @@ export function useLiveNotifications() {
   // Subscribe to realtime inserts
   useEffect(() => {
     if (!club?.id) return;
+    const clubId = club.id;
 
     const channel = supabase
-      .channel(`reservas-realtime-${club.id}`)
+      .channel(`reservas-realtime-${clubId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'reservas',
-          filter: `club_id=eq.${club.id}`,
+          filter: `club_id=eq.${clubId}`,
         },
         async (payload: any) => {
           const newId = payload.new.id;
@@ -111,13 +113,14 @@ export function useLiveNotifications() {
             }
 
             if (data) {
+              const r = data as any;
               const newItem: NotificationItem = {
-                id: data.id,
-                jugadorNombre: data.jugador?.nombre || 'Jugador Anónimo',
-                canchaNombre: data.cancha?.nombre || 'Cancha',
-                fecha: data.fecha,
-                horaInicio: data.hora_inicio,
-                fechaAlta: data.fecha_alta,
+                id: r.id,
+                jugadorNombre: r.jugador?.nombre || 'Jugador Anónimo',
+                canchaNombre: r.cancha?.nombre || 'Cancha',
+                fecha: r.fecha,
+                horaInicio: r.hora_inicio,
+                fechaAlta: r.fecha_alta,
                 read: false,
               };
 
