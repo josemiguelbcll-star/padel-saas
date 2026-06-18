@@ -89,7 +89,8 @@ export function calcularDisponiblesCore({
   duracionDefault,
 }: CalcularDisponiblesCoreParams): SlotDisponible[] {
   const aperturaMin = horaToMinutos(horaApertura);
-  const cierreMin = horaToMinutos(horaCierre);
+  let cierreMin = horaToMinutos(horaCierre);
+  if (cierreMin === 0) cierreMin = 1440;
 
   if (cierreMin <= aperturaMin) return [];
 
@@ -167,9 +168,12 @@ export function calcularDisponibles({
 
   for (const r of reservas) {
     if (r.estado === 'cancelada') continue;
+    const start = horaToMinutos(r.hora_inicio);
+    let end = horaToMinutos(r.hora_fin);
+    if (end === 0 || end < start) end = 1440;
     ocupados.push({
-      start: horaToMinutos(r.hora_inicio),
-      end: horaToMinutos(r.hora_fin),
+      start,
+      end,
     });
   }
 

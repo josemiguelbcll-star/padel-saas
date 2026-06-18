@@ -103,7 +103,8 @@ export function GrillaDia({
 
   // Ocupación por cancha para el encabezado (sin queries: usa lo cargado).
   const aperturaMin = horaToMinutos(horaApertura);
-  const cierreMin = horaToMinutos(horaCierre);
+  let cierreMin = horaToMinutos(horaCierre);
+  if (cierreMin === 0) cierreMin = 1440;
   const operatingMin = Math.max(0, cierreMin - aperturaMin);
 
   function ocupacionDe(canchaId: number): {
@@ -116,7 +117,9 @@ export function GrillaDia({
     let ocupMin = 0;
     for (const r of rs) {
       const s = Math.max(horaToMinutos(r.hora_inicio), aperturaMin);
-      const e = Math.min(horaToMinutos(r.hora_fin), cierreMin);
+      let endMin = horaToMinutos(r.hora_fin);
+      if (endMin === 0 || endMin < s) endMin = 1440;
+      const e = Math.min(endMin, cierreMin);
       if (e > s) ocupMin += e - s;
     }
     for (const c of cs) {

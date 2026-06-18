@@ -57,15 +57,22 @@ export function generarSlots(
   granularidadMin = 30,
 ): string[] {
   const slots: string[] = [];
-  let actual = normalizarHora(horaApertura);
-  const fin = normalizarHora(horaCierre);
-  // Salvaguarda: si por error apertura >= cierre, devolver array vacío
-  // en lugar de loopear forever.
-  if (compararHoras(actual, fin) >= 0) return slots;
+  const aperturaMin = horaToMinutos(horaApertura);
+  let cierreMin = horaToMinutos(horaCierre);
 
-  while (compararHoras(actual, fin) < 0) {
-    slots.push(actual);
-    actual = sumarMinutos(actual, granularidadMin);
+  if (cierreMin === 0) {
+    cierreMin = 1440;
+  }
+  if (cierreMin <= aperturaMin) {
+    cierreMin += 1440;
+  }
+
+  if (cierreMin <= aperturaMin) return slots;
+
+  let actualMin = aperturaMin;
+  while (actualMin < cierreMin) {
+    slots.push(minutosToHora(actualMin));
+    actualMin += granularidadMin;
   }
   return slots;
 }

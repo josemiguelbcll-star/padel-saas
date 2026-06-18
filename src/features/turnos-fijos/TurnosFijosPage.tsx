@@ -109,8 +109,8 @@ export function TurnosFijosPage() {
   const [rangoMatLabel, setRangoMatLabel] = useState('');
   const [resultadoOpen, setResultadoOpen] = useState(false);
 
-  // Semanas a materializar — selector (default 12).
-  const [semanas, setSemanas] = useState<4 | 8 | 12 | 16>(12);
+  // Semanas a materializar — selector (default 52).
+  const [semanas, setSemanas] = useState<4 | 8 | 12 | 16 | 24 | 52>(52);
 
   const canchasById = useMemo(() => {
     const m = new Map<number, string>();
@@ -215,7 +215,7 @@ export function TurnosFijosPage() {
             <span className="text-xs text-muted-foreground">Próximas</span>
             <select
               value={semanas}
-              onChange={(e) => setSemanas(Number(e.target.value) as 4 | 8 | 12 | 16)}
+              onChange={(e) => setSemanas(Number(e.target.value) as 4 | 8 | 12 | 16 | 24 | 52)}
               disabled={materializar.isPending}
               className={cn(
                 'h-8 rounded-md border border-input bg-background px-2 text-xs',
@@ -228,6 +228,8 @@ export function TurnosFijosPage() {
               <option value={8}>8 semanas</option>
               <option value={12}>12 semanas</option>
               <option value={16}>16 semanas</option>
+              <option value={24}>24 semanas</option>
+              <option value={52}>52 semanas (1 año)</option>
             </select>
             <Button
               type="button"

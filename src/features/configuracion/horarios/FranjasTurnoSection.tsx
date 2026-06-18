@@ -95,7 +95,8 @@ export function FranjasTurnoSection({
   const avisos = useMemo(() => {
     if (!hayHorario) return { solapan: false, hueco: false };
     const aperturaMin = horaToMinutos(horaApertura!);
-    const cierreMin = horaToMinutos(horaCierre!);
+    let cierreMin = horaToMinutos(horaCierre!);
+    if (cierreMin === 0) cierreMin = 1440;
     const delDia = franjas.filter(
       (f) =>
         f.activa &&

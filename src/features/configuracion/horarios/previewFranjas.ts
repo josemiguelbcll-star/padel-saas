@@ -64,7 +64,8 @@ export function previsualizarInicios(params: {
   const canchaId = params.canchaId ?? SENTINEL_CANCHA_GLOBAL;
 
   const aperturaMin = horaToMinutos(horaApertura);
-  const cierreMin = horaToMinutos(horaCierre);
+  let cierreMin = horaToMinutos(horaCierre);
+  if (cierreMin === 0) cierreMin = 1440;
   if (cierreMin <= aperturaMin) return [];
 
   const inicios: InicioPreview[] = [];
@@ -82,7 +83,8 @@ export function previsualizarInicios(params: {
       franjas,
       duracionDefault,
     });
-    const franjaHastaMin = hastaHora !== null ? horaToMinutos(hastaHora) : cierreMin;
+    let franjaHastaMin = hastaHora !== null ? horaToMinutos(hastaHora) : cierreMin;
+    if (franjaHastaMin === 0) franjaHastaMin = 1440;
     const limite = Math.min(cierreMin, franjaHastaMin);
     const ofrecidas = duraciones
       .filter((d) => cursor + d <= limite)
@@ -132,7 +134,8 @@ export function hayHuecoSinFranja(params: {
   const { franjas, horaApertura, horaCierre, duracionDefault, fecha } = params;
   const canchaId = params.canchaId ?? SENTINEL_CANCHA_GLOBAL;
   const aperturaMin = horaToMinutos(horaApertura);
-  const cierreMin = horaToMinutos(horaCierre);
+  let cierreMin = horaToMinutos(horaCierre);
+  if (cierreMin === 0) cierreMin = 1440;
   if (cierreMin <= aperturaMin) return false;
 
   // Recorremos en pasos de 30 min: si en algún paso la resolución cae al

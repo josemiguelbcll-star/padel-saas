@@ -27,7 +27,10 @@ function calcDuracion(hi: string, hf: string): number {
   const h2 = parts2[0] ?? 0, m2 = parts2[1] ?? 0;
   return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
-function formatTime(t: string) { return t.length >= 5 ? t.slice(0, 5) : t; }
+function formatTime(t: string) {
+  const formatted = t.length >= 5 ? t.slice(0, 5) : t;
+  return formatted === '24:00' ? '00:00' : formatted;
+}
 
 function formatFechaBooking(iso: string): string {
   const DIAS  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];

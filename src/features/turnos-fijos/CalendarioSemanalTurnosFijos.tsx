@@ -196,7 +196,8 @@ export function CalendarioSemanalTurnosFijos({
   }
 
   const aperturaMin = horaToMinutos(normalizarHora(horaApertura));
-  const cierreMin = horaToMinutos(normalizarHora(horaCierre));
+  let cierreMin = horaToMinutos(normalizarHora(horaCierre));
+  if (cierreMin === 0) cierreMin = 1440;
 
   if (cierreMin <= aperturaMin) {
     return (

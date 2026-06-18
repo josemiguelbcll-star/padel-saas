@@ -27,9 +27,11 @@ interface FormState {
 }
 
 function horariosToForm(h: HorariosClub): FormState {
+  let cierre = h.hora_cierre ? h.hora_cierre.slice(0, 5) : '';
+  if (cierre === '24:00') cierre = '00:00';
   return {
     hora_apertura: h.hora_apertura ? h.hora_apertura.slice(0, 5) : '',
-    hora_cierre: h.hora_cierre ? h.hora_cierre.slice(0, 5) : '',
+    hora_cierre: cierre,
     duracion_turno_default: h.duracion_turno_default,
   };
 }
@@ -293,7 +295,9 @@ interface HorariosReadOnlyProps {
   value: HorariosClub;
 }
 
-function HorariosReadOnly({ value }: HorariosReadOnlyProps) {
+function HorariosReadOnly({ value }: { value: HorariosClub }) {
+  let cierre = value.hora_cierre ? value.hora_cierre.slice(0, 5) : '—';
+  if (cierre === '24:00') cierre = '00:00';
   return (
     <div className="space-y-4">
       <dl className="grid gap-4 sm:grid-cols-3">
@@ -310,7 +314,7 @@ function HorariosReadOnly({ value }: HorariosReadOnlyProps) {
             Cierre
           </dt>
           <dd className="text-base font-medium text-foreground">
-            {value.hora_cierre ? value.hora_cierre.slice(0, 5) : '—'}
+            {cierre}
           </dd>
         </div>
         <div className="space-y-1 rounded-md border border-border bg-card p-4">

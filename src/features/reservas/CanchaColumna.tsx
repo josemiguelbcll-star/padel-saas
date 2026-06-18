@@ -88,7 +88,8 @@ export function CanchaColumna({
   onClaseClick,
 }: CanchaColumnaProps) {
   const aperturaMin = horaToMinutos(horaApertura);
-  const cierreMin = horaToMinutos(horaCierre);
+  let cierreMin = horaToMinutos(horaCierre);
+  if (cierreMin === 0) cierreMin = 1440;
   const pxPorMin = slotHeight / 30;
   const totalHeight = slots.length * slotHeight;
 

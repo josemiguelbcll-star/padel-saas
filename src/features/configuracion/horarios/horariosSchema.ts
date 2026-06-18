@@ -24,7 +24,8 @@ export const horariosSchema = z
     hora_cierre: z
       .string()
       .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Formato horario inválido (HH:MM).')
-      .nullable(),
+      .nullable()
+      .transform((val) => (val === '00:00' || val === '00:00:00' ? '24:00' : val)),
     duracion_turno_default: z
       .number({ invalid_type_error: 'Elegí una duración válida.' })
       .refine(

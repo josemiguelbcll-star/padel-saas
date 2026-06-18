@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { AlertTriangle, Clock, LayoutGrid } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '@/features/auth';
@@ -95,6 +97,32 @@ export function ReservasPage() {
   // estado operativo sin N+1. Alarma cross-día de turnos viejos sin cerrar.
   const actividadQuery = useActividadDelDia(fecha);
   const turnosViejosQuery = useTurnosAbiertosViejos();
+  const queryClient = useQueryClient();
+
+  // Materializar turnos fijos en segundo plano para las próximas 24 semanas.
+  // Esto mantiene los turnos fijos materializados "para siempre" de forma transparente
+  // para los administradores y vendedores cuando entran a la grilla.
+  useEffect(() => {
+    if (!canEdit) return;
+    
+    const desde = fechaHoy();
+    // 24 semanas = 168 días
+    const d = new Date(desde + 'T00:00:00');
+    d.setDate(d.getDate() + 168);
+    const hasta = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    supabase.rpc('fn_materializar_turnos_fijos', {
+      p_fecha_desde: desde,
+      p_fecha_hasta: hasta,
+    }).then(({ data, error }) => {
+      if (error) {
+        console.error('Error auto-materializando turnos fijos:', error);
+      } else if (data && (data as any).reservas_creadas > 0) {
+        // Refrescar las reservas si se generaron nuevas materializaciones
+        void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+      }
+    });
+  }, [canEdit, queryClient]);
 
   const canchasActivas = useMemo(
     () => (canchasQuery.data ?? []).filter((c) => c.activa),
