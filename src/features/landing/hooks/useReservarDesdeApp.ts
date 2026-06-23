@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
 export interface ReservaAppConfirmada {
@@ -20,18 +20,15 @@ export interface ReservaAppConfirmada {
 }
 
 export function useReservarDesdeApp() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  async function reservar(params: {
-    cancha_id:    number;
-    fecha:        string;
-    hora_inicio:  string;
-    duracion_min: number;
-  }): Promise<ReservaAppConfirmada | null> {
-    setIsLoading(true);
-    setError(null);
-    try {
+  const mutation = useMutation({
+    mutationFn: async (params: {
+      cancha_id:    number;
+      fecha:        string;
+      hora_inicio:  string;
+      duracion_min: number;
+    }): Promise<ReservaAppConfirmada> => {
       const { data, error: rpcError } = await supabase.rpc('fn_reservar_desde_app', {
         p_cancha_id:    params.cancha_id,
         p_fecha:        params.fecha,
@@ -40,13 +37,34 @@ export function useReservarDesdeApp() {
       });
       if (rpcError) throw new Error(rpcError.message);
       return data as ReservaAppConfirmada;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al reservar. Intentá de nuevo.');
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }
+    },
+    onSuccess: () => {
+      // Invalida reservas del jugador y disponibilidad del club/bulk
+      void queryClient.invalidateQueries({ queryKey: ['my-reservas'] });
+      void queryClient.invalidateQueries({ queryKey: ['disponibilidad-club'] });
+      void queryClient.invalidateQueries({ queryKey: ['disponibilidad-bulk'] });
+    },
+  });
 
-  return { reservar, isLoading, error, clearError: () => setError(null) };
+  const reservar = async (params: {
+    cancha_id:    number;
+    fecha:        string;
+    hora_inicio:  string;
+    duracion_min: number;
+  }): Promise<ReservaAppConfirmada | null> => {
+    try {
+      return await mutation.mutateAsync(params);
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const error = mutation.error instanceof Error ? mutation.error.message : null;
+
+  return {
+    reservar,
+    isLoading: mutation.isPending,
+    error,
+    clearError: () => mutation.reset(),
+  };
 }

@@ -52,72 +52,16 @@ export function useIngresosDiariosMes(
   return useQuery<IngresosDiariosMes, Error>({
     queryKey: INGRESOS_DIARIOS_MES_QUERY_KEY(anio, mes),
     queryFn: async () => {
-      const { desde, hasta } = rangoMesISO(anio, mes);
-      const desdeISO = `${desde}T00:00:00`;
-      const hastaISO = `${hasta}T23:59:59`;
-
-      const [pagosRes, clasesRes, ventasRes, otrosIngRes] = await Promise.all([
-        supabase
-          .from('reserva_pagos')
-          .select('monto, tipo, fecha_hora')
-          .gte('fecha_hora', desdeISO)
-          .lte('fecha_hora', hastaISO),
-        supabase
-          .from('clase_cobros')
-          .select('monto, fecha_hora')
-          .gte('fecha_hora', desdeISO)
-          .lte('fecha_hora', hastaISO),
-        supabase
-          .from('ventas')
-          .select('monto_total, fecha_hora')
-          .gte('fecha_hora', desdeISO)
-          .lte('fecha_hora', hastaISO),
-        supabase
-          .from('otros_ingresos')
-          .select('monto, fecha')
-          .eq('activo', true)
-          .gte('fecha', desde)
-          .lte('fecha', hasta),
-      ]);
-
-      for (const r of [pagosRes, clasesRes, ventasRes, otrosIngRes]) {
-        if (r.error) throw new Error(mapPostgrestError(r.error));
-      }
-
-      // Acumular por fecha (YYYY-MM-DD).
-      const porDia = new Map<string, number>();
-      const sumar = (fecha: string, monto: number) => {
-        porDia.set(fecha, (porDia.get(fecha) ?? 0) + monto);
-      };
-
-      for (const p of pagosRes.data ?? []) {
-        const fecha = extraerFechaISO(String(p.fecha_hora));
-        const monto =
-          (String(p.tipo) === 'reembolso' ? -1 : 1) * Number(p.monto);
-        sumar(fecha, monto);
-      }
-      for (const c of clasesRes.data ?? []) {
-        sumar(extraerFechaISO(String(c.fecha_hora)), Number(c.monto));
-      }
-      for (const v of ventasRes.data ?? []) {
-        sumar(extraerFechaISO(String(v.fecha_hora)), Number(v.monto_total));
-      }
-      for (const i of otrosIngRes.data ?? []) {
-        sumar(String(i.fecha), Number(i.monto));
-      }
-
-      // Construir serie 1..últimoDía con monto + acumulado.
-      const ultimoDia = new Date(anio, mes, 0).getDate();
-      const serie: PuntoIngresoDiario[] = [];
-      let acumulado = 0;
-      for (let d = 1; d <= ultimoDia; d += 1) {
-        const fecha = fmtISO(new Date(anio, mes - 1, d));
-        const monto = porDia.get(fecha) ?? 0;
-        acumulado += monto;
-        serie.push({ fecha, dia: d, monto, acumulado });
-      }
-
-      return { anio, mes, serie };
+      const { data, error } = await supabase.rpc('fn_obtener_resumen_financiero', {
+        p_anio: anio,
+        p_mes: mes,
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      return {
+        anio,
+        mes,
+        serie: data.ingresos_diarios,
+      } as IngresosDiariosMes;
     },
   });
 }

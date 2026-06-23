@@ -10,7 +10,8 @@
  *   sinTelefono — true cuando la RPC devolvió vacío porque no hay teléfono
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/network';
 
@@ -80,30 +81,7 @@ export function colorEstado(estado: string): { text: string; bg: string; border:
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useMyReservas() {
-  const [reservas,     setReservas]     = useState<MiReservaReal[]>([]);
-  const [isLoading,    setIsLoading]    = useState(true);
-  const [error,        setError]        = useState<string | null>(null);
-  const [sinTelefono,  setSinTelefono]  = useState(false);
-  const [userId,       setUserId]       = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setSinTelefono(false);
-    try {
-      // Llamada RPC con timeout para evitar bloqueos aleatorios
-      const rpcPromise = supabase.rpc('fn_mis_reservas_app') as any;
-      const { data, error: rpcError } = await (withTimeout(rpcPromise, 8000, 'fn_mis_reservas_app') as any);
-      if (rpcError) throw rpcError;
-      const rows = (data as MiReservaReal[]) ?? [];
-      setReservas(rows);
-    } catch (err) {
-      console.error('[useMyReservas] error:', err);
-      setError('No se pudieron cargar tus reservas');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     // Escuchar cambios en el estado de autenticación (el primer disparo entrega el estado inicial)
@@ -114,17 +92,31 @@ export function useMyReservas() {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (userId) {
-      load();
-    } else {
-      setReservas([]);
-      setIsLoading(false);
-    }
-  }, [userId, load]);
+  const query = useQuery({
+    queryKey: ['my-reservas', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      // Llamada RPC con timeout para evitar bloqueos aleatorios
+      const rpcPromise = supabase.rpc('fn_mis_reservas_app') as any;
+      const { data, error: rpcError } = await (withTimeout(rpcPromise, 8000, 'fn_mis_reservas_app') as any);
+      if (rpcError) throw rpcError;
+      return (data as MiReservaReal[]) ?? [];
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 2, // Caché por 2 minutos
+    gcTime: 1000 * 60 * 10,
+  });
 
+  const reservas = query.data ?? [];
   const proximas  = reservas.filter(r =>  r.es_futura);
   const historial = reservas.filter(r => !r.es_futura).slice(0, 3);
 
-  return { proximas, historial, isLoading, error, sinTelefono, reload: load };
+  return {
+    proximas,
+    historial,
+    isLoading: query.isLoading,
+    error: query.error ? 'No se pudieron cargar tus reservas' : null,
+    sinTelefono: false,
+    reload: () => query.refetch(),
+  };
 }

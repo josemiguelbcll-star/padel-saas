@@ -89,6 +89,16 @@ export function useCrearReserva(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: [RESERVAS_QUERY_KEY_BASE, reserva.fecha],
       });
+      // Disparar el envío de correo de confirmación de forma asíncrona
+      void fetch('/api/send-booking-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reserva_id: reserva.id }),
+      }).catch((err) => {
+        console.error('Error al solicitar envío de correo de confirmación:', err);
+      });
     },
   });
 }

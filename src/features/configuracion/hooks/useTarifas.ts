@@ -29,6 +29,8 @@ export function useTarifas(): UseQueryResult<Tarifa[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Tarifa[];
     },
+    staleTime: 5 * 60 * 1000, // 5 minutos de cache activa
+    gcTime: 10 * 60 * 1000,   // 10 minutos en garbage collector
   });
 }
 

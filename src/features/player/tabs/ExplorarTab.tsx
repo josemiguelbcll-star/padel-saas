@@ -1,4 +1,7 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useClubsPublicos } from '@/features/landing/hooks/useClubsPublicos';
+import { fetchClubPublico } from '@/features/landing/hooks/useClubPublico';
+import { fetchDisponibilidadClub } from '@/features/landing/hooks/useDisponibilidadClub';
 
 // ── Fotos reales de canchas de pádel (Pexels — licencia libre) ─────────────
 const COURT_PHOTOS = [
@@ -28,11 +31,30 @@ interface ClubCardProps {
 }
 
 function ClubCard({ club, onSelect }: ClubCardProps) {
+  const queryClient = useQueryClient();
   const foto = courtPhoto(club.id, club.portada_url);
+
+  const handlePrefetch = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    // Prefetchear detalles del club (caché por 5 minutos)
+    void queryClient.prefetchQuery({
+      queryKey: ['club-publico', club.slug],
+      queryFn: () => fetchClubPublico(club.slug),
+      staleTime: 1000 * 60 * 5,
+    });
+    // Prefetchear disponibilidad del club para hoy (caché por 2 minutos)
+    void queryClient.prefetchQuery({
+      queryKey: ['disponibilidad-club', club.slug, today],
+      queryFn: () => fetchDisponibilidadClub(club.slug, today),
+      staleTime: 1000 * 60 * 2,
+    });
+  };
 
   return (
     <button
       onClick={() => onSelect(club.slug)}
+      onMouseEnter={handlePrefetch}
+      onTouchStart={handlePrefetch}
       style={{
         width: '100%',
         background: '#ffffff',

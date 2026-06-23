@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { sendBookingEmail } from './_lib/resend';
 
 // Vercel serverless function (Node.js runtime)
 export default async function handler(req: any, res: any) {
@@ -113,6 +114,13 @@ export default async function handler(req: any, res: any) {
     if (updateError) {
       console.error('[confirm-payment] Error al actualizar la reserva:', updateError);
       return res.status(500).json({ error: 'No se pudo actualizar la reserva en la base de datos' });
+    }
+
+    // 6. Enviar confirmación por email (de forma segura, sin bloquear la respuesta si falla)
+    try {
+      await sendBookingEmail(Number(reserva_id));
+    } catch (emailErr) {
+      console.error('[confirm-payment] Error al enviar email de confirmación:', emailErr);
     }
 
     return res.status(200).json({

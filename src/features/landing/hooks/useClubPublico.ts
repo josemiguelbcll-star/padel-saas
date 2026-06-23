@@ -45,39 +45,41 @@ export interface FotoClub {
   es_portada: boolean;
 }
 
+export async function fetchClubPublico(slug: string) {
+  const { data: club, error: clubError } = await supabase
+    .from('v_clubes_publicos')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+
+  if (clubError || !club) {
+    throw clubError ?? new Error('Club no encontrado');
+  }
+
+  const [{ data: canchas }, { data: fotos }] = await Promise.all([
+    supabase
+      .from('v_canchas_publicas')
+      .select('*')
+      .eq('club_id', (club as ClubPublico).id)
+      .order('orden'),
+    supabase
+      .from('v_fotos_clubes_publicas')
+      .select('*')
+      .eq('club_id', (club as ClubPublico).id)
+      .order('orden'),
+  ]);
+
+  return {
+    club: club as ClubPublico,
+    canchas: (canchas ?? []) as CanchaPublica[],
+    fotos: (fotos ?? []) as FotoClub[],
+  };
+}
+
 export function useClubPublico(slug: string) {
   return useQuery({
     queryKey: ['club-publico', slug],
-    queryFn: async () => {
-      const { data: club, error: clubError } = await supabase
-        .from('v_clubes_publicos')
-        .select('*')
-        .eq('slug', slug)
-        .single();
-
-      if (clubError || !club) {
-        throw clubError ?? new Error('Club no encontrado');
-      }
-
-      const [{ data: canchas }, { data: fotos }] = await Promise.all([
-        supabase
-          .from('v_canchas_publicas')
-          .select('*')
-          .eq('club_id', (club as ClubPublico).id)
-          .order('orden'),
-        supabase
-          .from('v_fotos_clubes_publicas')
-          .select('*')
-          .eq('club_id', (club as ClubPublico).id)
-          .order('orden'),
-      ]);
-
-      return {
-        club: club as ClubPublico,
-        canchas: (canchas ?? []) as CanchaPublica[],
-        fotos: (fotos ?? []) as FotoClub[],
-      };
-    },
+    queryFn: () => fetchClubPublico(slug),
     enabled: !!slug,
     staleTime: 1000 * 60 * 5,
   });

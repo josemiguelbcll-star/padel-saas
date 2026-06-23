@@ -9,17 +9,19 @@ export interface SlotDisponible {
   disponible: boolean;
 }
 
+export async function fetchDisponibilidadClub(slug: string, fecha: string) {
+  const { data, error } = await supabase.rpc('fn_disponibilidad_publica', {
+    p_slug: slug,
+    p_fecha: fecha,
+  });
+  if (error) throw error;
+  return (data ?? []) as SlotDisponible[];
+}
+
 export function useDisponibilidadClub(slug: string, fecha: string) {
   return useQuery({
     queryKey: ['disponibilidad-club', slug, fecha],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('fn_disponibilidad_publica', {
-        p_slug: slug,
-        p_fecha: fecha,
-      });
-      if (error) throw error;
-      return (data ?? []) as SlotDisponible[];
-    },
+    queryFn: () => fetchDisponibilidadClub(slug, fecha),
     enabled: !!slug && !!fecha,
     staleTime: 1000 * 60 * 2,
   });
