@@ -111,10 +111,19 @@ export function useJugadores(): UseQueryResult<Jugador[], Error> {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('jugadores')
-        .select('*')
+        .select(`
+          *,
+          movimientos:jugador_movimientos_cuenta(monto)
+        `)
         .order('nombre', { ascending: true });
       if (error) throw new Error(mapPostgrestError(error));
-      return (data ?? []) as Jugador[];
+      
+      const mapped = (data ?? []).map((j: any) => ({
+        ...j,
+        saldo: (j.movimientos ?? []).reduce((sum: number, m: any) => sum + Number(m.monto), 0),
+      }));
+
+      return mapped as unknown as Jugador[];
     },
   });
 }
@@ -177,3 +186,32 @@ export function useDeleteJugador(): UseMutationResult<void, Error, number> {
     },
   });
 }
+
+export function usePagarCuentaCorriente(): UseMutationResult<
+  any,
+  Error,
+  { jugadorId: number; monto: number; medioPago: string; observaciones: string }
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    any,
+    Error,
+    { jugadorId: number; monto: number; medioPago: string; observaciones: string }
+  >({
+    mutationFn: async ({ jugadorId, monto, medioPago, observaciones }) => {
+      const { data, error } = await supabase.rpc('fn_pagar_cuenta_corriente', {
+        p_jugador_id: jugadorId,
+        p_monto: monto,
+        p_medio_pago: medioPago,
+        p_observaciones: observaciones.trim() === '' ? null : observaciones.trim(),
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [JUGADORES_QUERY_KEY_BASE] });
+    },
+  });
+}
+

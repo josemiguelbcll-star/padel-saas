@@ -70,6 +70,7 @@ const defaultState: JugadorFormState = {
   categoria: '',
   posicion: '',
   activo: true,
+  limite_credito: 0,
 };
 
 function jugadorToFormState(j: Jugador): JugadorFormState {
@@ -82,6 +83,7 @@ function jugadorToFormState(j: Jugador): JugadorFormState {
     categoria: j.categoria ?? '',
     posicion: j.posicion ?? '',
     activo: j.activo,
+    limite_credito: (j as any).limite_credito ?? 0,
   };
 }
 
@@ -132,7 +134,8 @@ function JugadorFormBody({ initialValue, onDone }: JugadorFormBodyProps) {
           field === 'genero' ||
           field === 'categoria' ||
           field === 'posicion' ||
-          field === 'activo'
+          field === 'activo' ||
+          field === 'limite_credito'
         ) {
           fieldErrors[field] = issue.message;
         } else {
@@ -350,6 +353,25 @@ function JugadorFormBody({ initialValue, onDone }: JugadorFormBodyProps) {
           />
           {errors.notas && (
             <p className="text-xs text-destructive">{errors.notas}</p>
+          )}
+        </div>
+
+        {/* Límite de Crédito */}
+        <div className="space-y-2">
+          <Label htmlFor="jugador-limite-credito">Límite de Crédito ($)</Label>
+          <Input
+            id="jugador-limite-credito"
+            type="number"
+            min={0}
+            step={100}
+            value={state.limite_credito}
+            onChange={(e) => setState({ ...state, limite_credito: Number(e.target.value) })}
+            disabled={isPending}
+            aria-invalid={errors.limite_credito ? true : undefined}
+            placeholder="Límite de crédito a cuenta..."
+          />
+          {errors.limite_credito && (
+            <p className="text-xs text-destructive">{errors.limite_credito}</p>
           )}
         </div>
 

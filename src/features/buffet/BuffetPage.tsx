@@ -1,11 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, Plus, Users, UtensilsCrossed } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
 import { Catalogo } from './Catalogo';
 import { CerrarVentaDialog } from './CerrarVentaDialog';
 import { VentaActual, type VentaItemEnriquecido } from './VentaActual';
+import {
+  useMesas,
+  useCrearMesa,
+  useCargarConsumoMesa,
+  useQuitarConsumoMesa,
+  type BuffetMesa,
+} from './hooks/useMesasBuffet';
+import { CerrarMesaDialog } from './CerrarMesaDialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -14,19 +33,6 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 });
 
-/**
- * Página de venta de mostrador del buffet.
- *
- * Layout split: catálogo a la izquierda (lee `useProductosConStock`),
- * carrito a la derecha. Estado del carrito local (useState) — no se
- * persiste hasta el cierre. La RPC `fn_cerrar_venta` (vía
- * `useCerrarVenta`) consolida cabecera + items + movimientos de stock
- * atómicamente; si stock no alcanza al momento del cierre (race con
- * otra venta concurrente), banner con el mensaje del RPC.
- *
- * Tras un cierre exitoso: el carrito se vacía y aparece un banner
- * temporal "Venta registrada por $X" (~5s).
- */
 export function BuffetPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'mostrador', 'editar');
@@ -37,24 +43,48 @@ export function BuffetPage() {
     [productosQuery.data],
   );
 
-  // Carrito local: Map<producto_id, cantidad>. Vive solo en memoria; el
-  // cierre lo materializa en la DB. Si el usuario navega a otra página
-  // sin cerrar, el carrito se pierde (UX consciente: una venta abierta
-  // implica un cliente atendiendo).
+  // Active view: 'mostrador' (fast counter sale) | 'mesas' (table service)
+  const [activeTab, setActiveTab] = useState<'mostrador' | 'mesas'>('mostrador');
+
+  // Mostrador Cart: Map<producto_id, cantidad>
   const [cart, setCart] = useState<Map<number, number>>(() => new Map());
 
-  // Banner de confirmación temporal tras cerrar venta.
-  const [lastSale, setLastSale] = useState<{ total: number } | null>(null);
+  // Selected mesa for detailing
+  const [selectedMesaId, setSelectedMesaId] = useState<number | null>(null);
+
+  // Dialogs
+  const [cerrarOpen, setCerrarOpen] = useState(false);
+  const [cerrarMesaOpen, setCerrarMesaOpen] = useState(false);
+  const [nuevaMesaOpen, setNuevaMesaOpen] = useState(false);
+  const [nuevaMesaName, setNuevaMesaName] = useState('');
+
+  // Buffet Mesa Hooks
+  const mesasQuery = useMesas();
+  const crearMesaMutation = useCrearMesa();
+  const cargarConsumo = useCargarConsumoMesa();
+  const quitarConsumo = useQuitarConsumoMesa();
+
+  const selectedMesa = useMemo(() => {
+    if (selectedMesaId === null) return null;
+    return (mesasQuery.data ?? []).find((m) => m.id === selectedMesaId) ?? null;
+  }, [mesasQuery.data, selectedMesaId]);
+
+  // Clean selected mesa if it was closed
+  useEffect(() => {
+    if (selectedMesaId !== null && !selectedMesa) {
+      setSelectedMesaId(null);
+    }
+  }, [selectedMesa, selectedMesaId]);
+
+  // Banner feedback
+  const [lastSale, setLastSale] = useState<{ total: number; msg?: string } | null>(null);
   useEffect(() => {
     if (lastSale === null) return;
     const id = window.setTimeout(() => setLastSale(null), 5000);
     return () => window.clearTimeout(id);
   }, [lastSale]);
 
-  // Modal de cierre de venta.
-  const [cerrarOpen, setCerrarOpen] = useState(false);
-
-  function addOne(productoId: number): void {
+  function addOneMostrador(productoId: number): void {
     setLastSale(null);
     setCart((prev) => {
       const next = new Map(prev);
@@ -63,7 +93,7 @@ export function BuffetPage() {
     });
   }
 
-  function decrementOne(productoId: number): void {
+  function decrementOneMostrador(productoId: number): void {
     setCart((prev) => {
       const next = new Map(prev);
       const current = prev.get(productoId) ?? 0;
@@ -73,7 +103,7 @@ export function BuffetPage() {
     });
   }
 
-  function incrementOne(productoId: number): void {
+  function incrementOneMostrador(productoId: number): void {
     setCart((prev) => {
       const next = new Map(prev);
       next.set(productoId, (prev.get(productoId) ?? 0) + 1);
@@ -81,16 +111,41 @@ export function BuffetPage() {
     });
   }
 
-  function clearCart(): void {
+  // Handle addition in active mesa
+  async function addOneMesa(productoId: number): Promise<void> {
+    if (!selectedMesaId) return;
+    setLastSale(null);
+    await cargarConsumo.mutateAsync({
+      mesaId: selectedMesaId,
+      productoId,
+      cantidad: 1,
+    });
+  }
+
+  async function decrementOneMesa(productoId: number): Promise<void> {
+    if (!selectedMesaId) return;
+    await quitarConsumo.mutateAsync({
+      mesaId: selectedMesaId,
+      productoId,
+      cantidad: 1,
+    });
+  }
+
+  async function incrementOneMesa(productoId: number): Promise<void> {
+    if (!selectedMesaId) return;
+    await cargarConsumo.mutateAsync({
+      mesaId: selectedMesaId,
+      productoId,
+      cantidad: 1,
+    });
+  }
+
+  function clearCartMostrador(): void {
     setCart(new Map());
   }
 
-  // Enriquecemos los entries del carrito con el producto + subtotal.
-  // Si un producto del carrito desaparece del catálogo (admin lo borró,
-  // muy improbable mid-venta), se omite silenciosamente — el cierre se
-  // hace solo con lo que tenga producto resuelto. La RPC validaría
-  // igual del lado server.
-  const items: VentaItemEnriquecido[] = useMemo(() => {
+  // Enrich cart items for the counter sale
+  const itemsMostrador: VentaItemEnriquecido[] = useMemo(() => {
     const result: VentaItemEnriquecido[] = [];
     for (const [id, cantidad] of cart.entries()) {
       const producto = productos.find((p) => p.id === id);
@@ -104,34 +159,88 @@ export function BuffetPage() {
     return result;
   }, [cart, productos]);
 
-  const total = useMemo(
-    () => items.reduce((sum, i) => sum + i.subtotal, 0),
-    [items],
+  const totalMostrador = useMemo(
+    () => itemsMostrador.reduce((sum, i) => sum + i.subtotal, 0),
+    [itemsMostrador],
   );
 
+  // Enrich items for the selected mesa
+  const itemsMesa: VentaItemEnriquecido[] = useMemo(() => {
+    if (!selectedMesa) return [];
+    return selectedMesa.consumos.map((c) => ({
+      producto: c.producto,
+      cantidad: c.cantidad,
+      subtotal: c.producto.precio * c.cantidad,
+    }));
+  }, [selectedMesa]);
+
+  const totalMesa = useMemo(
+    () => itemsMesa.reduce((sum, i) => sum + i.subtotal, 0),
+    [itemsMesa],
+  );
+
+  async function handleCreateMesa(e: FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!nuevaMesaName.trim()) return;
+    try {
+      const created = await crearMesaMutation.mutateAsync(nuevaMesaName);
+      setNuevaMesaName('');
+      setNuevaMesaOpen(false);
+      setSelectedMesaId(created.id);
+    } catch (err) {
+      // handled by mutation state
+    }
+  }
+
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Buffet
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Venta de mostrador. Tocá productos del catálogo para armar la
-          venta, ajustá cantidades en el carrito y cerrala con el medio
-          de pago.
-        </p>
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Buffet / Bar
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Gestioná ventas rápidas en mostrador o consumos acumulados por mesas activas del salón.
+          </p>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('mostrador');
+              setSelectedMesaId(null);
+            }}
+            className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              activeTab === 'mostrador'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'hover:bg-background/50 hover:text-foreground'
+            }`}
+          >
+            Venta Directa
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('mesas')}
+            className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              activeTab === 'mesas'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'hover:bg-background/50 hover:text-foreground'
+            }`}
+          >
+            Mesas Activas
+          </button>
+        </div>
       </header>
 
       {lastSale && (
         <div
           role="status"
-          // Verde "pagada" leve. Usamos inline style con las CSS vars del
-          // token --estado-pagada para evitar issues de cache del JIT de
-          // Tailwind con utilities de opacidad sobre colores custom.
-          className="flex items-center gap-2 rounded-md border p-3 text-sm"
+          className="flex items-center gap-2 rounded-xl border p-3 text-sm transition-all animate-in fade-in slide-in-from-top-1"
           style={{
             borderColor: 'hsl(var(--estado-pagada) / 0.3)',
-            backgroundColor: 'hsl(var(--estado-pagada) / 0.1)',
+            backgroundColor: 'hsl(var(--estado-pagada) / 0.08)',
           }}
         >
           <CheckCircle2
@@ -140,7 +249,7 @@ export function BuffetPage() {
             aria-hidden="true"
           />
           <span className="text-foreground">
-            Venta registrada por{' '}
+            {lastSale.msg || 'Venta registrada por'}{' '}
             <span className="font-semibold tabular-nums">
               {currencyFmt.format(lastSale.total)}
             </span>
@@ -149,48 +258,237 @@ export function BuffetPage() {
         </div>
       )}
 
-      {productosQuery.isLoading ? (
-        <div className="space-y-2" aria-busy="true">
+      {productosQuery.isLoading || (activeTab === 'mesas' && mesasQuery.isLoading) ? (
+        <div className="space-y-3" aria-busy="true">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-16 animate-pulse rounded-md border border-border bg-muted/40"
+              className="h-16 animate-pulse rounded-xl border border-border bg-muted/30"
             />
           ))}
         </div>
       ) : productosQuery.error ? (
         <div
           role="alert"
-          className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
+          className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
         >
           {productosQuery.error.message}
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-          <Catalogo productos={productos} cart={cart} onAdd={addOne} readOnly={!canEdit} />
-          <VentaActual
-            items={items}
-            total={total}
-            onIncrement={incrementOne}
-            onDecrement={decrementOne}
-            onCerrar={() => setCerrarOpen(true)}
-            readOnly={!canEdit}
-          />
-        </div>
+        <>
+          {activeTab === 'mostrador' && (
+            <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+              <Catalogo
+                productos={productos}
+                cart={cart}
+                onAdd={addOneMostrador}
+                readOnly={!canEdit}
+              />
+              <VentaActual
+                items={itemsMostrador}
+                total={totalMostrador}
+                onIncrement={incrementOneMostrador}
+                onDecrement={decrementOneMostrador}
+                onCerrar={() => setCerrarOpen(true)}
+                readOnly={!canEdit}
+              />
+            </div>
+          )}
+
+          {activeTab === 'mesas' && (
+            <>
+              {selectedMesaId === null ? (
+                /* Grid list of open tables */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Mesas abiertas ({(mesasQuery.data ?? []).length})
+                    </span>
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        onClick={() => setNuevaMesaOpen(true)}
+                        size="sm"
+                        className="rounded-lg"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Abrir Mesa
+                      </Button>
+                    )}
+                  </div>
+
+                  {(mesasQuery.data ?? []).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border p-12 text-center">
+                      <UtensilsCrossed className="mx-auto h-8 w-8 text-muted-foreground/60" />
+                      <h3 className="mt-4 text-sm font-semibold text-foreground">No hay mesas abiertas</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Abrí una mesa del bar/salón para empezar a cargar consumos y cobrarlos unificados al final.
+                      </p>
+                      {canEdit && (
+                        <Button
+                          type="button"
+                          onClick={() => setNuevaMesaOpen(true)}
+                          size="sm"
+                          variant="outline"
+                          className="mt-4 rounded-lg"
+                        >
+                          Abrir la primera mesa
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                      {(mesasQuery.data ?? []).map((m) => {
+                        const mTotal = m.consumos.reduce(
+                          (sum, c) => sum + c.producto.precio * c.cantidad,
+                          0,
+                        );
+                        return (
+                          <div
+                            key={m.id}
+                            className="flex flex-col justify-between rounded-xl border border-border bg-card p-4.5 shadow-sm transition-all hover:shadow-md"
+                          >
+                            <div className="space-y-1.5">
+                              <h3 className="font-semibold text-foreground">{m.nombre}</h3>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Users className="h-3.5 w-3.5 shrink-0" />
+                                <span>{m.consumos.length} consumos cargados</span>
+                              </div>
+                            </div>
+                            <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                              <span className="text-sm font-semibold text-foreground tabular-nums">
+                                {currencyFmt.format(mTotal)}
+                              </span>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => setSelectedMesaId(m.id)}
+                                className="text-xs h-8 rounded-lg"
+                              >
+                                Ver / Cargar
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Detail of selected table */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedMesaId(null)}
+                      className="rounded-lg h-8 px-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Volver a mesas
+                    </Button>
+                    <span className="text-sm text-muted-foreground">/</span>
+                    <span className="font-semibold text-foreground">
+                      Editando {selectedMesa?.nombre}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+                    <Catalogo
+                      productos={productos}
+                      cart={new Map(itemsMesa.map((i) => [i.producto.id, i.cantidad]))}
+                      onAdd={addOneMesa}
+                      readOnly={!canEdit}
+                    />
+                    <VentaActual
+                      items={itemsMesa}
+                      total={totalMesa}
+                      onIncrement={incrementOneMesa}
+                      onDecrement={decrementOneMesa}
+                      onCerrar={() => setCerrarMesaOpen(true)}
+                      readOnly={!canEdit}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
 
+      {/* Counter sale billing dialog */}
       <CerrarVentaDialog
         open={cerrarOpen}
         onOpenChange={setCerrarOpen}
-        items={items}
-        total={total}
+        items={itemsMostrador}
+        total={totalMostrador}
         onSuccess={(venta) => {
           setCerrarOpen(false);
-          clearCart();
-          // monto_total viene como number desde supabase-js para DECIMAL.
-          setLastSale({ total: venta.monto_total });
+          clearCartMostrador();
+          setLastSale({ total: venta.monto_total, msg: 'Venta registrada por' });
         }}
       />
+
+      {/* Table billing dialog */}
+      <CerrarMesaDialog
+        open={cerrarMesaOpen}
+        onOpenChange={setCerrarMesaOpen}
+        mesa={selectedMesa}
+        onSuccess={(venta) => {
+          setCerrarMesaOpen(false);
+          setSelectedMesaId(null);
+          setLastSale({ total: venta.monto_total, msg: `${selectedMesa?.nombre} cobrada con éxito por` });
+        }}
+      />
+
+      {/* Open table Dialog */}
+      <Dialog open={nuevaMesaOpen} onOpenChange={setNuevaMesaOpen}>
+        <DialogContent className="max-w-sm">
+          <form onSubmit={handleCreateMesa} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Abrir mesa del bar</DialogTitle>
+              <DialogDescription>
+                Ingresá un nombre identificador (ej. "Mesa 5", "Barra", "Santiago").
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="mesa-nombre-input">Nombre / Identificador</Label>
+              <Input
+                id="mesa-nombre-input"
+                type="text"
+                required
+                maxLength={40}
+                value={nuevaMesaName}
+                onChange={(e) => setNewMesaName(e.target.value)}
+                placeholder="Mesa 10…"
+                disabled={crearMesaMutation.isPending}
+              />
+              {crearMesaMutation.error && (
+                <p className="text-xs text-destructive">
+                  {crearMesaMutation.error.message}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNuevaMesaOpen(false)}
+                disabled={crearMesaMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={crearMesaMutation.isPending}>
+                {crearMesaMutation.isPending ? 'Abriendo...' : 'Abrir Mesa'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

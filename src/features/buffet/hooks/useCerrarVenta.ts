@@ -17,11 +17,13 @@ export interface CerrarVentaInput {
   items: CerrarVentaItem[];
   medio_pago: MedioPago;
   observaciones: string | null;
+  cuenta_id?: number | null;
+  jugador_id?: number | null;
 }
 
 /**
  * Llama a la RPC `fn_cerrar_venta` (migración 0009, actualizada en 0010
- * para snapshotear costo). En una sola transacción inserta la cabecera
+ * para snapshotear costo, y en 0090 para cuenta corriente/bloqueos). En una sola transacción inserta la cabecera
  * de venta, sus items (con snapshots de nombre/precio/costo) y los
  * movimientos de stock de salida.
  *
@@ -55,6 +57,8 @@ export function useCerrarVenta(): UseMutationResult<
         p_items: input.items,
         p_medio_pago: input.medio_pago,
         p_observaciones: input.observaciones,
+        p_cuenta_id: input.cuenta_id ?? null,
+        p_jugador_id: input.jugador_id ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {

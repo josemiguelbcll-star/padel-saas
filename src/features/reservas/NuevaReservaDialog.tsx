@@ -200,7 +200,7 @@ function NuevaReservaBodyReady({
   const [montoTotalTouched, setMontoTotalTouched] = useState(false);
   const { club } = useSession();
   const depositoCfg = (club?.config as any)?.deposito ?? {};
-  const depositoObligatorio = depositoCfg.obligatorio === true;
+  const depositoObligatorio = false; // Bypass downpayment requirement for admin panel bookings
   const [estado, setEstado] = useState<EstadoInicial>(
     depositoObligatorio ? 'senada' : 'pendiente',
   );

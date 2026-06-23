@@ -97,6 +97,10 @@ export const jugadorSchema = z.object({
     .union([z.enum(POSICIONES), z.literal('')])
     .transform((v): PosicionJugador | null => (v === '' ? null : v)),
   activo: z.boolean(),
+  limite_credito: z.coerce
+    .number()
+    .min(0, 'El límite de crédito debe ser mayor o igual a 0.')
+    .default(0),
 });
 
 /** Estado local del form. Los enums usan `''` para representar "Sin especificar". */
@@ -109,7 +113,9 @@ export interface JugadorFormState {
   categoria: CategoriaJugador | '';
   posicion: PosicionJugador | '';
   activo: boolean;
+  limite_credito: number;
 }
 
 /** Salida validada del schema, lista para mandar a useCreateJugador / useUpdateJugador. */
 export type JugadorFormValues = z.output<typeof jugadorSchema>;
+

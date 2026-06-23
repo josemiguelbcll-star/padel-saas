@@ -40,16 +40,6 @@ export const horariosSchema = z
       message: 'Completá las dos horas o dejá ambas vacías.',
       path: ['hora_apertura'],
     },
-  )
-  .refine(
-    (data) => {
-      if (data.hora_apertura === null || data.hora_cierre === null) return true;
-      return data.hora_cierre > data.hora_apertura;
-    },
-    {
-      message: 'El horario de cierre tiene que ser posterior al de apertura.',
-      path: ['hora_cierre'],
-    },
   );
 
 export type HorariosFormValues = z.output<typeof horariosSchema>;

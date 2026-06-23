@@ -505,7 +505,8 @@ export type MedioPago =
   | 'transferencia'
   | 'mp'
   | 'tarjeta'
-  | 'otro';
+  | 'otro'
+  | 'cuenta_corriente';
 
 /** Tipos de movimiento en reserva_pagos (CHECK en reserva_pagos.tipo). */
 export type TipoPago = 'sena' | 'pago' | 'reembolso';
@@ -802,6 +803,8 @@ export interface Clase {
   precio: number;
   activa: boolean;
   fecha_alta: string;
+  es_recurrente: boolean;
+  fecha_clase: string | null;
 }
 
 // ============================================================================

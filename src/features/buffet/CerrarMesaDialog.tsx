@@ -12,12 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { MedioPago, Venta } from '@/types/database';
+import { useCerrarMesa, type BuffetMesa } from './hooks/useMesasBuffet';
 import { useJugadores } from '@/features/reservas/hooks/useJugadores';
-import {
-  useCerrarVenta,
-  type CerrarVentaItem,
-} from './hooks/useCerrarVenta';
-import type { VentaItemEnriquecido } from './VentaActual';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -44,33 +40,27 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   otro: 'Otro',
 };
 
-interface CerrarVentaDialogProps {
+interface CerrarMesaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  items: VentaItemEnriquecido[];
-  total: number;
-  /** Se llama tras un cierre exitoso con la venta creada. El padre limpia
-   *  el carrito y muestra el mensaje de "venta registrada". */
+  mesa: BuffetMesa | null;
   onSuccess: (venta: Venta) => void;
 }
 
-export function CerrarVentaDialog({
+export function CerrarMesaDialog({
   open,
   onOpenChange,
-  items,
-  total,
+  mesa,
   onSuccess,
-}: CerrarVentaDialogProps) {
+}: CerrarMesaDialogProps) {
+  if (!mesa) return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <CerrarVentaBody
-          // Remount cada vez que se abre: medio/observaciones/error
-          // arrancan limpios. Si el padre dispara dos cierres seguidos
-          // de la misma sesión, este key sincroniza.
-          key={open ? 'open' : 'closed'}
-          items={items}
-          total={total}
+        <CerrarMesaBody
+          key={mesa.id}
+          mesa={mesa}
           onSuccess={onSuccess}
           onCancel={() => onOpenChange(false)}
         />
@@ -79,19 +69,17 @@ export function CerrarVentaDialog({
   );
 }
 
-interface CerrarVentaBodyProps {
-  items: VentaItemEnriquecido[];
-  total: number;
+interface CerrarMesaBodyProps {
+  mesa: BuffetMesa;
   onSuccess: (venta: Venta) => void;
   onCancel: () => void;
 }
 
-function CerrarVentaBody({
-  items,
-  total,
+function CerrarMesaBody({
+  mesa,
   onSuccess,
   onCancel,
-}: CerrarVentaBodyProps) {
+}: CerrarMesaBodyProps) {
   const [medio, setMedio] = useState<MedioPago | null>('efectivo');
   const [obs, setObs] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -100,15 +88,20 @@ function CerrarVentaBody({
   const jugadoresQuery = useJugadores();
   const jugadores = jugadoresQuery.data ?? [];
 
-  const cerrarMutation = useCerrarVenta();
-  const isPending = cerrarMutation.isPending;
+  const cerrarMesaMutation = useCerrarMesa();
+  const isPending = cerrarMesaMutation.isPending;
+
+  const total = mesa.consumos.reduce(
+    (sum, c) => sum + c.producto.precio * c.cantidad,
+    0,
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setError(null);
 
-    if (items.length === 0) {
-      setError('La venta está vacía.');
+    if (mesa.consumos.length === 0) {
+      setError('La mesa no tiene consumos registrados.');
       return;
     }
     if (!medio) {
@@ -120,28 +113,17 @@ function CerrarVentaBody({
       return;
     }
 
-    const rpcItems: CerrarVentaItem[] = items.map((i) => ({
-      producto_id: i.producto.id,
-      cantidad: i.cantidad,
-    }));
-
     try {
-      const venta = await cerrarMutation.mutateAsync({
-        items: rpcItems,
-        medio_pago: medio,
-        observaciones: obs.trim() === '' ? null : obs.trim(),
-        jugador_id: medio === 'cuenta_corriente' ? jugadorId : null,
+      const venta = await cerrarMesaMutation.mutateAsync({
+        mesaId: mesa.id,
+        medioPago: medio,
+        observaciones: obs.trim(),
+        jugadorId: medio === 'cuenta_corriente' ? jugadorId : null,
       });
       onSuccess(venta);
     } catch (err) {
-      // Errores típicos del RPC (todos en castellano via dbErrors):
-      //   "Stock insuficiente de «X»: hay Y, querés vender Z."
-      //   "El producto «X» está desactivado, no se puede vender."
-      // Se muestran en el banner para que el vendedor entienda y ajuste.
       setError(
-        err instanceof Error
-          ? err.message
-          : 'No pudimos registrar la venta.',
+        err instanceof Error ? err.message : 'No pudimos cerrar la mesa.',
       );
     }
   }
@@ -149,9 +131,9 @@ function CerrarVentaBody({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Cerrar venta</DialogTitle>
+        <DialogTitle>Cerrar {mesa.nombre}</DialogTitle>
         <DialogDescription>
-          Total a cobrar:{' '}
+          Total acumulado:{' '}
           <span className="font-semibold text-foreground tabular-nums">
             {currencyFmt.format(total)}
           </span>
@@ -159,18 +141,18 @@ function CerrarVentaBody({
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {/* Resumen breve de items */}
-        <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3 text-sm">
-          {items.map((item) => (
+        {/* Resumen de consumos */}
+        <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3 text-sm max-h-[160px] overflow-y-auto">
+          {mesa.consumos.map((item) => (
             <div
-              key={item.producto.id}
+              key={item.id}
               className="flex items-baseline justify-between gap-3"
             >
               <span className="truncate text-muted-foreground">
                 {item.cantidad}× {item.producto.nombre}
               </span>
               <span className="shrink-0 tabular-nums text-foreground">
-                {currencyFmt.format(item.subtotal)}
+                {currencyFmt.format(item.producto.precio * item.cantidad)}
               </span>
             </div>
           ))}
@@ -202,11 +184,12 @@ function CerrarVentaBody({
           </div>
         </div>
 
+        {/* Cliente para Cuenta Corriente */}
         {medio === 'cuenta_corriente' && (
           <div className="space-y-2">
-            <Label htmlFor="venta-jugador">Seleccionar Cliente (Cta. Corriente)</Label>
+            <Label htmlFor="mesa-jugador">Seleccionar Cliente (Cta. Corriente)</Label>
             <select
-              id="venta-jugador"
+              id="mesa-jugador"
               value={jugadorId ?? ''}
               onChange={(e) => {
                 const val = e.target.value;
@@ -227,15 +210,15 @@ function CerrarVentaBody({
 
         {/* Observaciones (opcional) */}
         <div className="space-y-2">
-          <Label htmlFor="cerrar-venta-obs">Observaciones (opcional)</Label>
+          <Label htmlFor="cerrar-mesa-obs">Observaciones (opcional)</Label>
           <Input
-            id="cerrar-venta-obs"
+            id="cerrar-mesa-obs"
             type="text"
             value={obs}
             onChange={(e) => setObs(e.target.value)}
             disabled={isPending}
             maxLength={500}
-            placeholder="Notas internas de esta venta…"
+            placeholder="Notas internas del cierre…"
           />
         </div>
 
@@ -258,7 +241,7 @@ function CerrarVentaBody({
             Cancelar
           </Button>
           <Button type="submit" disabled={isPending}>
-            {isPending ? 'Registrando…' : 'Confirmar venta'}
+            {isPending ? 'Cerrando...' : 'Cobrar y cerrar mesa'}
           </Button>
         </DialogFooter>
       </form>

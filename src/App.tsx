@@ -47,6 +47,7 @@ const UnidadesPage = lazy(() => import('@/features/configuracion/finanzas/Unidad
 const CategoriasGastoPage = lazy(() => import('@/features/configuracion/finanzas/CategoriasGastoPage').then((m) => ({ default: m.CategoriasGastoPage })));
 const TesoreriaPage = lazy(() => import('@/features/configuracion/tesoreria/TesoreriaPage').then((m) => ({ default: m.TesoreriaPage })));
 const PerfilPublicoPage = lazy(() => import('@/features/configuracion/perfil-publico/PerfilPublicoPage').then((m) => ({ default: m.PerfilPublicoPage })));
+const MensajeriaPage = lazy(() => import('@/features/configuracion/mensajeria/MensajeriaPage').then((m) => ({ default: m.MensajeriaPage })));
 
 export function App() {
   return (
@@ -143,6 +144,7 @@ export function App() {
             <Route path="categorias-gasto" element={<CategoriasGastoPage />} />
             <Route path="cuentas" element={<TesoreriaPage />} />
             <Route path="perfil-publico" element={<AdminOnlyRoute><PerfilPublicoPage /></AdminOnlyRoute>} />
+            <Route path="mensajeria" element={<MensajeriaPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

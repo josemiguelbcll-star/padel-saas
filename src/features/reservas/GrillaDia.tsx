@@ -105,6 +105,7 @@ export function GrillaDia({
   const aperturaMin = horaToMinutos(horaApertura);
   let cierreMin = horaToMinutos(horaCierre);
   if (cierreMin === 0) cierreMin = 1440;
+  if (cierreMin <= aperturaMin) cierreMin += 1440;
   const operatingMin = Math.max(0, cierreMin - aperturaMin);
 
   function ocupacionDe(canchaId: number): {
@@ -116,15 +117,23 @@ export function GrillaDia({
     const cs = clasesPorCancha.get(canchaId) ?? [];
     let ocupMin = 0;
     for (const r of rs) {
-      const s = Math.max(horaToMinutos(r.hora_inicio), aperturaMin);
+      let startMin = horaToMinutos(r.hora_inicio);
+      if (cierreMin > 1440 && startMin < aperturaMin) startMin += 1440;
+      const s = Math.max(startMin, aperturaMin);
+
       let endMin = horaToMinutos(r.hora_fin);
-      if (endMin === 0 || endMin < s) endMin = 1440;
+      if (endMin === 0) endMin = 1440;
+      if (cierreMin > 1440 && endMin < aperturaMin) endMin += 1440;
+      if (endMin < s) endMin += 1440;
+
       const e = Math.min(endMin, cierreMin);
       if (e > s) ocupMin += e - s;
     }
     for (const c of cs) {
-      const s = Math.max(horaToMinutos(c.hora_inicio), aperturaMin);
-      const e = Math.min(horaToMinutos(c.hora_inicio) + c.duracion_min, cierreMin);
+      let startMin = horaToMinutos(c.hora_inicio);
+      if (cierreMin > 1440 && startMin < aperturaMin) startMin += 1440;
+      const s = Math.max(startMin, aperturaMin);
+      const e = Math.min(startMin + c.duracion_min, cierreMin);
       if (e > s) ocupMin += e - s;
     }
     ocupMin = Math.min(ocupMin, operatingMin);

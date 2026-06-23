@@ -41,7 +41,14 @@ export function LineaAhora({
   const aperturaMin = horaToMinutos(horaApertura);
   let cierreMin = horaToMinutos(horaCierre);
   if (cierreMin === 0) cierreMin = 1440;
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (cierreMin <= aperturaMin) cierreMin += 1440;
+
+  let nowMin = now.getHours() * 60 + now.getMinutes();
+  if (cierreMin > 1440 && nowMin < aperturaMin) {
+    if (nowMin + 1440 < cierreMin) {
+      nowMin += 1440;
+    }
+  }
 
   if (nowMin < aperturaMin || nowMin >= cierreMin) return null;
 

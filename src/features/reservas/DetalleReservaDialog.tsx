@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSession } from '@/features/auth';
 import { AlertTriangle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
@@ -147,6 +148,7 @@ function DetalleReservaBody({
   onClose,
   readOnly,
 }: DetalleReservaBodyProps) {
+  const { club } = useSession();
   // Estado local de la reserva: arranca con la prop, se actualiza con
   // los returns de las mutations para reflejar cambios sin esperar a
   // que se cierre y re-abra el dialog.
@@ -248,11 +250,20 @@ function DetalleReservaBody({
   const telefonoTitular = reserva.jugador?.telefono
     ? normalizarTelefono(reserva.jugador.telefono)
     : null;
-  const wspUrl = telefonoTitular
-    ? `https://wa.me/${telefonoTitular.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-        `Hola ${reserva.jugador?.nombre ?? 'jugador'}, tu turno en ${cancha.nombre} para el ${formatearFechaAmigable(reserva.fecha)} a las ${formatearHora(reserva.hora_inicio)} está confirmado.`,
-      )}`
-    : null;
+  const wspUrl = useMemo(() => {
+    if (!telefonoTitular) return null;
+    const templatesCfg = (club?.config as any)?.whatsapp_templates ?? {};
+    let template = templatesCfg.confirmacion || 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} está confirmado.';
+    
+    template = template.replace(/{nombreCliente}/g, reserva.jugador?.nombre ?? 'jugador');
+    template = template.replace(/{cancha}/g, cancha.nombre);
+    template = template.replace(/{fecha}/g, formatearFechaAmigable(reserva.fecha));
+    template = template.replace(/{hora}/g, formatearHora(reserva.hora_inicio));
+    template = template.replace(/{montoTotal}/g, `${reserva.monto_total}`);
+    template = template.replace(/{montoSena}/g, `${reserva.monto_sena}`);
+    
+    return `https://wa.me/${telefonoTitular.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(template)}`;
+  }, [telefonoTitular, club?.config, reserva, cancha]);
 
   async function handleEnviarWhatsAppYConfirmar(): Promise<void> {
     if (!wspUrl) return;

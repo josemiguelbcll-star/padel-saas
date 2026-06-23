@@ -91,8 +91,7 @@ export function calcularDisponiblesCore({
   const aperturaMin = horaToMinutos(horaApertura);
   let cierreMin = horaToMinutos(horaCierre);
   if (cierreMin === 0) cierreMin = 1440;
-
-  if (cierreMin <= aperturaMin) return [];
+  if (cierreMin <= aperturaMin) cierreMin += 1440;
 
   // Orden por inicio (copia — no mutamos el array del caller).
   const ordenados = [...ocupados].sort((a, b) => a.start - b.start);
@@ -130,7 +129,10 @@ export function calcularDisponiblesCore({
         duracionDefault,
       });
       // Un turno no cruza el borde de su franja (ni el del hueco).
-      const franjaHastaMin = hastaHora !== null ? horaToMinutos(hastaHora) : h.end;
+      let franjaHastaMin = hastaHora !== null ? horaToMinutos(hastaHora) : h.end;
+      if (cierreMin > 1440 && hastaHora !== null && franjaHastaMin < aperturaMin) {
+        franjaHastaMin += 1440;
+      }
       const limite = Math.min(h.end, franjaHastaMin);
       const ofrecidas = duraciones
         .filter((d) => pos + d <= limite)
@@ -166,11 +168,21 @@ export function calcularDisponibles({
 }: CalcularDisponiblesParams): SlotDisponible[] {
   const ocupados: Intervalo[] = [];
 
+  let cierreMin = horaToMinutos(horaCierre);
+  if (cierreMin === 0) cierreMin = 1440;
+  const aperturaMin = horaToMinutos(horaApertura);
+  if (cierreMin <= aperturaMin) cierreMin += 1440;
+
   for (const r of reservas) {
     if (r.estado === 'cancelada') continue;
-    const start = horaToMinutos(r.hora_inicio);
+    let start = horaToMinutos(r.hora_inicio);
+    if (cierreMin > 1440 && start < aperturaMin) start += 1440;
+    
     let end = horaToMinutos(r.hora_fin);
-    if (end === 0 || end < start) end = 1440;
+    if (end === 0) end = 1440;
+    if (cierreMin > 1440 && end < aperturaMin) end += 1440;
+    if (end < start) end += 1440;
+
     ocupados.push({
       start,
       end,
@@ -179,7 +191,8 @@ export function calcularDisponibles({
 
   for (const c of clases) {
     if (!c.activa) continue;
-    const start = horaToMinutos(c.hora_inicio);
+    let start = horaToMinutos(c.hora_inicio);
+    if (cierreMin > 1440 && start < aperturaMin) start += 1440;
     ocupados.push({ start, end: start + c.duracion_min });
   }
 

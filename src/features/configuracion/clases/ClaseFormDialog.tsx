@@ -57,6 +57,8 @@ interface FormState {
   hora_inicio: string;
   duracion_min: number;
   activa: boolean;
+  es_recurrente: boolean;
+  fecha_clase: string;
 }
 
 type FieldErrors = Partial<
@@ -67,6 +69,7 @@ type FieldErrors = Partial<
     | 'dias_semana'
     | 'hora_inicio'
     | 'duracion_min'
+    | 'fecha_clase'
     | 'form',
     string
   >
@@ -93,6 +96,8 @@ function defaultState(): FormState {
     hora_inicio: '',
     duracion_min: DEFAULT_DURACION_CLASE,
     activa: true,
+    es_recurrente: true,
+    fecha_clase: '',
   };
 }
 
@@ -105,6 +110,8 @@ function claseToFormState(c: Clase): FormState {
     hora_inicio: c.hora_inicio.slice(0, 5),
     duracion_min: c.duracion_min,
     activa: c.activa,
+    es_recurrente: c.es_recurrente ?? true,
+    fecha_clase: c.fecha_clase ?? '',
   };
 }
 
@@ -216,14 +223,29 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
       return;
     }
 
+    const diasSemanaParaValidar = state.es_recurrente
+      ? state.dias_semana
+      : (() => {
+          if (!state.fecha_clase) return [];
+          const parts = state.fecha_clase.split('-');
+          const y = Number(parts[0]);
+          const m = Number(parts[1]) - 1;
+          const d = Number(parts[2]);
+          const date = new Date(y, m, d);
+          const weekday = date.getDay() === 0 ? 7 : date.getDay();
+          return [weekday];
+        })();
+
     const parsed = claseSchema.safeParse({
       profesor_id: state.profesor_id,
       cancha_id: state.cancha_id,
       nombre: state.nombre,
-      dias_semana: state.dias_semana,
+      dias_semana: diasSemanaParaValidar,
       hora_inicio: state.hora_inicio,
       duracion_min: state.duracion_min,
       activa: state.activa,
+      es_recurrente: state.es_recurrente,
+      fecha_clase: state.fecha_clase === '' ? null : state.fecha_clase,
     });
     if (!parsed.success) {
       const next: FieldErrors = {};
@@ -235,7 +257,8 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
           field === 'nombre' ||
           field === 'dias_semana' ||
           field === 'hora_inicio' ||
-          field === 'duracion_min'
+          field === 'duracion_min' ||
+          field === 'fecha_clase'
         ) {
           next[field] = issue.message;
         } else {
@@ -369,39 +392,86 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
           </p>
         </div>
 
-        {/* Días de la semana */}
+        {/* Frecuencia de la clase */}
         <div className="space-y-2">
-          <Label>Días de la semana</Label>
-          <div className="flex flex-wrap gap-1.5">
-            {DIAS_SEMANA.map((d) => {
-              const selected = state.dias_semana.includes(d.value);
-              return (
-                <button
-                  key={d.value}
-                  type="button"
-                  title={d.full}
-                  onClick={() => toggleDia(d.value)}
-                  disabled={isPending}
-                  aria-pressed={selected}
-                  aria-label={d.full}
-                  className={cn(
-                    'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    'disabled:cursor-not-allowed disabled:opacity-50',
-                    selected
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background text-foreground hover:bg-muted',
-                  )}
-                >
-                  {d.label}
-                </button>
-              );
-            })}
+          <Label>Frecuencia de la clase</Label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-sm font-normal cursor-pointer">
+              <input
+                type="radio"
+                name="es_recurrente"
+                checked={state.es_recurrente}
+                onChange={() => setState({ ...state, es_recurrente: true })}
+                disabled={isPending}
+                className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+              />
+              Semanal (Recurrente)
+            </label>
+            <label className="flex items-center gap-2 text-sm font-normal cursor-pointer">
+              <input
+                type="radio"
+                name="es_recurrente"
+                checked={!state.es_recurrente}
+                onChange={() => setState({ ...state, es_recurrente: false })}
+                disabled={isPending}
+                className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+              />
+              Clase Única (Fecha específica)
+            </label>
           </div>
-          {errors.dias_semana && (
-            <p className="text-xs text-destructive">{errors.dias_semana}</p>
-          )}
         </div>
+
+        {/* Días de la semana o Fecha según frecuencia */}
+        {state.es_recurrente ? (
+          <div className="space-y-2">
+            <Label>Días de la semana</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {DIAS_SEMANA.map((d) => {
+                const selected = state.dias_semana.includes(d.value);
+                return (
+                  <button
+                    key={d.value}
+                    type="button"
+                    title={d.full}
+                    onClick={() => toggleDia(d.value)}
+                    disabled={isPending}
+                    aria-pressed={selected}
+                    aria-label={d.full}
+                    className={cn(
+                      'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                      selected
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background text-foreground hover:bg-muted',
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.dias_semana && (
+              <p className="text-xs text-destructive">{errors.dias_semana}</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="clase-fecha">Fecha de la clase</Label>
+            <Input
+              id="clase-fecha"
+              type="date"
+              value={state.fecha_clase}
+              onChange={(e) => setState({ ...state, fecha_clase: e.target.value })}
+              disabled={isPending}
+              required
+              aria-invalid={errors.fecha_clase ? true : undefined}
+            />
+            {errors.fecha_clase && (
+              <p className="text-xs text-destructive">{errors.fecha_clase}</p>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Hora de inicio */}

@@ -90,6 +90,7 @@ export function CanchaColumna({
   const aperturaMin = horaToMinutos(horaApertura);
   let cierreMin = horaToMinutos(horaCierre);
   if (cierreMin === 0) cierreMin = 1440;
+  if (cierreMin <= aperturaMin) cierreMin += 1440;
   const pxPorMin = slotHeight / 30;
   const totalHeight = slots.length * slotHeight;
 
@@ -102,7 +103,10 @@ export function CanchaColumna({
     horaInicio: string,
     duracionMin: number,
   ): { top: number; height: number } | null {
-    const startMin = horaToMinutos(horaInicio);
+    let startMin = horaToMinutos(horaInicio);
+    if (cierreMin > 1440 && startMin < aperturaMin) {
+      startMin += 1440;
+    }
     const endMin = startMin + duracionMin;
     if (endMin <= aperturaMin || startMin >= cierreMin) return null;
     const visStart = Math.max(startMin, aperturaMin);
@@ -139,7 +143,11 @@ export function CanchaColumna({
           media hora tenue. pointer-events-none → no interfieren con clicks. */}
       {slots.map((s) => {
         const enHora = s.endsWith(':00:00');
-        const t = (horaToMinutos(s) - aperturaMin) * pxPorMin;
+        let sMin = horaToMinutos(s);
+        if (cierreMin > 1440 && sMin < aperturaMin) {
+          sMin += 1440;
+        }
+        const t = (sMin - aperturaMin) * pxPorMin;
         return (
           <div
             key={`line-${s}`}

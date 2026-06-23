@@ -32,6 +32,7 @@ const tabs: ConfigTab[] = [
   { label: 'Cuentas', to: '/app/configuracion/cuentas' },
   // Perfil público B2C (0067): página del club en el marketplace.
   { label: 'Perfil público / Mercado Pago', to: '/app/configuracion/perfil-publico' },
+  { label: 'Mensajería', to: '/app/configuracion/mensajeria' },
 ];
 
 /**

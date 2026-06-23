@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { Pencil, Plus, Search, Trash2, CircleDollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,20 +10,29 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import {
   useDeleteJugador,
   useJugadores,
+  usePagarCuentaCorriente,
 } from '@/features/reservas/hooks/useJugadores';
-import type { Jugador } from '@/types/database';
+import type { Jugador, MedioPago } from '@/types/database';
 import { JugadorFormDialog } from './JugadorFormDialog';
 import {
   CATEGORIA_LABEL,
   GENERO_LABEL,
   POSICION_LABEL,
 } from './jugadorSchema';
+
+const currencyFmt = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 export function JugadoresPage() {
   const { user } = useSession();
@@ -38,6 +47,7 @@ export function JugadoresPage() {
   const [editing, setEditing] = useState<Jugador | null>(null);
   const [toDelete, setToDelete] = useState<Jugador | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [payingJugador, setPayingJugador] = useState<Jugador | null>(null);
 
   const jugadoresFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -124,12 +134,19 @@ export function JugadoresPage() {
         canEdit={canEdit}
         onEdit={openEdit}
         onDelete={requestDelete}
+        onPay={setPayingJugador}
       />
 
       <JugadorFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         initialValue={editing}
+      />
+
+      <PagarDeudaDialog
+        open={!!payingJugador}
+        onOpenChange={(open) => !open && setPayingJugador(null)}
+        jugador={payingJugador}
       />
 
       <Dialog
@@ -194,6 +211,7 @@ interface JugadoresTableProps {
   canEdit: boolean;
   onEdit: (j: Jugador) => void;
   onDelete: (j: Jugador) => void;
+  onPay: (j: Jugador) => void;
 }
 
 function JugadoresTable({
@@ -204,6 +222,7 @@ function JugadoresTable({
   canEdit,
   onEdit,
   onDelete,
+  onPay,
 }: JugadoresTableProps) {
   if (query.isLoading) {
     return (
@@ -253,6 +272,7 @@ function JugadoresTable({
             <th className="px-3 py-2 font-medium">Categoría</th>
             <th className="px-3 py-2 font-medium">Posición</th>
             <th className="px-3 py-2 font-medium">Estado</th>
+            <th className="px-3 py-2 font-medium">Saldo</th>
             <th className="w-1 px-3 py-2 text-right font-medium">
               <span className="sr-only">Acciones</span>
             </th>
@@ -300,7 +320,33 @@ function JugadoresTable({
                 )}
               </td>
               <td className="px-3 py-3">
+                {Number((j as any).saldo) > 0 ? (
+                  <span className="font-semibold text-destructive tabular-nums">
+                    Debe {currencyFmt.format((j as any).saldo)}
+                  </span>
+                ) : Number((j as any).saldo) < 0 ? (
+                  <span className="font-semibold text-green-600 dark:text-green-400 tabular-nums">
+                    A favor {currencyFmt.format(Math.abs((j as any).saldo))}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">$0,00</span>
+                )}
+              </td>
+              <td className="px-3 py-3">
                 <div className="flex justify-end gap-1">
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onPay(j)}
+                      title="Saldar / Abonar cuenta"
+                      aria-label={`Saldar cuenta de ${j.nombre}`}
+                      className="text-primary hover:text-primary/80"
+                    >
+                      <CircleDollarSign className="h-4 w-4" />
+                    </Button>
+                  )}
                   {canEdit && (
                     <Button
                       type="button"
@@ -332,5 +378,147 @@ function JugadoresTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+interface PagarDeudaDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  jugador: Jugador | null;
+}
+
+function PagarDeudaDialog({ open, onOpenChange, jugador }: PagarDeudaDialogProps) {
+  const [monto, setMonto] = useState('');
+  const [medio, setMedio] = useState<MedioPago>('efectivo');
+  const [obs, setObs] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const pagarMutation = usePagarCuentaCorriente();
+
+  useEffect(() => {
+    if (open && jugador) {
+      const currentSaldo = (jugador as any).saldo ?? 0;
+      setMonto(currentSaldo > 0 ? String(currentSaldo) : '');
+      setMedio('efectivo');
+      setObs('');
+      setError(null);
+    }
+  }, [open, jugador]);
+
+  if (!jugador) return null;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const valMonto = Number(monto);
+    if (isNaN(valMonto) || valMonto <= 0) {
+      setError('Ingresá un monto válido mayor a 0.');
+      return;
+    }
+
+    try {
+      await pagarMutation.mutateAsync({
+        jugadorId: jugador.id,
+        monto: valMonto,
+        medioPago: medio,
+        observaciones: obs.trim(),
+      });
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el abono.');
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Abonar Cuenta Corriente</DialogTitle>
+            <DialogDescription>
+              Registrá una entrega de dinero para saldar o abonar a la cuenta de <strong>{jugador.nombre}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Saldo actual info */}
+          <div className="rounded-lg bg-muted/40 p-3 text-xs flex justify-between items-center border border-border">
+            <span className="text-muted-foreground">Saldo actual (deuda):</span>
+            <span className={cn(
+              "font-semibold tabular-nums",
+              Number((jugador as any).saldo) > 0 ? "text-destructive" : "text-green-600 dark:text-green-400"
+            )}>
+              {currencyFmt.format((jugador as any).saldo ?? 0)}
+            </span>
+          </div>
+
+          {/* Monto */}
+          <div className="space-y-2">
+            <Label htmlFor="pagar-monto">Monto a recibir ($)</Label>
+            <Input
+              id="pagar-monto"
+              type="number"
+              min={1}
+              required
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              placeholder="1000..."
+              disabled={pagarMutation.isPending}
+            />
+          </div>
+
+          {/* Medio de Pago */}
+          <div className="space-y-2">
+            <Label htmlFor="pagar-medio">Medio de pago</Label>
+            <select
+              id="pagar-medio"
+              value={medio}
+              onChange={(e) => setMedio(e.target.value as MedioPago)}
+              disabled={pagarMutation.isPending}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="mp">Mercado Pago</option>
+              <option value="tarjeta">Tarjeta</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+
+          {/* Observaciones */}
+          <div className="space-y-2">
+            <Label htmlFor="pagar-obs">Observaciones (opcional)</Label>
+            <Input
+              id="pagar-obs"
+              type="text"
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+              placeholder="Notas del pago..."
+              disabled={pagarMutation.isPending}
+            />
+          </div>
+
+          {error && (
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={pagarMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pagarMutation.isPending}>
+              {pagarMutation.isPending ? 'Procesando...' : 'Confirmar abono'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

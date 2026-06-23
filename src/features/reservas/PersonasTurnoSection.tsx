@@ -393,12 +393,10 @@ export function PersonasTurnoSection({
         medio_pago: medio,
         observaciones: obs,
         // monto_esperado = saldo completo: valida anti-race el caso "cobro
-        // total". Para el parcial, la RPC valida monto <= saldo recalculado.
+        // total". Para el parcial/excedente, la RPC valida monto.
         monto_esperado: saldo.saldo,
-        // Cobro parcial: sólo mandamos `monto` si es MENOR al saldo. Si es
-        // igual, lo omitimos → la RPC cobra el saldo completo (comportamiento
-        // histórico, validación cruzada normal). cuenta_id: implícito por medio.
-        ...(monto < saldo.saldo ? { monto } : {}),
+        // Mandamos `monto` si es distinto al saldo (parcial o excedente).
+        ...(monto !== saldo.saldo ? { monto } : {}),
       });
       setCobrandoId(null);
     } catch (err) {
@@ -1355,10 +1353,11 @@ function CobrarPersonaInline({
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
 
   const montoNum = Number.parseInt(montoStr, 10);
-  const montoValido =
-    Number.isInteger(montoNum) && montoNum >= 1 && montoNum <= saldo.saldo;
-  const saldoRestante = montoValido ? saldo.saldo - montoNum : 0;
-  const esParcial = montoValido && saldoRestante > 0;
+  const montoValido = Number.isInteger(montoNum) && montoNum >= 1;
+  const saldoRestante = montoValido && montoNum < saldo.saldo ? saldo.saldo - montoNum : 0;
+  const esParcial = montoValido && saldo.saldo > montoNum;
+  const esExcedente = montoValido && montoNum > saldo.saldo;
+  const excedenteMonto = esExcedente ? montoNum - saldo.saldo : 0;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1369,12 +1368,6 @@ function CobrarPersonaInline({
     }
     if (!Number.isInteger(montoNum) || montoNum < 1) {
       setErrorLocal('Ingresá un monto válido (mínimo $1).');
-      return;
-    }
-    if (montoNum > saldo.saldo) {
-      setErrorLocal(
-        `El monto no puede superar el saldo de ${fmtMoney(saldo.saldo)}.`,
-      );
       return;
     }
     await onConfirmar(
@@ -1435,7 +1428,6 @@ function CobrarPersonaInline({
           type="number"
           inputMode="numeric"
           min={1}
-          max={saldo.saldo}
           step={1}
           value={montoStr}
           onChange={(e) => setMontoStr(e.target.value)}
@@ -1450,6 +1442,14 @@ function CobrarPersonaInline({
               {fmtMoney(saldoRestante)}
             </span>{' '}
             para esta persona.
+          </p>
+        )}
+        {esExcedente && (
+          <p className="text-[11px] text-green-600 dark:text-green-400">
+            Se registrará un excedente por redondeo de{' '}
+            <span className="font-medium tabular-nums">
+              {fmtMoney(excedenteMonto)}
+            </span>.
           </p>
         )}
       </div>

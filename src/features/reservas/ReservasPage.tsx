@@ -134,9 +134,13 @@ export function ReservasPage() {
   // hacemos acá para que GrillaDia reciba ya el set listo para render.
   const clasesDelDia = useMemo(() => {
     const weekday = diaSemanaDe(fecha);
-    return (clasesQuery.data ?? []).filter(
-      (c) => c.activa && c.dias_semana.includes(weekday),
-    );
+    return (clasesQuery.data ?? []).filter((c) => {
+      if (!c.activa) return false;
+      if (c.es_recurrente === false) {
+        return c.fecha_clase === fecha;
+      }
+      return c.dias_semana.includes(weekday);
+    });
   }, [clasesQuery.data, fecha]);
 
   // Indexamos los cobros por clase_id. La fecha es implícita (= la del

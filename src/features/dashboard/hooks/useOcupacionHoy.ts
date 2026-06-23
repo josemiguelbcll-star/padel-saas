@@ -33,9 +33,16 @@ export function useOcupacionHoy(): OcupacionHoy {
       return null;
     }
     const canchasActivas = canchasQ.data.filter((c) => c.activa).length;
+    const clasesFiltradas = clasesQ.data.filter((c) => {
+      if (!c.activa) return false;
+      if (c.es_recurrente === false) {
+        return c.fecha_clase === hoy;
+      }
+      return true;
+    });
     return calcularOcupacion({
       reservas: reservasQ.data,
-      clases: clasesQ.data,
+      clases: clasesFiltradas,
       diaSemana: diaSemanaDe(hoy),
       horaApertura: horariosQ.data.hora_apertura,
       horaCierre: horariosQ.data.hora_cierre,
