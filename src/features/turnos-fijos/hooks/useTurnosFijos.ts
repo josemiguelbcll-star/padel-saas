@@ -92,12 +92,19 @@ export function useCrearTurnoFijo(): UseMutationResult<
       d.setDate(d.getDate() + 364);
       const hasta = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
-      supabase.rpc('fn_materializar_turnos_fijos', {
-        p_fecha_desde: desde,
-        p_fecha_hasta: hasta,
-      }).catch((err) => {
-        console.error('Error auto-materializando turnos fijos:', err);
-      });
+      void (async () => {
+        try {
+          const { error } = await supabase.rpc('fn_materializar_turnos_fijos', {
+            p_fecha_desde: desde,
+            p_fecha_hasta: hasta,
+          });
+          if (error) {
+            console.error('Error auto-materializando turnos fijos:', error);
+          }
+        } catch (err) {
+          console.error('Error auto-materializando turnos fijos:', err);
+        }
+      })();
     },
   });
 }
@@ -140,7 +147,7 @@ export function useActualizarTurnoFijo(): UseMutationResult<
       if (!data) throw new Error('La función respondió sin datos.');
       return data as TurnoFijo;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: TURNOS_FIJOS_QUERY_KEY });
       
       // Auto-materializar para las próximas 52 semanas (1 año) en segundo plano
@@ -149,12 +156,19 @@ export function useActualizarTurnoFijo(): UseMutationResult<
       d.setDate(d.getDate() + 364);
       const hasta = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
-      supabase.rpc('fn_materializar_turnos_fijos', {
-        p_fecha_desde: desde,
-        p_fecha_hasta: hasta,
-      }).catch((err) => {
-        console.error('Error auto-materializando turnos fijos actualizado:', err);
-      });
+      void (async () => {
+        try {
+          const { error } = await supabase.rpc('fn_materializar_turnos_fijos', {
+            p_fecha_desde: desde,
+            p_fecha_hasta: hasta,
+          });
+          if (error) {
+            console.error('Error auto-materializando turnos fijos actualizado:', error);
+          }
+        } catch (err) {
+          console.error('Error auto-materializando turnos fijos actualizado:', err);
+        }
+      })();
     },
   });
 }

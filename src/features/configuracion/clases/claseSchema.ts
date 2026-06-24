@@ -54,7 +54,7 @@ export const claseSchema = z
       ),
     activa: z.boolean(),
     es_recurrente: z.boolean().default(true),
-    fecha_clase: z.string().nullable().optional(),
+    fecha_clase: z.string().nullable().optional().default(null),
   })
   .refine(
     (data) => {

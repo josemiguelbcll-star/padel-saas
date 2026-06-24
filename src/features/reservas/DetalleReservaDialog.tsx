@@ -50,6 +50,7 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   mp: 'Mercado Pago',
   tarjeta: 'Tarjeta',
   otro: 'Otro',
+  cuenta_corriente: 'Cuenta Corriente',
 };
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {

@@ -295,7 +295,7 @@ interface HorariosReadOnlyProps {
   value: HorariosClub;
 }
 
-function HorariosReadOnly({ value }: { value: HorariosClub }) {
+function HorariosReadOnly({ value }: HorariosReadOnlyProps) {
   let cierre = value.hora_cierre ? value.hora_cierre.slice(0, 5) : '—';
   if (cierre === '24:00') cierre = '00:00';
   return (

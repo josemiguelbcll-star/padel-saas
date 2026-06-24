@@ -204,15 +204,18 @@ export function TurnosFijosPage() {
         <CalendarioSemanalTurnosFijos
           turnos={turnos}
           canchas={canchasQuery.data ?? []}
-          horariosClub={horariosQuery.data ?? null}
+          resolverTitular={nombreTitularDe}
+          horaApertura={horariosQuery.data?.hora_apertura ?? null}
+          horaCierre={horariosQuery.data?.hora_cierre ?? null}
           franjas={franjasQuery.data ?? []}
+          duracionDefault={horariosQuery.data?.duracion_turno_default ?? 90}
           clases={clasesQuery.data ?? []}
-          onSelectSlot={(canchaId, diaSemana, hora, duracion) => {
+          onCrearEnSlot={(prefill) => {
             if (!canEdit) return;
-            setPrefillNuevo({ canchaId, diaSemana, hora, duracionMin: duracion });
+            setPrefillNuevo(prefill);
             setNuevoOpen(true);
           }}
-          onSelectTurno={openEditar}
+          onEditarTurno={openEditar}
         />
       )}
 

@@ -1,7 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
-import { rangoMesISO } from '../utils/ocurrenciasDelMes';
 
 export interface PuntoIngresoDiario {
   /** YYYY-MM-DD */
@@ -24,17 +23,7 @@ export interface IngresosDiariosMes {
 export const INGRESOS_DIARIOS_MES_QUERY_KEY = (anio: number, mes: number) =>
   ['ingresos_diarios_mes', anio, mes] as const;
 
-function fmtISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
 
-function extraerFechaISO(fechaHora: string): string {
-  // Acepta YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS. Devuelve los primeros 10.
-  return fechaHora.slice(0, 10);
-}
 
 /**
  * Serie diaria de ingresos del mes (criterio caja: lo que entró el día).

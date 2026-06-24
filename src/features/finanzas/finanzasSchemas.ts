@@ -2,13 +2,14 @@ import { z } from 'zod';
 import type { MotivoAnulacionTipo, TipoUnidad } from '@/types/database';
 
 /** Mismo enum que el CHECK de productos.linea/medio_pago en SQL. */
-export const MEDIOS_PAGO = ['efectivo', 'transferencia', 'mp', 'tarjeta', 'otro'] as const;
+export const MEDIOS_PAGO = ['efectivo', 'transferencia', 'mp', 'tarjeta', 'otro', 'cuenta_corriente'] as const;
 export const MEDIO_PAGO_LABEL: Record<(typeof MEDIOS_PAGO)[number], string> = {
   efectivo: 'Efectivo',
   transferencia: 'Transferencia',
   mp: 'Mercado Pago',
   tarjeta: 'Tarjeta',
   otro: 'Otro',
+  cuenta_corriente: 'Cuenta Corriente',
 };
 
 /** Mismo enum que el CHECK de anulaciones.motivo_tipo (0048). */

@@ -409,6 +409,7 @@ function PagarDeudaDialog({ open, onOpenChange, jugador }: PagarDeudaDialogProps
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!jugador) return;
     setError(null);
 
     const valMonto = Number(monto);

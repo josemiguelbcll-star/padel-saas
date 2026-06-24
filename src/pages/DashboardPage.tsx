@@ -42,7 +42,6 @@ import {
 } from '@/features/finanzas/hooks/useComparativoBuffet';
 import {
   useIngresosDiariosMes,
-  type IngresosDiariosMes,
 } from '@/features/finanzas/hooks/useIngresosDiariosMes';
 import { BandaHoy } from '@/features/dashboard';
 
@@ -57,12 +56,7 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0,
 });
 
-const currencyCompactFmt = new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
+
 
 const fechaCorta = new Intl.DateTimeFormat('es-AR', {
   weekday: 'long',
@@ -79,9 +73,7 @@ function fmtMoney(n: number): string {
   return currencyFmt.format(Math.round(n));
 }
 
-function fmtMoneyCompact(n: number): string {
-  return currencyCompactFmt.format(Math.round(n));
-}
+
 
 const MESES_NOMBRE: Record<number, string> = {
   1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, Plus, Users, UtensilsCrossed } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
@@ -11,7 +11,6 @@ import {
   useCrearMesa,
   useCargarConsumoMesa,
   useQuitarConsumoMesa,
-  type BuffetMesa,
 } from './hooks/useMesasBuffet';
 import { CerrarMesaDialog } from './CerrarMesaDialog';
 import { Button } from '@/components/ui/button';
@@ -167,12 +166,27 @@ export function BuffetPage() {
   // Enrich items for the selected mesa
   const itemsMesa: VentaItemEnriquecido[] = useMemo(() => {
     if (!selectedMesa) return [];
-    return selectedMesa.consumos.map((c) => ({
-      producto: c.producto,
-      cantidad: c.cantidad,
-      subtotal: c.producto.precio * c.cantidad,
-    }));
-  }, [selectedMesa]);
+    return selectedMesa.consumos.map((c) => {
+      const prodConStock = productos.find((p) => p.id === c.producto.id);
+      return {
+        producto: prodConStock || {
+          id: c.producto.id,
+          nombre: c.producto.nombre,
+          precio: c.producto.precio,
+          costo: c.producto.costo,
+          stock_actual: 0,
+          club_id: selectedMesa.club_id,
+          linea: 'buffet',
+          categoria: 'bebidas',
+          stock_minimo: 0,
+          activo: true,
+          fecha_alta: new Date().toISOString(),
+        },
+        cantidad: c.cantidad,
+        subtotal: c.producto.precio * c.cantidad,
+      };
+    });
+  }, [selectedMesa, productos]);
 
   const totalMesa = useMemo(
     () => itemsMesa.reduce((sum, i) => sum + i.subtotal, 0),
@@ -462,7 +476,7 @@ export function BuffetPage() {
                 required
                 maxLength={40}
                 value={nuevaMesaName}
-                onChange={(e) => setNewMesaName(e.target.value)}
+                onChange={(e) => setNuevaMesaName(e.target.value)}
                 placeholder="Mesa 10…"
                 disabled={crearMesaMutation.isPending}
               />
