@@ -291,106 +291,222 @@ function ProductosTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
-            <th className="px-3 py-2 font-medium">Nombre</th>
-            <th className="px-3 py-2 font-medium">Categoría</th>
-            <th className="px-3 py-2 text-right font-medium">Precio</th>
-            <th className="px-3 py-2 text-right font-medium">Costo</th>
-            <th className="px-3 py-2 text-right font-medium">Margen</th>
-            <th className="px-3 py-2 text-right font-medium">Stock</th>
-            <th className="px-3 py-2 text-right font-medium">Mínimo</th>
-            <th className="px-3 py-2 font-medium">Estado</th>
-            {isAdmin && (
-              <th className="w-1 px-3 py-2 text-right font-medium">
-                <span className="sr-only">Acciones</span>
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {productos.map((p) => (
-            <tr
+    <>
+      {/* Tabla (Desktop) */}
+      <div className="hidden md:block overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Nombre</th>
+              <th className="px-3 py-2 font-medium">Categoría</th>
+              <th className="px-3 py-2 text-right font-medium">Precio</th>
+              <th className="px-3 py-2 text-right font-medium">Costo</th>
+              <th className="px-3 py-2 text-right font-medium">Margen</th>
+              <th className="px-3 py-2 text-right font-medium">Stock</th>
+              <th className="px-3 py-2 text-right font-medium">Mínimo</th>
+              <th className="px-3 py-2 font-medium">Estado</th>
+              {isAdmin && (
+                <th className="w-1 px-3 py-2 text-right font-medium">
+                  <span className="sr-only">Acciones</span>
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {productos.map((p) => (
+              <tr
+                key={p.id}
+                className={cn(
+                  'border-b border-border last:border-b-0 transition-colors',
+                  !p.activo && 'bg-muted/20',
+                )}
+              >
+                <td
+                  className={cn(
+                    'px-3 py-3 font-medium',
+                    p.activo ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {p.nombre}
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {CATEGORIA_LABEL[p.categoria]}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {currencyFmt.format(p.precio)}
+                </td>
+                <td className="px-3 py-3 text-right">
+                  <CostoCell producto={p} />
+                </td>
+                <td className="px-3 py-3 text-right">
+                  <MargenCell producto={p} />
+                </td>
+                <td className="px-3 py-3 text-right">
+                  <StockCell producto={p} />
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                  {p.stock_minimo}
+                </td>
+                <td className="px-3 py-3">
+                  {p.activo ? (
+                    <span className="text-foreground">Activo</span>
+                  ) : (
+                    <span className="text-muted-foreground">Inactivo</span>
+                  )}
+                </td>
+                {isAdmin && (
+                  <td className="px-3 py-3">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onCargarStock(p)}
+                        aria-label={`Cargar stock de ${p.nombre}`}
+                        title="Cargar stock"
+                      >
+                        <PackagePlus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEdit(p)}
+                        aria-label={`Editar ${p.nombre}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDelete(p)}
+                        aria-label={`Eliminar ${p.nombre}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Tarjetas (Mobile) */}
+      <div className="md:hidden space-y-3">
+        {productos.map((p) => {
+          return (
+            <div
               key={p.id}
               className={cn(
-                'border-b border-border last:border-b-0 transition-colors',
+                'rounded-xl border border-border bg-card p-4 shadow-sm space-y-3 transition-colors',
                 !p.activo && 'bg-muted/20',
               )}
             >
-              <td
-                className={cn(
-                  'px-3 py-3 font-medium',
-                  p.activo ? 'text-foreground' : 'text-muted-foreground',
-                )}
-              >
-                {p.nombre}
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {CATEGORIA_LABEL[p.categoria]}
-              </td>
-              <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                {currencyFmt.format(p.precio)}
-              </td>
-              <td className="px-3 py-3 text-right">
-                <CostoCell producto={p} />
-              </td>
-              <td className="px-3 py-3 text-right">
-                <MargenCell producto={p} />
-              </td>
-              <td className="px-3 py-3 text-right">
-                <StockCell producto={p} />
-              </td>
-              <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
-                {p.stock_minimo}
-              </td>
-              <td className="px-3 py-3">
-                {p.activo ? (
-                  <span className="text-foreground">Activo</span>
-                ) : (
-                  <span className="text-muted-foreground">Inactivo</span>
-                )}
-              </td>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3
+                    className={cn(
+                      'font-semibold text-base',
+                      p.activo ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {p.nombre}
+                  </h3>
+                  <span className="text-xs text-muted-foreground mt-0.5 block">
+                    {CATEGORIA_LABEL[p.categoria]}
+                  </span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium mt-1',
+                      p.activo
+                        ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800'
+                        : 'bg-muted text-muted-foreground border border-border',
+                    )}
+                  >
+                    {p.activo ? 'Activo' : 'Inactivo'}
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground block">
+                    Precio
+                  </span>
+                  <span className="font-bold text-foreground tabular-nums text-base">
+                    {currencyFmt.format(p.precio)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detalles en Grid de 3 col */}
+              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 text-xs border-t border-border/60 pt-3 text-muted-foreground">
+                <div>
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">
+                    Costo
+                  </span>
+                  <CostoCell producto={p} />
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">
+                    Margen
+                  </span>
+                  <MargenCell producto={p} />
+                </div>
+                <div className="text-right">
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60 text-right">
+                    Stock (Mín)
+                  </span>
+                  <span className="text-foreground inline-flex items-center justify-end gap-1">
+                    <StockCell producto={p} />
+                    <span className="text-[10px] text-muted-foreground">
+                      ({p.stock_minimo})
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Acciones */}
               {isAdmin && (
-                <td className="px-3 py-3">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onCargarStock(p)}
-                      aria-label={`Cargar stock de ${p.nombre}`}
-                      title="Cargar stock"
-                    >
-                      <PackagePlus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(p)}
-                      aria-label={`Editar ${p.nombre}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(p)}
-                      aria-label={`Eliminar ${p.nombre}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </td>
+                <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onCargarStock(p)}
+                    className="h-8 gap-1.5"
+                  >
+                    <PackagePlus className="h-4 w-4" />
+                    Stock
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEdit(p)}
+                    className="h-8 gap-1.5"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onDelete(p)}
+                    className="h-8 text-destructive border-destructive/20 hover:bg-destructive/5 gap-1.5"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </div>
               )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

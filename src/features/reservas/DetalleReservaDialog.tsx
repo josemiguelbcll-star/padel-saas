@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSession } from '@/features/auth';
-import { AlertTriangle, Pencil } from 'lucide-react';
+import { AlertTriangle, Pencil, Trophy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
 import {
@@ -26,6 +26,7 @@ import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useCancelarReserva } from './hooks/useCancelarReserva';
 import { useCerrarTurno } from './hooks/useCerrarTurno';
 import { useReservaJugadores } from './hooks/useReservaJugadores';
+import { useEliminarBloqueoTorneo } from './hooks/useEliminarBloqueoTorneo';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import {
   calcularDesgloseCuenta,
@@ -161,12 +162,17 @@ function DetalleReservaBody({
   const actualizarMutation = useActualizarReserva(); // solo observaciones
   const cancelarMutation = useCancelarReserva();
   const cerrarMutation = useCerrarTurno();
+  const eliminarBloqueoTorneoMutation = useEliminarBloqueoTorneo();
 
   // State de las acciones del footer (cerrar / cancelar).
   // El cobro NO está acá — vive por persona en PersonasTurnoSection
   // desde el paso 4 del módulo cuenta del turno.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [confirmingCancelTodo, setConfirmingCancelTodo] = useState(false);
   const [accionError, setAccionError] = useState<string | null>(null);
+
+  const esTorneo = reserva.jugador?.nombre?.startsWith('Torneo: ') || false;
+  const nombreTorneo = esTorneo ? reserva.jugador?.nombre?.replace(/^Torneo:\s*/, '') : '';
 
   const saldo = reserva.monto_total - reserva.monto_pagado;
   const tieneSaldo = saldo > 0;
@@ -325,6 +331,219 @@ function DetalleReservaBody({
         err instanceof Error ? err.message : 'No pudimos cancelar la reserva.',
       );
     }
+  }
+
+  async function handleConfirmCancelTodo(): Promise<void> {
+    setAccionError(null);
+    try {
+      await eliminarBloqueoTorneoMutation.mutateAsync({
+        fecha: reserva.fecha,
+        nombre_torneo: nombreTorneo || '',
+      });
+      onClose();
+    } catch (err) {
+      setAccionError(
+        err instanceof Error ? err.message : 'No pudimos eliminar los bloqueos del torneo.',
+      );
+    }
+  }
+
+  if (esTorneo) {
+    const isPendingAny =
+      cancelarMutation.isPending || eliminarBloqueoTorneoMutation.isPending;
+
+    return (
+      <>
+        {/* Header fijo arriba */}
+        <DialogHeader className="shrink-0 border-b border-border px-6 pb-4 pt-6">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Trophy className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                Bloqueo de Torneo
+              </DialogTitle>
+              <DialogDescription>
+                {cancha.nombre} · {formatearHora(reserva.hora_inicio)}–
+                {formatearHora(reserva.hora_fin)} ({reserva.duracion_min} min)
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* Body scrolleable */}
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+          {/* Tarjeta del Torneo con estética premium */}
+          <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 p-5 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Trophy className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary uppercase tracking-wide">
+                  Torneo Activo
+                </span>
+                <h3 className="text-xl font-bold text-foreground mt-1">
+                  {nombreTorneo}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Esta cancha está reservada exclusivamente para el desarrollo del torneo en esta fecha y horario. No se admiten reservas ni cobros regulares en este bloque.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Información del Turno */}
+          <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+            <div>
+              <span className="block text-xs text-muted-foreground uppercase tracking-wider font-semibold">Fecha</span>
+              <span className="font-medium text-foreground">{formatearFechaAmigable(reserva.fecha)}</span>
+            </div>
+            <div>
+              <span className="block text-xs text-muted-foreground uppercase tracking-wider font-semibold">Cancha</span>
+              <span className="font-medium text-foreground">{cancha.nombre}</span>
+            </div>
+            <div className="mt-2">
+              <span className="block text-xs text-muted-foreground uppercase tracking-wider font-semibold">Horario</span>
+              <span className="font-medium text-foreground">
+                {formatearHora(reserva.hora_inicio)} – {formatearHora(reserva.hora_fin)}
+              </span>
+            </div>
+            <div className="mt-2">
+              <span className="block text-xs text-muted-foreground uppercase tracking-wider font-semibold">Duración</span>
+              <span className="font-medium text-foreground">{reserva.duracion_min} minutos</span>
+            </div>
+          </div>
+
+          {/* Sección de Confirmaciones / Errores */}
+          {accionError && (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              {accionError}
+            </div>
+          )}
+
+          {confirmingCancel && (
+            <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">¿Desbloquear solo este turno?</p>
+                  <p className="text-xs text-muted-foreground">
+                    Se liberará únicamente esta cancha y horario. Los demás bloques del torneo seguirán activos. Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmingCancel(false)}
+                  disabled={isPendingAny}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    void handleConfirmCancel();
+                  }}
+                  disabled={isPendingAny}
+                >
+                  {cancelarMutation.isPending ? 'Liberando...' : 'Sí, liberar turno'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {confirmingCancelTodo && (
+            <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    ¿Eliminar TODO el torneo de hoy?
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Se liberarán todas las canchas y horarios bloqueados por el torneo "{nombreTorneo}" en la fecha {formatearFechaAmigable(reserva.fecha)}. Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmingCancelTodo(false)}
+                  disabled={isPendingAny}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    void handleConfirmCancelTodo();
+                  }}
+                  disabled={isPendingAny}
+                >
+                  {eliminarBloqueoTorneoMutation.isPending ? 'Eliminando...' : 'Sí, eliminar torneo hoy'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer fijo */}
+        <div className="shrink-0 flex items-center justify-between border-t border-border px-6 py-4 bg-muted/10">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isPendingAny}
+          >
+            Cerrar Ventana
+          </Button>
+
+          {!readOnly && !confirmingCancel && !confirmingCancelTodo && (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => {
+                  setAccionError(null);
+                  setConfirmingCancel(true);
+                }}
+                disabled={isPendingAny}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Desbloquear este turno
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  setAccionError(null);
+                  setConfirmingCancelTodo(true);
+                }}
+                disabled={isPendingAny}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Eliminar torneo de hoy
+              </Button>
+            </div>
+          )}
+        </div>
+      </>
+    );
   }
 
   return (

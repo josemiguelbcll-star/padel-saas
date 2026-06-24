@@ -261,123 +261,265 @@ function JugadoresTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
-            <th className="px-3 py-2 font-medium">Nombre</th>
-            <th className="px-3 py-2 font-medium">Teléfono</th>
-            <th className="px-3 py-2 font-medium">Email</th>
-            <th className="px-3 py-2 font-medium">Género</th>
-            <th className="px-3 py-2 font-medium">Categoría</th>
-            <th className="px-3 py-2 font-medium">Posición</th>
-            <th className="px-3 py-2 font-medium">Estado</th>
-            <th className="px-3 py-2 font-medium">Saldo</th>
-            <th className="w-1 px-3 py-2 text-right font-medium">
-              <span className="sr-only">Acciones</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {jugadores.map((j) => (
-            <tr
+    <>
+      {/* Tabla (Desktop) */}
+      <div className="hidden md:block overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Nombre</th>
+              <th className="px-3 py-2 font-medium">Teléfono</th>
+              <th className="px-3 py-2 font-medium">Email</th>
+              <th className="px-3 py-2 font-medium">Género</th>
+              <th className="px-3 py-2 font-medium">Categoría</th>
+              <th className="px-3 py-2 font-medium">Posición</th>
+              <th className="px-3 py-2 font-medium">Estado</th>
+              <th className="px-3 py-2 font-medium">Saldo</th>
+              <th className="w-1 px-3 py-2 text-right font-medium">
+                <span className="sr-only">Acciones</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {jugadores.map((j) => (
+              <tr
+                key={j.id}
+                className={cn(
+                  'border-b border-border last:border-b-0 transition-colors',
+                  !j.activo && 'bg-muted/20',
+                )}
+              >
+                <td
+                  className={cn(
+                    'px-3 py-3 font-medium',
+                    j.activo ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {j.nombre}
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {j.telefono ?? '—'}
+                </td>
+                <td className="max-w-[200px] px-3 py-3 text-muted-foreground">
+                  <span className="block truncate" title={j.email ?? undefined}>
+                    {j.email ?? '—'}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {j.genero ? GENERO_LABEL[j.genero] : '—'}
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {j.categoria ? CATEGORIA_LABEL[j.categoria] : '—'}
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {j.posicion ? POSICION_LABEL[j.posicion] : '—'}
+                </td>
+                <td className="px-3 py-3">
+                  {j.activo ? (
+                    <span className="text-foreground">Activo</span>
+                  ) : (
+                    <span className="text-muted-foreground">Inactivo</span>
+                  )}
+                </td>
+                <td className="px-3 py-3">
+                  {Number((j as any).saldo) > 0 ? (
+                    <span className="font-semibold text-destructive tabular-nums">
+                      Debe {currencyFmt.format((j as any).saldo)}
+                    </span>
+                  ) : Number((j as any).saldo) < 0 ? (
+                    <span className="font-semibold text-green-600 dark:text-green-400 tabular-nums">
+                      A favor {currencyFmt.format(Math.abs((j as any).saldo))}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">$0,00</span>
+                  )}
+                </td>
+                <td className="px-3 py-3">
+                  <div className="flex justify-end gap-1">
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onPay(j)}
+                        title="Saldar / Abonar cuenta"
+                        aria-label={`Saldar cuenta de ${j.nombre}`}
+                        className="text-primary hover:text-primary/80"
+                      >
+                        <CircleDollarSign className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEdit(j)}
+                        aria-label={`Editar ${j.nombre}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {isAdmin && canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDelete(j)}
+                        aria-label={`Eliminar ${j.nombre}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Tarjetas (Mobile) */}
+      <div className="md:hidden space-y-3">
+        {jugadores.map((j) => {
+          const saldoNum = Number((j as any).saldo ?? 0);
+          return (
+            <div
               key={j.id}
               className={cn(
-                'border-b border-border last:border-b-0 transition-colors',
+                'rounded-xl border border-border bg-card p-4 shadow-sm space-y-3 transition-colors',
                 !j.activo && 'bg-muted/20',
               )}
             >
-              <td
-                className={cn(
-                  'px-3 py-3 font-medium',
-                  j.activo ? 'text-foreground' : 'text-muted-foreground',
-                )}
-              >
-                {j.nombre}
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {j.telefono ?? '—'}
-              </td>
-              <td className="max-w-[200px] px-3 py-3 text-muted-foreground">
-                <span className="block truncate" title={j.email ?? undefined}>
-                  {j.email ?? '—'}
-                </span>
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {j.genero ? GENERO_LABEL[j.genero] : '—'}
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {j.categoria ? CATEGORIA_LABEL[j.categoria] : '—'}
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {j.posicion ? POSICION_LABEL[j.posicion] : '—'}
-              </td>
-              <td className="px-3 py-3">
-                {j.activo ? (
-                  <span className="text-foreground">Activo</span>
-                ) : (
-                  <span className="text-muted-foreground">Inactivo</span>
-                )}
-              </td>
-              <td className="px-3 py-3">
-                {Number((j as any).saldo) > 0 ? (
-                  <span className="font-semibold text-destructive tabular-nums">
-                    Debe {currencyFmt.format((j as any).saldo)}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3
+                    className={cn(
+                      'font-semibold text-base',
+                      j.activo ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {j.nombre}
+                  </h3>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium mt-1',
+                      j.activo
+                        ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800'
+                        : 'bg-muted text-muted-foreground border border-border',
+                    )}
+                  >
+                    {j.activo ? 'Activo' : 'Inactivo'}
                   </span>
-                ) : Number((j as any).saldo) < 0 ? (
-                  <span className="font-semibold text-green-600 dark:text-green-400 tabular-nums">
-                    A favor {currencyFmt.format(Math.abs((j as any).saldo))}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">$0,00</span>
-                )}
-              </td>
-              <td className="px-3 py-3">
-                <div className="flex justify-end gap-1">
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onPay(j)}
-                      title="Saldar / Abonar cuenta"
-                      aria-label={`Saldar cuenta de ${j.nombre}`}
-                      className="text-primary hover:text-primary/80"
-                    >
-                      <CircleDollarSign className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(j)}
-                      aria-label={`Editar ${j.nombre}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {/* Eliminar: cosmético solo admin. La seguridad real
-                      la da la RLS jugadores_delete (admin-only). */}
-                  {isAdmin && canEdit && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(j)}
-                      aria-label={`Eliminar ${j.nombre}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                </div>
+
+                <div className="text-right">
+                  {saldoNum > 0 ? (
+                    <span className="inline-flex flex-col items-end">
+                      <span className="text-[10px] uppercase font-semibold tracking-wide text-destructive">
+                        Debe
+                      </span>
+                      <span className="font-bold text-destructive tabular-nums text-sm">
+                        {currencyFmt.format(saldoNum)}
+                      </span>
+                    </span>
+                  ) : saldoNum < 0 ? (
+                    <span className="inline-flex flex-col items-end">
+                      <span className="text-[10px] uppercase font-semibold tracking-wide text-green-600 dark:text-green-400">
+                        A favor
+                      </span>
+                      <span className="font-bold text-green-600 dark:text-green-400 tabular-nums text-sm">
+                        {currencyFmt.format(Math.abs(saldoNum))}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">$0,00</span>
                   )}
                 </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              </div>
+
+              {/* Detalles en Grid de 2 col */}
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-xs border-t border-border/60 pt-3 text-muted-foreground">
+                <div>
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">
+                    Teléfono
+                  </span>
+                  <span className="text-foreground">{j.telefono ?? '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">
+                    Email
+                  </span>
+                  <span
+                    className="text-foreground truncate block max-w-full"
+                    title={j.email ?? undefined}
+                  >
+                    {j.email ?? '—'}
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">
+                    Categoría / Posición
+                  </span>
+                  <span className="text-foreground">
+                    {j.categoria ? CATEGORIA_LABEL[j.categoria] : '—'} ·{' '}
+                    {j.posicion ? POSICION_LABEL[j.posicion] : '—'}
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">
+                    Género
+                  </span>
+                  <span className="text-foreground">
+                    {j.genero ? GENERO_LABEL[j.genero] : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Acciones */}
+              <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+                {canEdit && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onPay(j)}
+                    className="h-8 text-primary border-primary/20 hover:bg-primary/5 gap-1.5"
+                  >
+                    <CircleDollarSign className="h-4 w-4" />
+                    Abonar
+                  </Button>
+                )}
+                {canEdit && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEdit(j)}
+                    className="h-8 gap-1.5"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar
+                  </Button>
+                )}
+                {isAdmin && canEdit && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onDelete(j)}
+                    className="h-8 text-destructive border-destructive/20 hover:bg-destructive/5 gap-1.5"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

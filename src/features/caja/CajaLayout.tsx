@@ -8,10 +8,10 @@ interface CajaTab {
 
 const tabs: CajaTab[] = [
   // Efectivo: el módulo de caja de siempre (apertura/cierre/arqueo).
-  { label: 'Efectivo', to: '/caja/efectivo' },
+  { label: 'Efectivo', to: '/app/caja/efectivo' },
   // Transferencias: reporte de cobros por transferencia por período.
   // Independiente del turno de caja (no requiere caja abierta).
-  { label: 'Transferencias', to: '/caja/transferencias' },
+  { label: 'Transferencias', to: '/app/caja/transferencias' },
 ];
 
 /**

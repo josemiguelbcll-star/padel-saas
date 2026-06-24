@@ -318,9 +318,9 @@ export function TransferenciasPage() {
         </div>
       )}
 
-      {/* Tabla */}
+      {/* Tabla (Desktop) */}
       {!query.isLoading && !query.error && hayDatos && (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="hidden md:block overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -383,6 +383,69 @@ export function TransferenciasPage() {
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {/* Tarjetas (Mobile) */}
+      {!query.isLoading && !query.error && hayDatos && (
+        <div className="md:hidden space-y-3">
+          {filtered.map((r) => {
+            const meta = ORIGEN_META[r.origen];
+            return (
+              <div
+                key={r.id}
+                className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {horaFmt.format(new Date(r.fecha_hora))} hs
+                    </span>
+                    <h3 className="font-semibold text-foreground text-sm mt-0.5">
+                      {r.nombre}
+                    </h3>
+                    <span
+                      className={cn(
+                        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-medium mt-1.5',
+                        meta.cls,
+                      )}
+                    >
+                      {meta.label}
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground block">Monto</span>
+                    <span className="font-bold text-foreground tabular-nums text-base">
+                      {currencyFmt.format(r.monto)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Detalles secundarios */}
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs border-t border-border/60 pt-3 text-muted-foreground">
+                  <div>
+                    <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60">¿Quién transfirió?</span>
+                    <span className="text-foreground">{r.quien_transfirio ?? '—'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] uppercase font-medium tracking-wide text-muted-foreground/60 text-right">Cuenta</span>
+                    <span className="text-foreground block text-right">{nombreCuenta(r.cuenta_id)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Tarjeta de Total */}
+          <div className="rounded-xl border border-border bg-muted/20 p-4 shadow-sm flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Total ({filtered.length} {filtered.length === 1 ? 'transf.' : 'transfs.'})
+            </span>
+            <span className="text-lg font-bold text-foreground tabular-nums">
+              {currencyFmt.format(total)}
+            </span>
+          </div>
         </div>
       )}
     </div>

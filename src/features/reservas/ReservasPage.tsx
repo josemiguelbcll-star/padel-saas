@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { AlertTriangle, Clock, LayoutGrid } from 'lucide-react';
+import { AlertTriangle, Clock, LayoutGrid, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ModoTorneoDialog } from './ModoTorneoDialog';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
@@ -194,6 +196,9 @@ export function ReservasPage() {
   // Estado del modal de nueva reserva.
   const [nuevoSlot, setNuevoSlot] = useState<NuevoReservaSlot | null>(null);
 
+  // Estado del modal de modo torneo.
+  const [modoTorneoOpen, setModoTorneoOpen] = useState(false);
+
   // Estado del modal de detalle: guarda reserva + cancha porque el dialog
   // necesita el nombre de la cancha en el header y la cancha no viene en
   // el join de useReservasDelDia (que sólo joinea jugador titular).
@@ -258,7 +263,21 @@ export function ReservasPage() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <NavegacionFecha fecha={fecha} onChange={handleFechaChange} />
-          <ContadorDiaOperativo conteo={conteo} />
+          <div className="flex items-center gap-2">
+            <ContadorDiaOperativo conteo={conteo} />
+            {canEdit && (
+              <Button
+                type="button"
+                onClick={() => setModoTorneoOpen(true)}
+                variant="outline"
+                size="sm"
+                className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400 font-semibold"
+              >
+                <Sparkles className="mr-1.5 h-4 w-4 text-amber-500 animate-pulse" />
+                Modo Torneo
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -319,6 +338,12 @@ export function ReservasPage() {
         fecha={selectedClase?.fecha ?? null}
         pagosIniciales={selectedClase?.pagosIniciales ?? []}
         readOnly={!canEdit}
+      />
+
+      <ModoTorneoDialog
+        open={modoTorneoOpen}
+        onOpenChange={setModoTorneoOpen}
+        fechaActiva={fecha}
       />
     </div>
   );
