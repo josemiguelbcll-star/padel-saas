@@ -75,7 +75,8 @@ export function usePlayerProfile() {
   const { data: profile = DEFAULT, isLoading, refetch } = useQuery<PlayerProfile>({
     queryKey: ['player-profile'],
     queryFn: async (): Promise<PlayerProfile> => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return DEFAULT;
 
       // Consulta completa
@@ -118,7 +119,8 @@ export function usePlayerProfile() {
   // Mutación para guardar perfil
   const mutation = useMutation<PlayerProfile, Error, PlayerProfile>({
     mutationFn: async (updates: PlayerProfile): Promise<PlayerProfile> => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('Sin sesión activa');
 
       // Sube el avatar si es un data-URI nuevo

@@ -98,7 +98,7 @@ export function useMyReservas() {
       if (!userId) return [];
       // Llamada RPC con timeout para evitar bloqueos aleatorios
       const rpcPromise = supabase.rpc('fn_mis_reservas_app') as any;
-      const { data, error: rpcError } = await (withTimeout(rpcPromise, 8000, 'fn_mis_reservas_app') as any);
+      const { data, error: rpcError } = await (withTimeout(rpcPromise, 20000, 'fn_mis_reservas_app') as any);
       if (rpcError) throw rpcError;
       return (data as MiReservaReal[]) ?? [];
     },

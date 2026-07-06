@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSession } from '@/features/auth';
-import { AlertTriangle, Pencil, Trophy, Trash2 } from 'lucide-react';
+import { AlertTriangle, Pencil, Trophy, Trash2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
 import {
@@ -12,6 +12,12 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type {
   Cancha,
   MedioPago,
@@ -257,10 +263,18 @@ function DetalleReservaBody({
   const telefonoTitular = reserva.jugador?.telefono
     ? normalizarTelefono(reserva.jugador.telefono)
     : null;
-  const wspUrl = useMemo(() => {
+
+  const getWhatsAppUrlForTemplate = (type: 'confirmacion' | 'cancelacion' | 'torneo'): string | null => {
     if (!telefonoTitular) return null;
     const templatesCfg = (club?.config as any)?.whatsapp_templates ?? {};
-    let template = templatesCfg.confirmacion || 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} está confirmado.';
+    
+    const defaultTemplates = {
+      confirmacion: 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} está confirmado.',
+      cancelacion: 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} fue cancelado.',
+      torneo: 'Hola {nombreCliente}, te recordamos la invitación al torneo en {cancha} el {fecha} a las {hora}.',
+    };
+    
+    let template = templatesCfg[type] || defaultTemplates[type];
     
     template = template.replace(/{nombreCliente}/g, reserva.jugador?.nombre ?? 'jugador');
     template = template.replace(/{cancha}/g, cancha.nombre);
@@ -270,12 +284,13 @@ function DetalleReservaBody({
     template = template.replace(/{montoSena}/g, `${reserva.monto_sena}`);
     
     return `https://wa.me/${telefonoTitular.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(template)}`;
-  }, [telefonoTitular, club?.config, reserva, cancha]);
+  };
 
-  async function handleEnviarWhatsAppYConfirmar(): Promise<void> {
-    if (!wspUrl) return;
-    window.open(wspUrl, '_blank');
-    if (reserva.estado === 'pendiente' && !readOnly) {
+  async function handleEnviarWhatsApp(type: 'confirmacion' | 'cancelacion' | 'torneo'): Promise<void> {
+    const url = getWhatsAppUrlForTemplate(type);
+    if (!url) return;
+    window.open(url, '_blank');
+    if (type === 'confirmacion' && reserva.estado === 'pendiente' && !readOnly) {
       try {
         const updated = await actualizarMutation.mutateAsync({
           id: reserva.id,
@@ -761,20 +776,49 @@ function DetalleReservaBody({
               </p>
             )}
             <div className="flex flex-col items-end gap-1">
-              {wspUrl ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setAccionError(null);
-                    void handleEnviarWhatsAppYConfirmar();
-                  }}
-                  disabled={cerrarMutation.isPending || actualizarMutation.isPending}
-                >
-                  {reserva.estado === 'pendiente' && !readOnly
-                    ? 'Enviar WhatsApp y confirmar'
-                    : 'Enviar WhatsApp'}
-                </Button>
+              {telefonoTitular ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={cerrarMutation.isPending || actualizarMutation.isPending}
+                      className="gap-2"
+                    >
+                      <span>Enviar WhatsApp</span>
+                      <ChevronDown className="h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setAccionError(null);
+                        void handleEnviarWhatsApp('confirmacion');
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Confirmar Reserva
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setAccionError(null);
+                        void handleEnviarWhatsApp('cancelacion');
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Avisar Cancelación
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setAccionError(null);
+                        void handleEnviarWhatsApp('torneo');
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Recordatorio Torneo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
                 <p className="text-[11px] text-muted-foreground">
                   Titular sin teléfono válido. Agregá el número en la ficha del jugador para enviar WhatsApp.

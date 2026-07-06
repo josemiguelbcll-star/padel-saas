@@ -104,6 +104,8 @@ export interface ResumenFinanciero {
    * reportes futuros de flujo de caja.
    */
   compras_mercaderia_periodo: number;
+  /** Serie de ingresos diarios (opcional para deduplicación de query). */
+  ingresos_diarios?: any[];
 }
 
 export const RESUMEN_FINANCIERO_QUERY_KEY = (anio: number, mes: number) =>

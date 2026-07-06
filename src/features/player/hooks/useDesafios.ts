@@ -26,7 +26,8 @@ export function useDesafios() {
   const { data: desafios = [], isLoading, refetch } = useQuery({
     queryKey: ['desafios'],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('No hay sesión activa');
 
       const { data: jugadorApp } = await supabase

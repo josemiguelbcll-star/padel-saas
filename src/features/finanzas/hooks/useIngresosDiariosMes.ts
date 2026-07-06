@@ -1,6 +1,5 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { mapPostgrestError } from '@/lib/dbErrors';
+import { type UseQueryResult } from '@tanstack/react-query';
+import { useResumenFinanciero } from './useResumenFinanciero';
 
 export interface PuntoIngresoDiario {
   /** YYYY-MM-DD */
@@ -21,9 +20,7 @@ export interface IngresosDiariosMes {
 }
 
 export const INGRESOS_DIARIOS_MES_QUERY_KEY = (anio: number, mes: number) =>
-  ['ingresos_diarios_mes', anio, mes] as const;
-
-
+  ['resumen_financiero', anio, mes] as const;
 
 /**
  * Serie diaria de ingresos del mes (criterio caja: lo que entró el día).
@@ -31,26 +28,26 @@ export const INGRESOS_DIARIOS_MES_QUERY_KEY = (anio: number, mes: number) =>
  * ventas + otros ingresos. Pensado para alimentar un gráfico de línea
  * con acumulado.
  *
- * Días sin movimiento tienen monto=0, para que el gráfico no tenga
- * "agujeros" y el acumulado avance monotónico.
+ * Optimizado para reutilizar la query de `useResumenFinanciero` bajo la misma
+ * queryKey, evitando llamar al pesado RPC `fn_obtener_resumen_financiero` dos veces.
  */
 export function useIngresosDiariosMes(
   anio: number,
   mes: number,
 ): UseQueryResult<IngresosDiariosMes, Error> {
-  return useQuery<IngresosDiariosMes, Error>({
-    queryKey: INGRESOS_DIARIOS_MES_QUERY_KEY(anio, mes),
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('fn_obtener_resumen_financiero', {
-        p_anio: anio,
-        p_mes: mes,
-      });
-      if (error) throw new Error(mapPostgrestError(error));
-      return {
+  const query = useResumenFinanciero(anio, mes);
+
+  // Mapeamos los datos manteniendo la estructura requerida
+  const mappedData: IngresosDiariosMes | undefined = query.data
+    ? {
         anio,
         mes,
-        serie: data.ingresos_diarios,
-      } as IngresosDiariosMes;
-    },
-  });
+        serie: query.data.ingresos_diarios || [],
+      }
+    : undefined;
+
+  return {
+    ...query,
+    data: mappedData,
+  } as unknown as UseQueryResult<IngresosDiariosMes, Error>;
 }

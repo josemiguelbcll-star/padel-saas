@@ -21,7 +21,8 @@ export function useJugadorAmigos() {
     queryKey: ['jugador-amigos'],
     queryFn: async () => {
       // Obtener el ID del jugador_app actual
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('No hay sesión activa');
 
       const { data: jugadorApp } = await (withTimeout(
@@ -30,7 +31,7 @@ export function useJugadorAmigos() {
           .select('id')
           .eq('auth_user_id', user.id)
           .single() as any,
-        8000,
+        20000,
         'useJugadorAmigos:jugadores_app',
       ) as any);
 
@@ -41,7 +42,7 @@ export function useJugadorAmigos() {
           .from('jugador_amigos')
           .select('jugador_app_id_1, jugador_app_id_2, confirmado, vinculado_en')
           .or(`jugador_app_id_1.eq.${jugadorApp.id},jugador_app_id_2.eq.${jugadorApp.id}`) as any,
-        8000,
+        20000,
         'useJugadorAmigos:jugador_amigos',
       ) as any);
 
@@ -66,7 +67,7 @@ export function useJugadorAmigos() {
           .from('jugadores_app')
           .select('id, nombre_display, alias, genero, categoria, avatars_path')
           .in('id', friendIds) as any,
-        8000,
+        20000,
         'useJugadorAmigos:jugadores_app_friends',
       ) as any);
 
@@ -109,7 +110,8 @@ export function useJugadorAmigos() {
   const agregarAmigo = useCallback(async (jugadorDestino: { id: string; nombre_display: string }) => {
     setError(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('No hay sesión activa');
 
       const { data: jugadorApp } = await supabase
@@ -144,7 +146,8 @@ export function useJugadorAmigos() {
   const confirmarAmigo = useCallback(async (amigoId: string) => {
     setError(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('No hay sesión activa');
 
       const { data: jugadorApp } = await supabase

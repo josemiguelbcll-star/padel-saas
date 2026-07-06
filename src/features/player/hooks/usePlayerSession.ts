@@ -25,7 +25,7 @@ async function fetchPhase(userId: string): Promise<'onboarding' | 'app'> {
     .eq('auth_user_id', userId)
     .maybeSingle();
 
-  const { data } = await (withTimeout(promise as any, 15000, 'fetchPhase:jugadores_app') as any);
+  const { data } = await (withTimeout(promise as any, 25000, 'fetchPhase:jugadores_app') as any);
   return data?.nombre_display ? 'app' : 'onboarding';
 }
 
@@ -69,7 +69,8 @@ export function usePlayerSession(): PlayerSessionState {
 
   // ── completeOnboarding: guarda el perfil mínimo y avanza ─────────────────
   const completeOnboarding = async ({ nombre, telefono }: CompleteOnboardingData) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) throw new Error('Sin sesión activa');
 
     const nombreCorto = nombre.trim().split(' ')[0] ?? nombre.trim();
