@@ -218,8 +218,6 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
       )}
 
       <div style={{
-        height: '100%', overflowY: 'auto',
-        background: '#F8F9FC',
         fontFamily: "'Inter', sans-serif",
       }}>
 

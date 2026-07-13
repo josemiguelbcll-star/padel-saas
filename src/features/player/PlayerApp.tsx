@@ -276,44 +276,50 @@ export function PlayerApp() {
       {/* ── Contenido ──────────────────────────────────────────── */}
       <div className="mgp-content">
         {clubSlug ? (
-          <ClubProfilePage
-            slugProp={clubSlug}
-            onBack={() => setClubSlug(null)}
-            onReservaCreada={() => {
-              setClubSlug(null);
-              setTab('partidos');
-              setNotification('¡Pre-reserva realizada! Recordá enviar la seña para confirmar tu turno.');
-              // Recargar reservas para mostrar la nueva
-              reload();
-            }}
-          />
+          <div className="mgp-tab-wrapper" style={{ padding: 0 }}>
+            <ClubProfilePage
+              slugProp={clubSlug}
+              onBack={() => setClubSlug(null)}
+              onReservaCreada={() => {
+                setClubSlug(null);
+                setTab('partidos');
+                setNotification('¡Pre-reserva realizada! Recordá enviar la seña para confirmar tu turno.');
+                // Recargar reservas para mostrar la nueva
+                reload();
+              }}
+            />
+          </div>
         ) : (
           <>
-            {tab === 'home'     && (
+            <div className="mgp-tab-wrapper" style={{ display: tab === 'home' ? 'block' : 'none' }}>
               <HomeTab
                 onGoReservar={() => { navigate('/player/reservar'); setTab('reservar'); }}
                 onGoJugar={() => { navigate('/player/jugar'); setTab('jugar'); }}
                 onGoPartidos={() => { navigate('/player/partidos'); setTab('partidos'); }}
                 proximaReserva={proximas[0] ?? null}
               />
-            )}
-            {tab === 'reservar' && <ExplorarTab onSelectClub={setClubSlug} />}
-            {tab === 'jugar'    && <JugarTab />}
-            {tab === 'partidos' && (
+            </div>
+            <div className="mgp-tab-wrapper" style={{ display: tab === 'reservar' ? 'block' : 'none', padding: 0 }}>
+              <ExplorarTab onSelectClub={setClubSlug} />
+            </div>
+            <div className="mgp-tab-wrapper" style={{ display: tab === 'jugar' ? 'block' : 'none' }}>
+              <JugarTab />
+            </div>
+            <div className="mgp-tab-wrapper" style={{ display: tab === 'partidos' ? 'block' : 'none' }}>
               <PartidosTab
                 proximas={proximas}
                 historial={historial}
                 isLoading={isLoadingReservas}
               />
-            )}
-            {tab === 'perfil'   && (
+            </div>
+            <div className="mgp-tab-wrapper" style={{ display: tab === 'perfil' ? 'block' : 'none', background: '#F8F9FC', padding: 0 }}>
               <PerfilTab
-                onLogout={() => { navigate('/player/perfil'); setTab('perfil'); logout(); }}
+                onLogout={() => { navigate('/player'); setTab('home'); void logout(); }}
                 proximas={proximas}
                 historial={historial}
                 isLoadingReservas={isLoadingReservas}
               />
-            )}
+            </div>
           </>
         )}
       </div>

@@ -95,7 +95,12 @@ export function usePlayerSession(): PlayerSessionState {
 
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = async () => {
-    await supabase.auth.signOut();
+    setPhase('auth');
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[usePlayerSession] Error signing out:', err);
+    }
   };
 
   return {

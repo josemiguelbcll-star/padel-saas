@@ -174,7 +174,7 @@ export function ExplorarTab({ onSelectClub }: { onSelectClub: (slug: string) => 
   const { data: clubs, isLoading, error } = useClubsPublicos();
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '16px 16px 80px' }}>
+    <div style={{ padding: '16px 16px 80px' }}>
 
       <p style={{
         fontFamily: "'Poppins', sans-serif",
