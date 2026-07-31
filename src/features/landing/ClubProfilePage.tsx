@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Clock, Phone, Globe, Instagram,
@@ -557,10 +557,17 @@ export function ClubProfilePage({
     return paramHora;
   });
   const [bookingSlot,  setBookingSlot]  = useState<BookingSlot | null>(null);
+  const [logoError, setLogoError] = useState(false);
+  const [portadaError, setPortadaError] = useState(false);
 
   const dispQuery = useDisponibilidadClub(slug ?? '', fecha);
   const allSlots  = dispQuery.data ?? [];
   const times     = availableTimes(allSlots, fecha);
+
+  useEffect(() => {
+    setLogoError(false);
+    setPortadaError(false);
+  }, [slug, fecha]);
 
   function pickDate(d: string) {
     if (d < todayISO()) return;
@@ -660,8 +667,14 @@ export function ClubProfilePage({
 
       {/* ── Hero photo ── */}
       <div className="relative h-52 w-full overflow-hidden bg-muted sm:h-72">
-        {portada ? (
-          <img src={portada.url} alt={club.nombre} className="h-full w-full object-cover" loading="eager" />
+        {portada && !portadaError ? (
+          <img
+            src={portada.url}
+            alt={club.nombre}
+            onError={() => setPortadaError(true)}
+            className="h-full w-full object-cover"
+            loading="eager"
+          />
         ) : (
           <img
             src="https://images.pexels.com/photos/32474981/pexels-photo-32474981/free-photo-of-indoor-padel-court-with-blue-surface.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600&fit=crop"
@@ -672,8 +685,13 @@ export function ClubProfilePage({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
         <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
-          {logoUrl && (
-            <img src={logoUrl} alt={club.nombre} className="h-14 w-14 shrink-0 rounded-2xl border-2 border-white bg-white p-1.5 shadow-xl sm:h-16 sm:w-16" />
+          {logoUrl && !logoError && (
+            <img
+              src={logoUrl}
+              alt={club.nombre}
+              onError={() => setLogoError(true)}
+              className="h-14 w-14 shrink-0 rounded-2xl border-2 border-white bg-white p-1.5 shadow-xl sm:h-16 sm:w-16"
+            />
           )}
           <div className="min-w-0 flex-1 pb-0.5">
             <h1 className="truncate text-lg font-black text-white sm:text-2xl">{club.nombre}</h1>

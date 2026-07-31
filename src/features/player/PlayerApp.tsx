@@ -1,7 +1,7 @@
 import './player.css';
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { usePlayerSession } from './hooks/usePlayerSession';
+import { PlayerSessionProvider, usePlayerSession } from './auth/PlayerSessionProvider';
 import { useMyReservas } from './hooks/useMyReservas';
 import { PlayerLoginPage } from './auth/PlayerLoginPage';
 import { PlayerOnboarding } from './auth/PlayerOnboarding';
@@ -91,7 +91,7 @@ const TAB_TITLE: Record<PlayerTab, string> = {
   perfil:   'Mi perfil',
 };
 
-export function PlayerApp() {
+function PlayerAppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { phase, login, completeOnboarding, logout } = usePlayerSession();
@@ -331,6 +331,7 @@ export function PlayerApp() {
             key={item.id}
             className={`mgp-tab${tab === item.id ? ' active' : ''}`}
             onClick={() => {
+              setClubSlug(null);
               setTab(item.id);
               navigate(item.id === 'home' ? '/player' : `/player/${item.id}`);
             }}
@@ -345,5 +346,13 @@ export function PlayerApp() {
         ))}
       </nav>
     </div>
+  );
+}
+
+export function PlayerApp() {
+  return (
+    <PlayerSessionProvider>
+      <PlayerAppContent />
+    </PlayerSessionProvider>
   );
 }

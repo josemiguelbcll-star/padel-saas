@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useClubsPublicos } from '@/features/landing/hooks/useClubsPublicos';
 import { fetchClubPublico } from '@/features/landing/hooks/useClubPublico';
@@ -33,6 +34,9 @@ interface ClubCardProps {
 function ClubCard({ club, onSelect }: ClubCardProps) {
   const queryClient = useQueryClient();
   const foto = courtPhoto(club.id, club.portada_url);
+  const [fotoError, setFotoError] = useState(false);
+
+  const displayFoto = fotoError ? COURT_PHOTOS[0]! : foto;
 
   const handlePrefetch = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -83,8 +87,9 @@ function ClubCard({ club, onSelect }: ClubCardProps) {
         border: '1px solid #E2E8F0',
       }}>
         <img 
-          src={foto} 
+          src={displayFoto} 
           alt={club.nombre} 
+          onError={() => setFotoError(true)}
           style={{ 
             width: '100%', 
             height: '100%', 

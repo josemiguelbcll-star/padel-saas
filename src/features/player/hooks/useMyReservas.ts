@@ -1,7 +1,7 @@
 /**
  * useMyReservas — carga las reservas del jugador autenticado via teléfono.
  *
- * Llama a fn_mis_reservas_app() (migración 0078), que hace el matching
+ * Llama a fn_mis_reservas_app() (migración 0078/0090), que hace el matching
  * cross-club por teléfono normalizado (+54XXXXXXXXXX).
  *
  * Devuelve:
@@ -10,10 +10,10 @@
  *   sinTelefono — true cuando la RPC devolvió vacío porque no hay teléfono
  */
 
-import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/network';
+import { usePlayerSession } from './usePlayerSession';
 
 export interface MiReservaReal {
   id:            number;
@@ -81,30 +81,30 @@ export function colorEstado(estado: string): { text: string; bg: string; border:
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useMyReservas() {
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Escuchar cambios en el estado de autenticación (el primer disparo entrega el estado inicial)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { userId } = usePlayerSession();
 
   const query = useQuery({
     queryKey: ['my-reservas', userId],
     queryFn: async () => {
       if (!userId) return [];
-      // Llamada RPC con timeout para evitar bloqueos aleatorios
-      const rpcPromise = supabase.rpc('fn_mis_reservas_app') as any;
-      const { data, error: rpcError } = await (withTimeout(rpcPromise, 20000, 'fn_mis_reservas_app') as any);
-      if (rpcError) throw rpcError;
-      return (data as MiReservaReal[]) ?? [];
+
+      try {
+        const rpcPromise = supabase.rpc('fn_mis_reservas_app') as any;
+        const { data, error: rpcError } = await (withTimeout(rpcPromise, 5000, 'fn_mis_reservas_app') as any);
+        if (rpcError) {
+          console.warn('[useMyReservas] error en fn_mis_reservas_app:', rpcError.message);
+          return [];
+        }
+        return (data as MiReservaReal[]) ?? [];
+      } catch (err) {
+        console.warn('[useMyReservas] timeout o excepción en fn_mis_reservas_app:', err);
+        return [];
+      }
     },
     enabled: !!userId,
     staleTime: 1000 * 60 * 2, // Caché por 2 minutos
     gcTime: 1000 * 60 * 10,
+    retry: 1,
   });
 
   const reservas = query.data ?? [];
