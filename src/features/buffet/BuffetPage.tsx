@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, Plus, Users, UtensilsCrossed } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, FileSpreadsheet, Plus, Users, UtensilsCrossed } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
@@ -16,6 +16,7 @@ import { CerrarMesaDialog } from './CerrarMesaDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ImportarStockDialog } from './ImportarStockDialog';
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,7 @@ export function BuffetPage() {
   const [cerrarOpen, setCerrarOpen] = useState(false);
   const [cerrarMesaOpen, setCerrarMesaOpen] = useState(false);
   const [nuevaMesaOpen, setNuevaMesaOpen] = useState(false);
+  const [importarStockOpen, setImportarStockOpen] = useState(false);
   const [nuevaMesaName, setNuevaMesaName] = useState('');
 
   // Buffet Mesa Hooks
@@ -76,7 +78,7 @@ export function BuffetPage() {
   }, [selectedMesa, selectedMesaId]);
 
   // Banner feedback
-  const [lastSale, setLastSale] = useState<{ total: number; msg?: string } | null>(null);
+  const [lastSale, setLastSale] = useState<{ total?: number; msg?: string } | null>(null);
   useEffect(() => {
     if (lastSale === null) return;
     const id = window.setTimeout(() => setLastSale(null), 5000);
@@ -218,8 +220,15 @@ export function BuffetPage() {
           </p>
         </div>
 
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {canEdit && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setImportarStockOpen(true)}>
+              <FileSpreadsheet />
+              Importar Excel
+            </Button>
+          )}
         {/* Tab switcher */}
-        <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground self-start sm:self-auto">
+        <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
           <button
             type="button"
             onClick={() => {
@@ -246,6 +255,7 @@ export function BuffetPage() {
             Mesas Activas
           </button>
         </div>
+        </div>
       </header>
 
       {lastSale && (
@@ -263,11 +273,10 @@ export function BuffetPage() {
             aria-hidden="true"
           />
           <span className="text-foreground">
-            {lastSale.msg || 'Venta registrada por'}{' '}
-            <span className="font-semibold tabular-nums">
-              {currencyFmt.format(lastSale.total)}
-            </span>
-            .
+            {lastSale.msg || 'Venta registrada por'}
+            {lastSale.total !== undefined && (
+              <> <span className="font-semibold tabular-nums">{currencyFmt.format(lastSale.total)}</span></>
+            )}.
           </span>
         </div>
       )}
@@ -454,6 +463,16 @@ export function BuffetPage() {
           setCerrarMesaOpen(false);
           setSelectedMesaId(null);
           setLastSale({ total: venta.monto_total, msg: `${selectedMesa?.nombre} cobrada con éxito por` });
+        }}
+      />
+
+      <ImportarStockDialog
+        open={importarStockOpen}
+        onOpenChange={setImportarStockOpen}
+        onSuccess={(result, sede) => {
+          setLastSale({
+            msg: `Stock ${sede} importado: ${result.creados} productos nuevos, ${result.actualizados} actualizados`,
+          });
         }}
       />
 
