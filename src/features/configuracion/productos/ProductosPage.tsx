@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  FileSpreadsheet,
   PackagePlus,
   Pencil,
   Plus,
@@ -20,6 +21,7 @@ import { useSession } from '@/features/auth';
 import { useDeleteProducto } from '@/features/configuracion/hooks/useProductos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
 import type { Linea, Producto, ProductoConStock } from '@/types/database';
+import { ImportarStockDialog } from '@/features/buffet/ImportarStockDialog';
 import { CargarStockDialog } from './CargarStockDialog';
 import { ProductoFormDialog } from './ProductoFormDialog';
 import { CATEGORIA_LABEL, LINEA_LABEL } from './productoSchema';
@@ -40,6 +42,7 @@ export function ProductosPage() {
 
   const [tabActivo, setTabActivo] = useState<Linea>('buffet');
   const [formOpen, setFormOpen] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
   const [editing, setEditing] = useState<Producto | null>(null);
   const [cargarOpen, setCargarOpen] = useState(false);
   const [cargarTarget, setCargarTarget] = useState<ProductoConStock | null>(
@@ -116,10 +119,16 @@ export function ProductosPage() {
           </p>
         </div>
         {isAdmin && (
-          <Button type="button" onClick={openNew} className="shrink-0">
-            <Plus className="h-4 w-4" />
-            Agregar producto
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button type="button" variant="outline" onClick={() => setImportarOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Importar Excel
+            </Button>
+            <Button type="button" onClick={openNew}>
+              <Plus className="h-4 w-4" />
+              Agregar producto
+            </Button>
+          </div>
         )}
       </header>
 
@@ -227,6 +236,12 @@ export function ProductosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportarStockDialog
+        open={importarOpen}
+        onOpenChange={setImportarOpen}
+        onSuccess={() => {}}
+      />
     </section>
   );
 }

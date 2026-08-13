@@ -144,6 +144,59 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {!isEdit && (
+          <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-muted-foreground">Deporte / Ajuste Rápido:</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() =>
+                  setState((prev) => ({
+                    ...prev,
+                    nombre: prev.nombre || 'Cancha 1 (Tenis)',
+                    tipo: 'Tenis (Polvo de ladrillo)',
+                  }))
+                }
+              >
+                🎾 Tenis
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() =>
+                  setState((prev) => ({
+                    ...prev,
+                    nombre: prev.nombre || 'Cancha 1 (Pickleball)',
+                    tipo: 'Pickleball (Outdoor)',
+                  }))
+                }
+              >
+                🏓 Pickleball
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() =>
+                  setState((prev) => ({
+                    ...prev,
+                    nombre: prev.nombre || 'Cancha 1 (Pádel)',
+                    tipo: 'Pádel (Cristal)',
+                  }))
+                }
+              >
+                🔲 Pádel
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="cancha-nombre">Nombre</Label>
           <Input
@@ -162,7 +215,7 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="cancha-tipo">Tipo</Label>
+          <Label htmlFor="cancha-tipo">Tipo / Deporte</Label>
           <Input
             id="cancha-tipo"
             list="cancha-tipo-sugerencias"
@@ -170,17 +223,24 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
             onChange={(e) => setState({ ...state, tipo: e.target.value })}
             maxLength={40}
             disabled={isPending}
-            placeholder="cristal, cemento, muro…"
+            placeholder="Tenis, Pickleball, Pádel cristal, cemento…"
             aria-invalid={errors.tipo ? true : undefined}
           />
           <datalist id="cancha-tipo-sugerencias">
+            <option value="Tenis (Polvo de ladrillo)" />
+            <option value="Tenis (Cemento)" />
+            <option value="Tenis (Césped)" />
+            <option value="Pickleball (Outdoor)" />
+            <option value="Pickleball (Indoor)" />
+            <option value="Pádel (Cristal)" />
+            <option value="Pádel (Muro)" />
             <option value="cristal" />
             <option value="cemento" />
             <option value="muro" />
           </datalist>
           {errors.tipo && <p className="text-xs text-destructive">{errors.tipo}</p>}
           <p className="text-xs text-muted-foreground">
-            Texto libre. Si no especificás, la cancha queda sin tipo.
+            Podés especificar el deporte o tipo de superficie.
           </p>
         </div>
 

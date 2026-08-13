@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, Loader2, Upload } from 'lucide-react';
+import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -70,9 +70,24 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
         <DialogHeader>
           <DialogTitle>Importar stock desde Excel</DialogTitle>
           <DialogDescription>
-            Compatible con el formato de STOCK.xlsx. Actualiza nombre, categoría, costo, precio y deja el stock igual al valor de la sede elegida.
+            Cargá masivamente tus productos, costos, precios y stock. Podés usar tu propio Excel o descargar nuestra plantilla predefinida.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <FileSpreadsheet className="h-4 w-4 text-primary shrink-0" />
+            <span>¿No tenés una plantilla armada?</span>
+          </div>
+          <a
+            href="/plantilla_importacion_stock.xlsx"
+            download="plantilla_importacion_stock.xlsx"
+            className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Descargar plantilla Excel
+          </a>
+        </div>
 
         <input
           ref={inputRef}

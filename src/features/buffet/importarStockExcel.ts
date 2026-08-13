@@ -26,32 +26,94 @@ function numero(value: unknown): number | null {
 }
 
 function sedeDeHoja(nombreHoja: string): string | null {
-  const match = nombreHoja.trim().match(/\s+(DOMO|SIGNO)$/i);
+  const match = nombreHoja.trim().match(/(?:\s+|^)(DOMO|SIGNO)$/i);
   return match?.[1] ? match[1].toUpperCase() : null;
-}
-
-function columnasDeHoja(nombreHoja: string): {
-  nombre: number;
-  stock: number;
-  costo: number;
-  precio: number;
-  categoria: CategoriaBuffet;
-} {
-  const esCocaOSpeed = /^(COCA|SPEED)\b/i.test(nombreHoja.trim());
-  return {
-    // SheetJS recorta las columnas vacías que están antes del rango usado.
-    // En este archivo la primera columna real es la B de Excel, que llega
-    // al navegador como índice 0.
-    nombre: esCocaOSpeed ? 1 : 0,
-    stock: esCocaOSpeed ? 2 : 1,
-    costo: esCocaOSpeed ? 3 : 2,
-    precio: 4,
-    categoria: /^SNACKS\b/i.test(nombreHoja.trim()) ? 'snacks' : 'bebidas',
-  };
 }
 
 function normalizarNombre(value: unknown): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+}
+
+function normalizarCategoria(value: unknown, fallback: CategoriaBuffet): CategoriaBuffet {
+  if (typeof value !== 'string') return fallback;
+  const lower = value.trim().toLowerCase();
+  if (lower.includes('snack')) return 'snacks';
+  if (lower.includes('comida') || lower.includes('alimento')) return 'comidas';
+  if (lower.includes('bebida') || lower.includes('trago')) return 'bebidas';
+  if (lower.includes('otro')) return 'otros';
+  return fallback;
+}
+
+interface ColumnMapping {
+  nombre: number;
+  stock: number;
+  costo: number;
+  precio: number;
+  categoria?: number;
+  categoriaDefault: CategoriaBuffet;
+}
+
+function detectarColumnas(
+  rows: unknown[][],
+  nombreHoja: string,
+): { cols: ColumnMapping; startRow: number } {
+  const esCocaOSpeed = /^(COCA|SPEED)\b/i.test(nombreHoja.trim());
+  const categoriaDefault: CategoriaBuffet = /^SNACKS\b/i.test(nombreHoja.trim()) ? 'snacks' : 'bebidas';
+
+  // Buscar fila de encabezado en las primeras 10 filas
+  for (let r = 0; r < Math.min(rows.length, 10); r++) {
+    const row = rows[r];
+    if (!Array.isArray(row)) continue;
+
+    let nombreIdx = -1;
+    let stockIdx = -1;
+    let costoIdx = -1;
+    let precioIdx = -1;
+    let catIdx = -1;
+
+    for (let c = 0; c < row.length; c++) {
+      const cellText = String(row[c] ?? '').trim().toLowerCase();
+      if (!cellText) continue;
+
+      if (nombreIdx === -1 && /^(producto|nombre|articulo|artículo|item|descripción|descripcion)$/i.test(cellText)) {
+        nombreIdx = c;
+      } else if (stockIdx === -1 && /^(stock|cantidad|cant|unidades)$/i.test(cellText)) {
+        stockIdx = c;
+      } else if (costoIdx === -1 && /^(costo|costo_unitario|p\.?\s*costo|precio_costo)$/i.test(cellText)) {
+        costoIdx = c;
+      } else if (precioIdx === -1 && /^(precio|p\.?\s*vta|pvta|precio_venta|p_vta|precio vta|precio\.venta)$/i.test(cellText)) {
+        precioIdx = c;
+      } else if (catIdx === -1 && /^(categoria|categoría|linea|línea|tipo)$/i.test(cellText)) {
+        catIdx = c;
+      }
+    }
+
+    if (nombreIdx !== -1 && (stockIdx !== -1 || precioIdx !== -1)) {
+      return {
+        cols: {
+          nombre: nombreIdx,
+          stock: stockIdx !== -1 ? stockIdx : (esCocaOSpeed ? 2 : 1),
+          costo: costoIdx !== -1 ? costoIdx : (esCocaOSpeed ? 3 : 2),
+          precio: precioIdx !== -1 ? precioIdx : 4,
+          categoria: catIdx !== -1 ? catIdx : undefined,
+          categoriaDefault,
+        },
+        startRow: r + 1,
+      };
+    }
+  }
+
+  // Si no hay encabezados detectables, usar posiciones por defecto
+  return {
+    cols: {
+      nombre: esCocaOSpeed ? 1 : 0,
+      stock: esCocaOSpeed ? 2 : 1,
+      costo: esCocaOSpeed ? 3 : 2,
+      precio: 4,
+      categoriaDefault,
+    },
+    startRow: 0,
+  };
 }
 
 export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
@@ -59,8 +121,20 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
   const productosPorSede: Record<string, ProductoStockExcel[]> = {};
   const filasOmitidasPorSede: Record<string, number> = {};
 
+  // Primero verificar si alguna hoja termina en DOMO o SIGNO
+  const tieneSedesReconocidas = workbook.SheetNames.some((h) => sedeDeHoja(h) !== null);
+
   for (const nombreHoja of workbook.SheetNames) {
-    const sede = sedeDeHoja(nombreHoja);
+    let sede: string | null = null;
+
+    if (tieneSedesReconocidas) {
+      sede = sedeDeHoja(nombreHoja);
+    } else {
+      // Fallback: usar el nombre de la hoja limpia o 'DOMO' como sede por defecto
+      const clean = nombreHoja.trim();
+      sede = /^(hoja|sheet)\d*$/i.test(clean) ? 'DOMO' : clean.toUpperCase();
+    }
+
     if (!sede) continue;
 
     const sheet = workbook.Sheets[nombreHoja];
@@ -70,27 +144,33 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
       raw: true,
       defval: null,
     });
-    const cols = columnasDeHoja(nombreHoja);
-    productosPorSede[sede] ??= [];
+
+    const { cols, startRow } = detectarColumnas(rows, nombreHoja);
+    const list = (productosPorSede[sede] ??= []);
     filasOmitidasPorSede[sede] ??= 0;
 
-    for (const row of rows) {
+    for (let i = startRow; i < rows.length; i++) {
+      const row = rows[i];
+      if (!Array.isArray(row)) continue;
+
       const nombre = normalizarNombre(row[cols.nombre]);
       const stock = numero(row[cols.stock]);
       const precio = numero(row[cols.precio]);
       const costo = numero(row[cols.costo]);
+      const catValor = cols.categoria !== undefined ? row[cols.categoria] : null;
+      const categoria = normalizarCategoria(catValor, cols.categoriaDefault);
 
       if (!nombre) continue;
       if (stock === null || stock < 0 || !Number.isInteger(stock) || precio === null || precio <= 0) {
-        if (!/^(articulo|fecha|cant|costo|p\.?\s*vta|lays|semix)$/i.test(nombre)) {
-          filasOmitidasPorSede[sede] += 1;
+        if (!/^(articulo|producto|fecha|cant|costo|p\.?\s*vta|lays|semix|notas|categoria)$/i.test(nombre)) {
+          filasOmitidasPorSede[sede] = (filasOmitidasPorSede[sede] ?? 0) + 1;
         }
         continue;
       }
 
-      productosPorSede[sede].push({
+      list.push({
         nombre,
-        categoria: cols.categoria,
+        categoria,
         precio,
         costo: costo !== null && costo >= 0 ? costo : null,
         stock,
@@ -113,8 +193,9 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
     (sede) => (productosPorSede[sede]?.length ?? 0) > 0,
   );
   if (sedes.length === 0) {
-    throw new Error('No encontramos hojas de stock compatibles. Esperábamos hojas terminadas en DOMO o SIGNO.');
+    throw new Error('No encontramos filas válidas con datos de productos, stock y precio en el archivo Excel.');
   }
 
   return { sedes, productosPorSede, filasOmitidasPorSede };
 }
+

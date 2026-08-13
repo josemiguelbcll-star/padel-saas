@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Building2 } from 'lucide-react';
+import { AlertTriangle, Building2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +17,7 @@ import { useCambiarPlanClub } from './hooks/useCambiarPlanClub';
 import { useCambiarEstadoClub } from './hooks/useCambiarEstadoClub';
 import { useClubesPlataforma } from './hooks/useClubesPlataforma';
 import { usePlanesDisponibles } from './hooks/usePlanesDisponibles';
+import { useResetearClub } from './hooks/useResetearClub';
 
 const fechaFmt = new Intl.DateTimeFormat('es-AR', {
   year: 'numeric',
@@ -80,23 +81,31 @@ export function DetalleClubDialog({
   const planesQuery = usePlanesDisponibles();
   const cambiarPlan = useCambiarPlanClub();
   const cambiarEstado = useCambiarEstadoClub();
+  const resetearMutation = useResetearClub();
 
   const [error, setError] = useState<string | null>(null);
   const [confirmingEstado, setConfirmingEstado] = useState<EstadoClub | null>(
     null,
   );
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [limpiarCatalogo, setLimpiarCatalogo] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   // Reset al abrir o cambiar de club.
   useEffect(() => {
     if (open) {
       setError(null);
       setConfirmingEstado(null);
+      setConfirmingReset(false);
+      setLimpiarCatalogo(false);
+      setResetSuccess(false);
     }
   }, [open, clubId]);
 
   const club = clubesQuery.data?.find((c) => c.id === clubId) ?? null;
   const planes = planesQuery.data ?? [];
-  const anyPending = cambiarPlan.isPending || cambiarEstado.isPending;
+  const anyPending =
+    cambiarPlan.isPending || cambiarEstado.isPending || resetearMutation.isPending;
 
   function handleOpenChange(next: boolean): void {
     if (anyPending) return;
@@ -261,6 +270,88 @@ export function DetalleClubDialog({
                   </div>
                 </div>
               )}
+
+              {/* Zona de Peligro: Resetear datos de prueba */}
+              <section className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-semibold text-destructive uppercase tracking-wider">
+                      Zona de Control · Resetear Datos
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Eliminá reservas, cobros, ventas, gastos y cajas de prueba para iniciar el club desde $0.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0 gap-1.5"
+                    onClick={() => setConfirmingReset(true)}
+                    disabled={anyPending}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Resetear Datos
+                  </Button>
+                </div>
+
+                {confirmingReset && (
+                  <div className="mt-3 space-y-3 border-t border-destructive/20 pt-3">
+                    <div className="space-y-2 text-xs">
+                      <p className="font-semibold text-foreground">
+                        ¿Confirmás el borrado masivo de datos de prueba para "{club.nombre}"?
+                      </p>
+                      <label className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={limpiarCatalogo}
+                          onChange={(e) => setLimpiarCatalogo(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span>Limpiar también el catálogo de productos y canchas de prueba</span>
+                      </label>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfirmingReset(false)}
+                        disabled={resetearMutation.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={async () => {
+                          setError(null);
+                          try {
+                            await resetearMutation.mutateAsync({
+                              clubId: club.id,
+                              limpiarCatalogo,
+                            });
+                            setConfirmingReset(false);
+                            setResetSuccess(true);
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Error al resetear datos.');
+                          }
+                        }}
+                        disabled={resetearMutation.isPending}
+                      >
+                        {resetearMutation.isPending ? 'Reseteando…' : 'Sí, Resetear Cuenta'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {resetSuccess && (
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    ✓ Datos del club reseteados exitosamente. El club quedó en $0.
+                  </p>
+                )}
+              </section>
 
               {error && (
                 <div
