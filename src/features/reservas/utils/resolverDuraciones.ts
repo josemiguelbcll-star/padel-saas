@@ -91,8 +91,12 @@ function franjaAplicaA(
   }
 
   if (franja.desde_hora !== null && franja.hasta_hora !== null) {
+    const hastaNorm =
+      franja.hasta_hora === '00:00' || franja.hasta_hora === '00:00:00'
+        ? '24:00:00'
+        : franja.hasta_hora;
     if (compararHoras(hora, franja.desde_hora) < 0) return false;
-    if (compararHoras(hora, franja.hasta_hora) >= 0) return false;
+    if (compararHoras(hora, hastaNorm) >= 0) return false;
   }
 
   return true;

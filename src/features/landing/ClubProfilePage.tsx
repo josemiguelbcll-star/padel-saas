@@ -10,6 +10,8 @@ import { useClubPublico, type FotoClub, type CanchaPublica, type ClubPublico } f
 import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibilidadClub';
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
 
+import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
+
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 function todayISO() {
@@ -21,11 +23,7 @@ function addDays(iso: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 function calcDuracion(hi: string, hf: string): number {
-  const parts1 = hi.slice(0, 5).split(':').map(Number);
-  const parts2 = hf.slice(0, 5).split(':').map(Number);
-  const h1 = parts1[0] ?? 0, m1 = parts1[1] ?? 0;
-  const h2 = parts2[0] ?? 0, m2 = parts2[1] ?? 0;
-  return (h2 * 60 + m2) - (h1 * 60 + m1);
+  return diferenciaMinutos(hi, hf);
 }
 function formatTime(t: string) {
   const formatted = t.length >= 5 ? t.slice(0, 5) : t;

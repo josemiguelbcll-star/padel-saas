@@ -53,9 +53,13 @@ function franjasSolapan(
   cierreMin: number,
 ): boolean {
   const aDesde = a.desde_hora ? horaToMinutos(a.desde_hora) : aperturaMin;
-  const aHasta = a.hasta_hora ? horaToMinutos(a.hasta_hora) : cierreMin;
+  let aHasta = a.hasta_hora ? horaToMinutos(a.hasta_hora) : cierreMin;
+  if (a.hasta_hora && aHasta === 0) aHasta = Math.max(1440, cierreMin);
+
   const bDesde = b.desde_hora ? horaToMinutos(b.desde_hora) : aperturaMin;
-  const bHasta = b.hasta_hora ? horaToMinutos(b.hasta_hora) : cierreMin;
+  let bHasta = b.hasta_hora ? horaToMinutos(b.hasta_hora) : cierreMin;
+  if (b.hasta_hora && bHasta === 0) bHasta = Math.max(1440, cierreMin);
+
   return Math.max(aDesde, bDesde) < Math.min(aHasta, bHasta);
 }
 

@@ -115,7 +115,12 @@ export function calcularOcupacion(insumos: InsumosOcupacion): ResultadoOcupacion
     return { porcentaje: null, minutosOcupados, minutosDisponibles: 0 };
   }
 
-  const ventana = horaAMinutos(horaCierre) - horaAMinutos(horaApertura);
+  const aperturaMin = horaAMinutos(horaApertura);
+  let cierreMin = horaAMinutos(horaCierre);
+  if (cierreMin <= aperturaMin) {
+    cierreMin += 1440;
+  }
+  const ventana = cierreMin - aperturaMin;
   if (ventana <= 0) {
     return { porcentaje: null, minutosOcupados, minutosDisponibles: 0 };
   }

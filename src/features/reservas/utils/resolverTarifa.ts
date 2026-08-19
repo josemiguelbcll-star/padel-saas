@@ -101,8 +101,12 @@ function tarifaAplicaA(
   }
 
   if (tarifa.desde_hora !== null && tarifa.hasta_hora !== null) {
+    const hastaNorm =
+      tarifa.hasta_hora === '00:00' || tarifa.hasta_hora === '00:00:00'
+        ? '24:00:00'
+        : tarifa.hasta_hora;
     if (compararHoras(hora, tarifa.desde_hora) < 0) return false;
-    if (compararHoras(hora, tarifa.hasta_hora) >= 0) return false;
+    if (compararHoras(hora, hastaNorm) >= 0) return false;
   }
 
   // Duración (0051): se excluye solo si hay duración objetivo Y la tarifa

@@ -102,7 +102,7 @@ const schema = z
     (d) =>
       d.desde_hora === '' ||
       d.hasta_hora === '' ||
-      d.desde_hora < d.hasta_hora,
+      d.desde_hora < (d.hasta_hora === '00:00' || d.hasta_hora === '00:00:00' ? '24:00' : d.hasta_hora),
     {
       message: 'Hasta debe ser posterior a desde.',
       path: ['hasta_hora'],

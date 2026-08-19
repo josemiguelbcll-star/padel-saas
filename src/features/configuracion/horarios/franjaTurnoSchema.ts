@@ -58,7 +58,7 @@ export const franjaTurnoSchema = z
     (d) =>
       d.desde_hora === null ||
       d.hasta_hora === null ||
-      d.hasta_hora > d.desde_hora,
+      (d.hasta_hora === '00:00' || d.hasta_hora === '00:00:00' ? '24:00' : d.hasta_hora) > d.desde_hora,
     {
       message: 'El "hasta" tiene que ser posterior al "desde".',
       path: ['hasta_hora'],

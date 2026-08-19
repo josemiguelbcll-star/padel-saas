@@ -101,3 +101,16 @@ export function minutosToHora(minutos: number): string {
   const m = total % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
+
+/**
+ * Calcula la diferencia en minutos entre dos horas 'HH:MM' o 'HH:MM:SS'.
+ * Soporta el traspaso de medianoche (ej: '22:00' a '00:00' -> 120 min).
+ */
+export function diferenciaMinutos(horaInicio: string, horaFin: string): number {
+  const min1 = horaToMinutos(horaInicio);
+  let min2 = horaToMinutos(horaFin);
+  if (min2 <= min1) {
+    min2 += 1440;
+  }
+  return min2 - min1;
+}
