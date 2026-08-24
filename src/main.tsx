@@ -78,3 +78,18 @@ createRoot(rootElement).render(
     </Sentry.ErrorBoundary>
   </StrictMode>,
 );
+
+// Registrar Service Worker para Notificaciones Push de la PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        console.info('[PWA] Service Worker registrado:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('[PWA] Error al registrar Service Worker:', error);
+      });
+  });
+}
+

@@ -40,10 +40,21 @@ export function useNotificaciones() {
         .select('*')
         .eq('jugador_app_id', playerApp.id)
         .order('fecha', { ascending: false })
-        .limit(20);
+        .limit(40);
 
       if (error) throw new Error(mapPostgrestError(error));
-      return (data ?? []) as Notificacion[];
+      
+      // Filtrar: Desaparece si ya está leída o de forma automática/periódica tras 3 días (72 horas)
+      const limiteFecha = new Date();
+      limiteFecha.setHours(limiteFecha.getHours() - 72);
+
+      const filtradas = (data ?? []).filter((n: any) => {
+        if (n.leido) return false;
+        const fechaNotif = new Date(n.fecha);
+        return fechaNotif >= limiteFecha;
+      });
+
+      return filtradas as Notificacion[];
     },
     enabled: !!user,
     staleTime: 1000 * 30, // 30 segundos

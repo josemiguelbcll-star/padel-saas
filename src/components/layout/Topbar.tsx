@@ -16,6 +16,8 @@ import { useSession } from '@/features/auth';
 import { CajaEstadoBadge } from '@/features/caja';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 import { useLiveNotifications } from '@/hooks/useLiveNotifications';
+import { Switch } from '@/components/ui/switch';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -38,6 +40,27 @@ function rolLabel(rol: 'admin' | 'vendedor' | undefined): string {
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { user, club, signOut } = useSession();
   const { notifications, unreadCount, markAllAsRead } = useLiveNotifications();
+  const { webPushActivo, solicitarPermisoWebPush, desactivarWebPush } = usePushNotifications();
+  const [toggling, setToggling] = useState(false);
+
+  const handleTogglePush = async (checked: boolean) => {
+    if (!user?.id) return;
+    setToggling(true);
+    try {
+      if (checked) {
+        const success = await solicitarPermisoWebPush(user.id);
+        if (!success) {
+          alert('No se pudieron activar las notificaciones. Asegurate de dar permisos en tu navegador.');
+        }
+      } else {
+        await desactivarWebPush(user.id);
+      }
+    } catch (err) {
+      console.error('[WebPush] Error al alternar notificaciones:', err);
+    } finally {
+      setToggling(false);
+    }
+  };
 
   // Logo: si el path falla cargar (archivo borrado, network, path
   // stale tras un cleanup parcial), caemos elegante a "solo nombre"
@@ -177,6 +200,19 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               </span>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <div 
+            className="flex items-center justify-between px-3 py-2 text-sm"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="text-xs text-muted-foreground font-medium">Notificaciones Push</span>
+            <Switch
+              checked={webPushActivo}
+              disabled={toggling}
+              onCheckedChange={handleTogglePush}
+            />
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
