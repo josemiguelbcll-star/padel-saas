@@ -59,6 +59,9 @@ export function JugarTab() {
   const [nota, setNota] = useState('');
   const [visibilidad, setVisibilidad] = useState<'cualquiera' | 'amigos'>('cualquiera');
 
+  // Amigos seleccionados para invitar en la creación
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+
   // Datos manuales (si no tiene reserva o elige no usarla)
   const [clubNombreManual, setClubNombreManual] = useState('');
   const [canchaNombreManual, setCanchaNombreManual] = useState('Cancha 1');
@@ -84,7 +87,7 @@ export function JugarTab() {
     }
 
     try {
-      await publicarPartido.mutateAsync({
+      const partido = await publicarPartido.mutateAsync({
         reservaId: isManual ? null : Number(selectedReservaId),
         categoria,
         faltanJugadores,
@@ -97,12 +100,27 @@ export function JugarTab() {
         horaInicioManual: isManual ? horaInicioManual : undefined,
       });
 
+      // Invitar amigos seleccionados directamente
+      if (partido && selectedFriendIds.length > 0) {
+        for (const friendId of selectedFriendIds) {
+          try {
+            await invitarAmigo.mutateAsync({
+              partidoId: partido.id,
+              amigoId: friendId,
+            });
+          } catch (err) {
+            console.error('Error al invitar amigo', friendId, err);
+          }
+        }
+      }
+
       // Limpiar formulario y cerrar modal
       setSelectedReservaId('manual');
       setNota('');
       setClubNombreManual('');
       setCanchaNombreManual('Cancha 1');
       setVisibilidad('cualquiera');
+      setSelectedFriendIds([]);
       setModalOpen(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al publicar partido');
@@ -478,6 +496,7 @@ export function JugarTab() {
                 type="button"
                 onClick={() => {
                   setSelectedReservaId('manual');
+                  setSelectedFriendIds([]);
                   setModalOpen(false);
                 }}
                 style={{ background: '#F1F5F9', border: 'none', borderRadius: 99, width: 32, height: 32, cursor: 'pointer', fontWeight: 700, color: '#64748B' }}
@@ -517,7 +536,7 @@ export function JugarTab() {
                     📅 Fecha: <span style={{ fontWeight: 500 }}>{formatFechaReserva(reservaSeleccionada.fecha)}</span>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                    🕒 Hora: <span style={{ fontWeight: 500 }}>{formatHoraReserva(reservaSeleccionada.hora_inicio)} hs</span>
+                    🕒 Hora: <span style={{ fontWeight: 500 }}>{formatHoraReserva(reservaSeleccionada.hora_inicio) } hs</span>
                   </div>
                 </div>
               )}
@@ -638,6 +657,53 @@ export function JugarTab() {
                   style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
                 />
               </div>
+
+              {/* Seleccionar amigos a invitar directamente */}
+              {amigosConfirmados.length > 0 && (
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 6 }}>
+                    Invitar amigos directamente (opcional)
+                  </label>
+                  <div style={{
+                    maxHeight: 120, overflowY: 'auto',
+                    border: '1.5px solid #E2E8F0', borderRadius: 12,
+                    padding: 8, display: 'flex', flexDirection: 'column', gap: 6
+                  }}>
+                    {amigosConfirmados.map(amigo => {
+                      const isChecked = selectedFriendIds.includes(amigo.id);
+                      return (
+                        <label
+                          key={amigo.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            fontSize: 13, color: '#374151', cursor: 'pointer',
+                            padding: '4px 6px', borderRadius: 8,
+                            background: isChecked ? '#F0FDF4' : 'transparent',
+                            transition: 'background-color 0.15s'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedFriendIds(prev => [...prev, amigo.id]);
+                              } else {
+                                setSelectedFriendIds(prev => prev.filter(id => id !== amigo.id));
+                              }
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <span style={{ fontWeight: 600 }}>{amigo.nombre_display}</span>
+                          {amigo.alias && (
+                            <span style={{ fontSize: 11, color: '#94A3B8' }}>@{amigo.alias}</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
