@@ -10,6 +10,9 @@ import {
 } from '../hooks/usePartidosAbiertos';
 import { formatFechaReserva, formatHoraReserva } from '../hooks/useMyReservas';
 
+// Importar Diálogo del Perfil
+import { PlayerProfileDialog } from './PlayerProfileDialog';
+
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -41,6 +44,9 @@ export function FeedCentralSimple() {
   // ID del jugador_app actual
   const [miJugadorId, setMiJugadorId] = useState<string>('');
 
+  // Estado para ver el perfil de un jugador
+  const [activePlayerProfileId, setActivePlayerProfileId] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadId() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -68,6 +74,13 @@ export function FeedCentralSimple() {
     );
   }
 
+  // Filtrar solo partidos futuros/activos para el feed de inicio
+  const hoy = new Date().toISOString().slice(0, 10);
+  const partidosActivos = (partidos ?? []).filter(p => {
+    const fecha = p.reserva ? p.reserva.fecha : p.fecha_manual;
+    return fecha && fecha >= hoy;
+  });
+
   return (
     <div className="space-y-5">
 
@@ -83,22 +96,30 @@ export function FeedCentralSimple() {
             const p = inv.partido;
             const orgNombre = p.organizador?.nombre_display || 'Un amigo';
             const orgAlias = p.organizador?.alias ? `@${p.organizador.alias}` : '';
+            const orgId = p.organizador_id;
 
             return (
               <div key={inv.id} className="bg-white border border-indigo-100 p-3 rounded-xl shadow-sm flex flex-col gap-2">
                 <div className="flex items-center gap-3">
                   {p.organizador?.foto_url ? (
                     <div 
-                      className="h-9 w-9 rounded-full bg-cover bg-center shrink-0 border border-indigo-200"
+                      onClick={() => orgId && setActivePlayerProfileId(orgId)}
+                      className="h-9 w-9 rounded-full bg-cover bg-center shrink-0 border border-indigo-200 cursor-pointer"
                       style={{ backgroundImage: `url(${p.organizador.foto_url})` }}
                     />
                   ) : (
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0">
+                    <div 
+                      onClick={() => orgId && setActivePlayerProfileId(orgId)}
+                      className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-extrabold text-xs shrink-0 cursor-pointer"
+                    >
                       {orgNombre.charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-800">
+                    <p 
+                      onClick={() => orgId && setActivePlayerProfileId(orgId)}
+                      className="text-xs font-bold text-slate-800 cursor-pointer hover:underline"
+                    >
                       {orgNombre} {orgAlias} te invitó a jugar
                     </p>
                     <p className="text-[11px] text-slate-500 font-medium truncate">
@@ -139,12 +160,12 @@ export function FeedCentralSimple() {
       )}
 
       {/* ── Partidos Abiertos de la Comunidad ── */}
-      {partidos && partidos.length > 0 && (
+      {partidosActivos && partidosActivos.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 px-2">
             🎾 Partidos abiertos de la comunidad
           </h3>
-          {partidos.slice(0, 5).map((p) => {
+          {partidosActivos.slice(0, 5).map((p) => {
             const esOrganizador = p.organizador_id === miJugadorId;
             const confirmados = p.participantes.filter(pt => pt.confirmado);
             const vacantesRestantes = Math.max(0, p.faltan_jugadores - confirmados.length);
@@ -159,7 +180,10 @@ export function FeedCentralSimple() {
                 className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div 
+                    onClick={() => setActivePlayerProfileId(p.organizador_id)}
+                    className="flex items-center gap-2 min-w-0 cursor-pointer"
+                  >
                     {p.organizador?.foto_url ? (
                       <div 
                         className="h-8 w-8 rounded-full bg-cover bg-center shrink-0 border border-slate-200"
@@ -171,7 +195,7 @@ export function FeedCentralSimple() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">
+                      <p className="text-xs font-bold text-slate-800 truncate hover:underline">
                         {p.organizador?.nombre_display || 'Jugador'}
                       </p>
                       <p className="text-[10px] text-slate-400">Organizador</p>
@@ -336,11 +360,19 @@ export function FeedCentralSimple() {
       )}
 
       {/* Empty state */}
-      {(!noticias || noticias.length === 0) && (!turnosAbiertos || turnosAbiertos.length === 0) && (!invitaciones || invitaciones.length === 0) && (!partidos || partidos.length === 0) && (
+      {(!noticias || noticias.length === 0) && (!turnosAbiertos || turnosAbiertos.length === 0) && (!invitaciones || invitaciones.length === 0) && (partidosActivos.length === 0) && (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 py-12 text-center">
           <p style={{ fontSize: 14, color: '#64748B', fontWeight: 600 }}>No hay novedades ni partidos</p>
           <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>Vuelve más tarde 🎾</p>
         </div>
+      )}
+
+      {/* ── Dialog Perfil de Jugador ── */}
+      {activePlayerProfileId && (
+        <PlayerProfileDialog
+          jugadorId={activePlayerProfileId}
+          onClose={() => setActivePlayerProfileId(null)}
+        />
       )}
     </div>
   );

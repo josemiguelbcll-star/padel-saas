@@ -13,6 +13,7 @@ export interface Amigo {
   confirmado:     boolean;
   vinculado_en:   string;
   soySolicitante: boolean; // true si yo mandé la solicitud, false si me la mandaron a mí
+  auth_user_id?:  string; // UUID de auth.users del amigo
 }
 
 export function useJugadorAmigos() {
@@ -67,8 +68,7 @@ export function useJugadorAmigos() {
       const { data: amigosRows, error: amigosError } = await (withTimeout(
         supabase
           .from('jugadores_app')
-          .select('id, nombre_display, alias, genero, categoria, foto_url')
-          .in('id', friendIds) as any,
+          .select('id, nombre_display, alias, genero, categoria, foto_url, auth_user_id') as any,
         20000,
         'useJugadorAmigos:jugadores_app_friends',
       ) as any);
@@ -122,6 +122,7 @@ export function useJugadorAmigos() {
           confirmado: rel.confirmado,
           vinculado_en: rel.vinculado_en,
           soySolicitante,
+          auth_user_id: amigoData.auth_user_id,
         } as Amigo;
       });
     },

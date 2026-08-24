@@ -1,20 +1,47 @@
 import { useState, useEffect } from 'react';
 import { formatFechaReserva, formatHoraReserva, useMyReservas } from '../hooks/useMyReservas';
 import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import { supabase } from '@/lib/supabase';
 import { 
   usePartidosAbiertos, 
   usePartidosMutations
 } from '../hooks/usePartidosAbiertos';
 
+// Diálogos de Perfil y Puntuación
+import { PlayerProfileDialog } from '../components/PlayerProfileDialog';
+import { CalificarParticipantesDialog } from '../components/CalificarParticipantesDialog';
+
 const CATEGORIAS = ['Todos', '5ta', '6ta', '7ta', '8va', 'Abierto'];
 
+function isPartidoPasado(p: any): boolean {
+  const fechaStr = p.reserva ? p.reserva.fecha : p.fecha_manual;
+  const horaStr = p.reserva ? p.reserva.hora_inicio : p.hora_inicio_manual;
+  if (!fechaStr || !horaStr) return false;
+
+  // Combinar fecha y hora
+  const matchDateTime = new Date(`${fechaStr}T${horaStr.slice(0, 5)}`);
+  
+  // Duración aproximada del partido: 2 horas
+  matchDateTime.setHours(matchDateTime.getHours() + 2);
+  
+  return new Date() > matchDateTime;
+}
+
 export function JugarTab() {
+  const { profile } = usePlayerProfile();
   const [selectedCategoria, setSelectedCategoria] = useState<string>('Todos');
   const [modalOpen, setModalOpen] = useState(false);
   const [friendsModalOpen, setFriendsModalOpen] = useState(false);
   const [activePartidoIdForFriends, setActivePartidoIdForFriends] = useState<number | null>(null);
   
+  // Estado para ver el perfil de un jugador
+  const [activePlayerProfileId, setActivePlayerProfileId] = useState<string | null>(null);
+
+  // Estados para puntuar participantes
+  const [activePartidoIdForRating, setActivePartidoIdForRating] = useState<number | null>(null);
+  const [activePartidoCategoriaForRating, setActivePartidoCategoriaForRating] = useState<string>('');
+
   // ID real del jugador_app en la BD
   const [miJugadorId, setMiJugadorId] = useState<string>('');
 
@@ -40,7 +67,7 @@ export function JugarTab() {
   const { amigosConfirmados } = useJugadorAmigos();
 
   // Hook de partidos abiertos de la BD
-  const { partidos, isLoading: loadingPartidos } = usePartidosAbiertos();
+  const { partidos, isLoading: loadingPartidos, refetch } = usePartidosAbiertos();
 
   // Hook de mutaciones de partidos
   const { 
@@ -74,6 +101,10 @@ export function JugarTab() {
     return p.categoria === selectedCategoria;
   });
 
+  // Dividir partidos en activos (futuros) y pasados (historial para calificar)
+  const partidosActivos = partidosFiltrados.filter(p => !isPartidoPasado(p));
+  const partidosPasados = partidosFiltrados.filter(p => p.organizador_id === miJugadorId && isPartidoPasado(p));
+
   // Obtener info de la reserva seleccionada para mostrar en el formulario
   const reservaSeleccionada = reservasFuturas.find(r => r.id === Number(selectedReservaId));
 
@@ -100,7 +131,7 @@ export function JugarTab() {
         horaInicioManual: isManual ? horaInicioManual : undefined,
       });
 
-      // Invitar amigos seleccionados directamente
+      // Invitar amigos seleccionados directamente y enviarles push notifications
       if (partido && selectedFriendIds.length > 0) {
         for (const friendId of selectedFriendIds) {
           try {
@@ -108,6 +139,22 @@ export function JugarTab() {
               partidoId: partido.id,
               amigoId: friendId,
             });
+
+            // Disparar Web Push Notification a través de la API Serverless
+            const amigoObj = amigosConfirmados.find(a => a.id === friendId);
+            if (amigoObj?.auth_user_id) {
+              const miNombre = profile?.nombre || 'Un amigo';
+              void fetch('/api/send-pwa-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  user_id: amigoObj.auth_user_id,
+                  title: '🤝 Invitación a partido',
+                  body: `${miNombre} te invitó a jugar un partido.`,
+                  url: '/player'
+                })
+              }).catch(e => console.warn('[PWA-Push] Error al enviar:', e));
+            }
           } catch (err) {
             console.error('Error al invitar amigo', friendId, err);
           }
@@ -186,14 +233,14 @@ export function JugarTab() {
         })}
       </div>
 
-      {/* ── Lista de Partidos Abiertos Reales ── */}
+      {/* ── Lista de Partidos Abiertos Activos ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {loadingPartidos ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🎾</div>
             <p style={{ fontSize: 14, color: '#64748B' }}>Cargando partidos...</p>
           </div>
-        ) : partidosFiltrados.length === 0 ? (
+        ) : partidosActivos.length === 0 ? (
           <div style={{ background: '#ffffff', borderRadius: 20, border: '1.5px solid #E2E8F0', padding: '40px 24px', textAlign: 'center', margin: 'auto 0' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🤝</div>
             <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 17, color: '#0B1F4D', margin: '0 0 6px' }}>
@@ -204,7 +251,7 @@ export function JugarTab() {
             </p>
           </div>
         ) : (
-          partidosFiltrados.map(p => {
+          partidosActivos.map(p => {
             const esOrganizador = p.organizador_id === miJugadorId;
             const confirmados = p.participantes.filter(pt => pt.confirmado);
             const vacantesRestantes = Math.max(0, p.faltan_jugadores - confirmados.length);
@@ -233,7 +280,10 @@ export function JugarTab() {
               >
                 {/* Organizador y Visibilidad */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div 
+                    onClick={() => setActivePlayerProfileId(p.organizador_id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                  >
                     {p.organizador?.foto_url ? (
                       <div
                         style={{
@@ -305,7 +355,11 @@ export function JugarTab() {
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', margin: 0 }}>PARTICIPANTES CONFIRMADOS:</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {confirmados.map(pt => (
-                        <div key={pt.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F1F5F9', padding: '4px 8px', borderRadius: 20 }}>
+                        <div 
+                          key={pt.id} 
+                          onClick={() => setActivePlayerProfileId(pt.jugador_app_id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F1F5F9', padding: '4px 8px', borderRadius: 20, cursor: 'pointer' }}
+                        >
                           <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold' }}>
                             {pt.jugador?.nombre_display?.charAt(0).toUpperCase() || 'P'}
                           </div>
@@ -419,7 +473,10 @@ export function JugarTab() {
                       <p style={{ fontSize: 11, fontWeight: 800, color: '#B45309', margin: 0 }}>SOLICITUDES DE UNIÓN PENDIENTES:</p>
                       {solicitudesEntrantes.map(sol => (
                         <div key={sol.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#78350F' }}>
+                          <span 
+                            onClick={() => setActivePlayerProfileId(sol.jugador_app_id)}
+                            style={{ fontSize: 12, fontWeight: 700, color: '#78350F', cursor: 'pointer' }}
+                          >
                             {sol.jugador?.nombre_display}
                           </span>
                           <div style={{ display: 'flex', gap: 4 }}>
@@ -447,6 +504,65 @@ export function JugarTab() {
           })
         )}
       </div>
+
+      {/* ── Calificar Partidos Pasados (Solo si hay alguno del organizador en los últimos 7 días) ── */}
+      {!loadingPartidos && partidosPasados.length > 0 && (
+        <div style={{ marginTop: 24, borderTop: '2px dashed #E2E8F0', paddingTop: 20 }}>
+          <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: '#0B1F4D', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            ⭐ Calificar jugadores de partidos pasados
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {partidosPasados.map(p => {
+              const confirmados = p.participantes.filter(pt => pt.confirmado);
+              const calificados = confirmados.every(pt => pt.asistio !== null);
+              
+              if (confirmados.length === 0) return null; // No hay a quién calificar
+              
+              return (
+                <div 
+                  key={p.id} 
+                  style={{ 
+                    background: '#ffffff', 
+                    borderRadius: 16, 
+                    border: '1.5px solid #E2E8F0', 
+                    padding: 14, 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0B1F4D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748B', fontWeight: 500, marginTop: 2 }}>
+                      📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')} · Cat: <strong>{p.categoria}</strong>
+                    </div>
+                  </div>
+                  
+                  {calificados ? (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', padding: '6px 12px', borderRadius: 10, border: '1px solid #BBF7D0', flexShrink: 0 }}>
+                      ✓ Calificado
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePartidoIdForRating(p.id);
+                        setActivePartidoCategoriaForRating(p.categoria);
+                      }}
+                      style={{ padding: '8px 12px', borderRadius: 10, border: 'none', background: '#D9F23B', color: '#0B1F4D', fontWeight: 800, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      ⭐ Calificar ({confirmados.length})
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Botón Publicar Partido ── */}
       <div style={{ padding: '20px 0 10px' }}>
@@ -765,7 +881,10 @@ export function JugarTab() {
                         borderRadius: 14,
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div 
+                        onClick={() => setActivePlayerProfileId(amigo.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                      >
                         <div style={{
                           width: 32, height: 32, borderRadius: '50%',
                           background: 'linear-gradient(135deg, #0B1F4D 0%, #162d6b 100%)',
@@ -787,6 +906,21 @@ export function JugarTab() {
                             partidoId: activePartidoIdForFriends,
                             amigoId: amigo.id,
                           });
+
+                          // Enviar push notification al amigo
+                          if (amigo.auth_user_id) {
+                            const miNombre = profile?.nombre || 'Un amigo';
+                            void fetch('/api/send-pwa-push', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                user_id: amigo.auth_user_id,
+                                title: '🤝 Invitación a partido',
+                                body: `${miNombre} te invitó a jugar un partido.`,
+                                url: '/player'
+                              })
+                            }).catch(e => console.warn('[PWA-Push] Error al enviar:', e));
+                          }
                         }}
                         style={{
                           padding: '6px 12px',
@@ -808,6 +942,33 @@ export function JugarTab() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Dialog Perfil de Jugador ── */}
+      {activePlayerProfileId && (
+        <PlayerProfileDialog
+          jugadorId={activePlayerProfileId}
+          onClose={() => setActivePlayerProfileId(null)}
+        />
+      )}
+
+      {/* ── Dialog Calificar Oponentes ── */}
+      {activePartidoIdForRating !== null && (
+        <CalificarParticipantesDialog
+          partidoId={activePartidoIdForRating}
+          categoria={activePartidoCategoriaForRating}
+          onClose={() => {
+            setActivePartidoIdForRating(null);
+            setActivePartidoCategoriaForRating('');
+          }}
+          onSuccess={() => {
+            alert('¡Puntuaciones guardadas correctamente!');
+            setActivePartidoIdForRating(null);
+            setActivePartidoCategoriaForRating('');
+            // Refrescar partidos abiertos
+            void refetch();
+          }}
+        />
       )}
 
     </div>

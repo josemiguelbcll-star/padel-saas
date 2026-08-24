@@ -32,6 +32,8 @@ export interface PartidoAbiertoDb {
     jugador_app_id: string;
     confirmado: boolean;
     solicitado_by: 'organizador' | 'jugador';
+    asistio: boolean | null;
+    calificacion_nivel: string | null;
     jugador: {
       nombre_display: string;
       alias: string | null;
@@ -44,9 +46,12 @@ export function usePartidosAbiertos() {
   const query = useQuery<PartidoAbiertoDb[]>({
     queryKey: ['partidos-abiertos'],
     queryFn: async () => {
-      const hoy = new Date().toISOString().slice(0, 10);
+      // Permitir calificar partidos de hasta 7 días de antigüedad
+      const limitDate = new Date();
+      limitDate.setDate(limitDate.getDate() - 7);
+      const limiteFechaStr = limitDate.toISOString().slice(0, 10);
 
-      // 1. Obtener partidos abiertos activos (futuros)
+      // 1. Obtener partidos abiertos activos y recientes
       const { data: partidos, error: partidosError } = await supabase
         .from('partidos_abiertos')
         .select(`
@@ -66,8 +71,8 @@ export function usePartidosAbiertos() {
           reserva:reserva_id(
             fecha,
             hora_inicio,
-            club:clubes(nombre),
-            cancha:canchas(nombre)
+            club:club_id(nombre),
+            cancha:cancha_id(nombre)
           ),
           organizador:jugadores_app(
             id,
@@ -80,10 +85,10 @@ export function usePartidosAbiertos() {
 
       if (partidosError) throw partidosError;
 
-      // Filtrar fechas vigentes (reserva.fecha o fecha_manual >= hoy)
+      // Filtrar fechas vigentes y recientes (reserva.fecha o fecha_manual >= limiteFechaStr)
       const partidosFiltrados = (partidos ?? []).filter((p: any) => {
         const fecha = p.reserva ? p.reserva.fecha : p.fecha_manual;
-        return fecha && fecha >= hoy;
+        return fecha && fecha >= limiteFechaStr;
       });
 
       // 2. Obtener participantes e invitaciones para estos partidos
@@ -98,6 +103,8 @@ export function usePartidosAbiertos() {
           jugador_app_id,
           confirmado,
           solicitado_by,
+          asistio,
+          calificacion_nivel,
           jugador:jugadores_app(
             nombre_display,
             alias,
@@ -118,6 +125,8 @@ export function usePartidosAbiertos() {
           jugador_app_id: part.jugador_app_id,
           confirmado: part.confirmado,
           solicitado_by: part.solicitado_by,
+          asistio: part.asistio,
+          calificacion_nivel: part.calificacion_nivel,
           jugador: part.jugador as any,
         });
       }
@@ -190,8 +199,8 @@ export function useInvitacionesPendientes() {
             reserva:reserva_id(
               fecha,
               hora_inicio,
-              club:clubes(nombre),
-              cancha:canchas(nombre)
+              club:club_id(nombre),
+              cancha:cancha_id(nombre)
             )
           )
         `)

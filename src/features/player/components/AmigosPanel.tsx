@@ -3,16 +3,23 @@ import { UserPlus, CheckCircle, Clock, MessageCircle } from 'lucide-react';
 import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
 import { supabase } from '@/lib/supabase';
 
+// Importar Diálogo del Perfil
+import { PlayerProfileDialog } from './PlayerProfileDialog';
+
 interface AmigoItemProps {
   nombre: string;
   alias?: string | null;
   confirmado: boolean;
   onDesafiar?: () => void;
+  onClick?: () => void;
 }
 
-function AmigoItem({ nombre, alias, confirmado, onDesafiar }: AmigoItemProps) {
+function AmigoItem({ nombre, alias, confirmado, onDesafiar, onClick }: AmigoItemProps) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3">
+    <div 
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 ${onClick ? 'cursor-pointer hover:bg-slate-50 transition' : ''}`}
+    >
       {/* Avatar placeholder */}
       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-xs font-bold">
         {nombre.charAt(0).toUpperCase()}
@@ -21,7 +28,7 @@ function AmigoItem({ nombre, alias, confirmado, onDesafiar }: AmigoItemProps) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm text-gray-900 truncate">
-          {alias ? `${alias} (@${nombre.split(' ')[0]})` : nombre}
+          {nombre} {alias ? `(@${alias})` : ''}
         </p>
         <div className="flex items-center gap-1">
           {confirmado ? (
@@ -41,7 +48,11 @@ function AmigoItem({ nombre, alias, confirmado, onDesafiar }: AmigoItemProps) {
       {/* Botón desafiar */}
       {confirmado && onDesafiar && (
         <button
-          onClick={onDesafiar}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation(); // Evita abrir el perfil
+            onDesafiar();
+          }}
           className="flex-shrink-0 rounded-lg bg-blue-50 p-2 text-blue-600 hover:bg-blue-100 transition"
           title="Desafiar a jugar"
         >
@@ -56,9 +67,10 @@ interface BuscarAmigoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAgregar: (jugador: { id: string; nombre_display: string }) => Promise<void>;
+  onSelectPlayer: (id: string) => void;
 }
 
-function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps) {
+function BuscarAmigoModal({ isOpen, onClose, onAgregar, onSelectPlayer }: BuscarAmigoModalProps) {
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState<any[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -73,18 +85,24 @@ function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps)
     setBuscando(true);
     setError(null);
     try {
-      // Buscar en jugadores_app por nombre o alias
-      const { data, error: searchError } = await supabase
-        .from('jugadores_app')
-        .select('id, nombre_display, alias')
-        .or(`nombre_display.ilike.%${q}%,alias.ilike.%${q}%`)
-        .eq('activo', true)
-        .limit(10);
+      // Buscar jugadores excluyendo al usuario actual si es posible
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
 
-      if (searchError) throw searchError;
-      setResultados(data ?? []);
+      let query = supabase
+        .from('jugadores_app')
+        .select('id, nombre_display, alias, auth_user_id')
+        .or(`nombre_display.ilike.%${q}%,alias.ilike.%${q}%`)
+        .limit(15);
+
+      const { data, error: dbError } = await query;
+      if (dbError) throw dbError;
+
+      // Filtrar a mí mismo
+      const filtered = (data ?? []).filter(j => j.auth_user_id !== user?.id);
+      setResultados(filtered);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al buscar');
+      setError(err instanceof Error ? err.message : 'Error al buscar jugadores');
     } finally {
       setBuscando(false);
     }
@@ -95,8 +113,8 @@ function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps)
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+      <div 
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
@@ -114,7 +132,7 @@ function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps)
         <div className="px-4 py-3 border-b border-gray-200">
           <input
             type="text"
-            placeholder="Nombre del jugador..."
+            placeholder="Nombre o alias del jugador..."
             value={busqueda}
             onChange={(e) => {
               setBusqueda(e.target.value);
@@ -148,21 +166,27 @@ function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps)
           {resultados.map((jugador) => (
             <div
               key={jugador.id}
-              className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50"
+              onClick={() => {
+                onSelectPlayer(jugador.id);
+                onClose();
+              }}
+              className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 cursor-pointer transition"
             >
               <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">
                 {jugador.nombre_display.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
+                <p className="text-sm font-semibold text-gray-900 truncate hover:underline">
                   {jugador.nombre_display}
                 </p>
                 {jugador.alias && (
-                  <p className="text-xs text-gray-500">{jugador.alias}</p>
+                  <p className="text-xs text-gray-500">@{jugador.alias}</p>
                 )}
               </div>
               <button
-                onClick={async () => {
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation(); // Evita abrir el perfil
                   await onAgregar({ id: jugador.id, nombre_display: jugador.nombre_display });
                   onClose();
                 }}
@@ -198,8 +222,18 @@ export function AmigosPanel() {
     agregarAmigo,
     confirmarAmigo,
     rechazarAmigo,
+    refetch,
   } = useJugadorAmigos();
+
   const [showBuscar, setShowBuscar] = useState(false);
+
+  // Estado para ver el perfil de un jugador
+  const [activePlayerProfileId, setActivePlayerProfileId] = useState<string | null>(null);
+
+  const handleProfileClose = () => {
+    setActivePlayerProfileId(null);
+    void refetch(); // Refrescar lista de amigos tras interactuar en el perfil
+  };
 
   return (
     <div className="space-y-4">
@@ -216,6 +250,7 @@ export function AmigosPanel() {
         isOpen={showBuscar}
         onClose={() => setShowBuscar(false)}
         onAgregar={agregarAmigo}
+        onSelectPlayer={(id) => setActivePlayerProfileId(id)}
       />
 
       {isLoading ? (
@@ -236,8 +271,14 @@ export function AmigosPanel() {
                 </h3>
               </div>
               {solicitudesRecibidas.map((amigo) => (
-                <div key={amigo.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-200/80 shadow-sm">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div 
+                  key={amigo.id} 
+                  className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-200/80 shadow-sm"
+                >
+                  <div 
+                    onClick={() => setActivePlayerProfileId(amigo.id)}
+                    className="flex items-center gap-3 min-w-0 cursor-pointer"
+                  >
                     {amigo.foto_url ? (
                       <div
                         className="h-10 w-10 rounded-full bg-cover bg-center shrink-0 border border-amber-300"
@@ -249,7 +290,7 @@ export function AmigosPanel() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="font-bold text-sm text-slate-900 truncate">
+                      <p className="font-bold text-sm text-slate-900 truncate hover:underline">
                         {amigo.nombre_display}
                       </p>
                       {amigo.alias && (
@@ -284,13 +325,19 @@ export function AmigosPanel() {
                 Solicitudes enviadas ({solicitudesEnviadas.length})
               </h3>
               {solicitudesEnviadas.map((amigo) => (
-                <div key={amigo.id} className="flex items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div 
+                  key={amigo.id} 
+                  className="flex items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200"
+                >
+                  <div 
+                    onClick={() => setActivePlayerProfileId(amigo.id)}
+                    className="flex items-center gap-3 min-w-0 cursor-pointer"
+                  >
                     <div className="h-9 w-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
                       {amigo.nombre_display.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-sm text-slate-700 truncate">
+                      <p className="font-semibold text-sm text-slate-700 truncate hover:underline">
                         {amigo.nombre_display}
                       </p>
                       <p className="text-xs text-slate-400">Esperando respuesta...</p>
@@ -320,6 +367,7 @@ export function AmigosPanel() {
                   nombre={amigo.nombre_display}
                   alias={amigo.alias}
                   confirmado={true}
+                  onClick={() => setActivePlayerProfileId(amigo.id)}
                 />
               ))}
             </div>
@@ -336,6 +384,14 @@ export function AmigosPanel() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Dialog Perfil de Jugador ── */}
+      {activePlayerProfileId && (
+        <PlayerProfileDialog
+          jugadorId={activePlayerProfileId}
+          onClose={handleProfileClose}
+        />
       )}
     </div>
   );
