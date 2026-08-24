@@ -15,12 +15,12 @@ export function DetalleReservaDrawer({ r, onClose }: DetalleReservaDrawerProps) 
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 z-[140] bg-black/50 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
 
       {/* Drawer */}
-      <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white shadow-2xl overflow-y-auto p-6 max-h-[85vh] animate-slide-up">
+      <div className="fixed inset-x-0 bottom-0 z-[150] rounded-t-3xl bg-white shadow-2xl overflow-y-auto p-6 pb-10 max-h-[85vh] animate-slide-up">
         {/* Drag handle decoration */}
         <div className="mx-auto w-12 h-1.5 bg-slate-200 rounded-full mb-5" />
 
@@ -46,7 +46,7 @@ export function DetalleReservaDrawer({ r, onClose }: DetalleReservaDrawerProps) 
         </div>
 
         {/* Details Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-slate-50 p-3 rounded-2xl">
             <span className="text-[10px] text-slate-400 font-semibold tracking-wider block mb-1">FECHA</span>
             <span className="text-sm font-semibold text-slate-800">{formatFechaReserva(r.fecha)}</span>
@@ -57,13 +57,9 @@ export function DetalleReservaDrawer({ r, onClose }: DetalleReservaDrawerProps) 
               {formatHoraReserva(r.hora_inicio)} - {formatHoraReserva(r.hora_fin)}
             </span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-2xl">
+          <div className="bg-slate-50 p-3 rounded-2xl col-span-2">
             <span className="text-[10px] text-slate-400 font-semibold tracking-wider block mb-1">DURACIÓN</span>
             <span className="text-sm font-semibold text-slate-800">{r.duracion_min} minutos</span>
-          </div>
-          <div className="bg-slate-50 p-3 rounded-2xl">
-            <span className="text-[10px] text-slate-400 font-semibold tracking-wider block mb-1">ID DE TURNO</span>
-            <span className="text-sm font-mono text-slate-600">#{r.id}</span>
           </div>
         </div>
 

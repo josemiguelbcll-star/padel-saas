@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { PlayerProfile, Categoria, Genero } from '../hooks/usePlayerProfile';
-import { esTelefonoValido, errorTelefono } from '../utils/telefonoArg';
+import type { PlayerProfile, Categoria, Genero, PosicionPadel, ManoDominante } from '../hooks/usePlayerProfile';
+import { errorTelefono } from '../utils/telefonoArg';
 
 const CATEGORIAS: { id: Categoria; label: string }[] = [
   { id: '1ra', label: '1ª' }, { id: '2da', label: '2ª' },
@@ -15,6 +15,17 @@ const GENEROS: { id: Genero; label: string; icon: string }[] = [
   { id: 'masculino',     label: 'Masculino',    icon: '♂' },
   { id: 'femenino',      label: 'Femenino',     icon: '♀' },
   { id: 'no_especifica', label: 'No especifica', icon: '—' },
+];
+
+const POSICIONES: { id: PosicionPadel; label: string; icon: string }[] = [
+  { id: 'drive', label: 'Drive', icon: '↙️' },
+  { id: 'reves', label: 'Revés', icon: '↘️' },
+  { id: 'ambos', label: 'Ambos', icon: '🔄' },
+];
+
+const MANOS: { id: ManoDominante; label: string; icon: string }[] = [
+  { id: 'diestro', label: 'Diestro', icon: '✋' },
+  { id: 'zurdo',   label: 'Zurdo',   icon: '🤚' },
 ];
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -86,11 +97,9 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
     .trim().split(' ').slice(0, 2)
     .map(w => w[0]?.toUpperCase() ?? '').join('') || '?';
 
-  // Teléfono: obligatorio y debe ser formato argentino válido
-  const telError = errorTelefono(form.telefono);
-  const canSave  = form.nombre.trim().length >= 2
-                && form.telefono.trim() !== ''
-                && esTelefonoValido(form.telefono);
+  // Teléfono: si se ingresó debe ser un formato argentino válido
+  const telError = form.telefono.trim() ? errorTelefono(form.telefono) : null;
+  const canSave  = form.nombre.trim().length >= 2 && !telError;
 
   /*
    * ARQUITECTURA DEL OVERLAY
@@ -335,6 +344,58 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
                     }}>
                     <span style={{ fontSize: 18 }}>{g.icon}</span>
                     <span style={{ fontSize: 11 }}>{g.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel>Posición preferida en la cancha</FieldLabel>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {POSICIONES.map(p => {
+                const sel = form.posicion === p.id;
+                return (
+                  <button key={p.id} type="button"
+                    onClick={() => set('posicion', sel ? '' : p.id)}
+                    style={{
+                      flex: 1, padding: '12px 8px', borderRadius: 12,
+                      border: `2px solid ${sel ? '#39C54A' : '#E2E8F0'}`,
+                      background: sel ? '#F0FDF4' : '#fff',
+                      color: sel ? '#0B1F4D' : '#374151',
+                      fontSize: 13, fontWeight: sel ? 700 : 500,
+                      cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                      transition: 'all 0.15s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    }}>
+                    <span style={{ fontSize: 18 }}>{p.icon}</span>
+                    <span style={{ fontSize: 11 }}>{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel>Mano dominante</FieldLabel>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {MANOS.map(m => {
+                const sel = form.mano === m.id;
+                return (
+                  <button key={m.id} type="button"
+                    onClick={() => set('mano', sel ? '' : m.id)}
+                    style={{
+                      flex: 1, padding: '12px 8px', borderRadius: 12,
+                      border: `2px solid ${sel ? '#0B1F4D' : '#E2E8F0'}`,
+                      background: sel ? '#0B1F4D' : '#fff',
+                      color: sel ? '#fff' : '#374151',
+                      fontSize: 13, fontWeight: sel ? 700 : 500,
+                      cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                      transition: 'all 0.15s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    }}>
+                    <span style={{ fontSize: 18 }}>{m.icon}</span>
+                    <span style={{ fontSize: 11 }}>{m.label}</span>
                   </button>
                 );
               })}

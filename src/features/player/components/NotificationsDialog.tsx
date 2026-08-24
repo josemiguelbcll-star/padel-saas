@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Bell, CheckCheck, X, Calendar } from 'lucide-react';
+import { Bell, CheckCheck, X, Calendar, UserPlus } from 'lucide-react';
 import { useNotificaciones } from '../hooks/useNotificaciones';
+import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
 import { cn } from '@/lib/utils';
-
 
 export function NotificationsBell() {
   const { unreadCount, notificaciones, marcarLeida, marcarTodasLeidas } = useNotificaciones();
+  const { solicitudesRecibidas, pendientesRecibidasCount, confirmarAmigo, rechazarAmigo } = useJugadorAmigos();
   const [open, setOpen] = useState(false);
+
+  const totalUnread = unreadCount + pendientesRecibidasCount;
 
   return (
     <>
@@ -16,9 +19,9 @@ export function NotificationsBell() {
         aria-label="Abrir notificaciones"
       >
         <Bell className="h-5 w-5 text-white" />
-        {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white ring-2 ring-[#0B1F4D]">
-            {unreadCount}
+        {totalUnread > 0 && (
+          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white ring-2 ring-[#0B1F4D] animate-pulse">
+            {totalUnread}
           </span>
         )}
       </button>
@@ -45,9 +48,9 @@ export function NotificationsBell() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-extrabold text-slate-800">Notificaciones</h3>
-                {unreadCount > 0 && (
+                {totalUnread > 0 && (
                   <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">
-                    {unreadCount} nuevas
+                    {totalUnread} nuevas
                   </span>
                 )}
               </div>
@@ -72,15 +75,57 @@ export function NotificationsBell() {
             </div>
 
             {/* Notifications List */}
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
-              {notificaciones.length === 0 ? (
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+              
+              {/* Solicitudes de amistad pendientes de responder */}
+              {solicitudesRecibidas.map((amigo) => (
+                <div
+                  key={`solicitud-${amigo.id}`}
+                  className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/90 shadow-sm flex flex-col gap-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-extrabold text-xs shrink-0">
+                      <UserPlus className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-extrabold text-amber-900 leading-tight">
+                        ¡Nueva solicitud de amistad!
+                      </h4>
+                      <p className="text-xs text-amber-800 font-medium mt-0.5 truncate">
+                        <strong>{amigo.nombre_display}</strong> {amigo.alias ? `(@${amigo.alias})` : ''} quiere ser tu amigo.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-200/60">
+                    <button
+                      onClick={async () => {
+                        await confirmarAmigo(amigo.id);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg transition"
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await rechazarAmigo(amigo.id);
+                      }}
+                      className="bg-slate-200/80 hover:bg-slate-300 text-slate-700 text-xs font-bold px-2.5 py-1.5 rounded-lg transition"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {notificaciones.length === 0 && solicitudesRecibidas.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
                     <Bell className="h-8 w-8" />
                   </div>
                   <p className="text-sm font-bold text-slate-700">¡Todo al día!</p>
                   <p className="text-xs text-slate-400 max-w-[240px] mt-1">
-                    Acá vas a recibir los recordatorios de tus turnos fijos y notificaciones de tus partidos.
+                    Acá vas a recibir notificaciones de tus partidos y solicitudes de amistad.
                   </p>
                 </div>
               ) : (

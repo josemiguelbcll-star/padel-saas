@@ -14,6 +14,8 @@ export type Categoria =
   | 'libre';
 
 export type Genero = 'masculino' | 'femenino' | 'no_especifica';
+export type PosicionPadel = 'drive' | 'reves' | 'ambos' | '';
+export type ManoDominante = 'diestro' | 'zurdo' | '';
 
 export interface PlayerProfile {
   nombre:     string;
@@ -22,13 +24,29 @@ export interface PlayerProfile {
   email:      string;        // solo lectura — viene de auth.users
   categoria:  Categoria | '';
   genero:     Genero | '';
+  posicion:   PosicionPadel;
+  mano:       ManoDominante;
   avatar_url: string | null; // URL pública en el bucket 'avatars'
 }
 
 const DEFAULT: PlayerProfile = {
   nombre: '', alias: '', telefono: '', email: '',
-  categoria: '', genero: '', avatar_url: null,
+  categoria: '', genero: '', posicion: '', mano: '', avatar_url: null,
 };
+
+function getLocalPadelPrefs(): { posicion: PosicionPadel; mano: ManoDominante } {
+  try {
+    const raw = localStorage.getItem('mg_padel_prefs');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { posicion: '', mano: '' };
+}
+
+function saveLocalPadelPrefs(prefs: { posicion: PosicionPadel; mano: ManoDominante }) {
+  try {
+    localStorage.setItem('mg_padel_prefs', JSON.stringify(prefs));
+  } catch {}
+}
 
 // ── Avatar upload ─────────────────────────────────────────────────────────────
 
@@ -64,6 +82,8 @@ interface JugadorRow {
   telefono?:      string | null;
   genero?:        string | null;
   categoria?:     string | null;
+  posicion?:      string | null;
+  mano?:          string | null;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -77,48 +97,45 @@ export function usePlayerProfile() {
     queryFn: async (): Promise<PlayerProfile> => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) return DEFAULT;
+      const localPrefs = getLocalPadelPrefs();
 
-      // Consulta completa
-      const { data: full, error: e1 } = await supabase
+      if (!user) return { ...DEFAULT, ...localPrefs };
+
+      // Consulta de columnas estándar para evitar error 400 REST por columnas inexistentes
+      const { data: row, error: e1 } = await supabase
         .from('jugadores_app')
         .select('nombre_display, alias, telefono, genero, categoria, foto_url')
         .eq('auth_user_id', user.id)
         .maybeSingle();
 
-      let row: JugadorRow | null = null;
-
       if (e1) {
-        // Fallback a columnas base (0075) si falla
-        const { data: base } = await supabase
-          .from('jugadores_app')
-          .select('nombre_display, foto_url')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
-        row = base as JugadorRow | null;
-      } else {
-        row = full as JugadorRow | null;
+        console.warn('[profile] error al cargar de jugadores_app:', e1.message);
       }
 
-      if (!row) return { ...DEFAULT, email: user.email ?? '' };
+      if (!row) return { ...DEFAULT, ...localPrefs, email: user.email ?? '' };
 
+      const r = row as JugadorRow;
       return {
-        nombre:     row.nombre_display            ?? '',
-        alias:      row.alias                     ?? '',
-        telefono:   row.telefono                  ?? '',
+        nombre:     r.nombre_display              ?? '',
+        alias:      r.alias                       ?? '',
+        telefono:   r.telefono                    ?? '',
         email:      user.email                     ?? '',
-        categoria:  (row.categoria as Categoria)  ?? '',
-        genero:     (row.genero    as Genero)     ?? '',
-        avatar_url: row.foto_url                  ?? null,
+        categoria:  (r.categoria as Categoria)    ?? '',
+        genero:     (r.genero    as Genero)       ?? '',
+        posicion:   localPrefs.posicion,
+        mano:       localPrefs.mano,
+        avatar_url: r.foto_url                    ?? null,
       };
     },
-    staleTime: 1000 * 60 * 15, // Considerar datos frescos por 15 minutos
-    gcTime: 1000 * 60 * 30,    // Mantener en memoria inactiva por 30 minutos
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
   });
 
   // Mutación para guardar perfil
   const mutation = useMutation<PlayerProfile, Error, PlayerProfile>({
     mutationFn: async (updates: PlayerProfile): Promise<PlayerProfile> => {
+      saveLocalPadelPrefs({ posicion: updates.posicion, mano: updates.mano });
+
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) throw new Error('Sin sesión activa');
@@ -130,7 +147,7 @@ export function usePlayerProfile() {
 
       const nombreCorto = updates.nombre.trim().split(' ')[0] ?? updates.nombre.trim();
 
-      // Upsert completo
+      // Upsert con columnas estándar garantizadas en Supabase
       const { error: e1 } = await supabase.from('jugadores_app').upsert(
         {
           auth_user_id:   user.id,
@@ -146,22 +163,17 @@ export function usePlayerProfile() {
       );
 
       if (e1) {
-        const isColumnMissing = e1.message.includes('column') || e1.message.includes('does not exist');
-        if (isColumnMissing) {
-          // Fallback a columnas base (0075)
-          const { error: e2 } = await supabase.from('jugadores_app').upsert(
-            {
-              auth_user_id:   user.id,
-              nombre_display: updates.nombre.trim(),
-              nombre_corto:   nombreCorto,
-              foto_url:       resolvedAvatar,
-            },
-            { onConflict: 'auth_user_id' },
-          );
-          if (e2) throw new Error(e2.message);
-        } else {
-          throw new Error(e1.message);
-        }
+        // Fallback simple si alguna columna tuviera detalle
+        const { error: e2 } = await supabase.from('jugadores_app').upsert(
+          {
+            auth_user_id:   user.id,
+            nombre_display: updates.nombre.trim(),
+            nombre_corto:   nombreCorto,
+            foto_url:       resolvedAvatar,
+          },
+          { onConflict: 'auth_user_id' },
+        );
+        if (e2) throw new Error(e2.message);
       }
 
       return { ...updates, avatar_url: resolvedAvatar };

@@ -210,31 +210,8 @@ function PlayerAppContent() {
     <div className="mg-player">
 
       {/* ── Topbar ─────────────────────────────────────────────── */}
-      <div className="mgp-topbar">
-        {clubSlug ? (
-          <button
-            onClick={() => setClubSlug(null)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#ffffff',
-              fontFamily: 'Inter, sans-serif',
-              fontSize: 15,
-              fontWeight: 600,
-              padding: '4px 0',
-            }}
-          >
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            Volver
-          </button>
-        ) : (
+      {!clubSlug && (
+        <div className="mgp-topbar">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <div>
               <strong style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18 }}>MatchGo</strong>
@@ -242,8 +219,8 @@ function PlayerAppContent() {
             </div>
             <NotificationsBell />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {notification && (
         <div style={{

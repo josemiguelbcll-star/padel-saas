@@ -1,9 +1,12 @@
 /**
  * Helpers de red: timeouts y logging leve.
  */
-export function withTimeout<T>(p: Promise<T>, ms = 8000, label?: string): Promise<T> {
+export function withTimeout<T>(p: Promise<T> | PromiseLike<T>, ms = 8000, label?: string): Promise<T> {
   const start = performance.now();
   console.debug(`[withTimeout] start ${label ?? 'operation'} @ ${new Date().toISOString()}`);
+
+  // Convertir a Promesa nativa limpia para evitar des-contextualizado de PostgrestFilterBuilder en Supabase
+  const nativePromise = Promise.resolve(p);
 
   return new Promise<T>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
@@ -13,7 +16,7 @@ export function withTimeout<T>(p: Promise<T>, ms = 8000, label?: string): Promis
       reject(new Error(msg));
     }, ms);
 
-    p.then((value) => {
+    nativePromise.then((value) => {
       window.clearTimeout(timeoutId);
       const duration = Math.round(performance.now() - start);
       console.debug(`[withTimeout] success ${label ?? 'operation'} in ${duration}ms`);

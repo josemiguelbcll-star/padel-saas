@@ -189,20 +189,26 @@ function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps)
 }
 
 export function AmigosPanel() {
-  const { amigos, isLoading, agregarAmigo } = useJugadorAmigos();
+  const {
+    amigos,
+    solicitudesRecibidas,
+    solicitudesEnviadas,
+    amigosConfirmados,
+    isLoading,
+    agregarAmigo,
+    confirmarAmigo,
+    rechazarAmigo,
+  } = useJugadorAmigos();
   const [showBuscar, setShowBuscar] = useState(false);
-
-  const amigosPendientes = amigos.filter((a) => !a.confirmado);
-  const amigosConfirmados = amigos.filter((a) => a.confirmado);
 
   return (
     <div className="space-y-4">
       {/* Botón agregar */}
       <button
         onClick={() => setShowBuscar(true)}
-        className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-500 text-white py-3 font-semibold hover:bg-blue-600 transition"
+        className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0B1F4D] text-white py-3 font-extrabold hover:bg-[#162d6b] transition text-sm shadow-md"
       >
-        <UserPlus className="h-4 w-4" />
+        <UserPlus className="h-4 w-4 text-[#D9F23B]" />
         Agregar amigo
       </button>
 
@@ -220,27 +226,92 @@ export function AmigosPanel() {
         </div>
       ) : (
         <>
-          {/* Pendientes */}
-          {amigosPendientes.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-500">
-                Solicitudes pendientes ({amigosPendientes.length})
-              </h3>
-              {amigosPendientes.map((amigo) => (
-                <AmigoItem
-                  key={amigo.id}
-                  nombre={amigo.nombre_display}
-                  alias={amigo.alias}
-                  confirmado={false}
-                />
+          {/* Solicitudes Recibidas (Requiere respuesta) */}
+          {solicitudesRecibidas.length > 0 && (
+            <div className="space-y-2.5 bg-amber-50/80 border border-amber-200 p-3.5 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                  <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                  Solicitudes de amistad recibidas ({solicitudesRecibidas.length})
+                </h3>
+              </div>
+              {solicitudesRecibidas.map((amigo) => (
+                <div key={amigo.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-200/80 shadow-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {amigo.foto_url ? (
+                      <div
+                        className="h-10 w-10 rounded-full bg-cover bg-center shrink-0 border border-amber-300"
+                        style={{ backgroundImage: `url(${amigo.foto_url})` }}
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-extrabold text-xs shrink-0">
+                        {amigo.nombre_display.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-slate-900 truncate">
+                        {amigo.nombre_display}
+                      </p>
+                      {amigo.alias && (
+                        <p className="text-xs font-semibold text-amber-700">@{amigo.alias}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => confirmarAmigo(amigo.id)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg transition"
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      onClick={() => rechazarAmigo(amigo.id)}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold px-2.5 py-1.5 rounded-lg transition"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
 
-          {/* Confirmados */}
+          {/* Solicitudes Enviadas (Esperando respuesta) */}
+          {solicitudesEnviadas.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                Solicitudes enviadas ({solicitudesEnviadas.length})
+              </h3>
+              {solicitudesEnviadas.map((amigo) => (
+                <div key={amigo.id} className="flex items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+                      {amigo.nombre_display.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-slate-700 truncate">
+                        {amigo.nombre_display}
+                      </p>
+                      <p className="text-xs text-slate-400">Esperando respuesta...</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => rechazarAmigo(amigo.id)}
+                    className="text-xs text-slate-400 hover:text-red-500 font-semibold px-2 py-1 transition"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Amigos Confirmados */}
           {amigosConfirmados.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-500">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
                 Mis amigos ({amigosConfirmados.length})
               </h3>
               {amigosConfirmados.map((amigo) => (
@@ -249,19 +320,18 @@ export function AmigosPanel() {
                   nombre={amigo.nombre_display}
                   alias={amigo.alias}
                   confirmado={true}
-                  onDesafiar={() => {
-                    // TODO: abrir modal de desafio
-                    console.log('Desafiar a', amigo.nombre_display);
-                  }}
                 />
               ))}
             </div>
           )}
 
           {amigos.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center">
-              <p className="text-sm text-gray-500">
-                Aún no tienes amigos. ¡Agrega algunos para jugar juntos!
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-8 text-center px-4">
+              <p className="text-sm font-semibold text-slate-600">
+                Aún no tenés amigos agregados.
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Buscá otros jugadores por su nombre para sumar amigos y jugar juntos.
               </p>
             </div>
           )}
