@@ -102,10 +102,10 @@ export function FeedCentralSimple() {
                       {orgNombre} {orgAlias} te invitó a jugar
                     </p>
                     <p className="text-[11px] text-slate-500 font-medium truncate">
-                      📍 {p.reserva?.club?.nombre || 'Club'} ({p.reserva?.cancha?.nombre || 'Cancha'})
+                      📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'} ({p.reserva?.cancha?.nombre || p.cancha_nombre_manual || 'Cancha'})
                     </p>
                     <p className="text-[11px] text-indigo-600 font-bold">
-                      📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : ''} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : ''} hs
+                      📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
                     </p>
                   </div>
                 </div>
@@ -185,10 +185,10 @@ export function FeedCentralSimple() {
 
                 <div className="bg-slate-50 p-2.5 rounded-xl text-xs space-y-1">
                   <p className="font-bold text-slate-800">
-                    📍 {p.reserva?.club?.nombre} <span className="font-normal text-slate-500">({p.reserva?.cancha?.nombre})</span>
+                    📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'} <span className="font-normal text-slate-500">({p.reserva?.cancha?.nombre || p.cancha_nombre_manual || 'Cancha'})</span>
                   </p>
                   <p className="text-slate-600">
-                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : ''} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : ''} hs
+                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
                   </p>
                   {p.nota && (
                     <p className="text-[11px] text-slate-500 italic mt-1 border-t border-slate-100 pt-1">
@@ -211,7 +211,7 @@ export function FeedCentralSimple() {
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: true })}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold px-2 py-1 rounded transition"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1 rounded transition"
                         >
                           Aceptar
                         </button>

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-
 import { formatFechaReserva, formatHoraReserva, useMyReservas } from '../hooks/useMyReservas';
 import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
 import { supabase } from '@/lib/supabase';
@@ -11,7 +10,6 @@ import {
 const CATEGORIAS = ['Todos', '5ta', '6ta', '7ta', '8va', 'Abierto'];
 
 export function JugarTab() {
-
   const [selectedCategoria, setSelectedCategoria] = useState<string>('Todos');
   const [modalOpen, setModalOpen] = useState(false);
   const [friendsModalOpen, setFriendsModalOpen] = useState(false);
@@ -54,12 +52,18 @@ export function JugarTab() {
   } = usePartidosMutations();
 
   // Formulario de publicación
-  const [selectedReservaId, setSelectedReservaId] = useState<string>('');
+  const [selectedReservaId, setSelectedReservaId] = useState<string>('manual'); // 'manual' por defecto para dar la opción
   const [categoria, setCategoria] = useState('5ta');
   const [faltanJugadores, setFaltanJugadores] = useState(3); // 3 por defecto
   const [posicionBuscada, setPosicionBuscada] = useState('Cualquiera');
   const [nota, setNota] = useState('');
   const [visibilidad, setVisibilidad] = useState<'cualquiera' | 'amigos'>('cualquiera');
+
+  // Datos manuales (si no tiene reserva o elige no usarla)
+  const [clubNombreManual, setClubNombreManual] = useState('');
+  const [canchaNombreManual, setCanchaNombreManual] = useState('Cancha 1');
+  const [fechaManual, setFechaManual] = useState(() => new Date().toISOString().slice(0, 10));
+  const [horaInicioManual, setHoraInicioManual] = useState('19:00');
 
   // Filtrar partidos por categoría seleccionada en la cabecera
   const partidosFiltrados = partidos.filter(p => {
@@ -72,21 +76,32 @@ export function JugarTab() {
 
   async function handlePublicar(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedReservaId) return;
+    
+    const isManual = selectedReservaId === 'manual' || !selectedReservaId;
+    if (isManual && !clubNombreManual.trim()) {
+      alert('Por favor, ingresá el nombre del club.');
+      return;
+    }
 
     try {
       await publicarPartido.mutateAsync({
-        reservaId: Number(selectedReservaId),
+        reservaId: isManual ? null : Number(selectedReservaId),
         categoria,
         faltanJugadores,
         posicionBuscada,
         nota,
         visibilidad,
+        clubNombreManual: isManual ? clubNombreManual.trim() : undefined,
+        canchaNombreManual: isManual ? canchaNombreManual.trim() : undefined,
+        fechaManual: isManual ? fechaManual : undefined,
+        horaInicioManual: isManual ? horaInicioManual : undefined,
       });
 
       // Limpiar formulario y cerrar modal
-      setSelectedReservaId('');
+      setSelectedReservaId('manual');
       setNota('');
+      setClubNombreManual('');
+      setCanchaNombreManual('Cancha 1');
       setVisibilidad('cualquiera');
       setModalOpen(false);
     } catch (err) {
@@ -109,7 +124,7 @@ export function JugarTab() {
 
       {/* ── Cabecera ── */}
       <p style={{ fontSize: 13, color: 'var(--mgp-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-        Encontrá gente de tu comunidad para jugar. Podés anotarte a un partido abierto de la comunidad o abrir uno en base a una cancha que tengas reservada.
+        Encontrá gente de tu comunidad para jugar. Podés anotarte a un partido abierto de la comunidad o abrir uno en base a una cancha que tengas reservada (o cargar los datos manualmente).
       </p>
 
       {/* ── Filtro por Categoría ── */}
@@ -254,10 +269,10 @@ export function JugarTab() {
                 {/* Detalle del Turno */}
                 <div style={{ background: '#F8F9FC', borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
-                    📍 {p.reserva?.club?.nombre || 'Club'} <span style={{ fontWeight: 500, color: '#64748B' }}>({p.reserva?.cancha?.nombre || 'Cancha'})</span>
+                    📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'} <span style={{ fontWeight: 500, color: '#64748B' }}>({p.reserva?.cancha?.nombre || p.cancha_nombre_manual || 'Cancha'})</span>
                   </div>
                   <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
-                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : ''} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : ''} hs
+                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
                   </div>
                   {p.nota && (
                     <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', marginTop: 4, background: '#ffffff', padding: '6px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
@@ -462,7 +477,7 @@ export function JugarTab() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedReservaId('');
+                  setSelectedReservaId('manual');
                   setModalOpen(false);
                 }}
                 style={{ background: '#F1F5F9', border: 'none', borderRadius: 99, width: 32, height: 32, cursor: 'pointer', fontWeight: 700, color: '#64748B' }}
@@ -471,127 +486,167 @@ export function JugarTab() {
               </button>
             </div>
 
-            {reservasFuturas.length === 0 ? (
-              <div style={{ padding: '20px 0', textAlign: 'center' }}>
-                <p style={{ fontSize: 14, color: '#EF4444', fontWeight: 'bold' }}>
-                  🚫 No tenés reservas próximas.
-                </p>
-                <p style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-                  Para poder abrir un partido en la comunidad, primero tenés que tener un turno reservado.
-                </p>
+            <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              
+              {/* Selector de reserva activa (opcional) */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>
+                  Cancha Reservada (opcional)
+                </label>
+                <select
+                  value={selectedReservaId}
+                  onChange={e => setSelectedReservaId(e.target.value)}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
+                >
+                  <option value="manual">-- Cargar datos manualmente --</option>
+                  {reservasFuturas.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.club_nombre} · {r.cancha_nombre} · {formatFechaReserva(r.fecha)} {formatHoraReserva(r.hora_inicio)} hs
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                
-                {/* Selector de reserva activa */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>
-                    Seleccioná tu Cancha Reservada *
-                  </label>
+
+              {/* Relleno automático de reserva */}
+              {selectedReservaId !== 'manual' && reservaSeleccionada && (
+                <div style={{ background: '#F8F9FC', padding: 12, borderRadius: 12, border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                    📍 Club: <span style={{ fontWeight: 500 }}>{reservaSeleccionada.club_nombre} ({reservaSeleccionada.cancha_nombre})</span>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                    📅 Fecha: <span style={{ fontWeight: 500 }}>{formatFechaReserva(reservaSeleccionada.fecha)}</span>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                    🕒 Hora: <span style={{ fontWeight: 500 }}>{formatHoraReserva(reservaSeleccionada.hora_inicio)} hs</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Formulario manual (si selectedReservaId es 'manual') */}
+              {selectedReservaId === 'manual' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Club / Lugar *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Tucán Pádel Center"
+                        value={clubNombreManual}
+                        onChange={e => setClubNombreManual(e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Cancha</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Cancha 1"
+                        value={canchaNombreManual}
+                        onChange={e => setCanchaNombreManual(e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Fecha *</label>
+                      <input
+                        type="date"
+                        required
+                        value={fechaManual}
+                        onChange={e => setFechaManual(e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Hora *</label>
+                      <input
+                        type="time"
+                        required
+                        value={horaInicioManual}
+                        onChange={e => setHoraInicioManual(e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Visibilidad del Partido */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Visibilidad *</label>
+                <select
+                  value={visibilidad}
+                  onChange={e => setVisibilidad(e.target.value as any)}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
+                >
+                  <option value="cualquiera">🌎 Cualquiera (Público a todos los jugadores)</option>
+                  <option value="amigos">🔒 Solo mis amigos (Visible para tus amigos confirmados)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Categoría</label>
                   <select
-                    required
-                    value={selectedReservaId}
-                    onChange={e => setSelectedReservaId(e.target.value)}
+                    value={categoria}
+                    onChange={e => setCategoria(e.target.value)}
                     style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
                   >
-                    <option value="">-- Elegir una reserva --</option>
-                    {reservasFuturas.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {r.club_nombre} · {r.cancha_nombre} · {formatFechaReserva(r.fecha)} {formatHoraReserva(r.hora_inicio)} hs
-                      </option>
+                    {['5ta', '6ta', '7ta', '8va', 'Abierto'].map(c => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Campos bloqueados de solo lectura */}
-                {reservaSeleccionada && (
-                  <div style={{ background: '#F8F9FC', padding: 12, borderRadius: 12, border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      📍 Club: <span style={{ fontWeight: 500 }}>{reservaSeleccionada.club_nombre} ({reservaSeleccionada.cancha_nombre})</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      📅 Fecha: <span style={{ fontWeight: 500 }}>{formatFechaReserva(reservaSeleccionada.fecha)}</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      🕒 Hora: <span style={{ fontWeight: 500 }}>{formatHoraReserva(reservaSeleccionada.hora_inicio)} hs</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Visibilidad del Partido */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Visibilidad *</label>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Buscás (jugadores)</label>
                   <select
-                    value={visibilidad}
-                    onChange={e => setVisibilidad(e.target.value as any)}
+                    value={faltanJugadores}
+                    onChange={e => setFaltanJugadores(Number(e.target.value))}
                     style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
                   >
-                    <option value="cualquiera">🌎 Cualquiera (Público a todos los jugadores)</option>
-                    <option value="amigos">🔒 Solo mis amigos (Visible para tus amigos confirmados)</option>
+                    <option value={1}>1 jugador</option>
+                    <option value={2}>2 jugadores</option>
+                    <option value={3}>3 jugadores</option>
                   </select>
                 </div>
+              </div>
 
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Categoría</label>
-                    <select
-                      value={categoria}
-                      onChange={e => setCategoria(e.target.value)}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
-                    >
-                      {['5ta', '6ta', '7ta', '8va', 'Abierto'].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Buscás (jugadores)</label>
-                    <select
-                      value={faltanJugadores}
-                      onChange={e => setFaltanJugadores(Number(e.target.value))}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
-                    >
-                      <option value={1}>1 jugador</option>
-                      <option value={2}>2 jugadores</option>
-                      <option value={3}>3 jugadores</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Posición buscada</label>
-                  <select
-                    value={posicionBuscada}
-                    onChange={e => setPosicionBuscada(e.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
-                  >
-                    <option value="Cualquiera">Cualquier posición</option>
-                    <option value="Revés">Revés (Izquierda)</option>
-                    <option value="Drive">Drive (Derecha)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Nota / Mensaje</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Buscamos 5ta parejo..."
-                    value={nota}
-                    onChange={e => setNota(e.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!selectedReservaId || publicarPartido.isPending}
-                  style={{ marginTop: 6, padding: '16px', borderRadius: 14, border: 'none', background: '#39C54A', color: '#0B1F4D', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 14px rgba(57,197,74,0.3)' }}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Posición buscada</label>
+                <select
+                  value={posicionBuscada}
+                  onChange={e => setPosicionBuscada(e.target.value)}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
                 >
-                  {publicarPartido.isPending ? 'Publicando...' : '🚀 Publicar Partido'}
-                </button>
-              </form>
-            )}
+                  <option value="Cualquiera">Cualquier posición</option>
+                  <option value="Revés">Revés (Izquierda)</option>
+                  <option value="Drive">Drive (Derecha)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Nota / Mensaje</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Buscamos 5ta parejo..."
+                  value={nota}
+                  onChange={e => setNota(e.target.value)}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={publicarPartido.isPending}
+                style={{ marginTop: 6, padding: '16px', borderRadius: 14, border: 'none', background: '#39C54A', color: '#0B1F4D', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 14px rgba(57,197,74,0.3)' }}
+              >
+                {publicarPartido.isPending ? 'Publicando...' : '🚀 Publicar Partido'}
+              </button>
+            </form>
           </div>
         </div>
       )}

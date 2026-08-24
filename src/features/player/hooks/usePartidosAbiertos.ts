@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 export interface PartidoAbiertoDb {
   id: number;
-  reserva_id: number;
+  reserva_id: number | null;
   organizador_id: string;
   categoria: string;
   faltan_jugadores: number;
@@ -11,6 +11,10 @@ export interface PartidoAbiertoDb {
   nota: string | null;
   visibilidad: 'cualquiera' | 'amigos';
   creado_en: string;
+  club_nombre_manual: string | null;
+  cancha_nombre_manual: string | null;
+  fecha_manual: string | null;
+  hora_inicio_manual: string | null;
   reserva: {
     fecha: string;
     hora_inicio: string;
@@ -55,7 +59,11 @@ export function usePartidosAbiertos() {
           nota,
           visibilidad,
           creado_en,
-          reserva:reserva_id!inner(
+          club_nombre_manual,
+          cancha_nombre_manual,
+          fecha_manual,
+          hora_inicio_manual,
+          reserva:reserva_id(
             fecha,
             hora_inicio,
             club:clubes(nombre),
@@ -68,13 +76,18 @@ export function usePartidosAbiertos() {
             foto_url
           )
         `)
-        .gte('reserva.fecha', hoy)
         .order('creado_en', { ascending: false });
 
       if (partidosError) throw partidosError;
 
+      // Filtrar fechas vigentes (reserva.fecha o fecha_manual >= hoy)
+      const partidosFiltrados = (partidos ?? []).filter((p: any) => {
+        const fecha = p.reserva ? p.reserva.fecha : p.fecha_manual;
+        return fecha && fecha >= hoy;
+      });
+
       // 2. Obtener participantes e invitaciones para estos partidos
-      const partidoIds = (partidos ?? []).map(p => p.id);
+      const partidoIds = partidosFiltrados.map(p => p.id);
       if (partidoIds.length === 0) return [];
 
       const { data: participants, error: partError } = await supabase
@@ -109,7 +122,7 @@ export function usePartidosAbiertos() {
         });
       }
 
-      return (partidos ?? []).map((p: any) => ({
+      return partidosFiltrados.map((p: any) => ({
         id: p.id,
         reserva_id: p.reserva_id,
         organizador_id: p.organizador_id,
@@ -119,6 +132,10 @@ export function usePartidosAbiertos() {
         nota: p.nota,
         visibilidad: p.visibilidad,
         creado_en: p.creado_en,
+        club_nombre_manual: p.club_nombre_manual,
+        cancha_nombre_manual: p.cancha_nombre_manual,
+        fecha_manual: p.fecha_manual,
+        hora_inicio_manual: p.hora_inicio_manual,
         reserva: p.reserva,
         organizador: p.organizador,
         participantes: participantsGrouped.get(p.id) ?? [],
@@ -166,6 +183,10 @@ export function useInvitacionesPendientes() {
               alias,
               foto_url
             ),
+            club_nombre_manual,
+            cancha_nombre_manual,
+            fecha_manual,
+            hora_inicio_manual,
             reserva:reserva_id(
               fecha,
               hora_inicio,
@@ -206,12 +227,16 @@ export function usePartidosMutations() {
 
   const publicarPartido = useMutation({
     mutationFn: async (params: {
-      reservaId: number;
+      reservaId: number | null;
       categoria: string;
       faltanJugadores: number;
       posicionBuscada: string;
       nota: string;
       visibilidad: 'cualquiera' | 'amigos';
+      clubNombreManual?: string;
+      canchaNombreManual?: string;
+      fechaManual?: string;
+      horaInicioManual?: string;
     }) => {
       const organizadorId = await getMiJugadorAppId();
 
@@ -225,6 +250,10 @@ export function usePartidosMutations() {
           posicion_buscada: params.posicionBuscada,
           nota: params.nota || null,
           visibilidad: params.visibilidad,
+          club_nombre_manual: params.clubNombreManual || null,
+          cancha_nombre_manual: params.canchaNombreManual || null,
+          fecha_manual: params.fechaManual || null,
+          hora_inicio_manual: params.horaInicioManual || null,
         })
         .select()
         .single();
