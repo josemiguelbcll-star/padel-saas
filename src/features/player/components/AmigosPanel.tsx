@@ -73,11 +73,11 @@ function BuscarAmigoModal({ isOpen, onClose, onAgregar }: BuscarAmigoModalProps)
     setBuscando(true);
     setError(null);
     try {
-      // Buscar en jugadores_app por nombre
+      // Buscar en jugadores_app por nombre o alias
       const { data, error: searchError } = await supabase
         .from('jugadores_app')
         .select('id, nombre_display, alias')
-        .ilike('nombre_display', `%${q}%`)
+        .or(`nombre_display.ilike.%${q}%,alias.ilike.%${q}%`)
         .eq('activo', true)
         .limit(10);
 

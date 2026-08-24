@@ -1,119 +1,118 @@
 import { useState, useEffect } from 'react';
-import { usePlayerProfile } from '../hooks/usePlayerProfile';
-import { formatFechaReserva, formatHoraReserva } from '../hooks/useMyReservas';
 
-export interface PartidoJugadorReal {
-  id: string;
-  organizadorNombre: string;
-  organizadorAlias?: string;
-  organizadorAvatar?: string;
-  clubNombre: string;
-  canchaNombre: string;
-  fecha: string; // YYYY-MM-DD
-  horaInicio: string; // HH:MM
-  categoria: string; // "5ta", "6ta", "7ta", "8va", "Abierto"
-  faltanJugadores: number; // 1, 2, 3
-  posicionBuscada?: string;
-  nota?: string;
-  creadoEn: string;
-}
+import { formatFechaReserva, formatHoraReserva, useMyReservas } from '../hooks/useMyReservas';
+import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
+import { supabase } from '@/lib/supabase';
+import { 
+  usePartidosAbiertos, 
+  usePartidosMutations
+} from '../hooks/usePartidosAbiertos';
 
 const CATEGORIAS = ['Todos', '5ta', '6ta', '7ta', '8va', 'Abierto'];
-const STORAGE_KEY = 'mg_partidos_comunidad_v1';
-
-function getSavedPartidos(): PartidoJugadorReal[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Filtrar fechas pasadas
-    const hoy = new Date().toISOString().slice(0, 10);
-    return parsed.filter((p: PartidoJugadorReal) => p.fecha >= hoy);
-  } catch {
-    return [];
-  }
-}
-
-function savePartidosToStorage(list: PartidoJugadorReal[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch {}
-}
 
 export function JugarTab() {
-  const { profile, iniciales } = usePlayerProfile();
+
   const [selectedCategoria, setSelectedCategoria] = useState<string>('Todos');
-  const [partidos, setPartidos] = useState<PartidoJugadorReal[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [friendsModalOpen, setFriendsModalOpen] = useState(false);
+  const [activePartidoIdForFriends, setActivePartidoIdForFriends] = useState<number | null>(null);
+  
+  // ID real del jugador_app en la BD
+  const [miJugadorId, setMiJugadorId] = useState<string>('');
 
-  // Formulario de publicación
-  const [clubNombre, setClubNombre] = useState('');
-  const [canchaNombre, setCanchaNombre] = useState('Cancha 1');
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [horaInicio, setHoraInicio] = useState('19:00');
-  const [categoria, setCategoria] = useState('5ta');
-  const [faltanJugadores, setFaltanJugadores] = useState(1);
-  const [posicionBuscada, setPosicionBuscada] = useState('Cualquiera');
-  const [nota, setNota] = useState('');
-
-  // Cargar partidos reales de producción al montar
   useEffect(() => {
-    setPartidos(getSavedPartidos());
+    async function loadId() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data } = await supabase
+          .from('jugadores_app')
+          .select('id')
+          .eq('auth_user_id', session.user.id)
+          .maybeSingle();
+        if (data) setMiJugadorId(data.id);
+      }
+    }
+    void loadId();
   }, []);
 
-  // Filtrar partidos reales por categoría
+  // Hook de reservas del jugador
+  const { proximas: reservasFuturas } = useMyReservas();
+  
+  // Hook de amigos confirmados
+  const { amigosConfirmados } = useJugadorAmigos();
+
+  // Hook de partidos abiertos de la BD
+  const { partidos, isLoading: loadingPartidos } = usePartidosAbiertos();
+
+  // Hook de mutaciones de partidos
+  const { 
+    publicarPartido, 
+    invitarAmigo, 
+    solicitarUnirse, 
+    responderInvitacion, 
+    eliminarPartido 
+  } = usePartidosMutations();
+
+  // Formulario de publicación
+  const [selectedReservaId, setSelectedReservaId] = useState<string>('');
+  const [categoria, setCategoria] = useState('5ta');
+  const [faltanJugadores, setFaltanJugadores] = useState(3); // 3 por defecto
+  const [posicionBuscada, setPosicionBuscada] = useState('Cualquiera');
+  const [nota, setNota] = useState('');
+  const [visibilidad, setVisibilidad] = useState<'cualquiera' | 'amigos'>('cualquiera');
+
+  // Filtrar partidos por categoría seleccionada en la cabecera
   const partidosFiltrados = partidos.filter(p => {
     if (selectedCategoria === 'Todos') return true;
-    return p.categoria === selectedCategoria || p.categoria === 'Abierto';
+    return p.categoria === selectedCategoria;
   });
 
-  function handlePublicar(e: React.FormEvent) {
+  // Obtener info de la reserva seleccionada para mostrar en el formulario
+  const reservaSeleccionada = reservasFuturas.find(r => r.id === Number(selectedReservaId));
+
+  async function handlePublicar(e: React.FormEvent) {
     e.preventDefault();
-    if (!clubNombre.trim()) return;
+    if (!selectedReservaId) return;
 
-    const nombreReal = profile.nombre || profile.alias || 'Jugador MatchGo';
+    try {
+      await publicarPartido.mutateAsync({
+        reservaId: Number(selectedReservaId),
+        categoria,
+        faltanJugadores,
+        posicionBuscada,
+        nota,
+        visibilidad,
+      });
 
-    const nuevoPartido: PartidoJugadorReal = {
-      id: `partido-real-${Date.now()}`,
-      organizadorNombre: nombreReal,
-      organizadorAlias: profile.alias || undefined,
-      organizadorAvatar: profile.avatar_url || iniciales || 'JG',
-      clubNombre: clubNombre.trim(),
-      canchaNombre: canchaNombre.trim() || 'Cancha 1',
-      fecha,
-      horaInicio,
-      categoria,
-      faltanJugadores,
-      posicionBuscada: posicionBuscada !== 'Cualquiera' ? posicionBuscada : undefined,
-      nota: nota.trim() || undefined,
-      creadoEn: new Date().toISOString(),
-    };
-
-    const actualizados = [nuevoPartido, ...partidos];
-    setPartidos(actualizados);
-    savePartidosToStorage(actualizados);
-    setModalOpen(false);
-
-    // Limpiar formulario
-    setClubNombre('');
-    setNota('');
+      // Limpiar formulario y cerrar modal
+      setSelectedReservaId('');
+      setNota('');
+      setVisibilidad('cualquiera');
+      setModalOpen(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al publicar partido');
+    }
   }
 
-  function handleUnirmeWhatsApp(p: PartidoJugadorReal) {
-    const text = `Hola ${p.organizadorNombre}! Vi tu partido publicado en MatchGo 🎾\nLugar: ${p.clubNombre} (${p.canchaNombre})\nFecha: ${formatFechaReserva(p.fecha)} - ${formatHoraReserva(p.horaInicio)} hs\nCategoría: ${p.categoria}\n¡Me gustaría sumarme a tu partido! 🙌`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-  }
+  const handleOpenFriendsModal = (partidoId: number) => {
+    setActivePartidoIdForFriends(partidoId);
+    setFriendsModalOpen(true);
+  };
+
+  const handleCloseFriendsModal = () => {
+    setFriendsModalOpen(false);
+    setActivePartidoIdForFriends(null);
+  };
 
   return (
     <div style={{ padding: 16, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Cabecera ── */}
       <p style={{ fontSize: 13, color: 'var(--mgp-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-        Encontrá gente de tu comunidad para jugar. Podés anotarte a una cancha que ya está reservada o publicar que tenés turno y buscás compañeros.
+        Encontrá gente de tu comunidad para jugar. Podés anotarte a un partido abierto de la comunidad o abrir uno en base a una cancha que tengas reservada.
       </p>
 
-      {/* ── Filtro por Categoría (Estático, sin animación horizontal de pantalla) ── */}
+      {/* ── Filtro por Categoría ── */}
       <div
         style={{
           display: 'flex',
@@ -156,124 +155,263 @@ export function JugarTab() {
 
       {/* ── Lista de Partidos Abiertos Reales ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {partidosFiltrados.length === 0 ? (
-          /* Empty State real de Producción */
+        {loadingPartidos ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🎾</div>
+            <p style={{ fontSize: 14, color: '#64748B' }}>Cargando partidos...</p>
+          </div>
+        ) : partidosFiltrados.length === 0 ? (
           <div style={{ background: '#ffffff', borderRadius: 20, border: '1.5px solid #E2E8F0', padding: '40px 24px', textAlign: 'center', margin: 'auto 0' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🤝</div>
             <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 17, color: '#0B1F4D', margin: '0 0 6px' }}>
               Sin partidos disponibles
             </h3>
             <p style={{ fontSize: 13, color: '#64748B', maxWidth: 300, margin: '0 auto', lineHeight: 1.5 }}>
-              Cuando alguien de tu zona publique una cancha y busque jugadores, va a aparecer acá.
+              Cuando alguien de tu red o zona publique una cancha y busque jugadores, va a aparecer acá.
             </p>
           </div>
         ) : (
-          partidosFiltrados.map(p => (
-            <div
-              key={p.id}
-              style={{
-                background: '#ffffff',
-                borderRadius: 20,
-                border: '1.5px solid #E2E8F0',
-                padding: 16,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-              }}
-            >
-              {/* Organizador Real y Categoría */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {p.organizadorAvatar?.startsWith('http') ? (
-                    <div
-                      style={{
+          partidosFiltrados.map(p => {
+            const esOrganizador = p.organizador_id === miJugadorId;
+            const confirmados = p.participantes.filter(pt => pt.confirmado);
+            const vacantesRestantes = Math.max(0, p.faltan_jugadores - confirmados.length);
+            
+            // Checks de participación de usuario actual
+            const esParticipante = confirmados.find(pt => pt.jugador_app_id === miJugadorId);
+            const invitacionPendiente = p.participantes.find(pt => pt.jugador_app_id === miJugadorId && !pt.confirmado && pt.solicitado_by === 'organizador');
+            const solicitudPendiente = p.participantes.find(pt => pt.jugador_app_id === miJugadorId && !pt.confirmado && pt.solicitado_by === 'jugador');
+
+            // Solicitudes entrantes para el organizador
+            const solicitudesEntrantes = p.participantes.filter(pt => !pt.confirmado && pt.solicitado_by === 'jugador');
+
+            return (
+              <div
+                key={p.id}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: 20,
+                  border: '1.5px solid #E2E8F0',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+                }}
+              >
+                {/* Organizador y Visibilidad */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {p.organizador?.foto_url ? (
+                      <div
+                        style={{
+                          width: 40, height: 40, borderRadius: '50%',
+                          backgroundImage: `url(${p.organizador.foto_url})`,
+                          backgroundSize: 'cover', backgroundPosition: 'center',
+                          border: '2px solid #39C54A'
+                        }}
+                      />
+                    ) : (
+                      <div style={{
                         width: 40, height: 40, borderRadius: '50%',
-                        backgroundImage: `url(${p.organizadorAvatar})`,
-                        backgroundSize: 'cover', backgroundPosition: 'center',
-                        border: '2px solid #39C54A'
-                      }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: 40, height: 40, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #0B1F4D 0%, #162d6b 100%)',
-                      color: '#ffffff', fontWeight: 800, fontSize: 14,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: "'Poppins', sans-serif",
-                      border: '2px solid #D9F23B',
+                        background: 'linear-gradient(135deg, #0B1F4D 0%, #162d6b 100%)',
+                        color: '#ffffff', fontWeight: 800, fontSize: 14,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: "'Poppins', sans-serif",
+                        border: '2px solid #D9F23B',
+                      }}>
+                        {p.organizador?.nombre_display?.charAt(0).toUpperCase() || 'JG'}
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
+                        {p.organizador?.nombre_display || 'Jugador'} {p.organizador?.alias ? `(@${p.organizador.alias})` : ''}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>
+                        {esOrganizador ? 'Organizado por vos' : 'Organizador'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800,
+                      color: p.visibilidad === 'amigos' ? '#D97706' : '#1D4ED8',
+                      background: p.visibilidad === 'amigos' ? '#FEF3C7' : '#DBEAFE',
+                      borderRadius: 12, padding: '4px 10px', textTransform: 'uppercase'
                     }}>
-                      {p.organizadorAvatar || 'JG'}
+                      🔒 {p.visibilidad === 'amigos' ? 'Amigos' : 'Público'}
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 800,
+                      color: '#0B1F4D', background: '#D9F23B',
+                      borderRadius: 12, padding: '4px 10px'
+                    }}>
+                      {p.categoria}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Detalle del Turno */}
+                <div style={{ background: '#F8F9FC', borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
+                    📍 {p.reserva?.club?.nombre || 'Club'} <span style={{ fontWeight: 500, color: '#64748B' }}>({p.reserva?.cancha?.nombre || 'Cancha'})</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
+                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : ''} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : ''} hs
+                  </div>
+                  {p.nota && (
+                    <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', marginTop: 4, background: '#ffffff', padding: '6px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                      "{p.nota}"
                     </div>
                   )}
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
-                      {p.organizadorNombre} {p.organizadorAlias ? `(@${p.organizadorAlias})` : ''}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>
-                      Organizador del partido
-                    </div>
-                  </div>
                 </div>
 
-                <span style={{
-                  fontSize: 11, fontWeight: 800,
-                  color: '#0B1F4D', background: '#D9F23B',
-                  borderRadius: 12, padding: '4px 10px'
-                }}>
-                  {p.categoria}
-                </span>
-              </div>
-
-              {/* Detalle del Turno */}
-              <div style={{ background: '#F8F9FC', borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
-                  📍 {p.clubNombre} <span style={{ fontWeight: 500, color: '#64748B' }}>({p.canchaNombre})</span>
-                </div>
-                <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
-                  📅 {formatFechaReserva(p.fecha)} · 🕒 {formatHoraReserva(p.horaInicio)} hs
-                </div>
-                {p.nota && (
-                  <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', marginTop: 4, background: '#ffffff', padding: '6px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-                    "{p.nota}"
+                {/* Participantes confirmados */}
+                {confirmados.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 4px' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', margin: 0 }}>PARTICIPANTES CONFIRMADOS:</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {confirmados.map(pt => (
+                        <div key={pt.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F1F5F9', padding: '4px 8px', borderRadius: 20 }}>
+                          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold' }}>
+                            {pt.jugador?.nombre_display?.charAt(0).toUpperCase() || 'P'}
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>
+                            {pt.jugador?.nombre_display}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
 
-              {/* Vacantes y Botón Unirme */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                <span style={{
-                  fontSize: 12, fontWeight: 700,
-                  color: '#16A34A', background: '#F0FDF4',
-                  border: '1px solid #BBF7D0', padding: '4px 10px', borderRadius: 20
-                }}>
-                  ⚡ Busca {p.faltanJugadores} {p.faltanJugadores === 1 ? 'jugador' : 'jugadores'} {p.posicionBuscada ? `(${p.posicionBuscada})` : ''}
-                </span>
+                {/* Acciones de la Tarjeta */}
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: 12, fontWeight: 700,
+                      color: vacantesRestantes > 0 ? '#16A34A' : '#DC2626', 
+                      background: vacantesRestantes > 0 ? '#F0FDF4' : '#FEF2F2',
+                      border: `1px solid ${vacantesRestantes > 0 ? '#BBF7D0' : '#FECACA'}`, 
+                      padding: '4px 10px', borderRadius: 20
+                    }}>
+                      {vacantesRestantes > 0 ? `⚡ Faltan ${vacantesRestantes} jugadores` : '🚫 Partido completo'}
+                    </span>
 
-                <button
-                  type="button"
-                  onClick={() => handleUnirmeWhatsApp(p)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 12,
-                    border: 'none',
-                    background: '#39C54A',
-                    color: '#0B1F4D',
-                    fontWeight: 800,
-                    fontSize: 13,
-                    fontFamily: "'Inter', sans-serif",
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    boxShadow: '0 2px 8px rgba(57,197,74,0.3)',
-                  }}
-                >
-                  🎾 Unirme
-                </button>
+                    {/* Controles de Organizador */}
+                    {esOrganizador && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFriendsModal(p.id)}
+                          style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#ffffff', color: '#0B1F4D', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                        >
+                          ➕ Invitar amigos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if(confirm('¿Seguro que querés cancelar la búsqueda de este partido?')) {
+                              await eliminarPartido.mutateAsync(p.id);
+                            }
+                          }}
+                          style={{ padding: '8px 12px', borderRadius: 10, border: 'none', background: '#FEE2E2', color: '#DC2626', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                        >
+                          🗑️ Cancelar
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Controles de Tercero / Amigo */}
+                    {!esOrganizador && (
+                      <div>
+                        {esParticipante ? (
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, color: '#16A34A', fontWeight: 'bold' }}>✓ Ya estás anotado</span>
+                            <button
+                              onClick={() => responderInvitacion.mutate({ participanteId: esParticipante.id, aceptar: false })}
+                              style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#F1F5F9', color: '#64748B', fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                              Salir
+                            </button>
+                          </div>
+                        ) : invitacionPendiente ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: true })}
+                              style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#10B981', color: '#ffffff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+                            >
+                              Aceptar Inv.
+                            </button>
+                            <button
+                              onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: false })}
+                              style={{ padding: '8px 12px', borderRadius: 10, border: 'none', background: '#F1F5F9', color: '#64748B', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        ) : solicitudPendiente ? (
+                          <span style={{ fontSize: 12, color: '#D97706', fontWeight: 'bold', fontStyle: 'italic' }}>
+                            Solicitud enviada...
+                          </span>
+                        ) : (
+                          vacantesRestantes > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => solicitarUnirse.mutate({ partidoId: p.id })}
+                              disabled={solicitarUnirse.isPending}
+                              style={{
+                                padding: '10px 18px',
+                                borderRadius: 12,
+                                border: 'none',
+                                background: '#39C54A',
+                                color: '#0B1F4D',
+                                fontWeight: 800,
+                                fontSize: 13,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(57,197,74,0.3)',
+                              }}
+                            >
+                              🎾 Solicitar unirme
+                            </button>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Solicitudes de ingreso pendientes (para el organizador) */}
+                  {esOrganizador && solicitudesEntrantes.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#FFFBEB', border: '1px dashed #FDE68A', padding: 10, borderRadius: 12, marginTop: 4 }}>
+                      <p style={{ fontSize: 11, fontWeight: 800, color: '#B45309', margin: 0 }}>SOLICITUDES DE UNIÓN PENDIENTES:</p>
+                      {solicitudesEntrantes.map(sol => (
+                        <div key={sol.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#78350F' }}>
+                            {sol.jugador?.nombre_display}
+                          </span>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              onClick={() => responderInvitacion.mutate({ participanteId: sol.id, aceptar: true })}
+                              style={{ padding: '4px 8px', fontSize: 11, borderRadius: 6, border: 'none', background: '#10B981', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                              Aceptar
+                            </button>
+                            <button
+                              onClick={() => responderInvitacion.mutate({ participanteId: sol.id, aceptar: false })}
+                              style={{ padding: '4px 8px', fontSize: 11, borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -323,130 +461,230 @@ export function JugarTab() {
               </h2>
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
+                onClick={() => {
+                  setSelectedReservaId('');
+                  setModalOpen(false);
+                }}
                 style={{ background: '#F1F5F9', border: 'none', borderRadius: 99, width: 32, height: 32, cursor: 'pointer', fontWeight: 700, color: '#64748B' }}
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Organizador</label>
-                <input
-                  type="text"
-                  disabled
-                  value={`${profile.nombre || 'Jugador'} ${profile.alias ? `(@${profile.alias})` : ''}`}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, background: '#F1F5F9', color: '#64748B' }}
-                />
+            {reservasFuturas.length === 0 ? (
+              <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                <p style={{ fontSize: 14, color: '#EF4444', fontWeight: 'bold' }}>
+                  🚫 No tenés reservas próximas.
+                </p>
+                <p style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+                  Para poder abrir un partido en la comunidad, primero tenés que tener un turno reservado.
+                </p>
               </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Club / Lugar *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Tucán Pádel Center..."
-                    value={clubNombre}
-                    onChange={e => setClubNombre(e.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Cancha</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Cancha 1, Techada..."
-                    value={canchaNombre}
-                    onChange={e => setCanchaNombre(e.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Fecha *</label>
-                  <input
-                    type="date"
-                    required
-                    value={fecha}
-                    onChange={e => setFecha(e.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Hora inicio *</label>
-                  <input
-                    type="time"
-                    required
-                    value={horaInicio}
-                    onChange={e => setHoraInicio(e.target.value)}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Categoría</label>
+            ) : (
+              <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                
+                {/* Selector de reserva activa */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>
+                    Seleccioná tu Cancha Reservada *
+                  </label>
                   <select
-                    value={categoria}
-                    onChange={e => setCategoria(e.target.value)}
+                    required
+                    value={selectedReservaId}
+                    onChange={e => setSelectedReservaId(e.target.value)}
                     style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
                   >
-                    {['5ta', '6ta', '7ta', '8va', 'Abierto'].map(c => (
-                      <option key={c} value={c}>{c}</option>
+                    <option value="">-- Elegir una reserva --</option>
+                    {reservasFuturas.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.club_nombre} · {r.cancha_nombre} · {formatFechaReserva(r.fecha)} {formatHoraReserva(r.hora_inicio)} hs
+                      </option>
                     ))}
                   </select>
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Faltan jugadores</label>
+                {/* Campos bloqueados de solo lectura */}
+                {reservaSeleccionada && (
+                  <div style={{ background: '#F8F9FC', padding: 12, borderRadius: 12, border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      📍 Club: <span style={{ fontWeight: 500 }}>{reservaSeleccionada.club_nombre} ({reservaSeleccionada.cancha_nombre})</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      📅 Fecha: <span style={{ fontWeight: 500 }}>{formatFechaReserva(reservaSeleccionada.fecha)}</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      🕒 Hora: <span style={{ fontWeight: 500 }}>{formatHoraReserva(reservaSeleccionada.hora_inicio)} hs</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Visibilidad del Partido */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Visibilidad *</label>
                   <select
-                    value={faltanJugadores}
-                    onChange={e => setFaltanJugadores(Number(e.target.value))}
+                    value={visibilidad}
+                    onChange={e => setVisibilidad(e.target.value as any)}
                     style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
                   >
-                    <option value={1}>1 jugador</option>
-                    <option value={2}>2 jugadores</option>
-                    <option value={3}>3 jugadores</option>
+                    <option value="cualquiera">🌎 Cualquiera (Público a todos los jugadores)</option>
+                    <option value="amigos">🔒 Solo mis amigos (Visible para tus amigos confirmados)</option>
                   </select>
                 </div>
-              </div>
 
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Posición buscada</label>
-                <select
-                  value={posicionBuscada}
-                  onChange={e => setPosicionBuscada(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Categoría</label>
+                    <select
+                      value={categoria}
+                      onChange={e => setCategoria(e.target.value)}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
+                    >
+                      {['5ta', '6ta', '7ta', '8va', 'Abierto'].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Buscás (jugadores)</label>
+                    <select
+                      value={faltanJugadores}
+                      onChange={e => setFaltanJugadores(Number(e.target.value))}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
+                    >
+                      <option value={1}>1 jugador</option>
+                      <option value={2}>2 jugadores</option>
+                      <option value={3}>3 jugadores</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Posición buscada</label>
+                  <select
+                    value={posicionBuscada}
+                    onChange={e => setPosicionBuscada(e.target.value)}
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', background: '#fff' }}
+                  >
+                    <option value="Cualquiera">Cualquier posición</option>
+                    <option value="Revés">Revés (Izquierda)</option>
+                    <option value="Drive">Drive (Derecha)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Nota / Mensaje</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Buscamos 5ta parejo..."
+                    value={nota}
+                    onChange={e => setNota(e.target.value)}
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!selectedReservaId || publicarPartido.isPending}
+                  style={{ marginTop: 6, padding: '16px', borderRadius: 14, border: 'none', background: '#39C54A', color: '#0B1F4D', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 14px rgba(57,197,74,0.3)' }}
                 >
-                  <option value="Cualquiera">Cualquier posición</option>
-                  <option value="Revés">Revés (Izquierda)</option>
-                  <option value="Drive">Drive (Derecha)</option>
-                </select>
-              </div>
+                  {publicarPartido.isPending ? 'Publicando...' : '🚀 Publicar Partido'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#0B1F4D', display: 'block', marginBottom: 4 }}>Nota / Mensaje</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Buscamos 1 revés 5ª para partido parejo..."
-                  value={nota}
-                  onChange={e => setNota(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none' }}
-                />
-              </div>
-
+      {/* ── Modal Invitar Amigos (para el Organizador) ── */}
+      {friendsModalOpen && activePartidoIdForFriends !== null && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{
+            background: '#ffffff', width: '100%', maxWidth: 400,
+            borderRadius: 24, padding: 20,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            maxHeight: '80vh', display: 'flex', flexDirection: 'column'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: '#0B1F4D', margin: 0 }}>
+                Invitar amigos al partido
+              </h3>
               <button
-                type="submit"
-                style={{ marginTop: 6, padding: '16px', borderRadius: 14, border: 'none', background: '#39C54A', color: '#0B1F4D', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 14px rgba(57,197,74,0.3)' }}
+                type="button"
+                onClick={handleCloseFriendsModal}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: 99, width: 28, height: 28, cursor: 'pointer', fontWeight: 700, color: '#64748B' }}
               >
-                🚀 Publicar en la Comunidad
+                ✕
               </button>
-            </form>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+              {amigosConfirmados.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px 10px', color: '#64748B', fontSize: 13 }}>
+                  Aún no tenés amigos confirmados para invitar. ¡Agrega amigos en Comunidad!
+                </div>
+              ) : (
+                amigosConfirmados.map(amigo => {
+                  const partido = partidos.find(p => p.id === activePartidoIdForFriends);
+                  const yaAsociado = partido?.participantes.some(pt => pt.jugador_app_id === amigo.id);
+
+                  return (
+                    <div
+                      key={amigo.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 14,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #0B1F4D 0%, #162d6b 100%)',
+                          color: '#ffffff', fontWeight: 800, fontSize: 12,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          {amigo.nombre_display.charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>
+                          {amigo.nombre_display}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={yaAsociado || invitarAmigo.isPending}
+                        onClick={async () => {
+                          await invitarAmigo.mutateAsync({
+                            partidoId: activePartidoIdForFriends,
+                            amigoId: amigo.id,
+                          });
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: yaAsociado ? '#F1F5F9' : '#0B1F4D',
+                          color: yaAsociado ? '#94A3B8' : '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          cursor: yaAsociado ? 'default' : 'pointer'
+                        }}
+                      >
+                        {yaAsociado ? 'Invitado' : 'Invitar'}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}

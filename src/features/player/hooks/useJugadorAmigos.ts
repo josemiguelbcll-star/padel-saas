@@ -41,7 +41,7 @@ export function useJugadorAmigos() {
       const { data: relaciones, error } = await withTimeout(
         supabase
           .from('jugador_amigos')
-          .select('jugador_app_id_1, jugador_app_id_2, confirmado, vinculado_en')
+          .select('jugador_app_id_1, jugador_app_id_2, confirmado, vinculado_en, solicitante_id')
           .or(`jugador_app_id_1.eq.${jugadorApp.id},jugador_app_id_2.eq.${jugadorApp.id}`),
         20000,
         'useJugadorAmigos:jugador_amigos',
@@ -166,6 +166,7 @@ export function useJugadorAmigos() {
             jugador_app_id_1: id1,
             jugador_app_id_2: id2,
             confirmado: false,
+            solicitante_id: jugadorApp.id,
           });
         if (e2) throw e2;
       }
