@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSession } from '@/features/auth';
-import { AlertTriangle, Pencil, Trophy, Trash2, ChevronDown } from 'lucide-react';
+import { AlertTriangle, Pencil, Trophy, Trash2, ChevronDown, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
 import {
@@ -28,6 +28,7 @@ import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
 import { useReservaPagos } from './hooks/useReservaPagos';
+import { useEliminarPagoReserva } from './hooks/useEliminarPagoReserva';
 import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useCancelarReserva } from './hooks/useCancelarReserva';
 import { useCerrarTurno } from './hooks/useCerrarTurno';
@@ -233,26 +234,13 @@ function DetalleReservaBody({
     const totalConsumosGeneral = consumos
       .filter((c) => c.tipo_reparto === 'general')
       .reduce((s, c) => s + c.subtotal, 0);
-    const desglose = calcularDesgloseCuenta({
-      montoAlquiler: reserva.monto_total,
-      cantidadJugadores: personas.filter((p) => p.tipo === 'jugador').length,
-      totalConsumosPartido,
-      totalConsumosGeneral,
-      cantidadPersonas: personas.length,
-    });
-    const saldos = calcularSaldosPersonas({
-      personas: personas.map((p) => ({ id: p.id, tipo: p.tipo })),
-      pagos: pagos.map((p) => ({
-        reserva_jugador_id: p.reserva_jugador_id,
-        monto_alquiler: p.monto_alquiler,
-        monto_consumo: p.monto_consumo,
-      })),
-      desglose,
-    });
+      
+    const totalACobrar = reserva.monto_total + totalConsumosPartido + totalConsumosGeneral;
+    const totalCobrado = pagos.reduce((acc, p) => acc + p.monto_alquiler + p.monto_consumo, 0);
+
     return {
-      todoSaldado:
-        saldos.length > 0 && saldos.every((s) => s.estado === 'saldada'),
-      saldoPendiente: saldos.reduce((acc, s) => acc + s.saldo, 0),
+      todoSaldado: totalCobrado >= totalACobrar,
+      saldoPendiente: Math.max(0, totalACobrar - totalCobrado),
     };
   }, [jugadoresQuery.data, consumosQuery.data, pagosQuery.data, reserva.monto_total]);
 
@@ -654,7 +642,7 @@ function DetalleReservaBody({
         {/* Pagos */}
         <section className="space-y-2">
           <Label>Pagos</Label>
-          <PagosList query={pagosQuery} />
+          <PagosList query={pagosQuery} reservaId={reserva.id} fechaReserva={reserva.fecha} readOnly={readOnly} />
         </section>
 
         {/* Observaciones */}
@@ -732,7 +720,11 @@ function DetalleReservaBody({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   El turno no tiene pagos ni consumos. Se cancela y el
-                  horario queda libre. Esta acción no se puede deshacer.
+                  horario queda libre.
+                  {'turno_fijo_id' in reserva && reserva.turno_fijo_id
+                    ? ' Si es un turno fijo, el turno fijo en sí NO se eliminará, sino que este día quedará disponible para alquilar.'
+                    : ''}
+                  {' '}Esta acción no se puede deshacer.
                 </p>
               </div>
             </div>
@@ -836,7 +828,7 @@ function DetalleReservaBody({
                   title={motivoNoCancelable ?? undefined}
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground disabled:hover:bg-transparent"
                 >
-                  Cancelar reserva
+                  {'turno_fijo_id' in reserva && reserva.turno_fijo_id ? 'Liberar turno (solo por hoy)' : 'Cancelar reserva'}
                 </Button>
               )}
               {!puedeCancelar && motivoNoCancelable && (
@@ -858,8 +850,14 @@ function DetalleReservaBody({
 
 function PagosList({
   query,
+  reservaId,
+  fechaReserva,
+  readOnly,
 }: {
   query: ReturnType<typeof useReservaPagos>;
+  reservaId: number;
+  fechaReserva: string;
+  readOnly?: boolean;
 }) {
   if (query.isLoading) {
     return (
@@ -882,13 +880,16 @@ function PagosList({
   return (
     <ul className="space-y-1 text-sm">
       {pagos.map((p) => (
-        <PagoRow key={p.id} pago={p} />
+        <PagoRow key={p.id} pago={p} reservaId={reservaId} fechaReserva={fechaReserva} readOnly={readOnly} />
       ))}
     </ul>
   );
 }
 
-function PagoRow({ pago }: { pago: ReservaPago }) {
+function PagoRow({ pago, reservaId, fechaReserva, readOnly }: { pago: ReservaPago; reservaId: number; fechaReserva: string; readOnly?: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  const { mutateAsync, isPending } = useEliminarPagoReserva();
+
   const tipoLabel =
     pago.tipo === 'sena'
       ? 'Seña'
@@ -902,8 +903,8 @@ function PagoRow({ pago }: { pago: ReservaPago }) {
   const tieneConsumo = pago.monto_consumo > 0;
 
   return (
-    <li className="space-y-0.5">
-      <div className="flex flex-wrap items-center gap-2">
+    <li className="group relative space-y-0.5 rounded-sm px-1 py-0.5 hover:bg-muted/30">
+      <div className="flex flex-wrap items-center gap-2 pr-12">
         <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {tipoLabel}
         </span>
@@ -932,6 +933,48 @@ function PagoRow({ pago }: { pago: ReservaPago }) {
           ? `${fmtMoney(pago.monto_alquiler)} alquiler + ${fmtMoney(pago.monto_consumo)} buffet`
           : `${fmtMoney(pago.monto_alquiler)} alquiler`}
       </div>
+      
+      {!readOnly && (
+        <div className="absolute right-1 top-1 flex items-center bg-background/80 px-1 backdrop-blur-sm">
+          {confirming ? (
+            <div className="flex items-center gap-1">
+              <span className="mr-1 text-[10px] font-medium text-destructive">¿Borrar?</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                onClick={() => setConfirming(false)}
+                disabled={isPending}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                className="h-5 w-5"
+                onClick={async () => {
+                  await mutateAsync({ pagoId: pago.id, reservaId, fechaReserva });
+                }}
+                disabled={isPending}
+              >
+                <Check className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

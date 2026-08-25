@@ -238,6 +238,8 @@ export function PersonasTurnoSection({
     return sum;
   }, [saldosPorPersona]);
 
+  const globalRestante = Math.max(0, totalACobrar - totalCobrado);
+
   const personasQueDeben = useMemo(() => {
     let count = 0;
     for (const s of saldosPorPersona.values()) {
@@ -508,6 +510,7 @@ export function PersonasTurnoSection({
                   persona={j}
                   numero={idx + 1}
                   saldo={saldo}
+                  globalRestante={globalRestante}
                   cobrosBloqueados={cobrosBloqueados}
                   vinculandoActivo={vinculandoId === j.id}
                   cobrandoActivo={cobrandoId === j.id}
@@ -550,6 +553,7 @@ export function PersonasTurnoSection({
                   numero={idx + 1}
                   nombreLibre={inv.nombre_libre}
                   saldo={saldo}
+                  globalRestante={globalRestante}
                   cobrosBloqueados={cobrosBloqueados}
                   cobrandoActivo={cobrandoId === inv.id}
                   onPedirCobrar={() => {
@@ -878,6 +882,7 @@ interface JugadorCardProps {
   persona: ReservaJugadorConNombre;
   numero: number;
   saldo: SaldoPersona | undefined;
+  globalRestante: number;
   cobrosBloqueados: boolean;
   vinculandoActivo: boolean;
   cobrandoActivo: boolean;
@@ -902,6 +907,7 @@ function JugadorCard({
   persona,
   numero,
   saldo,
+  globalRestante,
   cobrosBloqueados,
   vinculandoActivo,
   cobrandoActivo,
@@ -1031,6 +1037,7 @@ function JugadorCard({
         <CobrarPersonaInline
           nombre={label}
           saldo={saldo}
+          globalRestante={globalRestante}
           nombreLibreActual={persona.nombre_libre}
           onCancelar={onCancelarCobrar}
           onConfirmar={onConfirmarCobro}
@@ -1050,6 +1057,7 @@ interface InvitadoCardProps {
   /** nombre_libre actual del invitado (0065) — pre-rellena el campo de nombre. */
   nombreLibre?: string | null;
   saldo: SaldoPersona | undefined;
+  globalRestante: number;
   cobrosBloqueados: boolean;
   cobrandoActivo: boolean;
   onPedirCobrar: () => void;
@@ -1070,6 +1078,7 @@ function InvitadoCard({
   numero,
   nombreLibre,
   saldo,
+  globalRestante,
   cobrosBloqueados,
   cobrandoActivo,
   onPedirCobrar,
@@ -1134,6 +1143,7 @@ function InvitadoCard({
         <CobrarPersonaInline
           nombre={label}
           saldo={saldo}
+          globalRestante={globalRestante}
           nombreLibreActual={nombreLibre}
           onCancelar={onCancelarCobrar}
           onConfirmar={onConfirmarCobro}
@@ -1321,6 +1331,7 @@ function AccionCobrar({
 function CobrarPersonaInline({
   nombre,
   saldo,
+  globalRestante,
   nombreLibreActual,
   onCancelar,
   onConfirmar,
@@ -1328,6 +1339,7 @@ function CobrarPersonaInline({
 }: {
   nombre: string;
   saldo: SaldoPersona;
+  globalRestante: number;
   nombreLibreActual?: string | null;
   onCancelar: () => void;
   onConfirmar: (
@@ -1357,8 +1369,7 @@ function CobrarPersonaInline({
   const montoValido = Number.isInteger(montoNum) && montoNum >= 1;
   const saldoRestante = montoValido && montoNum < saldo.saldo ? saldo.saldo - montoNum : 0;
   const esParcial = montoValido && saldo.saldo > montoNum;
-  const esExcedente = montoValido && montoNum > saldo.saldo;
-  const excedenteMonto = esExcedente ? montoNum - saldo.saldo : 0;
+  const esCobroMayor = montoValido && montoNum > saldo.saldo;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1369,6 +1380,10 @@ function CobrarPersonaInline({
     }
     if (!Number.isInteger(montoNum) || montoNum < 1) {
       setErrorLocal('Ingresá un monto válido (mínimo $1).');
+      return;
+    }
+    if (montoNum > globalRestante) {
+      setErrorLocal(`El monto no puede superar el saldo total del turno (${fmtMoney(globalRestante)}).`);
       return;
     }
     await onConfirmar(
@@ -1445,12 +1460,12 @@ function CobrarPersonaInline({
             para esta persona.
           </p>
         )}
-        {esExcedente && (
-          <p className="text-[11px] text-green-600 dark:text-green-400">
-            Se registrará un excedente por redondeo de{' '}
-            <span className="font-medium tabular-nums">
-              {fmtMoney(excedenteMonto)}
-            </span>.
+        {esCobroMayor && (
+          <p className="text-[11px] text-muted-foreground">
+            El excedente cubrirá el saldo de otras personas. Saldo global restante tras el pago:{' '}
+            <span className="font-medium tabular-nums text-foreground">
+              {fmtMoney(Math.max(0, globalRestante - montoNum))}
+            </span>
           </p>
         )}
       </div>
