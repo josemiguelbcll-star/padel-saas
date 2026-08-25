@@ -28,7 +28,6 @@ import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
 import { useReservaPagos } from './hooks/useReservaPagos';
-import { useEliminarPagoReserva } from './hooks/useEliminarPagoReserva';
 import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useCancelarReserva } from './hooks/useCancelarReserva';
 import { useCerrarTurno } from './hooks/useCerrarTurno';
@@ -230,7 +229,7 @@ function DetalleReservaBody({
     const totalConsumosGeneral = consumos
       .filter((c) => c.tipo_reparto === 'general')
       .reduce((s, c) => s + c.subtotal, 0);
-      
+
     const totalACobrar = reserva.monto_total + totalConsumosPartido + totalConsumosGeneral;
     const totalCobrado = pagos.reduce((acc, p) => acc + p.monto_alquiler + p.monto_consumo, 0);
 
@@ -251,22 +250,22 @@ function DetalleReservaBody({
   const getWhatsAppUrlForTemplate = (type: 'confirmacion' | 'cancelacion' | 'torneo'): string | null => {
     if (!telefonoTitular) return null;
     const templatesCfg = (club?.config as any)?.whatsapp_templates ?? {};
-    
+
     const defaultTemplates = {
       confirmacion: 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} está confirmado.',
       cancelacion: 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} fue cancelado.',
       torneo: 'Hola {nombreCliente}, te recordamos la invitación al torneo en {cancha} el {fecha} a las {hora}.',
     };
-    
+
     let template = templatesCfg[type] || defaultTemplates[type];
-    
+
     template = template.replace(/{nombreCliente}/g, reserva.jugador?.nombre ?? 'jugador');
     template = template.replace(/{cancha}/g, cancha.nombre);
     template = template.replace(/{fecha}/g, formatearFechaAmigable(reserva.fecha));
     template = template.replace(/{hora}/g, formatearHora(reserva.hora_inicio));
     template = template.replace(/{montoTotal}/g, `${reserva.monto_total}`);
     template = template.replace(/{montoSena}/g, `${reserva.monto_sena}`);
-    
+
     return `https://wa.me/${telefonoTitular.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(template)}`;
   };
 
@@ -635,11 +634,7 @@ function DetalleReservaBody({
           readOnly={readOnly}
         />
 
-        {/* Pagos */}
-        <section className="space-y-2">
-          <Label>Pagos</Label>
-          <PagosList query={pagosQuery} reservaId={reserva.id} fechaReserva={reserva.fecha} readOnly={readOnly} />
-        </section>
+
 
         {/* Observaciones */}
         <ObservacionesSection
@@ -844,113 +839,6 @@ function DetalleReservaBody({
 // Sub-componentes
 // ─────────────────────────────────────────────────────────────────────
 
-function PagosList({
-  query,
-  reservaId,
-  fechaReserva,
-  readOnly,
-}: {
-  query: ReturnType<typeof useReservaPagos>;
-  reservaId: number;
-  fechaReserva: string;
-  readOnly?: boolean;
-}) {
-  if (query.isLoading) {
-    return (
-      <div className="h-10 animate-pulse rounded-md border border-border bg-muted/40" />
-    );
-  }
-  if (query.error) {
-    return (
-      <p className="text-xs text-destructive" role="alert">
-        {query.error.message}
-      </p>
-    );
-  }
-  const pagos = query.data ?? [];
-  if (pagos.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
-    );
-  }
-  return (
-    <ul className="space-y-1 text-sm">
-      {pagos.map((p) => (
-        <PagoRow key={p.id} pago={p} reservaId={reservaId} fechaReserva={fechaReserva} readOnly={readOnly} />
-      ))}
-    </ul>
-  );
-}
-
-function PagoRow({ pago, reservaId, fechaReserva, readOnly }: { pago: ReservaPago; reservaId: number; fechaReserva: string; readOnly?: boolean }) {
-  const [confirming, setConfirming] = useState(false);
-  const { mutateAsync, isPending } = useEliminarPagoReserva();
-
-  const tipoLabel =
-    pago.tipo === 'sena'
-      ? 'Seña'
-      : pago.tipo === 'reembolso'
-        ? 'Reembolso'
-        : 'Pago';
-
-  // Desglose mini (paso 4): si el pago tiene parte de consumo, muestro
-  // "alq + buf"; si no, sólo el de alquiler. Discreto, debajo de la
-  // línea principal.
-  const tieneConsumo = pago.monto_consumo > 0;
-
-  return (
-    <li className="group relative space-y-0.5 rounded-sm px-1 py-0.5 hover:bg-muted/30">
-      <div className="flex flex-wrap items-center gap-2 pr-12">
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          {tipoLabel}
-        </span>
-        <span className="font-medium tabular-nums text-foreground">
-          {fmtMoney(pago.monto)}
-        </span>
-        <span className="text-muted-foreground">·</span>
-        <span className="text-muted-foreground">
-          {MEDIO_PAGO_LABEL[pago.medio_pago]}
-        </span>
-        <span className="text-muted-foreground">·</span>
-        <span className="text-xs text-muted-foreground">
-          {fmtFechaHoraCorta(pago.fecha_hora)}
-        </span>
-        {pago.observaciones && (
-          <>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-xs italic text-muted-foreground">
-              {pago.observaciones}
-            </span>
-          </>
-        )}
-      </div>
-      <div className="pl-1 text-[11px] tabular-nums text-muted-foreground">
-        {tieneConsumo
-          ? `${fmtMoney(pago.monto_alquiler)} alquiler + ${fmtMoney(pago.monto_consumo)} buffet`
-          : `${fmtMoney(pago.monto_alquiler)} alquiler`}
-      </div>
-      
-      {!readOnly && (
-        <div className="absolute right-1 top-1 flex items-center bg-background/80 px-1 backdrop-blur-sm">
-          {confirming ? (
-            <div className="flex items-center gap-1">
-              <span className="mr-1 text-[10px] font-medium text-destructive">¿Borrar?</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                onClick={() => setConfirming(false)}
-                disabled={isPending}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="icon"
-                className="h-5 w-5"
-                onClick={async () => {
                   await mutateAsync({ pagoId: pago.id, reservaId, fechaReserva });
                 }}
                 disabled={isPending}

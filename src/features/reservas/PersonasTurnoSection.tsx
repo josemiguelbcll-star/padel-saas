@@ -683,9 +683,9 @@ function BarraProgreso({
   const pct =
     totalACobrar > 0
       ? Math.max(
-          0,
-          Math.min(100, Math.round((totalCobrado / totalACobrar) * 100)),
-        )
+        0,
+        Math.min(100, Math.round((totalCobrado / totalACobrar) * 100)),
+      )
       : 0;
 
   return (
@@ -972,30 +972,30 @@ function JugadorCard({
           />
         </div>
 
-      <MontoEstado saldo={saldo} />
+        <MontoEstado saldo={saldo} />
 
-      <AccionCobrar
-        saldo={saldo}
-        cobrosBloqueados={cobrosBloqueados || !!readOnly}
-        cobrandoActivo={cobrandoActivo}
-        disabled={disabled}
-        onPedirCobrar={onPedirCobrar}
-      />
-
-      {!esTitular && !readOnly && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onQuitar}
+        <AccionCobrar
+          saldo={saldo}
+          cobrosBloqueados={cobrosBloqueados || !!readOnly}
+          cobrandoActivo={cobrandoActivo}
           disabled={disabled}
-          aria-label={`Quitar a ${label}`}
-          className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      )}
-    </div>
+          onPedirCobrar={onPedirCobrar}
+        />
+
+        {!esTitular && !readOnly && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onQuitar}
+            disabled={disabled}
+            aria-label={`Quitar a ${label}`}
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
 
       {/* Mini-form: asignar/vincular ficha */}
       {vinculandoActivo && (
@@ -1223,6 +1223,80 @@ function ContextoLinea({
   }
 
   return null;
+}
+
+/**
+ * Muestra el listado de pagos hechos por esta persona con opción de eliminarlos.
+ */
+function RowPagosPersona({
+  pagosPropios,
+  onEliminarPago,
+  disabled,
+  readOnly,
+}: {
+  pagosPropios: ReservaPago[];
+  onEliminarPago: (pagoId: number) => Promise<void>;
+  disabled: boolean;
+  readOnly?: boolean;
+}) {
+  const [confirmingPagoId, setConfirmingPagoId] = useState<number | null>(null);
+
+  if (pagosPropios.length === 0) return null;
+
+  return (
+    <div className="mt-1 space-y-1">
+      {pagosPropios.map((p) => {
+        const isConfirming = confirmingPagoId === p.id;
+        return (
+          <div
+            key={p.id}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600"
+          >
+            <span>ya pagó {fmtMoney(p.monto)}</span>
+            <span className="text-[10px] text-muted-foreground font-normal">
+              ({MEDIO_PAGO_LABEL[p.medio_pago]})
+            </span>
+            {!readOnly && (
+              isConfirming ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] text-destructive font-semibold">¿Borrar?</span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingPagoId(null)}
+                    disabled={disabled}
+                    className="rounded p-0.5 hover:bg-muted text-muted-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onEliminarPago(p.id);
+                      setConfirmingPagoId(null);
+                    }}
+                    disabled={disabled}
+                    className="rounded bg-destructive p-0.5 text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    <Check className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingPagoId(p.id)}
+                  disabled={disabled}
+                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
+                  title="Eliminar este pago"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
