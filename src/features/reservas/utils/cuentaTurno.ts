@@ -191,42 +191,102 @@ export interface CalcularSaldosPersonasInput {
  * cada persona; la RPC recalcula del lado server (single source of
  * truth para el cobro).
  */
+interface ParticipantDebt {
+  id: number;
+  paid: number;
+  baseWeight: number;
+}
+
+function distribuirDeudaPonderada(totalDebt: number, participants: ParticipantDebt[]): Record<number, number> {
+  let active = [...participants];
+  let remainingDebt = totalDebt;
+
+  while (active.length > 0) {
+    const totalWeight = active.reduce((sum, p) => sum + p.baseWeight, 0);
+    if (totalWeight === 0) break;
+
+    const quotaPerWeight = remainingDebt / totalWeight;
+    const overpayers = active.filter(p => p.paid >= quotaPerWeight * p.baseWeight);
+
+    if (overpayers.length === 0) break;
+
+    for (const p of overpayers) {
+      remainingDebt -= p.paid;
+    }
+    active = active.filter(p => p.paid < quotaPerWeight * p.baseWeight);
+  }
+
+  const saldos: Record<number, number> = {};
+  const totalWeight = active.reduce((sum, p) => sum + p.baseWeight, 0);
+  const finalQuotaPerWeight = totalWeight > 0 ? remainingDebt / totalWeight : 0;
+
+  for (const p of active) {
+    saldos[p.id] = Math.max(0, Math.ceil((finalQuotaPerWeight * p.baseWeight) - p.paid));
+  }
+  for (const p of participants) {
+    if (saldos[p.id] === undefined) {
+      saldos[p.id] = 0;
+    }
+  }
+  return saldos;
+}
+
 export function calcularSaldosPersonas(
   input: CalcularSaldosPersonasInput,
 ): SaldoPersona[] {
   const { personas, pagos, desglose } = input;
 
+  // 1. Gather what everyone has paid and their theoretical base weight for Alquiler
+  const alquilerParticipants: ParticipantDebt[] = personas.map(p => {
+    const pagosPropios = pagos.filter(pago => pago.reserva_jugador_id === p.id);
+    const yaPagadoAlquiler = pagosPropios.reduce((sum, pago) => sum + pago.monto_alquiler, 0);
+    return {
+      id: p.id,
+      paid: yaPagadoAlquiler,
+      baseWeight: p.tipo === 'jugador' ? desglose.parteAlquilerPorJugador : 0
+    };
+  });
+
+  // 2. Gather what everyone has paid and their theoretical base weight for Consumos
+  const consumoParticipants: ParticipantDebt[] = personas.map(p => {
+    const pagosPropios = pagos.filter(pago => pago.reserva_jugador_id === p.id);
+    const yaPagadoConsumo = pagosPropios.reduce((sum, pago) => sum + pago.monto_consumo, 0);
+    const baseConsumo = p.tipo === 'jugador'
+      ? desglose.parteConsumoPartidoPorJugador + desglose.parteConsumoGeneralPorPersona
+      : desglose.parteConsumoGeneralPorPersona;
+    return {
+      id: p.id,
+      paid: yaPagadoConsumo,
+      baseWeight: baseConsumo
+    };
+  });
+
+  // 3. Run the global prorating algorithm
+  const saldosAlquiler = distribuirDeudaPonderada(desglose.montoAlquiler, alquilerParticipants);
+  const saldosConsumo = distribuirDeudaPonderada(
+    desglose.totalConsumosPartido + desglose.totalConsumosGeneral,
+    consumoParticipants
+  );
+
+  console.log('--- DEBUG PRORRATEO ---');
+  console.log('desglose.montoAlquiler:', desglose.montoAlquiler);
+  console.log('alquilerParticipants:', alquilerParticipants);
+  console.log('saldosAlquiler:', saldosAlquiler);
+
   return personas.map((persona) => {
-    const pagosPropios = pagos.filter(
-      (p) => p.reserva_jugador_id === persona.id,
-    );
-    const yaPagadoAlquiler = pagosPropios.reduce(
-      (sum, p) => sum + p.monto_alquiler,
-      0,
-    );
-    const yaPagadoConsumo = pagosPropios.reduce(
-      (sum, p) => sum + p.monto_consumo,
-      0,
-    );
+    const pagosPropios = pagos.filter((p) => p.reserva_jugador_id === persona.id);
+    const yaPagadoAlquiler = pagosPropios.reduce((sum, p) => sum + p.monto_alquiler, 0);
+    const yaPagadoConsumo = pagosPropios.reduce((sum, p) => sum + p.monto_consumo, 0);
     const yaPagadoTotal = yaPagadoAlquiler + yaPagadoConsumo;
 
-    const parteAlquiler =
-      persona.tipo === 'jugador' ? desglose.parteAlquilerPorJugador : 0;
-    // Consumo agregado según tipo de persona (sin exponer las dos bolsas
-    // por separado en SaldoPersona — la UI muestra el monto total y el
-    // detalle vive en el hint colapsable del PersonasTurnoSection).
-    // Mismo split que fn_cobrar_persona_turno (RPC del 0015): jugadores
-    // pagan partido + general; invitados sólo general.
-    const parteConsumo =
-      persona.tipo === 'jugador'
-        ? desglose.parteConsumoPartidoPorJugador +
-          desglose.parteConsumoGeneralPorPersona
-        : desglose.parteConsumoGeneralPorPersona;
-    const parteTotal = parteAlquiler + parteConsumo;
-
-    const saldoAlquiler = Math.max(0, parteAlquiler - yaPagadoAlquiler);
-    const saldoConsumo = Math.max(0, parteConsumo - yaPagadoConsumo);
+    const saldoAlquiler = saldosAlquiler[persona.id] ?? 0;
+    const saldoConsumo = saldosConsumo[persona.id] ?? 0;
     const saldo = saldoAlquiler + saldoConsumo;
+
+    // We recalculate their dynamic "parte" based on what they actually paid + their remaining saldo
+    const parteAlquiler = saldoAlquiler + yaPagadoAlquiler;
+    const parteConsumo = saldoConsumo + yaPagadoConsumo;
+    const parteTotal = parteAlquiler + parteConsumo;
 
     let estado: EstadoSaldoPersona;
     if (saldo === 0) {
