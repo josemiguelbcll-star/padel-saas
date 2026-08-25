@@ -36,10 +36,6 @@ import { useReservaJugadores } from './hooks/useReservaJugadores';
 import { useEliminarBloqueoTorneo } from './hooks/useEliminarBloqueoTorneo';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import {
-  calcularDesgloseCuenta,
-  calcularSaldosPersonas,
-} from './utils/cuentaTurno';
-import {
   derivarEstadoOperativo,
   ESTADO_OPERATIVO_LABEL,
   estadoOperativoColorVar,

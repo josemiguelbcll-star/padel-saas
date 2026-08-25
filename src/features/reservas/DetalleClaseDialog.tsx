@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { AlertTriangle, Plus, ShieldAlert, Trash2 } from 'lucide-react';
+import { useMemo, useState, type FormEvent, useEffect } from 'react';
+import { AlertTriangle, Plus, ShieldAlert, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +17,8 @@ import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases'
 import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
 import { useCobrarClase } from './hooks/useCobrarClase';
+import { useClaseOcurrencia } from './hooks/useClaseOcurrencia';
+import { useCrearClaseOcurrencia } from './hooks/useCrearClaseOcurrencia';
 import { formatearFechaAmigable } from './utils/fechaUtils';
 import { formatearHora, sumarMinutos } from './utils/horaUtils';
 import { resolverTarifa } from './utils/resolverTarifa';
@@ -71,27 +73,11 @@ interface DetalleClaseDialogProps {
   onOpenChange: (open: boolean) => void;
   clase: ClaseConProfesor | null;
   cancha: Cancha | null;
-  /** 'YYYY-MM-DD' — fecha puntual de la ocurrencia. */
   fecha: string | null;
-  /** Pagos existentes para (clase, fecha). Vacío si nunca se cobró. */
   pagosIniciales: ClaseCobro[];
   readOnly?: boolean;
 }
 
-/**
- * Modal de detalle de una ocurrencia de clase. Desde la migración 0008
- * una ocurrencia puede tener 0/1/N pagos: el dialog muestra el
- * historial, la suma cobrada, y permite agregar nuevos pagos. Admin
- * además puede borrar pagos individuales (con confirmación inline).
- *
- * El precio configurado en `clases.precio` es solo SUGERENCIA: pre-llena
- * el monto del nuevo pago pero el vendedor lo edita libremente. No hay
- * total fijo a alcanzar.
- *
- * Tras add/delete actualiza el state local de `pagos` para reflejar sin
- * recargar; las invalidaciones de los hooks también re-sincronizan la
- * grilla (tilde).
- */
 export function DetalleClaseDialog({
   open,
   onOpenChange,
@@ -106,8 +92,6 @@ export function DetalleClaseDialog({
       <DialogContent className="max-w-xl">
         {clase && cancha && fecha && (
           <DetalleClaseBody
-            // Remount al cambiar de (clase, fecha): el form, el confirm de
-            // borrar y la lista local arrancan limpios.
             key={`${clase.id}-${fecha}`}
             clase={clase}
             cancha={cancha}
@@ -140,60 +124,95 @@ function DetalleClaseBody({
   readOnly,
 }: DetalleClaseBodyProps) {
   const { user } = useSession();
-  // Gateo cosmético del botón "Borrar". La seguridad real la da la RLS
-  // clase_cobros_delete_solo_admin. Aunque un vendedor lograra disparar
-  // el DELETE, postgres lo rechaza con 42501.
   const isAdmin = user?.rol === 'admin' && !readOnly;
 
-  // Estado local de pagos: arranca con la prop, se actualiza al
-  // agregar/borrar para reflejar sin esperar al refetch.
   const [pagos, setPagos] = useState<ClaseCobro[]>(pagosIniciales);
 
-  // State del mini-form de agregar pago (oculto por default).
-  // Modelo B (0035): el monto YA NO se ingresa — se resuelve server-side
-  // desde la tarifa de clase vigente para (fecha, clase.hora_inicio).
+  // Ocurrencia y Alumnos
+  const ocurrenciaQuery = useClaseOcurrencia(clase.id, fecha);
+  const crearOcurrenciaMutation = useCrearClaseOcurrencia();
+  const ocurrencia = ocurrenciaQuery.data;
+  
+  const [cantidadAlumnos, setCantidadAlumnos] = useState<number>(1);
+  const [alumnosInputStr, setAlumnosInputStr] = useState('1');
+  const [montoOverrideStr, setMontoOverrideStr] = useState<string>('');
+
+  // Mini-form de agregar pago
   const [agregando, setAgregando] = useState(false);
+  const [montoPago, setMontoPago] = useState<string>('');
   const [medio, setMedio] = useState<MedioPago | null>('efectivo');
   const [obs, setObs] = useState<string>('');
   const [agregarError, setAgregarError] = useState<string | null>(null);
 
-  // State del confirm inline de borrar pago.
+  // Confirm inline de borrar pago
   const [borrandoId, setBorrandoId] = useState<number | null>(null);
   const [borrarError, setBorrarError] = useState<string | null>(null);
 
   const cobrarMutation = useCobrarClase();
   const borrarMutation = useBorrarCobroClase();
 
-  // Tarifa de clase resuelta client-side para (fecha, hora_clase).
-  // Es el monto que el server va a usar al cobrar. Lo mostramos como
-  // referencia + deshabilita el botón si no hay tarifa que cubra el slot.
-  // El server vuelve a resolver al cobrar (red última); este cálculo
-  // client-side solo guía la UX.
   const tarifasClasesQuery = useTarifasClases();
+  const tarifasLoading = tarifasClasesQuery.isLoading || ocurrenciaQuery.isLoading;
+
   const alquilerResuelto = useMemo(
     () =>
       resolverTarifa({
         fecha,
         hora: clase.hora_inicio,
         tarifas: tarifasClasesQuery.data ?? [],
+        cantidad_alumnos: ocurrencia ? ocurrencia.cantidad_alumnos : cantidadAlumnos,
       }),
-    [fecha, clase.hora_inicio, tarifasClasesQuery.data],
+    [fecha, clase.hora_inicio, tarifasClasesQuery.data, ocurrencia, cantidadAlumnos],
   );
-  const tarifasLoading = tarifasClasesQuery.isLoading;
+
+  useEffect(() => {
+    if (!ocurrencia && alquilerResuelto.monto !== undefined) {
+      setMontoOverrideStr(alquilerResuelto.monto.toString());
+    }
+  }, [alquilerResuelto.monto, ocurrencia]);
+
   const sinTarifa = !tarifasLoading && alquilerResuelto.tarifa === null;
+  const montoTotalAlquiler = ocurrencia ? ocurrencia.monto_total : alquilerResuelto.monto;
+  const totalCobrado = pagos.reduce((sum, p) => sum + p.monto, 0);
+  const saldoPendiente = Math.max(0, montoTotalAlquiler - totalCobrado);
 
   const profesorNombre = clase.profesor?.nombre ?? 'Sin profesor';
   const horaInicio = formatearHora(clase.hora_inicio);
-  const horaFin = formatearHora(
-    sumarMinutos(clase.hora_inicio, clase.duracion_min),
-  );
+  const horaFin = formatearHora(sumarMinutos(clase.hora_inicio, clase.duracion_min));
 
-  const totalCobrado = pagos.reduce((sum, p) => sum + p.monto, 0);
+  // Initialize montoPago when opening the form
+  useEffect(() => {
+    if (agregando) {
+      setMontoPago(saldoPendiente > 0 ? saldoPendiente.toString() : '');
+    }
+  }, [agregando, saldoPendiente]);
 
   function resetMiniForm(): void {
     setMedio('efectivo');
+    setMontoPago('');
     setObs('');
     setAgregarError(null);
+  }
+
+  async function handleCrearOcurrencia(e: FormEvent) {
+    e.preventDefault();
+    if (sinTarifa && !montoOverrideStr) return;
+    
+    const montoFinal = parseFloat(montoOverrideStr);
+    if (isNaN(montoFinal) || montoFinal < 0) {
+      return;
+    }
+
+    try {
+      await crearOcurrenciaMutation.mutateAsync({
+        clase_id: clase.id,
+        fecha: fecha,
+        cantidad_alumnos: cantidadAlumnos,
+        monto_total: montoFinal,
+      });
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleAgregar(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -204,14 +223,10 @@ function DetalleClaseBody({
       setAgregarError('Elegí un medio de pago.');
       return;
     }
-    // Modelo B: el server resuelve el monto. Lo bloqueamos client-side
-    // solo si sabemos seguro que no hay tarifa (mejor UX). Si la query
-    // de tarifas todavía está cargando, dejamos pasar y que el server
-    // sea la verdad última.
-    if (sinTarifa) {
-      setAgregarError(
-        'No hay tarifa de clase configurada para este horario. Configurala en Configuración → Tarifas (pestaña Clases) antes de cobrar.',
-      );
+    
+    const montoParsed = parseFloat(montoPago);
+    if (isNaN(montoParsed) || montoParsed <= 0) {
+      setAgregarError('Ingresá un monto válido a cobrar.');
       return;
     }
 
@@ -219,10 +234,10 @@ function DetalleClaseBody({
       const nuevoCobro = await cobrarMutation.mutateAsync({
         clase_id: clase.id,
         fecha,
+        monto: montoParsed,
         medio_pago: medio,
         observaciones: obs.trim() === '' ? null : obs.trim(),
       });
-      // Apend al state local — la lista se ve actualizada al instante.
       setPagos((prev) => [...prev, nuevoCobro]);
       setAgregando(false);
       resetMiniForm();
@@ -262,219 +277,235 @@ function DetalleClaseBody({
       </DialogHeader>
 
       <div className="space-y-5">
-        {/* Detalles de la clase */}
         <section className="space-y-2">
           <Label>Detalles</Label>
           <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3 text-sm">
             <Row label="Profesor" value={profesorNombre} />
             {clase.nombre && <Row label="Nombre" value={clase.nombre} />}
+            {ocurrencia && (
+              <Row label="Alumnos asisten" value={ocurrencia.cantidad_alumnos.toString()} />
+            )}
             <Row
-              label="Alquiler"
+              label="Alquiler total"
               value={
                 tarifasLoading
                   ? '—'
-                  : alquilerResuelto.tarifa
-                    ? fmtMoney(alquilerResuelto.monto)
-                    : 'Sin tarifa configurada'
+                  : sinTarifa
+                    ? 'Sin tarifa configurada'
+                    : fmtMoney(montoTotalAlquiler)
               }
             />
           </div>
         </section>
 
-        {/* Cobrado: suma total de todos los pagos */}
-        <section className="space-y-2">
-          <Label>Cobrado</Label>
-          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-muted-foreground">Total</span>
-              <span
-                className={cn(
-                  'text-base font-semibold tabular-nums',
-                  totalCobrado > 0 ? 'text-foreground' : 'text-muted-foreground',
-                )}
-              >
-                {fmtMoney(totalCobrado)}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* Historial de pagos */}
-        <section className="space-y-2">
-          <Label>Pagos</Label>
-          {pagos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Sin pagos registrados.
+        {!ocurrencia && !tarifasLoading && (
+          <section className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-4">
+            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              Confirmar asistencia
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Para cobrar esta clase, primero debes indicar cuántos alumnos asistieron.
+              El precio se calculará automáticamente según tus tarifas escalonadas.
             </p>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {pagos.map((p) => (
-                <PagoRow
-                  key={p.id}
-                  pago={p}
-                  isAdmin={isAdmin}
-                  isConfirming={borrandoId === p.id}
-                  isPending={
-                    borrarMutation.isPending && borrandoId === p.id
-                  }
-                  onBorrarRequest={() => {
-                    setBorrarError(null);
-                    setBorrandoId(p.id);
+            <form onSubmit={handleCrearOcurrencia} className="flex items-end gap-3 pt-2">
+              <div className="space-y-1 flex-1">
+                <Label className="text-xs">Cantidad de alumnos</Label>
+                <Input 
+                  type="number" 
+                  min={1} 
+                  value={alumnosInputStr} 
+                  onChange={(e) => {
+                    setAlumnosInputStr(e.target.value);
+                    const n = parseInt(e.target.value, 10);
+                    if (!isNaN(n) && n > 0) setCantidadAlumnos(n);
                   }}
-                  onBorrarConfirm={() => {
-                    void handleConfirmBorrar(p.id);
-                  }}
-                  onBorrarCancel={() => setBorrandoId(null)}
+                  disabled={crearOcurrenciaMutation.isPending}
                 />
-              ))}
-            </ul>
-          )}
-          {borrarError && (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive"
-            >
-              {borrarError}
-            </div>
-          )}
-        </section>
-
-        {/* Agregar pago: toggle + mini-form. Modelo B: sin input de
-            monto — el server resuelve desde la tarifa de clase. El
-            botón Cobrar se deshabilita si no hay tarifa configurada. */}
-        {!agregando && !readOnly && (
-          <div className="space-y-2">
-            {sinTarifa && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs"
-              >
-                <ShieldAlert
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-500"
-                  aria-hidden="true"
-                />
-                <p>
-                  No hay <strong>tarifa de clase</strong> configurada para este
-                  horario. Configurala en <em>Configuración → Tarifas
-                  (pestaña Clases)</em> antes de cobrar.
-                </p>
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs text-muted-foreground">Costo resultante</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={montoOverrideStr}
+                    onChange={(e) => setMontoOverrideStr(e.target.value)}
+                    disabled={crearOcurrenciaMutation.isPending}
+                    className="h-9 font-medium"
+                    placeholder={sinTarifa ? "0.00" : alquilerResuelto.monto.toString()}
+                  />
+                </div>
+              </div>
+              <Button type="submit" disabled={crearOcurrenciaMutation.isPending || (sinTarifa && !montoOverrideStr)}>
+                Confirmar
+              </Button>
+            </form>
+            {sinTarifa && !montoOverrideStr && (
+               <div role="alert" className="mt-2 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs">
+                <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-500" />
+                <p>No hay tarifa configurada para esta cantidad de alumnos en este horario.</p>
               </div>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                resetMiniForm();
-                setAgregando(true);
-              }}
-              disabled={tarifasLoading || sinTarifa}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {tarifasLoading ? 'Cargando tarifa…' : 'Agregar pago'}
-            </Button>
-          </div>
+          </section>
         )}
 
-        {agregando && (
-          <form
-            onSubmit={handleAgregar}
-            className="space-y-3 rounded-md border border-border bg-muted/30 p-3"
-            noValidate
-          >
-            <h4 className="text-sm font-medium text-foreground">Nuevo pago</h4>
-
-            {/* Monto resuelto (read-only): el server usa este valor desde
-                la tarifa de clase vigente. */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Alquiler de cancha</Label>
-              <div className="flex items-baseline justify-between rounded-md border border-border bg-background px-3 py-2 text-sm">
-                <span className="text-muted-foreground">
-                  Resuelto desde la tarifa de clase
-                </span>
-                <span className="text-base font-semibold tabular-nums text-foreground">
-                  {alquilerResuelto.tarifa
-                    ? fmtMoney(alquilerResuelto.monto)
-                    : '—'}
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                El monto lo define la tarifa de clase vigente para{' '}
-                {formatearFechaAmigable(fecha)} a las {horaInicio}.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Medio de pago</Label>
-              <div className="flex flex-wrap gap-1">
-                {MEDIOS_PAGO_LIST.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMedio(m)}
-                    disabled={cobrarMutation.isPending}
-                    aria-pressed={medio === m}
+        {ocurrencia && (
+          <>
+            <section className="space-y-2">
+              <Label>Estado de cuenta</Label>
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-muted-foreground">Total cobrado</span>
+                  <span
                     className={cn(
-                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                      'disabled:cursor-not-allowed disabled:opacity-50',
-                      medio === m
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-background text-foreground hover:bg-muted',
+                      'text-base font-semibold tabular-nums',
+                      totalCobrado > 0 ? 'text-foreground' : 'text-muted-foreground',
                     )}
                   >
-                    {MEDIO_PAGO_LABEL[m]}
-                  </button>
-                ))}
+                    {fmtMoney(totalCobrado)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 mt-1">
+                  <span className="text-muted-foreground">Saldo pendiente</span>
+                  <span className={cn('text-sm font-medium tabular-nums', saldoPendiente > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500')}>
+                    {saldoPendiente > 0 ? fmtMoney(saldoPendiente) : 'Saldado'}
+                  </span>
+                </div>
               </div>
-            </div>
+            </section>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="cobrar-clase-obs" className="text-xs">
-                Observaciones (opcional)
-              </Label>
-              <Input
-                id="cobrar-clase-obs"
-                type="text"
-                value={obs}
-                onChange={(e) => setObs(e.target.value)}
-                disabled={cobrarMutation.isPending}
-                maxLength={500}
-                placeholder="Ej: pago parcial, queda saldo"
-              />
-            </div>
+            <section className="space-y-2">
+              <Label>Pagos realizados</Label>
+              {pagos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {pagos.map((p) => (
+                    <PagoRow
+                      key={p.id}
+                      pago={p}
+                      isAdmin={isAdmin}
+                      isConfirming={borrandoId === p.id}
+                      isPending={borrarMutation.isPending && borrandoId === p.id}
+                      onBorrarRequest={() => {
+                        setBorrarError(null);
+                        setBorrandoId(p.id);
+                      }}
+                      onBorrarConfirm={() => void handleConfirmBorrar(p.id)}
+                      onBorrarCancel={() => setBorrandoId(null)}
+                    />
+                  ))}
+                </ul>
+              )}
+              {borrarError && (
+                <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                  {borrarError}
+                </div>
+              )}
+            </section>
 
-            {agregarError && (
-              <div
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive"
-              >
-                {agregarError}
+            {!agregando && !readOnly && (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    resetMiniForm();
+                    setAgregando(true);
+                  }}
+                  disabled={cobrarMutation.isPending}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar pago
+                </Button>
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setAgregando(false);
-                  resetMiniForm();
-                }}
-                disabled={cobrarMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={cobrarMutation.isPending || sinTarifa}
-              >
-                {cobrarMutation.isPending ? 'Cobrando…' : 'Cobrar'}
-              </Button>
-            </div>
-          </form>
+            {agregando && (
+              <form onSubmit={handleAgregar} className="space-y-3 rounded-md border border-border bg-muted/30 p-3" noValidate>
+                <h4 className="text-sm font-medium text-foreground">Nuevo pago</h4>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="cobrar-clase-monto" className="text-xs">Monto a cobrar</Label>
+                  <Input
+                    id="cobrar-clase-monto"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={montoPago}
+                    onChange={(e) => setMontoPago(e.target.value)}
+                    disabled={cobrarMutation.isPending}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Medio de pago</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {MEDIOS_PAGO_LIST.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMedio(m)}
+                        disabled={cobrarMutation.isPending}
+                        aria-pressed={medio === m}
+                        className={cn(
+                          'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                          'disabled:cursor-not-allowed disabled:opacity-50',
+                          medio === m
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-border bg-background text-foreground hover:bg-muted',
+                        )}
+                      >
+                        {MEDIO_PAGO_LABEL[m]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="cobrar-clase-obs" className="text-xs">Observaciones (opcional)</Label>
+                  <Input
+                    id="cobrar-clase-obs"
+                    type="text"
+                    value={obs}
+                    onChange={(e) => setObs(e.target.value)}
+                    disabled={cobrarMutation.isPending}
+                    maxLength={500}
+                    placeholder="Ej: pago parcial, queda saldo"
+                  />
+                </div>
+
+                {agregarError && (
+                  <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                    {agregarError}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAgregando(false);
+                      resetMiniForm();
+                    }}
+                    disabled={cobrarMutation.isPending}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" size="sm" disabled={cobrarMutation.isPending}>
+                    {cobrarMutation.isPending ? 'Cobrando…' : 'Cobrar'}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </>
         )}
 
         <div className="flex justify-end border-t border-border pt-4">
@@ -519,33 +550,18 @@ function PagoRow({
             aria-hidden="true"
           />
           <div className="space-y-0.5">
-            <p className="text-sm font-medium text-foreground">
-              ¿Borrar este pago?
-            </p>
+            <p className="text-sm font-medium text-foreground">¿Borrar este pago?</p>
             <p className="text-xs text-muted-foreground">
               {fmtMoney(pago.monto)} · {MEDIO_PAGO_LABEL[pago.medio_pago]} ·{' '}
-              {fmtFechaHoraCorta(pago.fecha_hora)}. La acción no se puede
-              deshacer.
+              {fmtFechaHoraCorta(pago.fecha_hora)}. La acción no se puede deshacer.
             </p>
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onBorrarCancel}
-            disabled={isPending}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onBorrarCancel} disabled={isPending}>
             No, mantener
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={onBorrarConfirm}
-            disabled={isPending}
-          >
+          <Button type="button" variant="destructive" size="sm" onClick={onBorrarConfirm} disabled={isPending}>
             {isPending ? 'Borrando…' : 'Sí, borrar'}
           </Button>
         </div>
@@ -555,23 +571,15 @@ function PagoRow({
 
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="font-medium tabular-nums text-foreground">
-        {fmtMoney(pago.monto)}
-      </span>
+      <span className="font-medium tabular-nums text-foreground">{fmtMoney(pago.monto)}</span>
       <span className="text-muted-foreground">·</span>
-      <span className="text-muted-foreground">
-        {MEDIO_PAGO_LABEL[pago.medio_pago]}
-      </span>
+      <span className="text-muted-foreground">{MEDIO_PAGO_LABEL[pago.medio_pago]}</span>
       <span className="text-muted-foreground">·</span>
-      <span className="text-xs text-muted-foreground">
-        {fmtFechaHoraCorta(pago.fecha_hora)}
-      </span>
+      <span className="text-xs text-muted-foreground">{fmtFechaHoraCorta(pago.fecha_hora)}</span>
       {pago.observaciones && (
         <>
           <span className="text-muted-foreground">·</span>
-          <span className="text-xs italic text-muted-foreground">
-            {pago.observaciones}
-          </span>
+          <span className="text-xs italic text-muted-foreground">{pago.observaciones}</span>
         </>
       )}
       {isAdmin && (

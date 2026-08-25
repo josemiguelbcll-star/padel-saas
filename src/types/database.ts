@@ -1078,7 +1078,12 @@ export interface VentaItem {
  * idéntica. Si en el futuro las tablas divergen (ej. clases agrega una
  * columna), separamos los tipos.
  */
-export interface TarifaClase extends Tarifa {}
+export interface TarifaClase extends Tarifa {
+  /** Mínima cantidad de alumnos para que aplique la tarifa (0096) */
+  min_alumnos: number;
+  /** Máxima cantidad de alumnos o null si no hay límite (0096) */
+  max_alumnos: number | null;
+}
 
 
 // ============================================================================

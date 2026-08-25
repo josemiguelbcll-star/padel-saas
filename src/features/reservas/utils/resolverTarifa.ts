@@ -52,14 +52,18 @@ interface ResolverTarifaParams {
    * duración" (duracion_min NULL).
    */
   duracion?: number;
+  /**
+   * Cantidad de alumnos. Opcional: solo aplica para tarifas de clases.
+   */
+  cantidad_alumnos?: number;
 }
 
 export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
-  const { fecha, hora, tarifas, duracion } = params;
+  const { fecha, hora, tarifas, duracion, cantidad_alumnos } = params;
   const diaSemana = diaSemanaDe(fecha);
 
   const aplicables = tarifas.filter((t) =>
-    tarifaAplicaA(t, fecha, diaSemana, hora, duracion),
+    tarifaAplicaA(t, fecha, diaSemana, hora, duracion, cantidad_alumnos),
   );
 
   if (aplicables.length === 0) {
@@ -86,6 +90,7 @@ function tarifaAplicaA(
   diaSemana: number,
   hora: string,
   duracion: number | undefined,
+  cantidad_alumnos: number | undefined,
 ): boolean {
   if (!tarifa.activa) return false;
 
@@ -117,6 +122,14 @@ function tarifaAplicaA(
     tarifa.duracion_min !== duracion
   ) {
     return false;
+  }
+
+  // Tarifas de Clases escalonadas (0096)
+  if (cantidad_alumnos !== undefined) {
+    const minAlumnos = (tarifa as any).min_alumnos ?? 1;
+    const maxAlumnos = (tarifa as any).max_alumnos ?? null;
+    if (cantidad_alumnos < minAlumnos) return false;
+    if (maxAlumnos !== null && cantidad_alumnos > maxAlumnos) return false;
   }
 
   return true;
