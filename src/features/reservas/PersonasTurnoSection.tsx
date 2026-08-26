@@ -7,6 +7,7 @@ import {
   Info,
   Plus,
   Star,
+  Trash2,
   User,
   X,
 } from 'lucide-react';
@@ -28,13 +29,14 @@ import {
 import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useReservaPagos } from './hooks/useReservaPagos';
 import { useCobrarPersonaTurno } from './hooks/useCobrarPersonaTurno';
+import { useEliminarPagoReserva } from './hooks/useEliminarPagoReserva';
 import {
   calcularDesgloseCuenta,
   calcularSaldosPersonas,
   type DesgloseCuenta,
   type SaldoPersona,
 } from './utils/cuentaTurno';
-import type { EstadoReserva, MedioPago } from '@/types/database';
+import type { EstadoReserva, MedioPago, ReservaPago } from '@/types/database';
 
 // ─────────────────────────────────────────────────────────────────────
 // Constantes y helpers
@@ -146,6 +148,7 @@ export function PersonasTurnoSection({
   const actualizar = useActualizarPersonaTurno();
   const quitar = useQuitarPersonaTurno();
   const cobrar = useCobrarPersonaTurno();
+  const eliminarPago = useEliminarPagoReserva();
 
   const [error, setError] = useState<string | null>(null);
   const [showAgregar, setShowAgregar] = useState(false);
@@ -158,7 +161,8 @@ export function PersonasTurnoSection({
     agregar.isPending ||
     actualizar.isPending ||
     quitar.isPending ||
-    cobrar.isPending;
+    cobrar.isPending ||
+    eliminarPago.isPending;
 
   const personas = useMemo<ReservaJugadorConNombre[]>(
     () => jugadoresQuery.data ?? [],
@@ -409,6 +413,21 @@ export function PersonasTurnoSection({
     }
   }
 
+  async function handleEliminarPago(pagoId: number): Promise<void> {
+    setError(null);
+    try {
+      await eliminarPago.mutateAsync({
+        pagoId,
+        reservaId,
+        fechaReserva: fecha,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No pudimos eliminar el pago.',
+      );
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────
@@ -504,12 +523,15 @@ export function PersonasTurnoSection({
           <ul className="space-y-2">
             {jugadores.map((j, idx) => {
               const saldo = saldosPorPersona.get(j.id);
+              const pagosPropios = pagos.filter((p) => p.reserva_jugador_id === j.id);
               return (
                 <JugadorCard
                   key={j.id}
                   persona={j}
                   numero={idx + 1}
                   saldo={saldo}
+                  pagosPropios={pagosPropios}
+                  onEliminarPago={handleEliminarPago}
                   globalRestante={globalRestante}
                   cobrosBloqueados={cobrosBloqueados}
                   vinculandoActivo={vinculandoId === j.id}
@@ -547,12 +569,15 @@ export function PersonasTurnoSection({
           <ul className="space-y-1.5">
             {invitados.map((inv, idx) => {
               const saldo = saldosPorPersona.get(inv.id);
+              const pagosPropios = pagos.filter((p) => p.reserva_jugador_id === inv.id);
               return (
                 <InvitadoCard
                   key={inv.id}
                   numero={idx + 1}
                   nombreLibre={inv.nombre_libre}
                   saldo={saldo}
+                  pagosPropios={pagosPropios}
+                  onEliminarPago={handleEliminarPago}
                   globalRestante={globalRestante}
                   cobrosBloqueados={cobrosBloqueados}
                   cobrandoActivo={cobrandoId === inv.id}
@@ -882,6 +907,8 @@ interface JugadorCardProps {
   persona: ReservaJugadorConNombre;
   numero: number;
   saldo: SaldoPersona | undefined;
+  pagosPropios: ReservaPago[];
+  onEliminarPago: (pagoId: number) => Promise<void>;
   globalRestante: number;
   cobrosBloqueados: boolean;
   vinculandoActivo: boolean;
@@ -907,6 +934,8 @@ function JugadorCard({
   persona,
   numero,
   saldo,
+  pagosPropios,
+  onEliminarPago,
   globalRestante,
   cobrosBloqueados,
   vinculandoActivo,
@@ -1044,6 +1073,14 @@ function JugadorCard({
           disabled={disabled}
         />
       )}
+
+      {/* Listado de pagos del jugador */}
+      <RowPagosPersona
+        pagosPropios={pagosPropios}
+        onEliminarPago={onEliminarPago}
+        disabled={disabled}
+        readOnly={readOnly}
+      />
     </li>
   );
 }
@@ -1057,6 +1094,8 @@ interface InvitadoCardProps {
   /** nombre_libre actual del invitado (0065) — pre-rellena el campo de nombre. */
   nombreLibre?: string | null;
   saldo: SaldoPersona | undefined;
+  pagosPropios: ReservaPago[];
+  onEliminarPago: (pagoId: number) => Promise<void>;
   globalRestante: number;
   cobrosBloqueados: boolean;
   cobrandoActivo: boolean;
@@ -1078,6 +1117,8 @@ function InvitadoCard({
   numero,
   nombreLibre,
   saldo,
+  pagosPropios,
+  onEliminarPago,
   globalRestante,
   cobrosBloqueados,
   cobrandoActivo,
@@ -1150,6 +1191,14 @@ function InvitadoCard({
           disabled={disabled}
         />
       )}
+
+      {/* Listado de pagos del invitado */}
+      <RowPagosPersona
+        pagosPropios={pagosPropios}
+        onEliminarPago={onEliminarPago}
+        disabled={disabled}
+        readOnly={readOnly}
+      />
     </li>
   );
 }

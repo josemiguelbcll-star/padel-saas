@@ -48,6 +48,24 @@ export function BloqueReserva({
   // Bloques cortos (clamp en bordes / 60' apretado): solo una línea.
   const compacto = height < 46;
 
+  const pct = reserva.monto_total > 0
+    ? Math.min(100, Math.max(0, (reserva.monto_pagado / reserva.monto_total) * 100))
+    : 100;
+
+  const buttonStyle: React.CSSProperties = {
+    top,
+    height: Math.max(12, height - 2),
+    color: fg,
+  };
+
+  if (info.estado === 'abierto' && pct < 100) {
+    buttonStyle.background = `linear-gradient(to right, hsl(var(--estado-op-abierto)) ${pct}%, hsl(var(--estado-op-reservado)) ${pct}%)`;
+  } else {
+    buttonStyle.backgroundColor = bg;
+  }
+
+  console.log(`[BloqueReserva] ID: ${reserva.id}, Total: ${reserva.monto_total}, Pagado: ${reserva.monto_pagado}, Pct: ${pct}, Background: ${buttonStyle.background || buttonStyle.backgroundColor}`);
+
   return (
     <button
       type="button"
@@ -59,7 +77,7 @@ export function BloqueReserva({
         'hover:-translate-y-px hover:shadow-md hover:brightness-110',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
-      style={{ top, height, backgroundColor: bg, color: fg }}
+      style={buttonStyle}
     >
       <div
         className={cn(

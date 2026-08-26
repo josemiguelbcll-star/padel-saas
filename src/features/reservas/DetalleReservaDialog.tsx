@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSession } from '@/features/auth';
-import { AlertTriangle, Pencil, Trophy, Trash2, ChevronDown, Check, X } from 'lucide-react';
+import { AlertTriangle, Pencil, Trophy, Trash2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
 import {
@@ -20,9 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type {
   Cancha,
-  MedioPago,
   Reserva,
-  ReservaPago,
 } from '@/types/database';
 import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
@@ -47,15 +45,6 @@ import { formatearHora } from './utils/horaUtils';
 // Constantes y helpers locales
 // ─────────────────────────────────────────────────────────────────────
 
-const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
-  efectivo: 'Efectivo',
-  transferencia: 'Transferencia',
-  mp: 'Mercado Pago',
-  tarjeta: 'Tarjeta',
-  otro: 'Otro',
-  cuenta_corriente: 'Cuenta Corriente',
-};
-
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
   currency: 'ARS',
@@ -65,15 +54,6 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 
 function fmtMoney(n: number): string {
   return currencyFmt.format(n);
-}
-
-function fmtFechaHoraCorta(iso: string): string {
-  return new Date(iso).toLocaleString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -838,30 +818,6 @@ function DetalleReservaBody({
 // ─────────────────────────────────────────────────────────────────────
 // Sub-componentes
 // ─────────────────────────────────────────────────────────────────────
-
-                  await mutateAsync({ pagoId: pago.id, reservaId, fechaReserva });
-                }}
-                disabled={isPending}
-              >
-                <Check className="h-3 w-3" />
-              </Button>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
-              onClick={() => setConfirming(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
 
 interface ObservacionesSectionProps {
   reserva: ReservaConTitular;

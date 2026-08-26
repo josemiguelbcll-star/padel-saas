@@ -44,7 +44,7 @@ export function BloqueDisponible({
         'transition-colors hover:border-primary/50 hover:bg-primary/[0.06]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
       )}
-      style={{ top, height }}
+      style={{ top, height: Math.max(12, height - 2) }}
     >
       <Plus
         className="h-3 w-3 text-muted-foreground opacity-0 transition-all group-hover:text-primary group-hover:opacity-100"

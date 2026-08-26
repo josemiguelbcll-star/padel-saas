@@ -54,7 +54,7 @@ export function BloqueClase({
       )}
       style={{
         top,
-        height,
+        height: Math.max(12, height - 2),
         backgroundColor: 'hsl(var(--clase))',
         color: 'hsl(var(--clase-foreground))',
       }}
