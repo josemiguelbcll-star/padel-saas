@@ -164,62 +164,35 @@ export interface SaldoPersona {
   estado: EstadoSaldoPersona;
 }
 
-export interface CalcularSaldosPersonasInput {
-  /** Lista de personas del turno (jugadores e invitados). */
-  personas: Array<{ id: number; tipo: TipoPersonaTurno }>;
-  /** Pagos de la reserva (toda la historia). */
-  pagos: Array<{
-    reserva_jugador_id: number | null;
-    monto_alquiler: number;
-    monto_consumo: number;
-  }>;
-  /** Desglose de la división — debe corresponder al estado actual. */
-  desglose: DesgloseCuenta;
-}
-
-/**
- * Para cada persona del turno, calcula su parte, lo que ya pagó (desde
- * los pagos atados a ella vía reserva_jugador_id), y el saldo restante.
- *
- * Cumple el mismo invariante que la RPC `fn_cobrar_persona_turno`:
- * - Invitados no pagan alquiler (parte_alquiler = 0).
- * - GREATEST(0, parte - ya_pagado) — sin "crédito" si pagó de más.
- * - Si bajó la parte (por edits post-pago) y ya_pagado >= parte_actual,
- *   el saldo es 0 (saldada) y el sobrante queda a favor del club.
- *
- * Función PURA, sin React. Se usa en la UI para mostrar el estado de
- * cada persona; la RPC recalcula del lado server (single source of
- * truth para el cobro).
- */
-interface ParticipantDebt {
+export interface ParticipantDebt {
   id: number;
   paid: number;
   baseWeight: number;
 }
 
-function distribuirDeudaPonderada(totalDebt: number, participants: ParticipantDebt[]): Record<number, number> {
+export function distribuirDeudaPonderada(totalDebt: number, participants: ParticipantDebt[]): Record<number, number> {
   let active = [...participants];
   let remainingDebt = totalDebt;
-
+  
   while (active.length > 0) {
     const totalWeight = active.reduce((sum, p) => sum + p.baseWeight, 0);
     if (totalWeight === 0) break;
-
+    
     const quotaPerWeight = remainingDebt / totalWeight;
     const overpayers = active.filter(p => p.paid >= quotaPerWeight * p.baseWeight);
-
+    
     if (overpayers.length === 0) break;
-
+    
     for (const p of overpayers) {
       remainingDebt -= p.paid;
     }
     active = active.filter(p => p.paid < quotaPerWeight * p.baseWeight);
   }
-
+  
   const saldos: Record<number, number> = {};
   const totalWeight = active.reduce((sum, p) => sum + p.baseWeight, 0);
   const finalQuotaPerWeight = totalWeight > 0 ? remainingDebt / totalWeight : 0;
-
+  
   for (const p of active) {
     saldos[p.id] = Math.max(0, Math.ceil((finalQuotaPerWeight * p.baseWeight) - p.paid));
   }
@@ -231,62 +204,187 @@ function distribuirDeudaPonderada(totalDebt: number, participants: ParticipantDe
   return saldos;
 }
 
+export interface CalcularSaldosPersonasInput {
+  /** Lista de personas del turno (jugadores e invitados). */
+  personas: Array<{ id: number; tipo: TipoPersonaTurno; es_titular?: boolean }>;
+  /** Pagos de la reserva (toda la historia). */
+  pagos: Array<{
+    reserva_jugador_id: number | null;
+    monto_alquiler: number;
+    monto_consumo: number;
+    creado_en: string;
+  }>;
+  /** Consumos de la reserva. */
+  consumos: Array<{
+    subtotal: number;
+    tipo_reparto: string;
+    creado_en: string;
+  }>;
+  /** reserva.monto_total (alquiler). */
+  montoAlquiler: number;
+}
+
+/**
+ * Para cada persona del turno, calcula su parte, lo que ya pagó (desde
+ * los pagos atados a ella vía reserva_jugador_id, con fallback a titular para pagos null),
+ * y el saldo restante.
+ *
+ * Excluye cronológicamente de los nuevos consumos a las personas que ya saldaron su deuda.
+ */
 export function calcularSaldosPersonas(
   input: CalcularSaldosPersonasInput,
 ): SaldoPersona[] {
-  const { personas, pagos, desglose } = input;
+  const { personas, pagos, consumos, montoAlquiler } = input;
 
-  // 1. Gather what everyone has paid and their theoretical base weight for Alquiler
-  const alquilerParticipants: ParticipantDebt[] = personas.map(p => {
-    const pagosPropios = pagos.filter(pago => pago.reserva_jugador_id === p.id);
-    const yaPagadoAlquiler = pagosPropios.reduce((sum, pago) => sum + pago.monto_alquiler, 0);
-    return {
-      id: p.id,
-      paid: yaPagadoAlquiler,
-      baseWeight: p.tipo === 'jugador' ? desglose.parteAlquilerPorJugador : 0
-    };
+  const titular = personas.find((p) => p.es_titular);
+  const titularId = titular?.id ?? null;
+
+  const cantidadJugadores = personas.filter((p) => p.tipo === 'jugador').length;
+
+  // Inicializar estado cronológico por persona
+  const stateMap = new Map<number, {
+    paidAlquiler: number;
+    paidConsumo: number;
+    partAlquiler: number;
+    partConsumo: number;
+  }>();
+
+  for (const p of personas) {
+    stateMap.set(p.id, {
+      paidAlquiler: 0,
+      paidConsumo: 0,
+      partAlquiler: p.tipo === 'jugador' ? (cantidadJugadores > 0 ? Math.ceil(montoAlquiler / cantidadJugadores) : 0) : 0,
+      partConsumo: 0,
+    });
+  }
+
+  // Combinar pagos y consumos en una sola línea de tiempo ordenada
+  interface TimelineEvent {
+    tipo: 'pago' | 'consumo';
+    creadoEn: Date;
+    data: any;
+  }
+
+  const timeline: TimelineEvent[] = [];
+
+  for (const p of pagos) {
+    timeline.push({
+      tipo: 'pago',
+      creadoEn: p.creado_en ? new Date(p.creado_en) : new Date(0),
+      data: p,
+    });
+  }
+
+  for (const c of consumos) {
+    timeline.push({
+      tipo: 'consumo',
+      creadoEn: c.creado_en ? new Date(c.creado_en) : new Date(0),
+      data: c,
+    });
+  }
+
+  // Ordenar cronológicamente (pagos primero en caso de empate para acreditar fondos cuanto antes)
+  timeline.sort((a, b) => {
+    const timeA = a.creadoEn.getTime();
+    const timeB = b.creadoEn.getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    if (a.tipo !== b.tipo) {
+      return a.tipo === 'pago' ? -1 : 1;
+    }
+    return 0;
   });
 
-  // 2. Gather what everyone has paid and their theoretical base weight for Consumos
-  const consumoParticipants: ParticipantDebt[] = personas.map(p => {
-    const pagosPropios = pagos.filter(pago => pago.reserva_jugador_id === p.id);
-    const yaPagadoConsumo = pagosPropios.reduce((sum, pago) => sum + pago.monto_consumo, 0);
-    const baseConsumo = p.tipo === 'jugador'
-      ? desglose.parteConsumoPartidoPorJugador + desglose.parteConsumoGeneralPorPersona
-      : desglose.parteConsumoGeneralPorPersona;
-    return {
+  // Replay
+  for (const event of timeline) {
+    if (event.tipo === 'pago') {
+      const p = event.data;
+      const targetId = p.reserva_jugador_id === null ? titularId : p.reserva_jugador_id;
+      if (targetId !== null) {
+        const pState = stateMap.get(targetId);
+        if (pState) {
+          pState.paidAlquiler += Number(p.monto_alquiler);
+          pState.paidConsumo += Number(p.monto_consumo);
+        }
+      }
+    } else {
+      const c = event.data;
+      const subtotal = Number(c.subtotal);
+      
+      // Personas saldadas justo antes de este consumo (su pago cubre su deuda actual y ya debían algo)
+      const saldadas = new Set<number>();
+      for (const p of personas) {
+        const pState = stateMap.get(p.id);
+        if (pState && (pState.paidAlquiler + pState.paidConsumo >= pState.partAlquiler + pState.partConsumo) && (pState.partAlquiler + pState.partConsumo > 0)) {
+          saldadas.add(p.id);
+        }
+      }
+
+      // Filtrar elegibles que no estén saldados
+      let eligible = personas.filter((p) => {
+        if (saldadas.has(p.id)) return false;
+        if (c.tipo_reparto === 'partido') {
+          return p.tipo === 'jugador';
+        }
+        return true;
+      });
+
+      // Si todos los elegibles están saldados, fallback a todos los elegibles
+      if (eligible.length === 0) {
+        eligible = personas.filter((p) => {
+          if (c.tipo_reparto === 'partido') {
+            return p.tipo === 'jugador';
+          }
+          return true;
+        });
+      }
+
+      if (eligible.length > 0) {
+        const share = Math.ceil(subtotal / eligible.length);
+        for (const p of eligible) {
+          const pState = stateMap.get(p.id);
+          if (pState) {
+            pState.partConsumo += share;
+          }
+        }
+      }
+    }
+  }
+
+  // Ejecutar el prorrateo al final sobre los totales asignados (COMBINADO)
+  const combinedParticipants: ParticipantDebt[] = [];
+
+  for (const p of personas) {
+    const pState = stateMap.get(p.id)!;
+    combinedParticipants.push({
       id: p.id,
-      paid: yaPagadoConsumo,
-      baseWeight: baseConsumo
-    };
-  });
+      paid: pState.paidAlquiler + pState.paidConsumo,
+      baseWeight: pState.partAlquiler + pState.partConsumo,
+    });
+  }
 
-  // 3. Run the global prorating algorithm
-  const saldosAlquiler = distribuirDeudaPonderada(desglose.montoAlquiler, alquilerParticipants);
-  const saldosConsumo = distribuirDeudaPonderada(
-    desglose.totalConsumosPartido + desglose.totalConsumosGeneral,
-    consumoParticipants
-  );
-
-  console.log('--- DEBUG PRORRATEO ---');
-  console.log('desglose.montoAlquiler:', desglose.montoAlquiler);
-  console.log('alquilerParticipants:', alquilerParticipants);
-  console.log('saldosAlquiler:', saldosAlquiler);
+  const totalConsumos = consumos.reduce((sum, c) => sum + Number(c.subtotal), 0);
+  const totalDeuda = montoAlquiler + totalConsumos;
+  const saldosCombinados = distribuirDeudaPonderada(totalDeuda, combinedParticipants);
 
   return personas.map((persona) => {
-    const pagosPropios = pagos.filter((p) => p.reserva_jugador_id === persona.id);
-    const yaPagadoAlquiler = pagosPropios.reduce((sum, p) => sum + p.monto_alquiler, 0);
-    const yaPagadoConsumo = pagosPropios.reduce((sum, p) => sum + p.monto_consumo, 0);
-    const yaPagadoTotal = yaPagadoAlquiler + yaPagadoConsumo;
+    const pState = stateMap.get(persona.id)!;
+    const yaPagadoTotal = pState.paidAlquiler + pState.paidConsumo;
 
-    const saldoAlquiler = saldosAlquiler[persona.id] ?? 0;
-    const saldoConsumo = saldosConsumo[persona.id] ?? 0;
-    const saldo = saldoAlquiler + saldoConsumo;
+    const saldo = saldosCombinados[persona.id] ?? 0;
 
-    // We recalculate their dynamic "parte" based on what they actually paid + their remaining saldo
-    const parteAlquiler = saldoAlquiler + yaPagadoAlquiler;
-    const parteConsumo = saldoConsumo + yaPagadoConsumo;
-    const parteTotal = parteAlquiler + parteConsumo;
+    // Dado que se unificó la deuda, asimilamos todo el saldo a `saldoAlquiler` por compatibilidad.
+    // (La UI sólo usa `saldo` y `parteTotal` de todos modos).
+    const saldoAlquiler = saldo;
+    const saldoConsumo = 0;
+
+    const parteTotal = saldo + yaPagadoTotal;
+
+    // Para no romper la consistencia visual, prorrateamos la parte calculada según la intención original
+    const totalPartIntencion = pState.partAlquiler + pState.partConsumo;
+    const proportion = totalPartIntencion > 0 ? pState.partAlquiler / totalPartIntencion : 1;
+    
+    const parteAlquiler = Math.round(parteTotal * proportion);
+    const parteConsumo = parteTotal - parteAlquiler;
 
     let estado: EstadoSaldoPersona;
     if (saldo === 0) {
@@ -303,8 +401,8 @@ export function calcularSaldosPersonas(
       parteAlquiler,
       parteConsumo,
       parteTotal,
-      yaPagadoAlquiler,
-      yaPagadoConsumo,
+      yaPagadoAlquiler: pState.paidAlquiler,
+      yaPagadoConsumo: pState.paidConsumo,
       yaPagadoTotal,
       saldoAlquiler,
       saldoConsumo,

@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { DURACIONES_TURNO_VALIDAS } from '@/features/configuracion/horarios/horariosSchema';
 import { useCanchas } from '@/features/configuracion/hooks/useCanchas';
 import {
   useCreateClase,
@@ -545,7 +544,7 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
         <div className="space-y-2">
           <Label>Duración</Label>
           <div className="flex flex-wrap gap-1.5">
-            {DURACIONES_TURNO_VALIDAS.map((min) => (
+            {[60].map((min) => (
               <button
                 key={min}
                 type="button"
@@ -567,9 +566,9 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
               </button>
             ))}
           </div>
-          {errors.duracion_min && (
-            <p className="text-xs text-destructive">{errors.duracion_min}</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Las clases de profesores tienen una duración fija de 60 min (1 hora).
+          </p>
         </div>
 
         {/* Activa */}

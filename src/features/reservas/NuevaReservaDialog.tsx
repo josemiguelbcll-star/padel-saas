@@ -167,12 +167,14 @@ function NuevaReservaBodyReady({
   tarifas,
   crearMutation,
 }: NuevaReservaBodyReadyProps) {
-  // Duración elegida. Default: la más corta que ofrece la franja en este
-  // inicio (= la altura del bloque "Disponible"). Si la franja ofrece una
-  // sola, queda fija en ésa.
-  const [duracion, setDuracion] = useState<number>(
-    slot.duracionesPermitidas[0] ?? 90,
-  );
+  const allowedDurations = useMemo(() => {
+    const filtered = slot.duracionesPermitidas.filter(d => d === 90 || d === 120);
+    return filtered.length > 0 ? filtered : [90, 120];
+  }, [slot.duracionesPermitidas]);
+
+  const [duracion, setDuracion] = useState<number>(() => {
+    return allowedDurations.includes(90) ? 90 : (allowedDurations[0] ?? 90);
+  });
 
   // Tarifa sugerida por (fecha, hora, DURACIÓN). Recalcula al cambiar la
   // duración → tarifa 2D (0051): resolverTarifa filtra por duración y la
@@ -378,10 +380,10 @@ function NuevaReservaBodyReady({
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         {/* Duración (si la franja ofrece >1, el usuario elige; si ofrece
             una, queda fija en ésa). */}
-        <div className="space-y-2">
+         <div className="space-y-2">
           <Label>Duración</Label>
           <div className="flex flex-wrap gap-1.5">
-            {slot.duracionesPermitidas.map((min) => (
+            {allowedDurations.map((min) => (
               <button
                 key={min}
                 type="button"
@@ -401,9 +403,9 @@ function NuevaReservaBodyReady({
               </button>
             ))}
           </div>
-          {slot.duracionesPermitidas.length === 1 && (
+          {allowedDurations.length === 1 && (
             <p className="text-[11px] text-muted-foreground">
-              Esta franja permite turnos de {slot.duracionesPermitidas[0]} min.
+              Esta franja permite turnos de {allowedDurations[0]} min.
             </p>
           )}
         </div>

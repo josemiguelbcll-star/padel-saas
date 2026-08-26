@@ -70,7 +70,9 @@ function initialState(editing: FranjaTurno | null): FormState {
     hasta_hora: editing.hasta_hora ? editing.hasta_hora.slice(0, 5) : '',
     // dias_semana NULL en DB = todos los días.
     dias: editing.dias_semana ?? [...TODOS_LOS_DIAS],
-    duraciones: [...editing.duraciones_min].sort((a, b) => a - b),
+    duraciones: [...editing.duraciones_min]
+      .filter((d) => (DURACIONES_TURNO_VALIDAS as readonly number[]).includes(d))
+      .sort((a, b) => a - b),
     prioridad: editing.prioridad,
     cancha_id: editing.cancha_id,
   };

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Duraciones válidas de turno (espejo del CHECK de la migración 0003). */
-export const DURACIONES_TURNO_VALIDAS = [60, 90, 120, 150, 180, 240] as const;
+export const DURACIONES_TURNO_VALIDAS = [60, 90, 120] as const;
 export type DuracionTurno = (typeof DURACIONES_TURNO_VALIDAS)[number];
 
 /**
@@ -31,7 +31,7 @@ export const horariosSchema = z
       .refine(
         (n) =>
           (DURACIONES_TURNO_VALIDAS as readonly number[]).includes(n),
-        { message: 'La duración debe ser 60, 90, 120, 150, 180 o 240 minutos.' },
+        { message: 'La duración debe ser 60, 90 o 120 minutos.' },
       ),
   })
   .refine(

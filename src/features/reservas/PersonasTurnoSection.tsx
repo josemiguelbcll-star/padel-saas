@@ -217,18 +217,24 @@ export function PersonasTurnoSection({
 
   const saldosPorPersona = useMemo<Map<number, SaldoPersona>>(() => {
     const saldos = calcularSaldosPersonas({
-      personas: personas.map((p) => ({ id: p.id, tipo: p.tipo })),
+      personas: personas.map((p) => ({ id: p.id, tipo: p.tipo, es_titular: p.es_titular })),
       pagos: pagos.map((p) => ({
         reserva_jugador_id: p.reserva_jugador_id,
         monto_alquiler: p.monto_alquiler,
         monto_consumo: p.monto_consumo,
+        creado_en: p.fecha_hora,
       })),
-      desglose,
+      consumos: (consumosQuery.data ?? []).map((c) => ({
+        subtotal: Number(c.subtotal),
+        tipo_reparto: c.tipo_reparto,
+        creado_en: c.fecha_hora,
+      })),
+      montoAlquiler,
     });
     const map = new Map<number, SaldoPersona>();
     for (const s of saldos) map.set(s.reservaJugadorId, s);
     return map;
-  }, [personas, pagos, desglose]);
+  }, [personas, pagos, consumosQuery.data, montoAlquiler]);
 
   const totalACobrar = useMemo(() => {
     let sum = 0;

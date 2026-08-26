@@ -128,8 +128,10 @@ export function calcularDisponiblesCore({
         franjas,
         duracionDefault,
       });
-      // Un turno no cruza el borde de su franja (ni el del hueco).
       let franjaHastaMin = hastaHora !== null ? horaToMinutos(hastaHora) : h.end;
+      if (hastaHora !== null && franjaHastaMin === 0) {
+        franjaHastaMin = 1440;
+      }
       if (cierreMin > 1440 && hastaHora !== null && franjaHastaMin < aperturaMin) {
         franjaHastaMin += 1440;
       }

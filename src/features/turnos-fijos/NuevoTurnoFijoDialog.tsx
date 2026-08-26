@@ -28,7 +28,7 @@ const DIAS_SEMANA = [
   { value: 7, label: 'DOM', full: 'Domingo' },
 ] as const;
 
-const DURACIONES = [60, 90, 120, 150, 180, 240] as const;
+const DURACIONES = [60, 90, 120] as const;
 
 function todayISO(): string {
   const d = new Date();
