@@ -1,13 +1,10 @@
-import { useMemo, useState } from 'react';
-import { CircleDot, Loader2, Pencil, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
+import { CircleDot, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSession } from '@/features/auth';
 import { useCategoriasGasto } from '@/features/finanzas/hooks/useCategoriasGasto';
 import { useUnidadesNegocio } from '@/features/finanzas/hooks/useUnidadesNegocio';
 import { TIPO_UNIDAD_LABEL } from '@/features/finanzas/finanzasSchemas';
-import type { TipoUnidad, UnidadNegocio } from '@/types/database';
-import { UnidadFormDialog } from './UnidadFormDialog';
+import type { TipoUnidad } from '@/types/database';
 
 /**
  * Color por tipo de unidad para distinguir visualmente.
@@ -30,13 +27,8 @@ const TIPO_COLOR: Record<TipoUnidad, { fg: string; bg: string }> = {
 };
 
 export function UnidadesPage() {
-  const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
-
   const unidadesQuery = useUnidadesNegocio();
   const catQuery = useCategoriasGasto();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<UnidadNegocio | null>(null);
 
   // Contador de categorías por unidad — útil para que el admin vea de
   // un vistazo dónde concentra clasificaciones.
@@ -48,16 +40,6 @@ export function UnidadesPage() {
     }
     return map;
   }, [catQuery.data]);
-
-  function openNew(): void {
-    setEditing(null);
-    setFormOpen(true);
-  }
-
-  function openEdit(u: UnidadNegocio): void {
-    setEditing(u);
-    setFormOpen(true);
-  }
 
   return (
     <section className="space-y-5">
@@ -136,12 +118,6 @@ export function UnidadesPage() {
           })}
         </div>
       )}
-
-      <UnidadFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        initialValue={editing}
-      />
     </section>
   );
 }

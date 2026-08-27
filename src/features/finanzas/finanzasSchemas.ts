@@ -156,7 +156,7 @@ export const unidadSchema = z.object({
     .trim()
     .min(1, 'El nombre es obligatorio.')
     .max(80, 'Máx. 80 caracteres.'),
-  tipo: z.enum(['canchas', 'clases', 'buffet', 'shop', 'auspicios', 'membresias', 'estructura', 'financiero', 'otro'], {
+  tipo: z.enum(['canchas', 'clases', 'buffet', 'shop', 'auspicios', 'membresias', 'estructura', 'financiero', 'torneos', 'otro'], {
     errorMap: () => ({ message: 'Elegí un tipo válido.' }),
   }),
   activa: z.boolean(),
