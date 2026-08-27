@@ -60,7 +60,7 @@ export function mapPostgrestError(error: PostgrestError): string {
     if (/monto_pagado.*monto_total|monto_pagado <= monto_total/i.test(message)) {
       return 'El monto pagado no puede ser mayor al total de la reserva.';
     }
-    if (/hora_fin.*hora_inicio|hora_fin > hora_inicio/i.test(message)) {
+    if (/hora_fin.*hora_inicio|hora_fin > hora_inicio|reservas_check1/i.test(message)) {
       return 'La hora de fin tiene que ser posterior a la de inicio.';
     }
     if (/duracion_min/i.test(message)) {
