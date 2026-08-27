@@ -188,20 +188,26 @@ export function FinanzasPage() {
 
       const ingCanchas = ingresoPorTipo('canchas', actual);
       const ingClases = ingresoPorTipo('clases', actual);
+      const ingTorneos = ingresoPorTipo('torneos', actual);
       const ingBuffet = ingresoPorTipo('buffet', actual);
       const ingShop = ingresoPorTipo('shop', actual);
+      const ingAuspicios = ingresoPorTipo('auspicios', actual);
 
       const ingCanchasAnt = ingresoPorTipo('canchas', anterior);
       const ingClasesAnt = ingresoPorTipo('clases', anterior);
+      const ingTorneosAnt = ingresoPorTipo('torneos', anterior);
       const ingBuffetAnt = ingresoPorTipo('buffet', anterior);
       const ingShopAnt = ingresoPorTipo('shop', anterior);
+      const ingAuspiciosAnt = ingresoPorTipo('auspicios', anterior);
 
       // Filas EERR
       addConceptRow('Ingresos operativos', actual.ingresos_total, anterior?.ingresos_total ?? null, false, true);
       addConceptRow('  Canchas', ingCanchas, anterior ? ingCanchasAnt : null, false, false, true);
-      addConceptRow('  Clases', ingClases, anterior ? ingClasesAnt : null, false, false, true);
+      addConceptRow('  Escuela', ingClases, anterior ? ingClasesAnt : null, false, false, true);
+      addConceptRow('  Torneos y Eventos', ingTorneos, anterior ? ingTorneosAnt : null, false, false, true);
       addConceptRow('  Buffet', ingBuffet, anterior ? ingBuffetAnt : null, false, false, true);
       addConceptRow('  Shop', ingShop, anterior ? ingShopAnt : null, false, false, true);
+      addConceptRow('  Auspicios', ingAuspicios, anterior ? ingAuspiciosAnt : null, false, false, true);
 
       addConceptRow('− Costos directos (mercadería)', -actual.costos_directos, anterior ? -anterior.costos_directos : null, false, false, true);
       addConceptRow('− Gastos directos', -actual.gastos_operativos, anterior ? -anterior.gastos_operativos : null, false, false, true);
@@ -212,10 +218,13 @@ export function FinanzasPage() {
 
       addConceptRow('RESULTADO OPERATIVO (≈ EBITDA)', actual.resultado_operativo, anterior?.resultado_operativo ?? null, true);
 
-      addConceptRow('− Resultados financieros', -actual.gastos_financieros, anterior ? -anterior.gastos_financieros : null, false, false, false);
+      addConceptRow('  Ingresos financieros', actual.financial_income, anterior ? anterior.financial_income : null, false, false, true);
+      addConceptRow('− Gastos financieros', -actual.financial_expenses, anterior ? -anterior.financial_expenses : null, false, false, true);
+      addConceptRow('  Resultado financiero neto', actual.net_financial_result, anterior ? anterior.net_financial_result : null, false, false, true);
+
       addConceptRow('− Otros', -actual.gastos_otros, anterior ? -anterior.gastos_otros : null, false, false, true);
 
-      addConceptRow('RESULTADO NETO', actual.resultado_neto, anterior?.resultado_neto ?? null, true);
+      addConceptRow('RESULTADO NETO (ANTES DE IMPUESTOS)', actual.resultado_neto, anterior?.resultado_neto ?? null, true);
 
       autoTable(doc, {
         startY: currentY,

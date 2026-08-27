@@ -20,8 +20,10 @@ import { useUnidadesNegocio } from '@/features/finanzas/hooks/useUnidadesNegocio
 import {
   categoriaGastoSchema,
   TIPO_UNIDAD_LABEL,
+  COSTO_CLASIFICACIONES,
+  COSTO_CLASIFICACION_LABEL,
 } from '@/features/finanzas/finanzasSchemas';
-import type { CategoriaGasto } from '@/types/database';
+import type { CategoriaGasto, CostoClasificacion } from '@/types/database';
 
 interface CategoriaGastoFormDialogProps {
   open: boolean;
@@ -32,14 +34,16 @@ interface CategoriaGastoFormDialogProps {
 interface FormState {
   nombre: string;
   unidad_id: number | null;
+  clasificacion: CostoClasificacion;
   activa: boolean;
 }
 
-type FieldErrors = Partial<Record<'nombre' | 'unidad_id' | 'activa' | 'form', string>>;
+type FieldErrors = Partial<Record<'nombre' | 'unidad_id' | 'clasificacion' | 'activa' | 'form', string>>;
 
 const DEFAULT_STATE: FormState = {
   nombre: '',
   unidad_id: null,
+  clasificacion: 'STRUCTURE',
   activa: true,
 };
 
@@ -65,6 +69,7 @@ export function CategoriaGastoFormDialog({
         setState({
           nombre: initialValue.nombre,
           unidad_id: initialValue.unidad_id,
+          clasificacion: initialValue.clasificacion ?? 'STRUCTURE',
           activa: initialValue.activa,
         });
       } else {
@@ -86,13 +91,19 @@ export function CategoriaGastoFormDialog({
     const parsed = categoriaGastoSchema.safeParse({
       nombre: state.nombre,
       unidad_id: state.unidad_id ?? 0,
+      clasificacion: state.clasificacion,
       activa: state.activa,
     });
     if (!parsed.success) {
       const fe: FieldErrors = {};
       for (const issue of parsed.error.issues) {
         const path = issue.path[0];
-        if (path === 'nombre' || path === 'unidad_id' || path === 'activa') {
+        if (
+          path === 'nombre' ||
+          path === 'unidad_id' ||
+          path === 'clasificacion' ||
+          path === 'activa'
+        ) {
           fe[path] = issue.message;
         }
       }
@@ -115,6 +126,7 @@ export function CategoriaGastoFormDialog({
           club_id: club.id,
           unidad_id: parsed.data.unidad_id,
           nombre: parsed.data.nombre,
+          clasificacion: parsed.data.clasificacion,
         });
       }
       onOpenChange(false);
@@ -184,6 +196,33 @@ export function CategoriaGastoFormDialog({
             </select>
             {errors.unidad_id && (
               <p role="alert" className="text-xs text-destructive">{errors.unidad_id}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="cat-clasificacion">Clasificación Financiera</Label>
+            <select
+              id="cat-clasificacion"
+              value={state.clasificacion}
+              onChange={(e) =>
+                setState({
+                  ...state,
+                  clasificacion: e.target.value as CostoClasificacion,
+                })
+              }
+              disabled={pending}
+              required
+              aria-invalid={!!errors.clasificacion}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {COSTO_CLASIFICACIONES.map((c) => (
+                <option key={c} value={c}>
+                  {COSTO_CLASIFICACION_LABEL[c]}
+                </option>
+              ))}
+            </select>
+            {errors.clasificacion && (
+              <p role="alert" className="text-xs text-destructive">{errors.clasificacion}</p>
             )}
           </div>
 

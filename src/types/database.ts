@@ -202,7 +202,10 @@ export type TipoUnidad =
   | 'membresias'
   | 'estructura'
   | 'financiero'
+  | 'torneos'
   | 'otro';
+
+export type CostoClasificacion = 'DIRECT_MERCHANDISE' | 'DIRECT_OTHER' | 'STRUCTURE' | 'FINANCIAL';
 
 export interface UnidadNegocio {
   id: number;
@@ -226,6 +229,8 @@ export interface CategoriaGasto {
   activa: boolean;
   orden: number;
   fecha_alta: string;
+  es_mercaderia: boolean;
+  clasificacion: CostoClasificacion;
 }
 
 /**
@@ -247,6 +252,7 @@ export interface Gasto {
   unidad_id: number;
   unidad_nombre: string;
   unidad_tipo: TipoUnidad;
+  clasificacion: CostoClasificacion;
   monto: number;
   fecha_gasto: string;
   fecha_pago: string | null;

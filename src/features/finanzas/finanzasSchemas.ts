@@ -38,18 +38,21 @@ export const TIPOS_UNIDAD: readonly TipoUnidad[] = [
   'auspicios',
   'membresias',
   'estructura',
+  'financiero',
+  'torneos',
   'otro',
 ];
 
 export const TIPO_UNIDAD_LABEL: Record<TipoUnidad, string> = {
   canchas: 'Canchas',
-  clases: 'Clases',
+  clases: 'Escuela', // Mostrado como Escuela en el frontend
   buffet: 'Buffet',
   shop: 'Shop',
   auspicios: 'Auspicios',
   membresias: 'Membresías',
   estructura: 'Estructura',
   financiero: 'Financiero',
+  torneos: 'Torneos y Eventos',
   otro: 'Otro',
 };
 
@@ -163,6 +166,14 @@ export type UnidadFormValues = z.infer<typeof unidadSchema>;
 
 // ─── Schema: categoría de gasto (ABM) ────────────────────────────────
 
+export const COSTO_CLASIFICACIONES = ['DIRECT_MERCHANDISE', 'DIRECT_OTHER', 'STRUCTURE', 'FINANCIAL'] as const;
+export const COSTO_CLASIFICACION_LABEL: Record<(typeof COSTO_CLASIFICACIONES)[number], string> = {
+  DIRECT_MERCHANDISE: 'Costo Directo - Mercadería',
+  DIRECT_OTHER: 'Costo Directo - Otros (profesores, premios, etc.)',
+  STRUCTURE: 'Gasto de Estructura / Fijo',
+  FINANCIAL: 'Gasto Financiero (comisiones, intereses)',
+};
+
 export const categoriaGastoSchema = z.object({
   nombre: z
     .string()
@@ -173,6 +184,9 @@ export const categoriaGastoSchema = z.object({
     .number({ invalid_type_error: 'Elegí una unidad.' })
     .int()
     .positive('Elegí una unidad.'),
+  clasificacion: z.enum(COSTO_CLASIFICACIONES, {
+    errorMap: () => ({ message: 'Elegí una clasificación válida.' }),
+  }),
   activa: z.boolean(),
 });
 

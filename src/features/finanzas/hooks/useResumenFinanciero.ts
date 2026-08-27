@@ -73,6 +73,9 @@ export interface ResumenFinanciero {
   gastos_total: number;
   /** Resultado = ingresos − costos − gastos. */
   resultado_neto: number;
+  financial_income: number;
+  financial_expenses: number;
+  net_financial_result: number;
   /**
    * Margen bruto = ingresos_total − costos_directos − gastos_operativos.
    * Capa intermedia del EERR (después de gastos directos a unidades).

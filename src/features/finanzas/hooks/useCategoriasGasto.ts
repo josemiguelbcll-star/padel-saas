@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
-import type { CategoriaGasto } from '@/types/database';
+import type { CategoriaGasto, CostoClasificacion } from '@/types/database';
 
 export const CATEGORIAS_GASTO_QUERY_KEY = ['categorias_gasto'] as const;
 
@@ -35,6 +35,7 @@ export interface CrearCategoriaInput {
   club_id: number;
   unidad_id: number;
   nombre: string;
+  clasificacion: CostoClasificacion;
   orden?: number;
 }
 
@@ -57,6 +58,8 @@ export function useCrearCategoria(): UseMutationResult<
           club_id: input.club_id,
           unidad_id: input.unidad_id,
           nombre: input.nombre.trim(),
+          clasificacion: input.clasificacion,
+          es_mercaderia: input.clasificacion === 'DIRECT_MERCHANDISE',
           orden: input.orden ?? 0,
         })
         .select('*')
@@ -73,7 +76,7 @@ export function useCrearCategoria(): UseMutationResult<
 export interface UpdateCategoriaInput {
   id: number;
   changes: Partial<
-    Pick<CategoriaGasto, 'nombre' | 'unidad_id' | 'activa' | 'orden'>
+    Pick<CategoriaGasto, 'nombre' | 'unidad_id' | 'activa' | 'orden' | 'clasificacion'>
   >;
 }
 
@@ -92,6 +95,12 @@ export function useUpdateCategoria(): UseMutationResult<
           ...(changes.unidad_id !== undefined ? { unidad_id: changes.unidad_id } : {}),
           ...(changes.activa !== undefined ? { activa: changes.activa } : {}),
           ...(changes.orden !== undefined ? { orden: changes.orden } : {}),
+          ...(changes.clasificacion !== undefined
+            ? {
+                clasificacion: changes.clasificacion,
+                es_mercaderia: changes.clasificacion === 'DIRECT_MERCHANDISE',
+              }
+            : {}),
         })
         .eq('id', id)
         .select('*')

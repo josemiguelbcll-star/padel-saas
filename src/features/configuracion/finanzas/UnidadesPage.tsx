@@ -25,6 +25,7 @@ const TIPO_COLOR: Record<TipoUnidad, { fg: string; bg: string }> = {
   financiero: { fg: 'hsl(var(--estado-senada))', bg: 'hsl(var(--estado-senada) / 0.10)' },
   auspicios: { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' },
   membresias: { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' },
+  torneos: { fg: 'hsl(var(--primary))', bg: 'hsl(var(--primary) / 0.10)' },
   otro: { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' },
 };
 
@@ -67,17 +68,9 @@ export function UnidadesPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             Agrupan los ingresos y gastos del club para el estado de
-            resultados. Los tipos <strong>canchas, clases, buffet</strong>{' '}
-            y <strong>shop</strong> reciben ingresos automáticos desde
-            las pantallas operativas; el resto se carga manualmente.
+            resultados. Las unidades son estándar y fijas del sistema.
           </p>
         </div>
-        {isAdmin && (
-          <Button type="button" onClick={openNew} className="shrink-0">
-            <Plus className="h-4 w-4" />
-            Nueva unidad
-          </Button>
-        )}
       </header>
 
       {unidadesQuery.isLoading && (
@@ -96,8 +89,7 @@ export function UnidadesPage() {
       {unidadesQuery.data && unidadesQuery.data.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Todavía no hay unidades cargadas. Pedile al admin que ejecute
-            la inicialización financiera o agregalas manualmente.
+            No hay unidades cargadas.
           </p>
         </div>
       )}
@@ -105,7 +97,7 @@ export function UnidadesPage() {
       {unidadesQuery.data && unidadesQuery.data.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {unidadesQuery.data.map((u) => {
-            const colores = TIPO_COLOR[u.tipo];
+            const colores = TIPO_COLOR[u.tipo] ?? { fg: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted) / 0.5)' };
             const cantCat = contadorCategorias.get(u.id) ?? 0;
             return (
               <article
@@ -113,7 +105,6 @@ export function UnidadesPage() {
                 className={cn(
                   'group rounded-lg border border-border bg-card p-4 transition-colors',
                   !u.activa && 'opacity-60',
-                  isAdmin && 'hover:border-primary/50',
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -130,18 +121,6 @@ export function UnidadesPage() {
                       </span>
                     )}
                   </div>
-                  {isAdmin && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEdit(u)}
-                      className="opacity-0 transition-opacity group-hover:opacity-100"
-                      aria-label={`Editar ${u.nombre}`}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
                 </div>
                 <h3 className="mt-2 text-base font-semibold text-foreground">
                   {u.nombre}

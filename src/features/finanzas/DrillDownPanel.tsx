@@ -124,11 +124,17 @@ function tituloDe(key: DrillKey | null): string {
     case 'ingreso_canchas':
       return 'Ingresos de Canchas';
     case 'ingreso_clases':
-      return 'Ingresos de Clases';
+      return 'Ingresos de Escuela';
     case 'ingreso_buffet':
       return 'Ingresos de Buffet';
     case 'ingreso_shop':
       return 'Ingresos de Shop';
+    case 'ingreso_torneos':
+      return 'Ingresos de Torneos y Eventos';
+    case 'ingreso_auspicios':
+      return 'Ingresos de Auspicios';
+    case 'ingresos_financieros':
+      return 'Ingresos Financieros';
     case 'costos_directos':
       return 'Costos directos (mercadería)';
     case 'gastos_directos':
@@ -136,7 +142,7 @@ function tituloDe(key: DrillKey | null): string {
     case 'gastos_estructura':
       return 'Gastos de estructura';
     case 'gastos_financieros':
-      return 'Resultados financieros';
+      return 'Gastos financieros';
     case 'gastos_otros':
       return 'Otros gastos';
     default:
@@ -161,8 +167,14 @@ function DrillContenido({
     case 'ingreso_canchas':
     case 'ingreso_clases':
     case 'ingreso_buffet':
-    case 'ingreso_shop': {
-      const tipo = drillKey.replace('ingreso_', '');
+    case 'ingreso_shop':
+    case 'ingreso_torneos':
+    case 'ingreso_auspicios':
+    case 'ingresos_financieros': {
+      const tipo =
+        drillKey === 'ingresos_financieros'
+          ? 'financiero'
+          : drillKey.replace('ingreso_', '');
       return <DetalleIngresoUnidad resumen={resumen} tipo={tipo} />;
     }
     case 'costos_directos':
@@ -261,6 +273,9 @@ const TIPO_A_MOV: Record<string, string[]> = {
   clases: ['cobro_clase'],
   buffet: ['venta'],
   shop: ['venta'],
+  torneos: ['otro_ingreso'],
+  auspicios: ['otro_ingreso'],
+  financiero: ['otro_ingreso'],
 };
 
 function DetalleIngresoUnidad({

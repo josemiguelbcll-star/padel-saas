@@ -30,7 +30,10 @@ export type DrillKey =
   | 'ingreso_canchas'
   | 'ingreso_clases'
   | 'ingreso_buffet'
-  | 'ingreso_shop';
+  | 'ingreso_shop'
+  | 'ingreso_torneos'
+  | 'ingreso_auspicios'
+  | 'ingresos_financieros';
 
 interface EERRTableProps {
   actual: ResumenFinanciero;
@@ -66,11 +69,15 @@ export function EERRTable({ actual, anterior, onDrill }: EERRTableProps) {
   const ingClases = ingresoPorTipo('clases', actual);
   const ingBuffet = ingresoPorTipo('buffet', actual);
   const ingShop = ingresoPorTipo('shop', actual);
+  const ingTorneos = ingresoPorTipo('torneos', actual);
+  const ingAuspicios = ingresoPorTipo('auspicios', actual);
 
   const ingCanchasAnt = ingresoPorTipo('canchas', anterior);
   const ingClasesAnt = ingresoPorTipo('clases', anterior);
   const ingBuffetAnt = ingresoPorTipo('buffet', anterior);
   const ingShopAnt = ingresoPorTipo('shop', anterior);
+  const ingTorneosAnt = ingresoPorTipo('torneos', anterior);
+  const ingAuspiciosAnt = ingresoPorTipo('auspicios', anterior);
 
   return (
     <article className="rounded-lg border border-border bg-card">
@@ -116,11 +123,20 @@ export function EERRTable({ actual, anterior, onDrill }: EERRTableProps) {
               ocultarSiCero
             />
             <FilaConcepto
-              label="Clases"
+              label="Escuela"
               actual={ingClases}
               anterior={anterior ? ingClasesAnt : null}
               signoBueno="positivo"
               onDrill={() => onDrill('ingreso_clases')}
+              nivel="detalle"
+              ocultarSiCero
+            />
+            <FilaConcepto
+              label="Torneos y Eventos"
+              actual={ingTorneos}
+              anterior={anterior ? ingTorneosAnt : null}
+              signoBueno="positivo"
+              onDrill={() => onDrill('ingreso_torneos')}
               nivel="detalle"
               ocultarSiCero
             />
@@ -139,6 +155,15 @@ export function EERRTable({ actual, anterior, onDrill }: EERRTableProps) {
               anterior={anterior ? ingShopAnt : null}
               signoBueno="positivo"
               onDrill={() => onDrill('ingreso_shop')}
+              nivel="detalle"
+              ocultarSiCero
+            />
+            <FilaConcepto
+              label="Auspicios"
+              actual={ingAuspicios}
+              anterior={anterior ? ingAuspiciosAnt : null}
+              signoBueno="positivo"
+              onDrill={() => onDrill('ingreso_auspicios')}
               nivel="detalle"
               ocultarSiCero
             />
@@ -190,15 +215,30 @@ export function EERRTable({ actual, anterior, onDrill }: EERRTableProps) {
               signoBueno="positivo"
             />
 
-            {/* ── Resultados financieros (SIEMPRE visible) ──────────── */}
+            {/* ── Resultados financieros (desglosados) ──────────────── */}
             <FilaConcepto
-              label="− Resultados financieros"
-              actual={-actual.gastos_financieros}
-              anterior={anterior ? -anterior.gastos_financieros : null}
+              label="Ingresos financieros"
+              actual={actual.financial_income}
+              anterior={anterior ? anterior.financial_income : null}
+              signoBueno="positivo"
+              onDrill={() => onDrill('ingresos_financieros')}
+              nivel="detalle"
+              ocultarSiCero
+            />
+            <FilaConcepto
+              label="− Gastos financieros"
+              actual={-actual.financial_expenses}
+              anterior={anterior ? -anterior.financial_expenses : null}
               signoBueno="negativo"
               onDrill={() => onDrill('gastos_financieros')}
               nivel="resta"
-              // NO ocultarSiCero: línea estructural del EERR.
+            />
+            <FilaConcepto
+              label="Resultado financiero neto"
+              actual={actual.net_financial_result}
+              anterior={anterior ? anterior.net_financial_result : null}
+              signoBueno="positivo"
+              nivel="resta"
             />
 
             {/* ── Otros (oculta si 0) ───────────────────────────────── */}
@@ -214,7 +254,7 @@ export function EERRTable({ actual, anterior, onDrill }: EERRTableProps) {
 
             {/* ── Resultado neto ────────────────────────────────────── */}
             <FilaSubtotal
-              label="RESULTADO NETO"
+              label="RESULTADO NETO (ANTES DE IMPUESTOS)"
               actual={actual.resultado_neto}
               anterior={anterior?.resultado_neto ?? null}
               signoBueno="positivo"
