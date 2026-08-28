@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CircleDashed,
   Coins,
+  Download,
   Layers,
   Package,
   Percent,
@@ -26,6 +27,14 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
   currency: 'ARS',
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
+});
+
+const fechaHoraFmt = new Intl.DateTimeFormat('es-AR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
 });
 
 function fmtMoney(n: number): string {
@@ -132,6 +141,89 @@ export function CatalogoTab() {
     };
   }, [resumenMes.data]);
 
+  async function handleExportValuedPdf() {
+    if (productos.length === 0) return;
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    const totalValores = productos.reduce((acc, p) => acc + (p.stock_actual * (p.costo ?? 0)), 0);
+    const totalProductos = productos.length;
+
+    doc.setFontSize(14);
+    doc.text('MatchGo - Inventario Valorizado', 14, 16);
+    doc.setFontSize(9);
+    doc.text(`Generado: ${fechaHoraFmt.format(new Date())}`, 14, 22);
+    doc.text(`Productos incluidos: ${totalProductos}`, 14, 27);
+
+    autoTable(doc, {
+      startY: 32,
+      head: [['PRODUCTO', 'LÍNEA', 'CATEGORÍA', 'COSTO UNIT.', 'STOCK', 'VALOR TOTAL']],
+      body: productos.map((p) => [
+        p.nombre,
+        p.linea === 'buffet' ? 'Buffet' : 'Shop',
+        p.categoria,
+        p.costo !== null ? currencyFmt.format(p.costo) : '—',
+        String(p.stock_actual),
+        p.costo !== null ? currencyFmt.format(p.stock_actual * p.costo) : '—',
+      ]),
+      foot: [['TOTAL VALORIZADO', '', '', '', '', currencyFmt.format(totalValores)]],
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [37, 99, 235] },
+      footStyles: { fillColor: [241, 245, 249], textColor: 20, fontStyle: 'bold' },
+      columnStyles: { 
+        3: { halign: 'right' }, 
+        4: { halign: 'right' }, 
+        5: { halign: 'right' } 
+      },
+    });
+
+    const y = new Date().getFullYear();
+    const m = String(new Date().getMonth() + 1).padStart(2, '0');
+    const d = String(new Date().getDate()).padStart(2, '0');
+    doc.save(`inventario_valorizado_${y}_${m}_${d}.pdf`);
+  }
+
+  async function handleExportCountPdf() {
+    if (productos.length === 0) return;
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    const totalProductos = productos.length;
+
+    doc.setFontSize(14);
+    doc.text('MatchGo - Planilla de Conteo de Inventario', 14, 16);
+    doc.setFontSize(9);
+    doc.text(`Generado: ${fechaHoraFmt.format(new Date())}`, 14, 22);
+    doc.text('Complete las columnas "Real" y "Ajuste" durante el conteo físico en el club.', 14, 27);
+
+    autoTable(doc, {
+      startY: 32,
+      head: [['PRODUCTO', 'LÍNEA', 'CATEGORÍA', 'STOCK SISTEMA', 'STOCK REAL', 'AJUSTE']],
+      body: productos.map((p) => [
+        p.nombre,
+        p.linea === 'buffet' ? 'Buffet' : 'Shop',
+        p.categoria,
+        String(p.stock_actual),
+        '________________',
+        '________________',
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [79, 70, 229] },
+      columnStyles: { 
+        3: { halign: 'right' }, 
+        4: { halign: 'center' }, 
+        5: { halign: 'center' } 
+      },
+    });
+
+    const y = new Date().getFullYear();
+    const m = String(new Date().getMonth() + 1).padStart(2, '0');
+    const d = String(new Date().getDate()).padStart(2, '0');
+    doc.save(`planilla_conteo_inventario_${y}_${m}_${d}.pdf`);
+  }
+
   return (
     <div className="space-y-5">
       {/* ── KPIs hero ────────────────────────────────────────────── */}
@@ -201,6 +293,9 @@ export function CatalogoTab() {
         filtros={filtros}
         onChange={setFiltros}
         categoriasDisponibles={categoriasDisponibles}
+        onExportValued={handleExportValuedPdf}
+        onExportCount={handleExportCountPdf}
+        hayDatos={productos.length > 0}
       />
 
       {/* ── Tabla ────────────────────────────────────────────────── */}
@@ -383,9 +478,19 @@ interface FiltrosBarProps {
   filtros: CatalogoFiltros;
   onChange: (f: CatalogoFiltros) => void;
   categoriasDisponibles: string[];
+  onExportValued: () => void;
+  onExportCount: () => void;
+  hayDatos: boolean;
 }
 
-function FiltrosBar({ filtros, onChange, categoriasDisponibles }: FiltrosBarProps) {
+function FiltrosBar({
+  filtros,
+  onChange,
+  categoriasDisponibles,
+  onExportValued,
+  onExportCount,
+  hayDatos,
+}: FiltrosBarProps) {
   function set<K extends keyof CatalogoFiltros>(key: K, value: CatalogoFiltros[K]) {
     onChange({ ...filtros, [key]: value });
   }
@@ -496,6 +601,31 @@ function FiltrosBar({ filtros, onChange, categoriasDisponibles }: FiltrosBarProp
             >
               Limpiar
             </Button>
+          )}
+
+          {hayDatos && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onExportValued}
+                className="h-8 gap-1 text-xs"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Valorizado
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onExportCount}
+                className="h-8 gap-1 text-xs"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Planilla
+              </Button>
+            </>
           )}
         </div>
       </div>
