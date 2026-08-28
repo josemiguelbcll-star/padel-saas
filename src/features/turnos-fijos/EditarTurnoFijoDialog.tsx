@@ -126,10 +126,6 @@ export function EditarTurnoFijoDialog({
       return;
     }
 
-    const titularCambio =
-      (titular.kind === 'jugador' && titular.jugadorId !== turno.jugador_id) ||
-      (titular.kind === 'libre' && titular.nombre !== turno.nombre_libre);
-
     const jugadorId = titular.kind === 'jugador' ? titular.jugadorId : null;
     const nombreLibre = titular.kind === 'libre' ? titular.nombre : null;
     const clearJugador = titular.kind === 'libre' && turno.jugador_id !== null;
