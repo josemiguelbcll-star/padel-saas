@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
-import { PackageCheck, PackageX } from 'lucide-react';
+import { PackageCheck, PackageX, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { useRotacion } from './hooks/useRotacion';
 import {
   productosParaReponer,
   UMBRAL_DIAS_REPONER,
   type ProductoReponer,
 } from './utils/reponer';
+import { NuevaOCDialog } from './NuevaOCDialog';
 
 /** Ventana de venta para estimar agotamiento. Igual a la de la alarma del
  *  dashboard → los números coinciden por construcción. */
@@ -31,6 +33,9 @@ const LINEA_LABEL: Record<string, string> = {
 export function ReposicionTab() {
   const [soloReponer, setSoloReponer] = useState(true);
   const query = useRotacion(DIAS_VENTANA);
+
+  const [ocOpen, setOcOpen] = useState(false);
+  const [prefilledProdId, setPrefilledProdId] = useState<number | null>(null);
 
   const { reponer, completa } = useMemo(() => {
     const filas = query.data?.filas ?? [];
@@ -97,8 +102,21 @@ export function ReposicionTab() {
         (lista.length === 0 ? (
           <VacioReponer soloReponer={soloReponer} />
         ) : (
-          <TablaReponer filas={lista} />
+          <TablaReponer
+            filas={lista}
+            onPedir={(id) => {
+              setPrefilledProdId(id);
+              setOcOpen(true);
+            }}
+          />
         ))}
+
+      <NuevaOCDialog
+        open={ocOpen}
+        onOpenChange={setOcOpen}
+        initialValue={null}
+        initialProductoId={prefilledProdId}
+      />
     </div>
   );
 }
@@ -124,7 +142,13 @@ function severidadFila(p: ProductoReponer): SeveridadFila {
   return 'normal';
 }
 
-function TablaReponer({ filas }: { filas: ProductoReponer[] }) {
+function TablaReponer({
+  filas,
+  onPedir,
+}: {
+  filas: ProductoReponer[];
+  onPedir: (productoId: number) => void;
+}) {
   return (
     <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full text-sm">
@@ -137,6 +161,7 @@ function TablaReponer({ filas }: { filas: ProductoReponer[] }) {
             <th className="px-3 py-2 text-right font-medium">
               Ventas {DIAS_VENTANA}d
             </th>
+            <th className="px-3 py-2 text-right font-medium">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -191,6 +216,18 @@ function TablaReponer({ filas }: { filas: ProductoReponer[] }) {
                 </td>
                 <td className="px-3 py-2 text-right align-middle tabular-nums text-muted-foreground">
                   {f.unidades_vendidas_ventana}
+                </td>
+                <td className="px-3 py-2 text-right align-middle">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => onPedir(f.producto_id)}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Generar OC
+                  </Button>
                 </td>
               </tr>
             );

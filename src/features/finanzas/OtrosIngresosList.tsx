@@ -28,7 +28,7 @@ export function OtrosIngresosList({ ingresos }: { ingresos: OtroIngreso[] }) {
           aria-hidden="true"
         />
         <p className="mt-2 text-sm text-muted-foreground">
-          Todavía no hay otros ingresos registrados.
+          Todavía no hay ingresos registrados.
         </p>
       </div>
     );

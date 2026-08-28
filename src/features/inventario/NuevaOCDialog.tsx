@@ -148,12 +148,15 @@ interface NuevaOCDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Si viene, modo EDITAR esa OC (estado='pedida' garantizado por la RPC). */
   initialValue: Compra | null;
+  /** Si viene, pre-selecciona el producto para crear una nueva OC rápida. */
+  initialProductoId?: number | null;
 }
 
 export function NuevaOCDialog({
   open,
   onOpenChange,
   initialValue,
+  initialProductoId = null,
 }: NuevaOCDialogProps) {
   const proveedoresQuery = useProveedores();
   const productosQuery = useInventarioProductos();
@@ -178,6 +181,28 @@ export function NuevaOCDialog({
 
     if (initialValue === null) {
       // Modo crear.
+      if (initialProductoId && productosQuery.data) {
+        const prod = productosQuery.data.find(p => p.id === initialProductoId);
+        if (prod) {
+          setState({
+            proveedor_id: null,
+            linea: prod.linea,
+            fecha_oc: todayISO(),
+            items: [{
+              uid: makeUid(),
+              producto_id: prod.id,
+              suelta: true,
+              cantidad_bultos: '1',
+              unidades_por_bulto: '',
+              costo_por_bulto: prod.costo !== null ? String(prod.costo) : '',
+            }],
+            condicion_pago: 'al_recibir',
+            fecha_compromiso_pago: '',
+            observaciones: '',
+          });
+          return;
+        }
+      }
       setState(initialState());
       return;
     }
@@ -193,7 +218,7 @@ export function NuevaOCDialog({
       fecha_compromiso_pago: initialValue.fecha_compromiso_pago ?? '',
       observaciones: initialValue.observaciones ?? '',
     });
-  }, [open, initialValue]);
+  }, [open, initialValue, initialProductoId, productosQuery.data]);
 
   // Pre-llenar items cuando llega el detalle (modo edit).
   useEffect(() => {

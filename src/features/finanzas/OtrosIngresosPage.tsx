@@ -75,7 +75,7 @@ export function OtrosIngresosPage() {
               Ingresos · no operativos
             </p>
             <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground">
-              Otros ingresos
+              Ingresos
             </h1>
             <p className="text-sm text-muted-foreground">
               Auspicios, membresías y cualquier ingreso que no pase por

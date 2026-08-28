@@ -92,7 +92,7 @@ export const navItems: NavItem[] = [
     children: [
       { label: 'Flujo de caja', to: '/app/flujo-caja', icon: LineChart },
       { label: 'Gastos', to: '/app/gastos', icon: TrendingDown },
-      { label: 'Otros ingresos', to: '/app/otros-ingresos', icon: TrendingUp },
+      { label: 'Ingresos', to: '/app/otros-ingresos', icon: TrendingUp },
       { label: 'Cuentas por pagar', to: '/app/cxp', icon: Receipt },
     ],
   },

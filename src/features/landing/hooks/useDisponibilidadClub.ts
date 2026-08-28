@@ -11,7 +11,7 @@ export interface SlotDisponible {
 
 export async function fetchDisponibilidadClub(slug: string, fecha: string) {
   const { data, error } = await supabase.rpc('fn_disponibilidad_publica', {
-    p_slug: slug,
+    p_club_slug: slug,
     p_fecha: fecha,
   });
   if (error) throw error;

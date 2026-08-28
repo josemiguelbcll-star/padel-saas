@@ -153,6 +153,14 @@ export function CatalogoTab() {
           subtitulo={
             `${kpis.conStock} con stock · ${kpis.sinStock} sin stock`
           }
+          active={filtros.estado === 'activos' && !filtros.soloAlertas}
+          onClick={() => {
+            setFiltros((prev) => ({
+              ...prev,
+              estado: 'activos',
+              soloAlertas: false,
+            }));
+          }}
         />
         <KpiCard
           icon={AlertTriangle}
@@ -162,6 +170,13 @@ export function CatalogoTab() {
             `${kpis.alertaSinStock} sin stock · ${kpis.alertaBajo} bajo mínimo`
           }
           tone={kpis.alertaTotal > 0 ? 'warning' : 'neutral'}
+          active={filtros.soloAlertas}
+          onClick={() => {
+            setFiltros((prev) => ({
+              ...prev,
+              soloAlertas: !prev.soloAlertas,
+            }));
+          }}
         />
         <KpiCard
           icon={Percent}
@@ -303,16 +318,36 @@ interface KpiCardProps {
   valor: string | null;
   subtitulo: string;
   tone?: 'neutral' | 'warning';
+  onClick?: () => void;
+  active?: boolean;
 }
 
-function KpiCard({ icon: Icon, label, valor, subtitulo, tone = 'neutral' }: KpiCardProps) {
+function KpiCard({
+  icon: Icon,
+  label,
+  valor,
+  subtitulo,
+  tone = 'neutral',
+  onClick,
+  active = false,
+}: KpiCardProps) {
+  const isClickable = !!onClick;
+  const Component = isClickable ? 'button' : 'article';
+
   return (
-    <article
+    <Component
+      type={isClickable ? 'button' : undefined}
+      onClick={onClick}
       className={cn(
-        'group relative overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20',
+        'group relative overflow-hidden rounded-lg border bg-card p-4 transition-all text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isClickable && 'cursor-pointer hover:bg-muted/30 hover:border-foreground/20',
         tone === 'warning' && valor && valor !== '0'
-          ? 'border-amber-500/40'
-          : 'border-border',
+          ? active
+            ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/20'
+            : 'border-amber-500/40'
+          : active
+            ? 'border-primary bg-primary/10 dark:bg-primary/20'
+            : 'border-border',
       )}
     >
       <div className="flex items-center justify-between">
@@ -336,7 +371,7 @@ function KpiCard({ icon: Icon, label, valor, subtitulo, tone = 'neutral' }: KpiC
         </p>
       )}
       <p className="mt-3 line-clamp-2 text-[11px] text-muted-foreground">{subtitulo}</p>
-    </article>
+    </Component>
   );
 }
 
