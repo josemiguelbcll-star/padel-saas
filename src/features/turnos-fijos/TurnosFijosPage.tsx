@@ -304,6 +304,7 @@ export function TurnosFijosPage() {
         prefill={prefillNuevo}
       />
       <EditarTurnoFijoDialog
+        key={seleccionado?.id ?? 'none'}
         open={editarOpen}
         onOpenChange={setEditarOpen}
         turno={seleccionado}

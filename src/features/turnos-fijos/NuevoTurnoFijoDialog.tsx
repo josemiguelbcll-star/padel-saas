@@ -252,6 +252,7 @@ export function NuevoTurnoFijoDialog({
           <div className="space-y-1">
             <Label htmlFor="tf-titular">Cliente</Label>
             <JugadorAutocomplete
+              key={state.titular === null ? 'empty' : undefined}
               id="tf-titular"
               value={state.titular}
               onChange={(v) => setState({ ...state, titular: v })}

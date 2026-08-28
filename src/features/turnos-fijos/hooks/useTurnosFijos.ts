@@ -93,6 +93,11 @@ export function useCrearTurnoFijo(): UseMutationResult<
 
 export interface ActualizarTurnoFijoInput {
   id: number;
+  cancha_id?: number | null;
+  dia_semana?: number | null;
+  hora_inicio?: string | null;
+  duracion_min?: number | null;
+  fecha_desde?: string | null;
   jugador_id?: number | null;
   nombre_libre?: string | null;
   fecha_hasta?: string | null;
@@ -114,6 +119,11 @@ export function useActualizarTurnoFijo(): UseMutationResult<
     mutationFn: async (input) => {
       const { data, error } = await supabase.rpc('fn_actualizar_turno_fijo', {
         p_turno_fijo_id: input.id,
+        p_cancha_id: input.cancha_id ?? null,
+        p_dia_semana: input.dia_semana ?? null,
+        p_hora_inicio: input.hora_inicio ?? null,
+        p_duracion_min: input.duracion_min ?? null,
+        p_fecha_desde: input.fecha_desde ?? null,
         p_jugador_id: input.jugador_id ?? null,
         p_nombre_libre: input.nombre_libre ?? null,
         p_fecha_hasta: input.fecha_hasta ?? null,

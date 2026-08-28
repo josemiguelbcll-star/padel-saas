@@ -31,6 +31,7 @@ import { useCancelarReserva } from './hooks/useCancelarReserva';
 import { useCerrarTurno } from './hooks/useCerrarTurno';
 import { useReservaJugadores } from './hooks/useReservaJugadores';
 import { useEliminarBloqueoTorneo } from './hooks/useEliminarBloqueoTorneo';
+import { useDesbloquearTurnoFijo } from './hooks/useDesbloquearTurnoFijo';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import {
   derivarEstadoOperativo,
@@ -145,6 +146,7 @@ function DetalleReservaBody({
   const cancelarMutation = useCancelarReserva();
   const cerrarMutation = useCerrarTurno();
   const eliminarBloqueoTorneoMutation = useEliminarBloqueoTorneo();
+  const desbloquearMutation = useDesbloquearTurnoFijo();
 
   // State de las acciones del footer (cerrar / cancelar).
   // El cobro NO está acá — vive por persona en PersonasTurnoSection
@@ -158,6 +160,7 @@ function DetalleReservaBody({
 
   const saldo = reserva.monto_total - reserva.monto_pagado;
   const tieneSaldo = saldo > 0;
+  const esBloqueadoPorTorneo = (reserva.observaciones ?? '').includes('[Bloqueado por Torneo:');
 
   // Estado operativo para las guardas de acciones (espejo de la 0055).
   const tienePago = (pagosQuery.data?.length ?? 0) > 0;
@@ -786,6 +789,30 @@ function DetalleReservaBody({
                 <p className="text-[11px] text-muted-foreground">
                   Titular sin teléfono válido. Agregá el número en la ficha del jugador para enviar WhatsApp.
                 </p>
+              )}
+              {esBloqueadoPorTorneo && !readOnly && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={desbloquearMutation.isPending}
+                  onClick={async () => {
+                    setAccionError(null);
+                    try {
+                      await desbloquearMutation.mutateAsync({
+                        id: reserva.id,
+                        fecha: reserva.fecha,
+                      });
+                      onClose();
+                    } catch (err) {
+                      setAccionError(
+                        err instanceof Error ? err.message : 'No pudimos desbloquear el turno fijo.'
+                      );
+                    }
+                  }}
+                  className="gap-2 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                >
+                  {desbloquearMutation.isPending ? 'Desbloqueando...' : 'Desbloquear turno fijo'}
+                </Button>
               )}
               {!readOnly && (
                 <Button

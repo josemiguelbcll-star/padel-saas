@@ -1,4 +1,4 @@
-import { CupSoda, DollarSign } from 'lucide-react';
+import { AlertTriangle, CupSoda, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
 import {
@@ -43,8 +43,9 @@ export function BloqueReserva({
   const titular = reserva.jugador?.nombre ?? 'Sin titular';
   const horaInicio = formatearHora(reserva.hora_inicio);
   const horaFin = formatearHora(reserva.hora_fin);
-  const bg = estadoOperativoColorVar(info.estado);
-  const fg = estadoOperativoColorFgVar(info.estado);
+  const esBloqueadoPorTorneo = reserva.observaciones?.includes('[Bloqueado por Torneo:');
+  const bg = esBloqueadoPorTorneo ? 'hsl(var(--destructive) / 0.15)' : estadoOperativoColorVar(info.estado);
+  const fg = esBloqueadoPorTorneo ? 'hsl(var(--destructive))' : estadoOperativoColorFgVar(info.estado);
   // Bloques cortos (clamp en bordes / 60' apretado): solo una línea.
   const compacto = height < 46;
 
@@ -58,7 +59,9 @@ export function BloqueReserva({
     color: fg,
   };
 
-  if (info.estado === 'abierto' && pct < 100) {
+  if (esBloqueadoPorTorneo) {
+    buttonStyle.backgroundColor = bg;
+  } else if (info.estado === 'abierto' && pct < 100) {
     buttonStyle.background = `linear-gradient(to right, hsl(var(--estado-op-abierto)) ${pct}%, hsl(var(--estado-op-reservado)) ${pct}%)`;
   } else {
     buttonStyle.backgroundColor = bg;
@@ -74,6 +77,7 @@ export function BloqueReserva({
       className={cn(
         'group absolute left-1 right-1 overflow-hidden rounded-md text-left',
         'shadow-sm ring-1 ring-black/10 transition-all duration-150',
+        esBloqueadoPorTorneo && 'border border-destructive',
         'hover:-translate-y-px hover:shadow-md hover:brightness-110',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
@@ -86,7 +90,8 @@ export function BloqueReserva({
         )}
       >
         <div className="flex items-start justify-between gap-1">
-          <span className="truncate text-xs font-semibold leading-tight">
+          <span className="truncate text-xs font-semibold leading-tight flex items-center gap-1">
+            {esBloqueadoPorTorneo && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
             {titular}
           </span>
           {(info.tienePago || info.tieneConsumo) && (
@@ -103,6 +108,7 @@ export function BloqueReserva({
         {!compacto && (
           <span className="truncate text-[11px] leading-tight opacity-80">
             {horaInicio}–{horaFin} · {reserva.duracion_min} min
+            {esBloqueadoPorTorneo && <span className="block text-[9px] font-semibold text-destructive mt-0.5">BLOQUEADO POR TORNEO</span>}
           </span>
         )}
       </div>

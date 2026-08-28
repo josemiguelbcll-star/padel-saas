@@ -190,8 +190,6 @@ export function CatalogoTab() {
     const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     
-    const totalProductos = productos.length;
-
     doc.setFontSize(14);
     doc.text('MatchGo - Planilla de Conteo de Inventario', 14, 16);
     doc.setFontSize(9);
