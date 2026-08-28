@@ -369,25 +369,37 @@ export function BuffetPage() {
                         return (
                           <div
                             key={m.id}
-                            className="flex flex-col justify-between rounded-xl border border-border bg-card p-4.5 shadow-sm transition-all hover:shadow-md"
+                            className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200"
                           >
-                            <div className="space-y-1.5">
-                              <h3 className="font-semibold text-foreground">{m.nombre}</h3>
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Users className="h-3.5 w-3.5 shrink-0" />
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="font-semibold text-base text-foreground leading-tight">{m.nombre}</h3>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium ${
+                                  m.consumos.length > 0
+                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  {m.consumos.length > 0 ? 'Con consumos' : 'Vacía'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <UtensilsCrossed className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
                                 <span>{m.consumos.length} consumos cargados</span>
                               </div>
                             </div>
-                            <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-                              <span className="text-sm font-semibold text-foreground tabular-nums">
-                                {currencyFmt.format(mTotal)}
-                              </span>
+                            <div className="mt-5 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total</span>
+                                <span className={`text-base font-bold tabular-nums leading-none ${mTotal > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                  {currencyFmt.format(mTotal)}
+                                </span>
+                              </div>
                               <Button
                                 type="button"
                                 size="sm"
-                                variant="secondary"
+                                variant={mTotal > 0 ? 'default' : 'secondary'}
                                 onClick={() => setSelectedMesaId(m.id)}
-                                className="text-xs h-8 rounded-lg"
+                                className="text-xs h-9 rounded-lg px-4 font-medium transition-all"
                               >
                                 Ver / Cargar
                               </Button>

@@ -22,6 +22,9 @@ export interface ClubResumen {
   fecha_alta: string;
   cantidad_usuarios: number;
   cantidad_canchas: number;
+  slug: string;
+  total_ventas_historico: number;
+  total_ventas_mes_actual: number;
 }
 
 export const CLUBES_PLATAFORMA_QUERY_KEY = ['clubes_plataforma'] as const;

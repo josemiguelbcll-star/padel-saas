@@ -14,6 +14,18 @@ function fmtFecha(iso: string): string {
   return fechaFmt.format(new Date(iso));
 }
 
+const dineroFmt = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+function fmtDinero(monto: number): string {
+  return dineroFmt.format(monto);
+}
+
+
 interface ClubesListProps {
   clubes: ClubResumen[];
   /** Click en una fila → abre el dialog de gestión del club. */
@@ -49,6 +61,8 @@ export function ClubesList({ clubes, onClickClub }: ClubesListProps) {
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 text-right font-medium">Usuarios</th>
             <th className="px-3 py-2 text-right font-medium">Canchas</th>
+            <th className="px-3 py-2 text-right font-medium">Ventas (Mes)</th>
+            <th className="px-3 py-2 text-right font-medium">Ventas (Total)</th>
             <th className="px-3 py-2 font-medium">Alta</th>
           </tr>
         </thead>
@@ -71,7 +85,12 @@ export function ClubesList({ clubes, onClickClub }: ClubesListProps) {
               <td className="px-3 py-3">
                 <div className="flex items-center gap-2">
                   <ClubLogo path={c.logo_path} nombre={c.nombre} />
-                  <span className="font-medium text-foreground">{c.nombre}</span>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-foreground">{c.nombre}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {c.slug ? `/${c.slug}` : '—'}
+                    </span>
+                  </div>
                 </div>
               </td>
               <td className="px-3 py-3 text-muted-foreground">
@@ -85,6 +104,12 @@ export function ClubesList({ clubes, onClickClub }: ClubesListProps) {
               </td>
               <td className="px-3 py-3 text-right tabular-nums text-foreground">
                 {c.cantidad_canchas}
+              </td>
+              <td className="px-3 py-3 text-right tabular-nums text-foreground font-medium text-emerald-600 dark:text-emerald-400">
+                {fmtDinero(c.total_ventas_mes_actual ?? 0)}
+              </td>
+              <td className="px-3 py-3 text-right tabular-nums text-foreground font-medium">
+                {fmtDinero(c.total_ventas_historico ?? 0)}
               </td>
               <td className="px-3 py-3 text-muted-foreground tabular-nums">
                 {fmtFecha(c.fecha_alta)}

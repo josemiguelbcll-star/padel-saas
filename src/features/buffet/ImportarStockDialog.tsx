@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -40,6 +41,42 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
     [lectura, sede],
   );
 
+  function handleDescargarPlantilla(e: React.MouseEvent): void {
+    e.preventDefault();
+
+    // Headers y datos de ejemplo genéricos
+    const headers = ['Producto', 'Stock', 'Costo', 'Precio', 'Categoria'];
+    const dummyRows = [
+      ['Coca Cola 350ml', 50, 800, 1200, 'bebidas'],
+      ['Agua Mineral 500ml', 30, 600, 900, 'bebidas'],
+      ['Papas Fritas 150g', 20, 1000, 1600, 'snacks'],
+      ['Alfajor Triple', 40, 500, 850, 'snacks'],
+      ['Barra de Cereal', 15, 300, 500, 'snacks'],
+    ];
+
+    const data = [headers, ...dummyRows];
+
+    // Crear worksheets para los locales DOMO y SIGNO (asociados al parser del SaaS)
+    const worksheetDomo = XLSX.utils.aoa_to_sheet(data);
+    const worksheetSigno = XLSX.utils.aoa_to_sheet(data);
+
+    // Crear el libro de trabajo (workbook)
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheetDomo, 'DOMO');
+    XLSX.utils.book_append_sheet(workbook, worksheetSigno, 'SIGNO');
+
+    // Generar buffer en array y descargar como Blob de Excel (.xlsx)
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'plantilla_importacion_stock.xlsx';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+
   async function handleFile(file: File | undefined): Promise<void> {
     if (!file) return;
     setErrorLectura(null);
@@ -79,14 +116,14 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
             <FileSpreadsheet className="h-4 w-4 text-primary shrink-0" />
             <span>¿No tenés una plantilla armada?</span>
           </div>
-          <a
-            href="/plantilla_importacion_stock.xlsx"
-            download="plantilla_importacion_stock.xlsx"
-            className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+          <button
+            type="button"
+            onClick={handleDescargarPlantilla}
+            className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline bg-transparent border-0 cursor-pointer"
           >
             <Download className="h-3.5 w-3.5" />
             Descargar plantilla Excel
-          </a>
+          </button>
         </div>
 
         <input

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 import type { EstadoClub, Plan } from '@/types/database';
@@ -18,6 +19,8 @@ import { useCambiarEstadoClub } from './hooks/useCambiarEstadoClub';
 import { useClubesPlataforma } from './hooks/useClubesPlataforma';
 import { usePlanesDisponibles } from './hooks/usePlanesDisponibles';
 import { useResetearClub } from './hooks/useResetearClub';
+import { useEditarClubInfo } from './hooks/useEditarClubInfo';
+import { useEliminarClub } from './hooks/useEliminarClub';
 
 const fechaFmt = new Intl.DateTimeFormat('es-AR', {
   year: 'numeric',
@@ -82,6 +85,8 @@ export function DetalleClubDialog({
   const cambiarPlan = useCambiarPlanClub();
   const cambiarEstado = useCambiarEstadoClub();
   const resetearMutation = useResetearClub();
+  const editarInfo = useEditarClubInfo();
+  const eliminarClub = useEliminarClub();
 
   const [error, setError] = useState<string | null>(null);
   const [confirmingEstado, setConfirmingEstado] = useState<EstadoClub | null>(
@@ -91,21 +96,36 @@ export function DetalleClubDialog({
   const [limpiarCatalogo, setLimpiarCatalogo] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
 
+  const [nombreEdit, setNombreEdit] = useState('');
+  const [slugEdit, setSlugEdit] = useState('');
+  const [confirmingEliminar, setConfirmingEliminar] = useState(false);
+  const [confirmNombre, setConfirmNombre] = useState('');
+  const [editSuccess, setEditSuccess] = useState(false);
+
+  const club = clubesQuery.data?.find((c) => c.id === clubId) ?? null;
+  const planes = planesQuery.data ?? [];
+  const anyPending =
+    cambiarPlan.isPending ||
+    cambiarEstado.isPending ||
+    resetearMutation.isPending ||
+    editarInfo.isPending ||
+    eliminarClub.isPending;
+
   // Reset al abrir o cambiar de club.
   useEffect(() => {
-    if (open) {
+    if (open && club) {
       setError(null);
       setConfirmingEstado(null);
       setConfirmingReset(false);
       setLimpiarCatalogo(false);
       setResetSuccess(false);
+      setNombreEdit(club.nombre);
+      setSlugEdit(club.slug);
+      setConfirmingEliminar(false);
+      setConfirmNombre('');
+      setEditSuccess(false);
     }
-  }, [open, clubId]);
-
-  const club = clubesQuery.data?.find((c) => c.id === clubId) ?? null;
-  const planes = planesQuery.data ?? [];
-  const anyPending =
-    cambiarPlan.isPending || cambiarEstado.isPending || resetearMutation.isPending;
+  }, [open, clubId, club]);
 
   function handleOpenChange(next: boolean): void {
     if (anyPending) return;
@@ -147,6 +167,47 @@ export function DetalleClubDialog({
     }
   }
 
+  async function handleGuardarInfo(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!club) return;
+    if (!nombreEdit.trim() || !slugEdit.trim()) {
+      setError('El nombre y el slug no pueden estar vacíos.');
+      return;
+    }
+    setError(null);
+    setEditSuccess(false);
+    try {
+      await editarInfo.mutateAsync({
+        clubId: club.id,
+        nombre: nombreEdit.trim(),
+        slug: slugEdit.trim().toLowerCase(),
+      });
+      setEditSuccess(true);
+      setTimeout(() => setEditSuccess(false), 3000);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No pudimos guardar los cambios.',
+      );
+    }
+  }
+
+  async function handleEliminarClub(): Promise<void> {
+    if (!club) return;
+    if (confirmNombre !== club.nombre) {
+      setError('El nombre ingresado no coincide con el del club.');
+      return;
+    }
+    setError(null);
+    try {
+      await eliminarClub.mutateAsync({ clubId: club.id });
+      onOpenChange(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Error al eliminar el club.',
+      );
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
@@ -172,6 +233,56 @@ export function DetalleClubDialog({
             </DialogHeader>
 
             <div className="space-y-5">
+              {/* Información Básica */}
+              <form onSubmit={handleGuardarInfo} className="space-y-3 rounded-md border border-border p-3">
+                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                  Información Básica
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="club-nombre">Nombre</Label>
+                    <Input
+                      id="club-nombre"
+                      type="text"
+                      value={nombreEdit}
+                      onChange={(e) => setNombreEdit(e.target.value)}
+                      disabled={anyPending || editarInfo.isPending}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="club-slug">Slug de acceso</Label>
+                    <Input
+                      id="club-slug"
+                      type="text"
+                      value={slugEdit}
+                      onChange={(e) => setSlugEdit(e.target.value)}
+                      disabled={anyPending || editarInfo.isPending}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    {editSuccess && (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        ✓ Cambios guardados
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={
+                      anyPending ||
+                      editarInfo.isPending ||
+                      (nombreEdit.trim() === club.nombre &&
+                        slugEdit.trim().toLowerCase() === club.slug)
+                    }
+                  >
+                    {editarInfo.isPending ? 'Guardando...' : 'Guardar Información'}
+                  </Button>
+                </div>
+              </form>
+
               {/* Plan */}
               <section className="space-y-2">
                 <Label>Plan</Label>
@@ -350,6 +461,79 @@ export function DetalleClubDialog({
                   <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
                     ✓ Datos del club reseteados exitosamente. El club quedó en $0.
                   </p>
+                )}
+              </section>
+
+              {/* Zona de Peligro: Eliminar Club permanentemente */}
+              <section className="space-y-2 rounded-lg border border-red-600/30 bg-red-600/5 p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wider">
+                      Zona de Control · Eliminar Club
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Eliminá de forma permanente el club, sus canchas, reservas, ventas, gastos, cajas y todos sus usuarios.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-red-600/40 text-red-600 hover:bg-red-600/10 shrink-0 gap-1.5"
+                    onClick={() => setConfirmingEliminar(true)}
+                    disabled={anyPending || eliminarClub.isPending}
+                  >
+                    Eliminar Club
+                  </Button>
+                </div>
+
+                {confirmingEliminar && (
+                  <div className="mt-3 space-y-3 border-t border-red-600/20 pt-3">
+                    <div className="space-y-2 text-xs">
+                      <p className="font-semibold text-red-600">
+                        ¿Confirmás la eliminación permanente del club "{club.nombre}"?
+                      </p>
+                      <p className="text-muted-foreground">
+                        Esta acción es definitiva y no se puede deshacer. Se eliminarán todos los registros y usuarios vinculados a este club.
+                      </p>
+                      <div className="space-y-1 mt-2">
+                        <Label htmlFor="confirm-nombre-delete" className="text-muted-foreground text-[11px]">
+                          Para continuar, escribí el nombre del club (<strong>{club.nombre}</strong>):
+                        </Label>
+                        <Input
+                          id="confirm-nombre-delete"
+                          type="text"
+                          value={confirmNombre}
+                          onChange={(e) => setConfirmNombre(e.target.value)}
+                          placeholder="Nombre del club"
+                          className="border-red-600/30 focus-visible:ring-red-600"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setConfirmingEliminar(false);
+                          setConfirmNombre('');
+                        }}
+                        disabled={eliminarClub.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleEliminarClub}
+                        disabled={eliminarClub.isPending || confirmNombre !== club.nombre}
+                      >
+                        {eliminarClub.isPending ? 'Eliminando...' : 'Sí, Eliminar Club'}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </section>
 
