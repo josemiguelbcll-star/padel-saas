@@ -605,20 +605,18 @@ function FiltrosBar({
             <>
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
                 onClick={onExportValued}
-                className="h-8 gap-1 text-xs"
+                className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm dark:bg-emerald-700 dark:hover:bg-emerald-600"
               >
                 <Download className="h-3.5 w-3.5" />
                 Valorizado
               </Button>
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
                 onClick={onExportCount}
-                className="h-8 gap-1 text-xs"
+                className="h-8 gap-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-sm dark:bg-indigo-700 dark:hover:bg-indigo-600"
               >
                 <Download className="h-3.5 w-3.5" />
                 Planilla
