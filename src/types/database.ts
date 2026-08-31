@@ -709,6 +709,11 @@ export interface ReservaJugador {
    * jugador_id=NULL, nombre_libre=NULL, es_titular=false.
    */
   tipo: TipoPersonaTurno;
+  /**
+   * Migración 0103. Cuota personalizada / monto fijado para esta persona.
+   * Si es != null, su deuda se calcula sobre este monto y el restante se redistribuye.
+   */
+  cuota_fija?: number | null;
 }
 
 export interface ReservaPago {

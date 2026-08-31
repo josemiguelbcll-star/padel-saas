@@ -1,26 +1,57 @@
-import { distribuirDeudaPonderada, ParticipantDebt } from '../src/features/reservas/utils/cuentaTurno';
+import { calcularSaldosPersonas, calcularDesgloseCuenta } from '../src/features/reservas/utils/cuentaTurno';
 
-const alquilerParticipants: ParticipantDebt[] = [
-  { id: 1, paid: 6000, baseWeight: 9000 },
-  { id: 2, paid: 10000, baseWeight: 9000 },
-  { id: 3, paid: 0, baseWeight: 9000 },
-  { id: 4, paid: 20000, baseWeight: 9000 },
-];
+console.log('=== TEST 1: Caso Martin (Paga 4.000 de 8.000 y se redistribuye) ===');
+// 3 jugadores, cancha 24.000. Martin pagó 4.000 y se fija su cuota en 4.000.
+const res1 = calcularSaldosPersonas({
+  personas: [
+    { id: 1, tipo: 'jugador', es_titular: true }, // Juan
+    { id: 2, tipo: 'jugador', cuota_fija: 4000 },  // Martin (saldado con 4000)
+    { id: 3, tipo: 'jugador' },                   // Jose Miguel
+  ],
+  pagos: [
+    { reserva_jugador_id: 2, monto_alquiler: 4000, monto_consumo: 0, creado_en: '2026-08-31T10:00:00Z' },
+  ],
+  consumos: [],
+  montoAlquiler: 24000,
+});
 
-const saldosAlquiler = distribuirDeudaPonderada(36000, alquilerParticipants);
+console.log(res1.map(r => ({ id: r.reservaJugadorId, parteTotal: r.parteTotal, yaPagado: r.yaPagadoTotal, saldo: r.saldo, estado: r.estado })));
 
-console.log('Saldos Alquiler:', saldosAlquiler);
+console.log('\n=== TEST 2: Cancha 24.000 + Consumos 4.000 con 3 jugadores + 1 invitado ===');
+// Martin pagó 4.000 y se fija su cuota en 4.000.
+const res2 = calcularSaldosPersonas({
+  personas: [
+    { id: 1, tipo: 'jugador', es_titular: true }, // Juan
+    { id: 2, tipo: 'jugador', cuota_fija: 4000 },  // Martin
+    { id: 3, tipo: 'jugador' },                   // Jose
+    { id: 4, tipo: 'invitado' },                  // Carlos
+  ],
+  pagos: [
+    { reserva_jugador_id: 2, monto_alquiler: 4000, monto_consumo: 0, creado_en: '2026-08-31T10:00:00Z' },
+  ],
+  consumos: [
+    { subtotal: 4000, tipo_reparto: 'general', creado_en: '2026-08-31T09:00:00Z' },
+  ],
+  montoAlquiler: 24000,
+});
 
-// They all have paidConsumo = 0. J4 is excluded from consumos because he was "saldada" before consumos were added.
-const consumoParticipants: ParticipantDebt[] = [
-  { id: 1, paid: 0, baseWeight: 2600 }, // J1
-  { id: 2, paid: 0, baseWeight: 2600 }, // J2
-  { id: 3, paid: 0, baseWeight: 2600 }, // J3
-  { id: 4, paid: 0, baseWeight: 0 },    // J4
-  { id: 5, paid: 0, baseWeight: 2600 }, // I1
-  { id: 6, paid: 0, baseWeight: 2600 }, // I2
-];
+console.log(res2.map(r => ({ id: r.reservaJugadorId, tipo: r.tipo, parteTotal: r.parteTotal, yaPagado: r.yaPagadoTotal, saldo: r.saldo, estado: r.estado })));
 
-const saldosConsumo = distribuirDeudaPonderada(13000, consumoParticipants);
+console.log('\n=== TEST 3: Invitado paga 500 de consumo de 1.000 y se redistribuye ===');
+const res3 = calcularSaldosPersonas({
+  personas: [
+    { id: 1, tipo: 'jugador', es_titular: true }, // Juan
+    { id: 2, tipo: 'jugador' },                   // Martin
+    { id: 3, tipo: 'jugador' },                   // Jose
+    { id: 4, tipo: 'invitado', cuota_fija: 500 }, // Carlos invitado saldado con 500
+  ],
+  pagos: [
+    { reserva_jugador_id: 4, monto_alquiler: 0, monto_consumo: 500, creado_en: '2026-08-31T10:00:00Z' },
+  ],
+  consumos: [
+    { subtotal: 4000, tipo_reparto: 'general', creado_en: '2026-08-31T09:00:00Z' },
+  ],
+  montoAlquiler: 24000,
+});
 
-console.log('Saldos Consumo:', saldosConsumo);
+console.log(res3.map(r => ({ id: r.reservaJugadorId, tipo: r.tipo, parteTotal: r.parteTotal, yaPagado: r.yaPagadoTotal, saldo: r.saldo, estado: r.estado })));

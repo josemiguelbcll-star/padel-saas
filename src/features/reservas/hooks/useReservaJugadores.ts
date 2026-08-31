@@ -143,6 +143,7 @@ export interface ActualizarPersonaTurnoInput {
   changes: {
     jugador_id?: number | null;
     nombre_libre?: string | null;
+    cuota_fija?: number | null;
   };
 }
 

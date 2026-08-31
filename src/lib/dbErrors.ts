@@ -100,6 +100,11 @@ export function mapPostgrestError(error: PostgrestError): string {
     return message;
   }
 
+  // Conflicto de firmas RPC en PostgREST
+  if (code === 'PGRST203' || /best candidate function/i.test(message)) {
+    return 'Hubo un conflicto de versiones de la función en la base de datos. Por favor ejecutá la última migración en Supabase.';
+  }
+
   // Errores de red / fetch caídos
   if (/network|failed to fetch|fetch failed/i.test(message)) {
     return 'Error de conexión. Verificá tu internet e intentá nuevamente.';

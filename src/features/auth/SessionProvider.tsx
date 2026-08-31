@@ -78,11 +78,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async function load(session: Session | null): Promise<void> {
       if (!mounted) return;
 
-      const isPlayerRoute = window.location.pathname.startsWith('/player') ||
-                            window.location.pathname.startsWith('/club') ||
-                            window.location.pathname === '/';
+      const isPlayerOrResetRoute =
+        window.location.pathname.startsWith('/player') ||
+        window.location.pathname.startsWith('/club') ||
+        window.location.pathname === '/reset-password';
 
-      if (isPlayerRoute) {
+      if (isPlayerOrResetRoute) {
         setState({
           user: null,
           club: null,
@@ -301,6 +302,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setState({
+          user: null,
+          club: null,
+          plataformaAdmin: null,
+          modulosHabilitados: [],
+          loading: false,
+          error: null,
+        });
+        return;
+      }
       // Si recibimos INITIAL_SESSION y no hay sesión, pasamos a loading: false directo
       // para evitar transiciones innecesarias
       if (event === 'INITIAL_SESSION' && !session) {

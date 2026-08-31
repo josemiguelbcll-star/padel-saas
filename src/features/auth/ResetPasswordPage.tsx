@@ -21,40 +21,50 @@ export function ResetPasswordPage() {
   const userType = searchParams.get('type') || 'admin'; // 'admin' o 'player'
 
   useEffect(() => {
-    // Verificar si ya hay una sesión establecida (caso común cuando Supabase procesa el link de recovery)
+    let mounted = true;
+
     async function checkSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
+        if (session && mounted) {
           setHasSession(true);
           setLoading(false);
-        } else {
-          // Escuchar cambios de auth por si se demora un instante en procesar el hash de la URL
-          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session) {
-              setHasSession(true);
-              setLoading(false);
-              subscription.unsubscribe();
-            }
-          });
-
-          // Timeout de 2 segundos para dar tiempo a Supabase a parsear el hash. Si no, mostramos error.
-          const timer = setTimeout(() => {
-            subscription.unsubscribe();
-            setLoading(false);
-          }, 2000);
-
-          return () => {
-            clearTimeout(timer);
-            subscription.unsubscribe();
-          };
+          return;
         }
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if (!mounted) return;
+          if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session) || session) {
+            setHasSession(true);
+            setLoading(false);
+          }
+        });
+
+        const timer = setTimeout(async () => {
+          if (!mounted) return;
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          if (retrySession) {
+            setHasSession(true);
+          }
+          setLoading(false);
+          subscription.unsubscribe();
+        }, 2500);
+
+        return () => {
+          clearTimeout(timer);
+          subscription.unsubscribe();
+        };
       } catch (err) {
         console.error('[ResetPasswordPage] Error checkSession:', err);
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
+
     void checkSession();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {

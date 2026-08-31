@@ -42,10 +42,14 @@ export interface CalcularDesgloseInput {
   totalConsumosGeneral: number;
   /** count total de personas (jugadores + invitados). >= 0. */
   cantidadPersonas: number;
+  /** Total de cuotas fijas aplicadas a alquiler (0103). */
+  alquilerFijado?: number;
+  /** Cantidad de jugadores sin cuota fija asignada (0103). */
+  cantidadJugadoresSinFija?: number;
 }
 
 export interface DesgloseCuenta {
-  /** Parte del alquiler que le toca a cada jugador. Entero (CEIL). */
+  /** Parte del alquiler que le toca a cada jugador sin cuota fija. Entero (CEIL). */
   parteAlquilerPorJugador: number;
   /**
    * Parte de consumos PARTIDO por jugador. Entero (CEIL). Invitados
@@ -73,20 +77,14 @@ export interface DesgloseCuenta {
   montoAlquiler: number;
   totalConsumosPartido: number;
   totalConsumosGeneral: number;
+  alquilerFijado?: number;
+  cantidadJugadoresSinFija?: number;
 }
 
 /**
  * Equivalente exacto del cálculo de fn_cobrar_persona_turno (RPC del
- * 0015). Si esta función y la RPC difieren, la validación cruzada
+ * 0015 y 0103). Si esta función y la RPC difieren, la validación cruzada
  * `p_monto_esperado` rechaza cobros válidos con "la cuenta cambió".
- *
- * Tabla de sincronización (header de la 0015):
- *   - parte alquiler / jugador       → CEIL(monto_total / cant_jug)
- *   - parte consumo partido / jug    → CEIL(total_partido / cant_jug)
- *   - parte consumo general / pers   → CEIL(total_general / cant_pers)
- *   - parte total jugador            → suma de las 3
- *   - parte total invitado           → sólo general
- * Todos con guard `> 0` para evitar div/0.
  */
 export function calcularDesgloseCuenta(
   input: CalcularDesgloseInput,
@@ -97,11 +95,16 @@ export function calcularDesgloseCuenta(
     totalConsumosPartido,
     totalConsumosGeneral,
     cantidadPersonas,
+    alquilerFijado = 0,
+    cantidadJugadoresSinFija,
   } = input;
 
+  const cantJug = cantidadJugadoresSinFija !== undefined ? cantidadJugadoresSinFija : cantidadJugadores;
+  const alquilerRestante = Math.max(0, montoAlquiler - alquilerFijado);
+
   const parteAlquilerPorJugador =
-    cantidadJugadores > 0 && montoAlquiler > 0
-      ? Math.ceil(montoAlquiler / cantidadJugadores)
+    cantJug > 0 && alquilerRestante > 0
+      ? Math.ceil(alquilerRestante / cantJug)
       : 0;
 
   const parteConsumoPartidoPorJugador =
@@ -128,6 +131,8 @@ export function calcularDesgloseCuenta(
     montoAlquiler,
     totalConsumosPartido,
     totalConsumosGeneral,
+    alquilerFijado,
+    cantidadJugadoresSinFija: cantJug,
   };
 }
 
@@ -162,6 +167,7 @@ export interface SaldoPersona {
   saldoConsumo: number;
   saldo: number;
   estado: EstadoSaldoPersona;
+  cuotaFija?: number | null;
 }
 
 export interface ParticipantDebt {
@@ -206,7 +212,12 @@ export function distribuirDeudaPonderada(totalDebt: number, participants: Partic
 
 export interface CalcularSaldosPersonasInput {
   /** Lista de personas del turno (jugadores e invitados). */
-  personas: Array<{ id: number; tipo: TipoPersonaTurno; es_titular?: boolean }>;
+  personas: Array<{
+    id: number;
+    tipo: TipoPersonaTurno;
+    es_titular?: boolean;
+    cuota_fija?: number | null;
+  }>;
   /** Pagos de la reserva (toda la historia). */
   pagos: Array<{
     reserva_jugador_id: number | null;
@@ -229,7 +240,8 @@ export interface CalcularSaldosPersonasInput {
  * los pagos atados a ella vía reserva_jugador_id, con fallback a titular para pagos null),
  * y el saldo restante.
  *
- * Excluye cronológicamente de los nuevos consumos a las personas que ya saldaron su deuda.
+ * Soporta cuotas fijadas per-persona (cuota_fija) y redistribuye el saldo restante
+ * automáticamente entre las demás personas según su rol (cancha solo a jugadores).
  */
 export function calcularSaldosPersonas(
   input: CalcularSaldosPersonasInput,
@@ -239,7 +251,17 @@ export function calcularSaldosPersonas(
   const titular = personas.find((p) => p.es_titular);
   const titularId = titular?.id ?? null;
 
-  const cantidadJugadores = personas.filter((p) => p.tipo === 'jugador').length;
+  // Jugadores sin cuota fija y total de alquiler fijado
+  const jugadoresSinFija = personas.filter((p) => p.tipo === 'jugador' && p.cuota_fija == null);
+  const totalAlquilerFijado = personas
+    .filter((p) => p.tipo === 'jugador' && p.cuota_fija != null)
+    .reduce((sum, p) => sum + Math.min(Number(p.cuota_fija), montoAlquiler), 0);
+
+  const alquilerRestante = Math.max(0, montoAlquiler - totalAlquilerFijado);
+  const baseAlquilerPorJugadorSinFija =
+    jugadoresSinFija.length > 0 && alquilerRestante > 0
+      ? Math.ceil(alquilerRestante / jugadoresSinFija.length)
+      : 0;
 
   // Inicializar estado cronológico por persona
   const stateMap = new Map<number, {
@@ -247,14 +269,34 @@ export function calcularSaldosPersonas(
     paidConsumo: number;
     partAlquiler: number;
     partConsumo: number;
+    cuotaFija: number | null;
   }>();
 
   for (const p of personas) {
+    const hasCuotaFija = p.cuota_fija != null;
+    const cuotaFijaNum = hasCuotaFija ? Number(p.cuota_fija) : null;
+    let partAlquiler = 0;
+    let partConsumo = 0;
+
+    if (hasCuotaFija) {
+      if (p.tipo === 'jugador') {
+        partAlquiler = Math.min(cuotaFijaNum!, montoAlquiler);
+        partConsumo = Math.max(0, cuotaFijaNum! - partAlquiler);
+      } else {
+        partAlquiler = 0;
+        partConsumo = cuotaFijaNum!;
+      }
+    } else {
+      partAlquiler = p.tipo === 'jugador' ? baseAlquilerPorJugadorSinFija : 0;
+      partConsumo = 0;
+    }
+
     stateMap.set(p.id, {
       paidAlquiler: 0,
       paidConsumo: 0,
-      partAlquiler: p.tipo === 'jugador' ? (cantidadJugadores > 0 ? Math.ceil(montoAlquiler / cantidadJugadores) : 0) : 0,
-      partConsumo: 0,
+      partAlquiler,
+      partConsumo,
+      cuotaFija: cuotaFijaNum,
     });
   }
 
@@ -310,12 +352,21 @@ export function calcularSaldosPersonas(
       const c = event.data;
       const subtotal = Number(c.subtotal);
       
-      // Personas saldadas justo antes de este consumo (su pago cubre su deuda actual y ya debían algo)
+      // Personas saldadas justo antes de este consumo (o con cuota fija ya cubierta)
       const saldadas = new Set<number>();
       for (const p of personas) {
         const pState = stateMap.get(p.id);
-        if (pState && (pState.paidAlquiler + pState.paidConsumo >= pState.partAlquiler + pState.partConsumo) && (pState.partAlquiler + pState.partConsumo > 0)) {
-          saldadas.add(p.id);
+        if (pState) {
+          if (pState.cuotaFija !== null) {
+            if (pState.partAlquiler + pState.partConsumo >= pState.cuotaFija) {
+              saldadas.add(p.id);
+            }
+          } else if (
+            pState.paidAlquiler + pState.paidConsumo >= pState.partAlquiler + pState.partConsumo &&
+            pState.partAlquiler + pState.partConsumo > 0
+          ) {
+            saldadas.add(p.id);
+          }
         }
       }
 
@@ -328,7 +379,18 @@ export function calcularSaldosPersonas(
         return true;
       });
 
-      // Si todos los elegibles están saldados, fallback a todos los elegibles
+      // Si todos los elegibles están saldados, fallback a todos los no-fijos elegibles
+      if (eligible.length === 0) {
+        eligible = personas.filter((p) => {
+          if (p.cuota_fija != null) return false;
+          if (c.tipo_reparto === 'partido') {
+            return p.tipo === 'jugador';
+          }
+          return true;
+        });
+      }
+
+      // Si todavía es 0, fallback a todos
       if (eligible.length === 0) {
         eligible = personas.filter((p) => {
           if (c.tipo_reparto === 'partido') {
@@ -358,7 +420,7 @@ export function calcularSaldosPersonas(
     combinedParticipants.push({
       id: p.id,
       paid: pState.paidAlquiler + pState.paidConsumo,
-      baseWeight: pState.partAlquiler + pState.partConsumo,
+      baseWeight: pState.cuotaFija !== null ? pState.cuotaFija : (pState.partAlquiler + pState.partConsumo),
     });
   }
 
@@ -371,15 +433,11 @@ export function calcularSaldosPersonas(
     const yaPagadoTotal = pState.paidAlquiler + pState.paidConsumo;
 
     const saldo = saldosCombinados[persona.id] ?? 0;
-
-    // Dado que se unificó la deuda, asimilamos todo el saldo a `saldoAlquiler` por compatibilidad.
-    // (La UI sólo usa `saldo` y `parteTotal` de todos modos).
     const saldoAlquiler = saldo;
     const saldoConsumo = 0;
 
     const parteTotal = saldo + yaPagadoTotal;
 
-    // Para no romper la consistencia visual, prorrateamos la parte calculada según la intención original
     const totalPartIntencion = pState.partAlquiler + pState.partConsumo;
     const proportion = totalPartIntencion > 0 ? pState.partAlquiler / totalPartIntencion : 1;
     
@@ -408,6 +466,8 @@ export function calcularSaldosPersonas(
       saldoConsumo,
       saldo,
       estado,
+      cuotaFija: pState.cuotaFija,
     };
   });
 }
+

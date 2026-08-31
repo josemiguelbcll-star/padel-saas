@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, FileSpreadsheet, Plus, Users, UtensilsCrossed } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, FileSpreadsheet, Plus, UtensilsCrossed } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';

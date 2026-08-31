@@ -1,11 +1,13 @@
 import { useId, useMemo, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
+  ArrowLeftRight,
   Check,
   CheckCircle2,
   Clock,
   Info,
   Plus,
+  RotateCcw,
   Star,
   Trash2,
   User,
@@ -195,6 +197,18 @@ export function PersonasTurnoSection({
     [consumosQuery.data],
   );
 
+  const jugadoresSinFija = useMemo(
+    () => personas.filter((p) => p.tipo === 'jugador' && p.cuota_fija == null),
+    [personas],
+  );
+  const totalAlquilerFijado = useMemo(
+    () =>
+      personas
+        .filter((p) => p.tipo === 'jugador' && p.cuota_fija != null)
+        .reduce((sum, p) => sum + Math.min(Number(p.cuota_fija), montoAlquiler), 0),
+    [personas, montoAlquiler],
+  );
+
   const desglose = useMemo<DesgloseCuenta>(
     () =>
       calcularDesgloseCuenta({
@@ -203,6 +217,8 @@ export function PersonasTurnoSection({
         totalConsumosPartido,
         totalConsumosGeneral,
         cantidadPersonas: personas.length,
+        alquilerFijado: totalAlquilerFijado,
+        cantidadJugadoresSinFija: jugadoresSinFija.length,
       }),
     [
       montoAlquiler,
@@ -210,6 +226,8 @@ export function PersonasTurnoSection({
       totalConsumosPartido,
       totalConsumosGeneral,
       personas.length,
+      totalAlquilerFijado,
+      jugadoresSinFija.length,
     ],
   );
 
@@ -217,7 +235,12 @@ export function PersonasTurnoSection({
 
   const saldosPorPersona = useMemo<Map<number, SaldoPersona>>(() => {
     const saldos = calcularSaldosPersonas({
-      personas: personas.map((p) => ({ id: p.id, tipo: p.tipo, es_titular: p.es_titular })),
+      personas: personas.map((p) => ({
+        id: p.id,
+        tipo: p.tipo,
+        es_titular: p.es_titular,
+        cuota_fija: p.cuota_fija,
+      })),
       pagos: pagos.map((p) => ({
         reserva_jugador_id: p.reserva_jugador_id,
         monto_alquiler: p.monto_alquiler,
@@ -376,12 +399,9 @@ export function PersonasTurnoSection({
     obs: string | null,
     monto: number,
     nombreInvitado: string | null,
+    darPorSaldado?: boolean,
   ): Promise<void> {
     setError(null);
-    // Si es un invitado y se ingresó un nombre, lo persistimos en
-    // reserva_jugadores.nombre_libre ANTES de cobrar. Si el UPDATE falla, NO
-    // cobramos (return). Si luego falla el cobro, el nombre ya quedó guardado
-    // (aceptable — no es dinero). Campo vacío o jugador → se saltea.
     if (saldo.tipo === 'invitado' && nombreInvitado) {
       try {
         await actualizar.mutateAsync({
@@ -405,16 +425,53 @@ export function PersonasTurnoSection({
         fecha,
         medio_pago: medio,
         observaciones: obs,
-        // monto_esperado = saldo completo: valida anti-race el caso "cobro
-        // total". Para el parcial/excedente, la RPC valida monto.
         monto_esperado: saldo.saldo,
-        // Mandamos `monto` si es distinto al saldo (parcial o excedente).
         ...(monto !== saldo.saldo ? { monto } : {}),
       });
+
+      if (darPorSaldado) {
+        const nuevoTotal = saldo.yaPagadoTotal + monto;
+        await actualizar.mutateAsync({
+          id: saldo.reservaJugadorId,
+          reserva_id: reservaId,
+          changes: { cuota_fija: nuevoTotal },
+        });
+      }
+
       setCobrandoId(null);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'No pudimos registrar el cobro.',
+      );
+    }
+  }
+
+  async function handleDarPorSaldado(personaId: number, yaPagado: number): Promise<void> {
+    setError(null);
+    try {
+      await actualizar.mutateAsync({
+        id: personaId,
+        reserva_id: reservaId,
+        changes: { cuota_fija: yaPagado },
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No pudimos redistribuir el saldo.',
+      );
+    }
+  }
+
+  async function handleRestaurarReparto(personaId: number): Promise<void> {
+    setError(null);
+    try {
+      await actualizar.mutateAsync({
+        id: personaId,
+        reserva_id: reservaId,
+        changes: { cuota_fija: null },
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No pudimos restaurar el reparto.',
       );
     }
   }
@@ -556,6 +613,8 @@ export function PersonasTurnoSection({
                   }}
                   onCancelarCobrar={() => setCobrandoId(null)}
                   onConfirmarCobro={handleConfirmarCobro}
+                  onDarPorSaldado={(yaPagado) => handleDarPorSaldado(j.id, yaPagado)}
+                  onRestaurarReparto={() => handleRestaurarReparto(j.id)}
                   onQuitar={() => handleQuitar(j.id)}
                   disabled={anyPending}
                   readOnly={readOnly}
@@ -579,6 +638,7 @@ export function PersonasTurnoSection({
               return (
                 <InvitadoCard
                   key={inv.id}
+                  persona={inv}
                   numero={idx + 1}
                   nombreLibre={inv.nombre_libre}
                   saldo={saldo}
@@ -594,6 +654,8 @@ export function PersonasTurnoSection({
                   }}
                   onCancelarCobrar={() => setCobrandoId(null)}
                   onConfirmarCobro={handleConfirmarCobro}
+                  onDarPorSaldado={(yaPagado) => handleDarPorSaldado(inv.id, yaPagado)}
+                  onRestaurarReparto={() => handleRestaurarReparto(inv.id)}
                   onQuitar={() => handleQuitar(inv.id)}
                   disabled={anyPending}
                   readOnly={readOnly}
@@ -802,12 +864,17 @@ function DesgloseHint({ desglose }: { desglose: DesgloseCuenta }) {
           Alquiler{' '}
           <span className="tabular-nums">
             {fmtMoney(desglose.montoAlquiler)}
-          </span>{' '}
-          ÷ {desglose.cantidadJugadores} ={' '}
+          </span>
+          {desglose.alquilerFijado !== undefined && desglose.alquilerFijado > 0 && (
+            <>
+              {' '}- <span className="tabular-nums">{fmtMoney(desglose.alquilerFijado)}</span> fijado
+            </>
+          )}
+          {' '}÷ {desglose.cantidadJugadoresSinFija ?? desglose.cantidadJugadores} ={' '}
           <span className="font-medium tabular-nums text-foreground">
             {fmtMoney(desglose.parteAlquilerPorJugador)}
           </span>{' '}
-          por jugador
+          por jugador {desglose.alquilerFijado && desglose.alquilerFijado > 0 ? 'restante' : ''}
         </p>
       )}
       {muestraConsumosPartido && (
@@ -930,7 +997,10 @@ interface JugadorCardProps {
     obs: string | null,
     monto: number,
     nombreInvitado: string | null,
+    darPorSaldado?: boolean,
   ) => Promise<void>;
+  onDarPorSaldado: (yaPagado: number) => Promise<void>;
+  onRestaurarReparto: () => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
   readOnly?: boolean;
@@ -952,6 +1022,8 @@ function JugadorCard({
   onPedirCobrar,
   onCancelarCobrar,
   onConfirmarCobro,
+  onDarPorSaldado,
+  onRestaurarReparto,
   onQuitar,
   disabled,
   readOnly,
@@ -971,6 +1043,7 @@ function JugadorCard({
 
   const estado = saldo && saldo.parteTotal > 0 ? saldo.estado : null;
   const cardStyle = computarCardStyle(estado);
+  const tieneCuotaFija = persona.cuota_fija != null;
 
   return (
     <li
@@ -1031,6 +1104,47 @@ function JugadorCard({
           </Button>
         )}
       </div>
+
+      {/* Badge de cuota fijada / acción de redistribuir */}
+      {tieneCuotaFija ? (
+        <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground">
+          <span>
+            ⚡ Cuota fijada en <strong className="text-foreground">{fmtMoney(persona.cuota_fija!)}</strong> (restante redistribuido)
+          </span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => void onRestaurarReparto()}
+              disabled={disabled}
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Restaurar reparto
+            </button>
+          )}
+        </div>
+      ) : (
+        !readOnly &&
+        saldo &&
+        saldo.saldo > 0 &&
+        saldo.yaPagadoTotal > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1 text-[11px]">
+            <span className="text-muted-foreground">
+              Pagó {fmtMoney(saldo.yaPagadoTotal)} de {fmtMoney(saldo.parteTotal)}
+            </span>
+            <button
+              type="button"
+              onClick={() => void onDarPorSaldado(saldo.yaPagadoTotal)}
+              disabled={disabled}
+              className="inline-flex items-center gap-1 font-medium text-amber-600 hover:text-amber-700 hover:underline dark:text-amber-400 disabled:opacity-50"
+              title="Dar por saldado a este jugador con lo que ya pagó y redistribuir el saldo restante entre los demás jugadores"
+            >
+              <ArrowLeftRight className="h-3 w-3" />
+              Dar por saldado y redistribuir restante
+            </button>
+          </div>
+        )
+      )}
 
       {/* Mini-form: asignar/vincular ficha */}
       {vinculandoActivo && (
@@ -1096,6 +1210,7 @@ function JugadorCard({
 // ─────────────────────────────────────────────────────────────────────
 
 interface InvitadoCardProps {
+  persona: ReservaJugadorConNombre;
   numero: number;
   /** nombre_libre actual del invitado (0065) — pre-rellena el campo de nombre. */
   nombreLibre?: string | null;
@@ -1113,13 +1228,17 @@ interface InvitadoCardProps {
     obs: string | null,
     monto: number,
     nombreInvitado: string | null,
+    darPorSaldado?: boolean,
   ) => Promise<void>;
+  onDarPorSaldado: (yaPagado: number) => Promise<void>;
+  onRestaurarReparto: () => Promise<void>;
   onQuitar: () => void;
   disabled: boolean;
   readOnly?: boolean;
 }
 
 function InvitadoCard({
+  persona,
   numero,
   nombreLibre,
   saldo,
@@ -1131,6 +1250,8 @@ function InvitadoCard({
   onPedirCobrar,
   onCancelarCobrar,
   onConfirmarCobro,
+  onDarPorSaldado,
+  onRestaurarReparto,
   onQuitar,
   disabled,
   readOnly,
@@ -1138,6 +1259,7 @@ function InvitadoCard({
   const label = `Invitado ${numero}`;
   const estado = saldo && saldo.parteTotal > 0 ? saldo.estado : null;
   const cardStyle = computarCardStyle(estado);
+  const tieneCuotaFija = persona.cuota_fija != null;
 
   return (
     <li
@@ -1185,6 +1307,47 @@ function InvitadoCard({
           </Button>
         )}
       </div>
+
+      {/* Badge de cuota fijada / acción de redistribuir invitado */}
+      {tieneCuotaFija ? (
+        <div className="flex flex-wrap items-center justify-between gap-1 rounded bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+          <span>
+            ⚡ Cuota fijada en <strong className="text-foreground">{fmtMoney(persona.cuota_fija!)}</strong> (restante redistribuido)
+          </span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => void onRestaurarReparto()}
+              disabled={disabled}
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              <RotateCcw className="h-2.5 w-2.5" />
+              Restaurar
+            </button>
+          )}
+        </div>
+      ) : (
+        !readOnly &&
+        saldo &&
+        saldo.saldo > 0 &&
+        saldo.yaPagadoTotal > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-1 rounded border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[10px]">
+            <span className="text-muted-foreground">
+              Pagó {fmtMoney(saldo.yaPagadoTotal)}
+            </span>
+            <button
+              type="button"
+              onClick={() => void onDarPorSaldado(saldo.yaPagadoTotal)}
+              disabled={disabled}
+              className="inline-flex items-center gap-1 font-medium text-amber-600 hover:text-amber-700 hover:underline dark:text-amber-400 disabled:opacity-50"
+              title="Dar por saldado y redistribuir consumos restantes"
+            >
+              <ArrowLeftRight className="h-2.5 w-2.5" />
+              Dar por saldado y redistribuir
+            </button>
+          </div>
+        )
+      )}
 
       {cobrandoActivo && saldo && saldo.saldo > 0 && (
         <CobrarPersonaInline
@@ -1477,6 +1640,7 @@ function CobrarPersonaInline({
     obs: string | null,
     monto: number,
     nombreInvitado: string | null,
+    darPorSaldado?: boolean,
   ) => Promise<void>;
   disabled: boolean;
 }) {
@@ -1492,6 +1656,7 @@ function CobrarPersonaInline({
   );
   const [medio, setMedio] = useState<MedioPago | null>('efectivo');
   const [obs, setObs] = useState('');
+  const [darPorSaldado, setDarPorSaldado] = useState(false);
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
 
   const montoNum = Number.parseInt(montoStr, 10);
@@ -1521,6 +1686,7 @@ function CobrarPersonaInline({
       obs.trim() === '' ? null : obs.trim(),
       montoNum,
       nombreInvitado.trim() === '' ? null : nombreInvitado.trim(),
+      esParcial && darPorSaldado,
     );
   }
 
@@ -1581,13 +1747,25 @@ function CobrarPersonaInline({
           aria-label={`Monto a cobrar a ${nombre}`}
         />
         {esParcial && (
-          <p className="text-[11px]" style={{ color: COLOR_WARN }}>
-            Quedará un saldo pendiente de{' '}
-            <span className="font-medium tabular-nums">
-              {fmtMoney(saldoRestante)}
-            </span>{' '}
-            para esta persona.
-          </p>
+          <div className="space-y-1.5 pt-1">
+            <p className="text-[11px]" style={{ color: COLOR_WARN }}>
+              Quedará un saldo pendiente de{' '}
+              <span className="font-medium tabular-nums">
+                {fmtMoney(saldoRestante)}
+              </span>{' '}
+              para esta persona.
+            </p>
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-foreground font-medium">
+              <input
+                type="checkbox"
+                checked={darPorSaldado}
+                onChange={(e) => setDarPorSaldado(e.target.checked)}
+                disabled={disabled}
+                className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
+              />
+              <span>Dar por saldado con este pago y redistribuir el resto ({fmtMoney(saldoRestante)}) a los demás</span>
+            </label>
+          </div>
         )}
         {esCobroMayor && (
           <p className="text-[11px] text-muted-foreground">

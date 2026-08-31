@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { lazy, Suspense } from 'react';
-import { Navigate, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Navigate, Routes, Route, useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 import { LoginPage, ResetPasswordPage } from '@/features/auth';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { useSession } from '@/features/auth/useSession';
@@ -50,6 +51,32 @@ const PerfilPublicoPage = lazy(() => import('@/features/configuracion/perfil-pub
 const MensajeriaPage = lazy(() => import('@/features/configuracion/mensajeria/MensajeriaPage').then((m) => ({ default: m.MensajeriaPage })));
 
 export function App() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Si la URL contiene el hash o query de recuperación generado por Supabase Auth
+    const hash = window.location.hash;
+    const search = window.location.search;
+    const isRecovery = hash.includes('type=recovery') || search.includes('type=recovery');
+
+    if (isRecovery && window.location.pathname !== '/reset-password') {
+      navigate(`/reset-password${search}${hash}`, { replace: true });
+      return;
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' && window.location.pathname !== '/reset-password') {
+        navigate('/reset-password', { replace: true });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
   return (
     <Suspense
       fallback={
