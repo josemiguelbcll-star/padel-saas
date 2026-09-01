@@ -1,17 +1,6 @@
--- Migration 0103_redistribuir_saldo_turnos.sql
--- Agrega soporte para cuotas fijas/redistribución de saldos en reserva_jugadores
--- y actualiza fn_cobrar_persona_turno y fn_cerrar_turno para respetar las cuotas fijadas.
-
--- 1. Agregar columna cuota_fija en reserva_jugadores
-ALTER TABLE reserva_jugadores
-ADD COLUMN IF NOT EXISTS cuota_fija DECIMAL(12,2) DEFAULT NULL;
-
-COMMENT ON COLUMN reserva_jugadores.cuota_fija IS
-  'Monto total fijado para esta persona. Si no es NULL, su deuda se calcula sobre este monto y el restante del turno se redistribuye entre los demás participantes.';
-
-
--- 2. Redefinir fn_cobrar_persona_turno con soporte para cuota_fija
-DROP FUNCTION IF EXISTS fn_cobrar_persona_turno(BIGINT, VARCHAR, TEXT, DECIMAL, BIGINT, DECIMAL);
+-- Migration 0104_permitir_pago_excedente_persona.sql
+-- Permite cobrar montos mayores a la cuota individual de una persona (hasta el saldo global restante del turno).
+-- De esta forma un jugador o invitado puede pagar por sí mismo y cubrir el saldo de otros participantes.
 
 CREATE OR REPLACE FUNCTION fn_cobrar_persona_turno(
   p_reserva_jugador_id BIGINT,
@@ -130,24 +119,7 @@ BEGIN
     RAISE EXCEPTION 'No se puede cobrar a personas de una reserva cancelada.';
   END IF;
 
-  -- Cantidades y totales
-  SELECT
-    COUNT(*) FILTER (WHERE tipo = 'jugador'),
-    COUNT(*),
-    COUNT(*) FILTER (WHERE tipo = 'jugador' AND cuota_fija IS NULL),
-    COUNT(*) FILTER (WHERE cuota_fija IS NULL),
-    COALESCE(SUM(CASE WHEN tipo = 'jugador' AND cuota_fija IS NOT NULL THEN LEAST(cuota_fija, v_reserva.monto_total) ELSE 0 END), 0),
-    COALESCE(SUM(CASE WHEN cuota_fija IS NOT NULL THEN GREATEST(0, cuota_fija - (CASE WHEN tipo = 'jugador' THEN LEAST(cuota_fija, v_reserva.monto_total) ELSE 0 END)) ELSE 0 END), 0)
-  INTO
-    v_cantidad_jugadores,
-    v_cantidad_personas,
-    v_cant_jug_sin_fija,
-    v_cant_pers_sin_fija,
-    v_alquiler_fijado,
-    v_consumo_fijado
-  FROM reserva_jugadores
-  WHERE reserva_id = v_persona.reserva_id;
-
+  -- Totales del turno a nivel global
   SELECT
     COALESCE(SUM(subtotal) FILTER (WHERE tipo_reparto = 'partido'), 0),
     COALESCE(SUM(subtotal) FILTER (WHERE tipo_reparto = 'general'), 0),
@@ -169,10 +141,28 @@ BEGIN
   FROM reserva_pagos
   WHERE reserva_id = v_persona.reserva_id;
 
+  -- Cantidades y totales
+  SELECT
+    COUNT(*) FILTER (WHERE tipo = 'jugador'),
+    COUNT(*),
+    COUNT(*) FILTER (WHERE tipo = 'jugador' AND cuota_fija IS NULL),
+    COUNT(*) FILTER (WHERE cuota_fija IS NULL),
+    COALESCE(SUM(CASE WHEN tipo = 'jugador' AND cuota_fija IS NOT NULL THEN LEAST(cuota_fija, v_reserva.monto_total) ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN cuota_fija IS NOT NULL THEN GREATEST(0, cuota_fija - (CASE WHEN tipo = 'jugador' THEN LEAST(cuota_fija, v_reserva.monto_total) ELSE 0 END)) ELSE 0 END), 0)
+  INTO
+    v_cantidad_jugadores,
+    v_cantidad_personas,
+    v_cant_jug_sin_fija,
+    v_cant_pers_sin_fija,
+    v_alquiler_fijado,
+    v_consumo_fijado
+  FROM reserva_jugadores
+  WHERE reserva_id = v_persona.reserva_id;
+
   v_alquiler_restante := GREATEST(0, v_reserva.monto_total - v_alquiler_fijado);
   v_consumo_restante  := GREATEST(0, v_total_consumos - v_consumo_fijado);
 
-  -- Cálculo de la parte según cuota_fija o distribución proporcional
+  -- Cálculo de la parte individual según cuota_fija o distribución proporcional
   IF v_persona.cuota_fija IS NOT NULL THEN
     IF v_persona.tipo = 'jugador' THEN
       v_parte_alquiler := LEAST(v_persona.cuota_fija, v_reserva.monto_total);
@@ -305,84 +295,4 @@ BEGIN
 END;
 $$;
 
-
--- 3. Redefinir fn_cerrar_turno con soporte para cuota_fija
-CREATE OR REPLACE FUNCTION fn_cerrar_turno(p_reserva_id BIGINT)
-RETURNS reservas
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = public
-AS $$
-DECLARE
-  v_club_id BIGINT;
-  v_usuario_id UUID;
-  v_reserva reservas;
-  v_total_cobrado DECIMAL(12,2);
-  v_total_a_cobrar DECIMAL(12,2);
-  v_total_consumos DECIMAL(12,2);
-  v_total_pendiente DECIMAL(12,2);
-BEGIN
-  v_club_id := current_club_id();
-  v_usuario_id := auth.uid();
-
-  IF v_club_id IS NULL OR v_usuario_id IS NULL THEN
-    RAISE EXCEPTION 'No hay sesión activa.';
-  END IF;
-
-  SELECT * INTO v_reserva
-  FROM reservas
-  WHERE id = p_reserva_id AND club_id = v_club_id
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'La reserva no existe o no pertenece a tu club.';
-  END IF;
-
-  IF v_reserva.estado = 'cancelada' THEN
-    RAISE EXCEPTION 'No se puede cerrar un turno cancelado.';
-  END IF;
-
-  IF v_reserva.cerrado_en IS NOT NULL THEN
-    RAISE EXCEPTION 'El turno ya está cerrado.';
-  END IF;
-
-  -- Calcular total a cobrar y total cobrado
-  SELECT COALESCE(SUM(subtotal), 0) INTO v_total_consumos
-  FROM reserva_consumos
-  WHERE reserva_id = p_reserva_id;
-
-  v_total_a_cobrar := v_reserva.monto_total + v_total_consumos;
-
-  SELECT COALESCE(SUM(monto), 0) INTO v_total_cobrado
-  FROM reserva_pagos
-  WHERE reserva_id = p_reserva_id;
-
-  v_total_pendiente := GREATEST(0, v_total_a_cobrar - v_total_cobrado);
-
-  IF v_total_pendiente > 0
-     AND NOT (
-       v_reserva.estado = 'pagada'
-       AND NOT EXISTS (
-         SELECT 1 FROM reserva_pagos
-         WHERE reserva_id = p_reserva_id
-           AND reserva_jugador_id IS NOT NULL
-       )
-     )
-  THEN
-    RAISE EXCEPTION
-      'Hay $% sin cobrar en este turno. Cobrá a todas las personas o redistribuí los saldos antes de cerrarlo.',
-      v_total_pendiente;
-  END IF;
-
-  UPDATE reservas
-  SET cerrado_en = NOW(),
-      usuario_cierre_id = v_usuario_id
-  WHERE id = p_reserva_id
-  RETURNING * INTO v_reserva;
-
-  RETURN v_reserva;
-END;
-$$;
-
 GRANT EXECUTE ON FUNCTION fn_cobrar_persona_turno(BIGINT, VARCHAR, TEXT, DECIMAL, BIGINT, DECIMAL) TO authenticated;
-GRANT EXECUTE ON FUNCTION fn_cerrar_turno(BIGINT) TO authenticated;

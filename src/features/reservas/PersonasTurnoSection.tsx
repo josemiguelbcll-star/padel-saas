@@ -426,7 +426,7 @@ export function PersonasTurnoSection({
         medio_pago: medio,
         observaciones: obs,
         monto_esperado: saldo.saldo,
-        ...(monto !== saldo.saldo ? { monto } : {}),
+        monto,
       });
 
       if (darPorSaldado) {
