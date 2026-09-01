@@ -375,8 +375,7 @@ BEGIN
   END IF;
 
   UPDATE reservas
-  SET cerrado_en = NOW(),
-      usuario_cierre_id = v_usuario_id
+  SET cerrado_en = NOW()
   WHERE id = p_reserva_id
   RETURNING * INTO v_reserva;
 

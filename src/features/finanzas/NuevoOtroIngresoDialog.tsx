@@ -24,9 +24,20 @@ import {
   type RegistrarOtroIngresoFormValues,
 } from './finanzasSchemas';
 
+import { Repeat } from 'lucide-react';
+
+export interface OtroIngresoPrefill {
+  ingreso_recurrente_id: number;
+  unidad_id: number;
+  concepto: string;
+  monto: number;
+  fecha: string;
+}
+
 interface NuevoOtroIngresoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  prefill?: OtroIngresoPrefill | null;
 }
 
 interface FormState {
@@ -67,10 +78,13 @@ const INITIAL_STATE = (): FormState => ({
 export function NuevoOtroIngresoDialog({
   open,
   onOpenChange,
+  prefill,
 }: NuevoOtroIngresoDialogProps) {
   const unidadesQuery = useUnidadesNegocio();
   const cajaQuery = useCajaAbierta();
   const registrar = useRegistrarOtroIngreso();
+
+  const isCargarReal = Boolean(prefill);
 
   const [state, setState] = useState<FormState>(INITIAL_STATE);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -79,12 +93,25 @@ export function NuevoOtroIngresoDialog({
 
   useEffect(() => {
     if (open) {
-      setState(INITIAL_STATE());
+      if (prefill) {
+        setState({
+          unidad_id: prefill.unidad_id,
+          concepto: prefill.concepto,
+          monto: prefill.monto ? String(prefill.monto) : '',
+          fecha: prefill.fecha,
+          observaciones: '',
+          cobrado: true,
+          medio_pago: 'transferencia',
+          fecha_cobro: prefill.fecha,
+        });
+      } else {
+        setState(INITIAL_STATE());
+      }
       setErrors({});
     }
-  }, [open]);
+  }, [open, prefill]);
 
-  const unidadesActivas = (unidadesQuery.data ?? []).filter((u) => u.activa);
+  const unidadesActivas = (unidadesQuery.data ?? []).filter((u) => u.activa || u.id === prefill?.unidad_id);
 
   function handleOpenChange(next: boolean): void {
     if (pending) return;
@@ -132,6 +159,7 @@ export function NuevoOtroIngresoDialog({
         fecha_cobro: parsed.data.cobrado ? (parsed.data.fecha_cobro ?? null) : null,
         medio_pago: parsed.data.cobrado ? (parsed.data.medio_pago ?? null) : null,
         observaciones: parsed.data.observaciones ?? null,
+        ingreso_recurrente_id: prefill?.ingreso_recurrente_id ?? null,
         turnoCajaIdParaInvalidate: cajaQuery.data?.id ?? null,
       });
       onOpenChange(false);
@@ -146,13 +174,40 @@ export function NuevoOtroIngresoDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Registrar otro ingreso</DialogTitle>
+          <DialogTitle>
+            {isCargarReal ? 'Cargar real de ingreso recurrente' : 'Registrar otro ingreso'}
+          </DialogTitle>
           <DialogDescription>
-            Cargá un ingreso que NO pase por reservas/buffet/clases
-            (auspicios, membresías, etc.). Atribuilo a una unidad de
-            negocio. Si lo cobrás en efectivo, entra a la caja del día.
+            {isCargarReal ? (
+              <>
+                Confirmá el cobro real de este ingreso recurrente.
+              </>
+            ) : (
+              <>
+                Cargá un ingreso que NO pase por reservas/buffet/clases
+                (auspicios, membresías, etc.). Atribuilo a una unidad de
+                negocio. Si lo cobrás en efectivo, entra a la caja del día.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
+
+        {isCargarReal && prefill && (
+          <div
+            className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm"
+            role="status"
+          >
+            <Repeat className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            <div className="space-y-0.5">
+              <p className="font-medium text-foreground">
+                Cargando real de "{prefill.concepto}"
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Monto estimado: ${prefill.monto}. Ajustá el monto o medio antes de guardar.
+              </p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {/* Unidad */}

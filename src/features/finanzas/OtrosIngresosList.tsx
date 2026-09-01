@@ -1,4 +1,4 @@
-import { Clock, TrendingUp } from 'lucide-react';
+import { Ban, Clock, Pencil, Repeat, TrendingUp } from 'lucide-react';
 import type { OtroIngreso } from '@/types/database';
 import { MEDIO_PAGO_LABEL, TIPO_UNIDAD_LABEL } from './finanzasSchemas';
 
@@ -19,7 +19,15 @@ function fmt(iso: string): string {
   return fechaFmt.format(new Date(iso + 'T00:00:00'));
 }
 
-export function OtrosIngresosList({ ingresos }: { ingresos: OtroIngreso[] }) {
+export function OtrosIngresosList({
+  ingresos,
+  onEditar,
+  onAnular,
+}: {
+  ingresos: OtroIngreso[];
+  onEditar?: (i: OtroIngreso) => void;
+  onAnular?: (i: OtroIngreso) => void;
+}) {
   if (ingresos.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
@@ -34,6 +42,8 @@ export function OtrosIngresosList({ ingresos }: { ingresos: OtroIngreso[] }) {
     );
   }
 
+  const hasActions = Boolean(onEditar || onAnular);
+
   return (
     <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full text-sm">
@@ -43,6 +53,9 @@ export function OtrosIngresosList({ ingresos }: { ingresos: OtroIngreso[] }) {
             <th className="px-3 py-2 font-medium">Concepto / Unidad</th>
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 text-right font-medium">Monto</th>
+            {hasActions && (
+              <th className="px-3 py-2 text-right font-medium">Acciones</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -57,7 +70,18 @@ export function OtrosIngresosList({ ingresos }: { ingresos: OtroIngreso[] }) {
                   {fmt(i.fecha)}
                 </td>
                 <td className="px-3 py-2 align-top">
-                  <p className="text-foreground">{i.concepto}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-foreground">{i.concepto}</p>
+                    {i.ingreso_recurrente_id !== null && (
+                      <span
+                        title="Cargado desde una plantilla recurrente"
+                        className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium text-muted-foreground ring-1 ring-border"
+                      >
+                        <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+                        Recurrente
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     {i.unidad_nombre} · {TIPO_UNIDAD_LABEL[i.unidad_tipo]}
                   </p>
@@ -98,6 +122,34 @@ export function OtrosIngresosList({ ingresos }: { ingresos: OtroIngreso[] }) {
                 >
                   {currencyFmt.format(Number(i.monto))}
                 </td>
+                {hasActions && (
+                  <td className="px-3 py-2 align-top text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {onEditar && (
+                        <button
+                          type="button"
+                          onClick={() => onEditar(i)}
+                          title="Editar ingreso"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
+                          Editar
+                        </button>
+                      )}
+                      {onAnular && (
+                        <button
+                          type="button"
+                          onClick={() => onAnular(i)}
+                          title="Anular ingreso"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <Ban className="h-3 w-3" aria-hidden="true" />
+                          Anular
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             );
           })}

@@ -7,36 +7,32 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import type { MedioPago, OtroIngreso } from '@/types/database';
 import { OTROS_INGRESOS_QUERY_KEY } from './useOtrosIngresos';
-import { CAJA_RESUMEN_QUERY_KEY } from '@/features/caja/hooks/useResumenCajaAbierta';
-import { CAJA_MOVIMIENTOS_QUERY_KEY } from '@/features/caja/hooks/useMovimientosCaja';
 import { INGRESOS_RECURRENTES_QUERY_KEY } from './useIngresosRecurrentes';
 import { CUENTAS_QUERY_KEY } from '@/features/configuracion/hooks/useCuentas';
 
-export interface RegistrarOtroIngresoInput {
+export interface ActualizarOtroIngresoInput {
+  ingreso_id: number;
   unidad_id: number;
   concepto: string;
   monto: number;
-  fecha: string;                  // YYYY-MM-DD
-  fecha_cobro?: string | null;    // YYYY-MM-DD si cobró
+  fecha: string;
+  fecha_cobro?: string | null;
   medio_pago?: MedioPago | null;
   observaciones?: string | null;
   cuenta_id?: number | null;
-  ingreso_recurrente_id?: number | null;
-  turnoCajaIdParaInvalidate?: number | null;
 }
 
-/**
- * Alta de un otro_ingreso via RPC `fn_registrar_otro_ingreso`.
- */
-export function useRegistrarOtroIngreso(): UseMutationResult<
+export function useActualizarOtroIngreso(): UseMutationResult<
   OtroIngreso,
   Error,
-  RegistrarOtroIngresoInput
+  ActualizarOtroIngresoInput
 > {
   const queryClient = useQueryClient();
-  return useMutation<OtroIngreso, Error, RegistrarOtroIngresoInput>({
+
+  return useMutation<OtroIngreso, Error, ActualizarOtroIngresoInput>({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.rpc('fn_registrar_otro_ingreso', {
+      const { data, error } = await supabase.rpc('fn_actualizar_otro_ingreso', {
+        p_ingreso_id: input.ingreso_id,
         p_unidad_id: input.unidad_id,
         p_concepto: input.concepto,
         p_monto: input.monto,
@@ -45,33 +41,20 @@ export function useRegistrarOtroIngreso(): UseMutationResult<
         p_medio_pago: input.medio_pago ?? null,
         p_observaciones: input.observaciones ?? null,
         p_cuenta_id: input.cuenta_id ?? null,
-        p_ingreso_recurrente_id: input.ingreso_recurrente_id ?? null,
       });
+
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
-        throw new Error(
-          'La función respondió sin datos. Refrescá la lista de ingresos.',
-        );
+        throw new Error('No se pudo actualizar el ingreso.');
       }
       return data as OtroIngreso;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: OTROS_INGRESOS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: INGRESOS_RECURRENTES_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ['resumen_financiero'] });
       void queryClient.invalidateQueries({ queryKey: ['flujo-caja'] });
       void queryClient.invalidateQueries({ queryKey: CUENTAS_QUERY_KEY });
-      if (
-        variables.medio_pago === 'efectivo' &&
-        variables.turnoCajaIdParaInvalidate
-      ) {
-        void queryClient.invalidateQueries({
-          queryKey: CAJA_RESUMEN_QUERY_KEY(variables.turnoCajaIdParaInvalidate),
-        });
-        void queryClient.invalidateQueries({
-          queryKey: CAJA_MOVIMIENTOS_QUERY_KEY(variables.turnoCajaIdParaInvalidate),
-        });
-      }
     },
   });
 }

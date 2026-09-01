@@ -296,3 +296,84 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION fn_cobrar_persona_turno(BIGINT, VARCHAR, TEXT, DECIMAL, BIGINT, DECIMAL) TO authenticated;
+
+
+-- 2. Redefinir fn_cerrar_turno corrigiendo la referencia a usuario_cierre_id
+CREATE OR REPLACE FUNCTION fn_cerrar_turno(p_reserva_id BIGINT)
+RETURNS reservas
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  v_club_id BIGINT;
+  v_usuario_id UUID;
+  v_reserva reservas;
+  v_total_cobrado DECIMAL(12,2);
+  v_total_a_cobrar DECIMAL(12,2);
+  v_total_consumos DECIMAL(12,2);
+  v_total_pendiente DECIMAL(12,2);
+BEGIN
+  v_club_id := current_club_id();
+  v_usuario_id := auth.uid();
+
+  IF v_club_id IS NULL OR v_usuario_id IS NULL THEN
+    RAISE EXCEPTION 'No hay sesión activa.';
+  END IF;
+
+  SELECT * INTO v_reserva
+  FROM reservas
+  WHERE id = p_reserva_id AND club_id = v_club_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'La reserva no existe o no pertenece a tu club.';
+  END IF;
+
+  IF v_reserva.estado = 'cancelada' THEN
+    RAISE EXCEPTION 'No se puede cerrar un turno cancelado.';
+  END IF;
+
+  IF v_reserva.cerrado_en IS NOT NULL THEN
+    RAISE EXCEPTION 'El turno ya está cerrado.';
+  END IF;
+
+  -- Calcular total a cobrar y total cobrado
+  SELECT COALESCE(SUM(subtotal), 0) INTO v_total_consumos
+  FROM reserva_consumos
+  WHERE reserva_id = p_reserva_id;
+
+  v_total_a_cobrar := v_reserva.monto_total + v_total_consumos;
+
+  SELECT COALESCE(SUM(monto), 0) INTO v_total_cobrado
+  FROM reserva_pagos
+  WHERE reserva_id = p_reserva_id;
+
+  v_total_pendiente := GREATEST(0, v_total_a_cobrar - v_total_cobrado);
+
+  IF v_total_pendiente > 0
+     AND NOT (
+       v_reserva.estado = 'pagada'
+       AND NOT EXISTS (
+         SELECT 1 FROM reserva_pagos
+         WHERE reserva_id = p_reserva_id
+           AND reserva_jugador_id IS NOT NULL
+       )
+     )
+  THEN
+    RAISE EXCEPTION
+      'Hay $% sin cobrar en este turno. Cobrá a todas las personas o redistribuí los saldos antes de cerrarlo.',
+      v_total_pendiente;
+  END IF;
+
+  UPDATE reservas
+  SET cerrado_en = NOW()
+  WHERE id = p_reserva_id
+  RETURNING * INTO v_reserva;
+
+  RETURN v_reserva;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION fn_cerrar_turno(BIGINT) TO authenticated;
+

@@ -1,4 +1,4 @@
-import { Ban, Clock, Receipt, Repeat } from 'lucide-react';
+import { Ban, Clock, Pencil, Receipt, Repeat } from 'lucide-react';
 import type { Gasto, MedioPago } from '@/types/database';
 import { MEDIO_PAGO_LABEL } from './finanzasSchemas';
 import type { GastoFila } from './hooks/useGastos';
@@ -29,20 +29,14 @@ function fmt(iso: string): string {
  * Tabla simple de gastos. Snapshots de categoría + unidad ya vienen en
  * la fila. Solo muestra gastos activos (useGastos filtra activo=TRUE);
  * los anulados quedan fuera (su rastro vive en `anulaciones`).
- *
- * Estado de pago DERIVADO de las cuotas (g.pago, vía estadoPagoGasto): un gasto
- * a plazo / con cuota nace con fecha_pago NULL pero puede estar pagado por sus
- * cuotas. Pagada (verde + medio) / Parcial (ámbar, "1/3") / Pendiente (ámbar).
- *
- * Si se pasa `onAnular`, cada fila muestra la acción "Anular" (0048).
- * La RPC rechaza si el gasto tiene cuotas pagadas o viene de una OC;
- * el dialog del padre muestra ese error.
  */
 export function GastosList({
   gastos,
+  onEditar,
   onAnular,
 }: {
   gastos: GastoFila[];
+  onEditar?: (g: Gasto) => void;
   onAnular?: (g: Gasto) => void;
 }) {
   if (gastos.length === 0) {
@@ -59,6 +53,8 @@ export function GastosList({
     );
   }
 
+  const hasActions = Boolean(onEditar || onAnular);
+
   return (
     <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full text-sm">
@@ -69,7 +65,7 @@ export function GastosList({
             <th className="px-3 py-2 font-medium">Proveedor</th>
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 text-right font-medium">Monto</th>
-            {onAnular && (
+            {hasActions && (
               <th className="px-3 py-2 text-right font-medium">Acciones</th>
             )}
           </tr>
@@ -150,16 +146,32 @@ export function GastosList({
                 <td className="px-3 py-2 align-top text-right font-medium tabular-nums text-foreground">
                   {currencyFmt.format(Number(g.monto))}
                 </td>
-                {onAnular && (
+                {hasActions && (
                   <td className="px-3 py-2 align-top text-right">
-                    <button
-                      type="button"
-                      onClick={() => onAnular(g)}
-                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Ban className="h-3 w-3" aria-hidden="true" />
-                      Anular
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      {onEditar && (
+                        <button
+                          type="button"
+                          onClick={() => onEditar(g)}
+                          title="Editar gasto"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
+                          Editar
+                        </button>
+                      )}
+                      {onAnular && (
+                        <button
+                          type="button"
+                          onClick={() => onAnular(g)}
+                          title="Anular gasto"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <Ban className="h-3 w-3" aria-hidden="true" />
+                          Anular
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>

@@ -191,3 +191,29 @@ export const categoriaGastoSchema = z.object({
 });
 
 export type CategoriaGastoFormValues = z.infer<typeof categoriaGastoSchema>;
+
+// ─── Schema: ingreso recurrente (plantilla) ──────────────────────────
+
+export const ingresoRecurrenteSchema = z.object({
+  concepto: z
+    .string()
+    .trim()
+    .min(1, 'El concepto es obligatorio.')
+    .max(120, 'Máx. 120 caracteres.'),
+  unidad_id: z
+    .number({ invalid_type_error: 'Elegí una unidad.' })
+    .int()
+    .positive('Elegí una unidad.'),
+  monto_estimado: z
+    .number({ invalid_type_error: 'Ingresá un monto válido.' })
+    .positive('El monto estimado debe ser mayor a 0.'),
+  dia_vencimiento: z
+    .number({ invalid_type_error: 'Ingresá un día válido.' })
+    .int()
+    .min(1, 'El día debe ser entre 1 y 31.')
+    .max(31, 'El día debe ser entre 1 y 31.'),
+  observaciones: z.string().trim().max(2000, 'Máx. 2000 caracteres.').optional(),
+});
+
+export type IngresoRecurrenteFormValues = z.infer<typeof ingresoRecurrenteSchema>;
+

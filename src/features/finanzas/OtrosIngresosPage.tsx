@@ -1,13 +1,27 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Calendar, Clock, Loader2, Plus, TrendingUp } from 'lucide-react';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Loader2,
+  Plus,
+  Repeat,
+  TrendingUp,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { OtroIngreso } from '@/types/database';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { AnularDialog } from './AnularDialog';
+import { EditarOtroIngresoDialog } from './EditarOtroIngresoDialog';
+import { IngresosRecurrentesPanel } from './IngresosRecurrentesPanel';
 import { NuevoOtroIngresoDialog } from './NuevoOtroIngresoDialog';
 import { OtrosIngresosList } from './OtrosIngresosList';
 import { useOtrosIngresos } from './hooks/useOtrosIngresos';
+import { useAnularOtroIngreso } from './hooks/useAnularOtroIngreso';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -21,20 +35,26 @@ const mesActualFmt = new Intl.DateTimeFormat('es-AR', {
   year: 'numeric',
 });
 
-/**
- * Pantalla de Otros Ingresos — auspicios, membresías y cualquier
- * ingreso que NO pase por reservas, mostrador o clases.
- *
- * Los ingresos operativos no se duplican acá: viven en sus tablas
- * originales (reservas, ventas, clase_cobros) y se agregan al EERR
- * desde el resumen financiero.
- */
+const fechaFmt = new Intl.DateTimeFormat('es-AR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+});
+
+type Tab = 'movimientos' | 'recurrentes';
+
 export function OtrosIngresosPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'finanzas', 'editar');
 
   const query = useOtrosIngresos();
+  const anular = useAnularOtroIngreso();
+
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>('movimientos');
+  const [ingresoAEditar, setIngresoAEditar] = useState<OtroIngreso | null>(null);
+  const [ingresoAAnular, setIngresoAAnular] = useState<OtroIngreso | null>(null);
+  const [anularError, setAnularError] = useState<string | null>(null);
 
   const ahora = new Date();
   const anioActual = ahora.getFullYear();
@@ -59,8 +79,28 @@ export function OtrosIngresosPage() {
     return { totalMes, totalPendiente, cantMes };
   }, [query.data, anioActual, mesActual]);
 
+  async function handleAnularConfirm(
+    _motivoTipo: string,
+    motivoDetalle: string | null,
+  ): Promise<void> {
+    if (!ingresoAAnular) return;
+    setAnularError(null);
+    try {
+      await anular.mutateAsync({
+        ingreso_id: ingresoAAnular.id,
+        motivo: motivoDetalle,
+      });
+      setIngresoAAnular(null);
+    } catch (err) {
+      setAnularError(
+        err instanceof Error ? err.message : 'No pudimos anular el ingreso.',
+      );
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-6 md:py-8">
+      {/* Header con breadcrumb */}
       <header className="space-y-3">
         <Link
           to="/finanzas"
@@ -83,7 +123,7 @@ export function OtrosIngresosPage() {
               entra a la caja del día.
             </p>
           </div>
-          {canEdit && (
+          {tab === 'movimientos' && canEdit && (
             <Button type="button" onClick={() => setOpen(true)} className="shrink-0">
               <Plus className="h-4 w-4" />
               Registrar ingreso
@@ -92,60 +132,173 @@ export function OtrosIngresosPage() {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <KpiCard
-          label={`Total ${mesLabel}`}
-          monto={totalMes}
-          subtitle={`${cantMes} ${cantMes === 1 ? 'registro' : 'registros'} con fecha en el mes`}
+      {/* Tabs */}
+      <nav
+        role="tablist"
+        aria-label="Vistas de ingresos"
+        className="flex gap-1 border-b border-border"
+      >
+        <TabButton
+          active={tab === 'movimientos'}
+          onClick={() => setTab('movimientos')}
           icon={TrendingUp}
-          variant="positive"
-        />
-        <KpiCard
-          label="Pendientes de cobro"
-          monto={totalPendiente}
-          subtitle="De todos los períodos · aún sin fecha de cobro"
-          icon={Clock}
-          variant="warn"
-        />
-        <KpiCard
-          label="Promedio diario del mes"
-          monto={totalMes / Math.max(ahora.getDate(), 1)}
-          subtitle={`Sobre los ${ahora.getDate()} días transcurridos`}
-          icon={Calendar}
-          variant="neutral"
-        />
-      </section>
+        >
+          Movimientos
+        </TabButton>
+        <TabButton
+          active={tab === 'recurrentes'}
+          onClick={() => setTab('recurrentes')}
+          icon={Repeat}
+        >
+          Recurrentes
+        </TabButton>
+      </nav>
 
-      <section className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-foreground">
-            Historial reciente
-          </h2>
-          {query.data && (
-            <p className="text-xs text-muted-foreground">
-              {query.data.length} {query.data.length === 1 ? 'registro' : 'registros'} en total
-            </p>
-          )}
+      {tab === 'movimientos' && (
+        <div className="space-y-6">
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <KpiCard
+              label={`Total ${mesLabel}`}
+              monto={totalMes}
+              subtitle={`${cantMes} ${cantMes === 1 ? 'registro' : 'registros'} con fecha en el mes`}
+              icon={TrendingUp}
+              variant="positive"
+            />
+            <KpiCard
+              label="Pendientes de cobro"
+              monto={totalPendiente}
+              subtitle="De todos los períodos · aún sin fecha de cobro"
+              icon={Clock}
+              variant="warn"
+            />
+            <KpiCard
+              label="Promedio diario del mes"
+              monto={totalMes / Math.max(ahora.getDate(), 1)}
+              subtitle={`Sobre los ${ahora.getDate()} días transcurridos`}
+              icon={Calendar}
+              variant="neutral"
+            />
+          </section>
+
+          <section className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold text-foreground">
+                Historial reciente
+              </h2>
+              {query.data && (
+                <p className="text-xs text-muted-foreground">
+                  {query.data.length} {query.data.length === 1 ? 'registro' : 'registros'} en total
+                </p>
+              )}
+            </div>
+
+            {query.isLoading && (
+              <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Cargando ingresos…
+              </div>
+            )}
+
+            {query.error && (
+              <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {query.error.message}
+              </div>
+            )}
+
+            {query.data && (
+              <OtrosIngresosList
+                ingresos={query.data}
+                onEditar={canEdit ? (i) => setIngresoAEditar(i) : undefined}
+                onAnular={canEdit ? (i) => {
+                  setAnularError(null);
+                  setIngresoAAnular(i);
+                } : undefined}
+              />
+            )}
+          </section>
         </div>
+      )}
 
-        {query.isLoading && (
-          <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Cargando ingresos…
-          </div>
-        )}
-
-        {query.error && (
-          <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            {query.error.message}
-          </div>
-        )}
-
-        {query.data && <OtrosIngresosList ingresos={query.data} />}
-      </section>
+      {tab === 'recurrentes' && <IngresosRecurrentesPanel readOnly={!canEdit} />}
 
       <NuevoOtroIngresoDialog open={open} onOpenChange={setOpen} />
+
+      <EditarOtroIngresoDialog
+        open={ingresoAEditar !== null}
+        onOpenChange={(o) => {
+          if (!o) setIngresoAEditar(null);
+        }}
+        ingreso={ingresoAEditar}
+      />
+
+      <AnularDialog
+        open={ingresoAAnular !== null}
+        onOpenChange={(o) => {
+          if (anular.isPending) return;
+          if (!o) {
+            setIngresoAAnular(null);
+            setAnularError(null);
+          }
+        }}
+        titulo="Anular ingreso"
+        descripcion="El ingreso deja de contar en el resultado del período. Esta acción queda registrada. Si te equivocaste en el monto o fecha, anulá o editalo."
+        resumen={
+          ingresoAAnular && (
+            <div className="space-y-0.5">
+              <p className="font-medium text-foreground">
+                {ingresoAAnular.concepto}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {ingresoAAnular.unidad_nombre}
+              </p>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-[11px] text-muted-foreground">
+                  {fechaFmt.format(new Date(ingresoAAnular.fecha + 'T00:00:00'))}
+                </span>
+                <span className="text-lg font-bold tabular-nums text-foreground">
+                  {currencyFmt.format(Number(ingresoAAnular.monto))}
+                </span>
+              </div>
+            </div>
+          )
+        }
+        confirmLabel="Anular ingreso"
+        pending={anular.isPending}
+        error={anularError}
+        onConfirm={handleAnularConfirm}
+      />
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        active
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {children}
+    </button>
   );
 }
 

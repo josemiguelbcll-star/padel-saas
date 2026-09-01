@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { AnularDialog } from './AnularDialog';
+import { EditarGastoDialog } from './EditarGastoDialog';
 import { GastosList } from './GastosList';
 import { NuevoGastoDialog } from './NuevoGastoDialog';
 import { RecurrentesPanel } from './RecurrentesPanel';
@@ -43,18 +44,6 @@ const mesActualFmt = new Intl.DateTimeFormat('es-AR', {
 
 type Tab = 'movimientos' | 'recurrentes';
 
-/**
- * Pantalla de Gastos — dos vistas internas (tabs locales, sin nueva
- * ruta ni nuevo item de sidebar):
- *
- *   - Movimientos: lo histórico (KPIs + lista de gastos).
- *   - Recurrentes: panel de plantillas del mes (alquiler/luz/sueldos),
- *     con qué ya se cargó y qué falta.
- *
- * El resumen agregado (totales, comparativas) vive en /finanzas; acá
- * el foco es el detalle operativo: ver, registrar, y atajos de
- * recurrentes.
- */
 export function GastosPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'finanzas', 'editar');
@@ -64,6 +53,7 @@ export function GastosPage() {
   const anular = useAnularGasto();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('movimientos');
+  const [gastoAEditar, setGastoAEditar] = useState<Gasto | null>(null);
   const [gastoAAnular, setGastoAAnular] = useState<Gasto | null>(null);
   const [anularError, setAnularError] = useState<string | null>(null);
 
@@ -230,6 +220,7 @@ export function GastosPage() {
             {gastosQuery.data && (
               <GastosList
                 gastos={gastosQuery.data}
+                onEditar={canEdit ? (g) => setGastoAEditar(g) : undefined}
                 onAnular={canEdit ? (g) => {
                   setAnularError(null);
                   setGastoAAnular(g);
@@ -243,6 +234,14 @@ export function GastosPage() {
       {tab === 'recurrentes' && <RecurrentesPanel readOnly={!canEdit} />}
 
       <NuevoGastoDialog open={open} onOpenChange={setOpen} />
+
+      <EditarGastoDialog
+        open={gastoAEditar !== null}
+        onOpenChange={(o) => {
+          if (!o) setGastoAEditar(null);
+        }}
+        gasto={gastoAEditar}
+      />
 
       <AnularDialog
         open={gastoAAnular !== null}

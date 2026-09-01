@@ -317,6 +317,21 @@ export interface OtroIngreso {
   activo: boolean;
   usuario_id: string;
   fecha_alta: string;
+  ingreso_recurrente_id: number | null;
+}
+
+export interface IngresoRecurrente {
+  id: number;
+  club_id: number;
+  unidad_id: number;
+  concepto: string;
+  monto_estimado: number;
+  dia_vencimiento: number;
+  frecuencia: 'mensual';
+  observaciones: string | null;
+  activo: boolean;
+  usuario_id: string;
+  fecha_alta: string;
 }
 
 /**
