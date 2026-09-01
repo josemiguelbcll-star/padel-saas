@@ -36,6 +36,7 @@ import {
 } from './hooks/useReservasDelDia';
 import { useActividadDelDia } from './hooks/useActividadDelDia';
 import { useTurnosAbiertosViejos } from './hooks/useTurnosAbiertosViejos';
+import { useReservasRealtimeSync } from './hooks/useReservasRealtimeSync';
 import {
   derivarEstadoOperativo,
   ESTADO_OPERATIVO_LABEL,
@@ -100,6 +101,9 @@ export function ReservasPage() {
   const actividadQuery = useActividadDelDia(fecha);
   const turnosViejosQuery = useTurnosAbiertosViejos();
   const queryClient = useQueryClient();
+
+  // Sincronización en tiempo real vía WebSocket (Nivel 2 de Memoria)
+  useReservasRealtimeSync(fecha);
 
   // Materializar turnos fijos en segundo plano para las próximas 24 semanas.
   // Esto mantiene los turnos fijos materializados "para siempre" de forma transparente

@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
+import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { CategoriaGasto, CostoClasificacion } from '@/types/database';
 
 export const CATEGORIAS_GASTO_QUERY_KEY = ['categorias_gasto'] as const;
@@ -28,6 +29,8 @@ export function useCategoriasGasto(): UseQueryResult<CategoriaGasto[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as CategoriaGasto[];
     },
+    staleTime: CACHE_TIEMPO_ESTATICO,
+    gcTime: CACHE_GC_EXTENDIDO,
   });
 }
 

@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
+import { CACHE_TIEMPO_ESTATICO } from '@/lib/queryClient';
 import type { Cancha } from '@/types/database';
 
 /**
@@ -41,7 +42,7 @@ export function useCanchas(): UseQueryResult<Cancha[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Cancha[];
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos de cache en memoria
+    staleTime: CACHE_TIEMPO_ESTATICO,
   });
 }
 

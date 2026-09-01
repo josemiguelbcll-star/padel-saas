@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
+import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { Tarifa } from '@/types/database';
 
 export const TARIFAS_QUERY_KEY = ['tarifas'] as const;
@@ -29,8 +30,8 @@ export function useTarifas(): UseQueryResult<Tarifa[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Tarifa[];
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos de cache activa
-    gcTime: 10 * 60 * 1000,   // 10 minutos en garbage collector
+    staleTime: CACHE_TIEMPO_ESTATICO,
+    gcTime: CACHE_GC_EXTENDIDO,
   });
 }
 

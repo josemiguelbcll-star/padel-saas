@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
+import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { Producto } from '@/types/database';
 import { PRODUCTOS_CON_STOCK_QUERY_KEY } from './useProductosConStock';
 
@@ -42,6 +43,8 @@ export function useProductos(): UseQueryResult<Producto[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Producto[];
     },
+    staleTime: CACHE_TIEMPO_ESTATICO,
+    gcTime: CACHE_GC_EXTENDIDO,
   });
 }
 

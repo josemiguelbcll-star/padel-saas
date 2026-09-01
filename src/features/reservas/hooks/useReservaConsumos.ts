@@ -90,11 +90,17 @@ export interface CargarConsumoTurnoInput {
 export function useCargarConsumoTurno(): UseMutationResult<
   ReservaConsumo,
   Error,
-  CargarConsumoTurnoInput
+  CargarConsumoTurnoInput,
+  { prev?: ReservaConsumo[] }
 > {
   const queryClient = useQueryClient();
 
-  return useMutation<ReservaConsumo, Error, CargarConsumoTurnoInput>({
+  return useMutation<
+    ReservaConsumo,
+    Error,
+    CargarConsumoTurnoInput,
+    { prev?: ReservaConsumo[] }
+  >({
     mutationFn: async (input) => {
       const { data, error } = await supabase.rpc('fn_cargar_consumo_turno', {
         p_reserva_id: input.reserva_id,
@@ -110,12 +116,32 @@ export function useCargarConsumoTurno(): UseMutationResult<
       }
       return data as ReservaConsumo;
     },
-    onSuccess: (consumo) => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({
+        queryKey: reservaConsumosQueryKey(input.reserva_id),
+      });
+      const prev = queryClient.getQueryData<ReservaConsumo[]>(
+        reservaConsumosQueryKey(input.reserva_id),
+      );
+      return { prev };
+    },
+    onError: (_err, input, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(
+          reservaConsumosQueryKey(input.reserva_id),
+          context.prev,
+        );
+      }
+    },
+    onSettled: (_data, _err, input) => {
       void queryClient.invalidateQueries({
-        queryKey: reservaConsumosQueryKey(consumo.reserva_id),
+        queryKey: reservaConsumosQueryKey(input.reserva_id),
       });
       void queryClient.invalidateQueries({
         queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['reservas-del-dia'],
       });
     },
   });
@@ -128,41 +154,60 @@ export interface QuitarConsumoTurnoInput {
 }
 
 /**
- * Llama a la RPC fn_quitar_consumo_turno (migración 0013, Modelo B). En
- * una sola transacción: inserta un movimiento de reposición
- * (fuente='reposicion_consumo', cantidad positiva, observaciones con el
- * contexto) y borra la fila de reserva_consumos. El movimiento de
- * SALIDA original NO se borra (ON DELETE SET NULL del FK preserva la
- * evidencia histórica del libro).
- *
- * Stock neto del producto: vuelve al valor previo a la carga del consumo.
- *
- * Errores que el usuario puede ver:
- *   - "El consumo no existe o no pertenece a tu club."
- *
- * Al éxito invalida las mismas dos query keys que la carga (la sección
- * Consumos refresca y el stock vuelve a verse repuesto en el catálogo).
+ * Llama a la RPC fn_quitar_consumo_turno (migración 0013, Modelo B).
  */
 export function useQuitarConsumoTurno(): UseMutationResult<
   void,
   Error,
-  QuitarConsumoTurnoInput
+  QuitarConsumoTurnoInput,
+  { prev?: ReservaConsumo[] }
 > {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, QuitarConsumoTurnoInput>({
+  return useMutation<
+    void,
+    Error,
+    QuitarConsumoTurnoInput,
+    { prev?: ReservaConsumo[] }
+  >({
     mutationFn: async ({ consumo_id }) => {
       const { error } = await supabase.rpc('fn_quitar_consumo_turno', {
         p_consumo_id: consumo_id,
       });
       if (error) throw new Error(mapPostgrestError(error));
     },
-    onSuccess: (_, input) => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({
+        queryKey: reservaConsumosQueryKey(input.reserva_id),
+      });
+      const prev = queryClient.getQueryData<ReservaConsumo[]>(
+        reservaConsumosQueryKey(input.reserva_id),
+      );
+      if (prev) {
+        queryClient.setQueryData<ReservaConsumo[]>(
+          reservaConsumosQueryKey(input.reserva_id),
+          prev.filter((c) => c.id !== input.consumo_id),
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, input, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(
+          reservaConsumosQueryKey(input.reserva_id),
+          context.prev,
+        );
+      }
+    },
+    onSettled: (_data, _err, input) => {
       void queryClient.invalidateQueries({
         queryKey: reservaConsumosQueryKey(input.reserva_id),
       });
       void queryClient.invalidateQueries({
         queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['reservas-del-dia'],
       });
     },
   });

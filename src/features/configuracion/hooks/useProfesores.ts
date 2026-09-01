@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
+import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { Profesor } from '@/types/database';
 import { CLASES_QUERY_KEY_BASE } from './useClases';
 
@@ -37,6 +38,8 @@ export function useProfesores(): UseQueryResult<Profesor[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Profesor[];
     },
+    staleTime: CACHE_TIEMPO_ESTATICO,
+    gcTime: CACHE_GC_EXTENDIDO,
   });
 }
 

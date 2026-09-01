@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
+import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { Proveedor } from '@/types/database';
 
 export const PROVEEDORES_QUERY_KEY_BASE = 'proveedores';
@@ -79,6 +80,8 @@ export function useProveedores(): UseQueryResult<Proveedor[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Proveedor[];
     },
+    staleTime: CACHE_TIEMPO_ESTATICO,
+    gcTime: CACHE_GC_EXTENDIDO,
   });
 }
 

@@ -379,25 +379,19 @@ export function calcularSaldosPersonas(
         return true;
       });
 
-      // Si todos los elegibles están saldados, fallback a todos los no-fijos elegibles
+      // Si no hay jugadores no-saldados para 'partido', distribuir entre invitados o participantes no-saldados
       if (eligible.length === 0) {
-        eligible = personas.filter((p) => {
-          if (p.cuota_fija != null) return false;
-          if (c.tipo_reparto === 'partido') {
-            return p.tipo === 'jugador';
-          }
-          return true;
-        });
+        eligible = personas.filter((p) => !saldadas.has(p.id));
       }
 
-      // Si todavía es 0, fallback a todos
+      // Si TODOS los participantes del turno ya estaban saldados, solo entonces repartir entre no-fijos
       if (eligible.length === 0) {
-        eligible = personas.filter((p) => {
-          if (c.tipo_reparto === 'partido') {
-            return p.tipo === 'jugador';
-          }
-          return true;
-        });
+        eligible = personas.filter((p) => p.cuota_fija == null);
+      }
+
+      // Si todavía es 0, fallback general
+      if (eligible.length === 0) {
+        eligible = personas;
       }
 
       if (eligible.length > 0) {
@@ -426,13 +420,19 @@ export function calcularSaldosPersonas(
 
   const totalConsumos = consumos.reduce((sum, c) => sum + Number(c.subtotal), 0);
   const totalDeuda = montoAlquiler + totalConsumos;
+  const totalPagadoGlobal = pagos.reduce(
+    (sum, p) => sum + (Number(p.monto_alquiler) || 0) + (Number(p.monto_consumo) || 0),
+    0,
+  );
+  const globalRestante = Math.max(0, totalDeuda - totalPagadoGlobal);
   const saldosCombinados = distribuirDeudaPonderada(totalDeuda, combinedParticipants);
 
   return personas.map((persona) => {
     const pState = stateMap.get(persona.id)!;
     const yaPagadoTotal = pState.paidAlquiler + pState.paidConsumo;
 
-    const saldo = saldosCombinados[persona.id] ?? 0;
+    const rawSaldo = saldosCombinados[persona.id] ?? 0;
+    const saldo = Math.min(rawSaldo, globalRestante);
     const saldoAlquiler = saldo;
     const saldoConsumo = 0;
 

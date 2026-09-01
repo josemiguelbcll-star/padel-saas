@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
+import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { TipoUnidad, UnidadNegocio } from '@/types/database';
 
 export const UNIDADES_NEGOCIO_QUERY_KEY = ['unidades_negocio'] as const;
@@ -26,6 +27,8 @@ export function useUnidadesNegocio(): UseQueryResult<UnidadNegocio[], Error> {
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as UnidadNegocio[];
     },
+    staleTime: CACHE_TIEMPO_ESTATICO,
+    gcTime: CACHE_GC_EXTENDIDO,
   });
 }
 
