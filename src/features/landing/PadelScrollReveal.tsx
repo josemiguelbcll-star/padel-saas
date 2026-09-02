@@ -18,37 +18,37 @@ const PADEL_TAGS: PadelTag[] = [
   {
     id: 'tag-1',
     text: '🎾 Grilla con bloqueo atómico anti-solapamiento',
-    background: 'rgba(57, 197, 74, 0.12)',
-    color: '#39C54A',
-    border: 'rgba(57, 197, 74, 0.35)',
+    background: '#ffffff',
+    color: '#00A859',
+    border: '#A7F3D0',
   },
   {
     id: 'tag-2',
     text: '👥 Cuenta del turno & División 4 jugadores',
-    background: 'rgba(217, 242, 59, 0.12)',
-    color: '#D9F23B',
-    border: 'rgba(217, 242, 59, 0.35)',
+    background: '#ffffff',
+    color: '#2563EB',
+    border: '#BFDBFE',
   },
   {
     id: 'tag-3',
     text: '📊 Estado de Resultados por unidad (Canchas/Buffet/Clases)',
-    background: 'rgba(56, 189, 248, 0.12)',
-    color: '#38bdf8',
-    border: 'rgba(56, 189, 248, 0.35)',
+    background: '#ffffff',
+    color: '#181A1B',
+    border: '#E2DDD1',
   },
   {
     id: 'tag-4',
     text: '🔒 Cierre de caja estricto con arqueo y trazabilidad',
-    background: 'rgba(244, 63, 94, 0.12)',
-    color: '#fb7185',
-    border: 'rgba(244, 63, 94, 0.35)',
+    background: '#ffffff',
+    color: '#E11D48',
+    border: '#FECDD3',
   },
   {
     id: 'tag-5',
     text: '🥤 Punto de venta con descuento de stock en vivo',
-    background: 'rgba(245, 158, 11, 0.12)',
-    color: '#f59e0b',
-    border: 'rgba(245, 158, 11, 0.35)',
+    background: '#ffffff',
+    color: '#D97706',
+    border: '#FDE68A',
   },
 ];
 
@@ -111,22 +111,22 @@ export function PadelScrollReveal() {
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full bg-[#040914] text-white py-24 relative overflow-hidden">
+    <div ref={containerRef} className="w-full bg-[#ECE8DE] text-slate-900 py-24 relative overflow-hidden border-y border-[#E2DDD1]">
       {/* Background glow lines */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(57,197,74,0.12),transparent_70%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,168,89,0.06),transparent_70%)] pointer-events-none" />
 
       <div className="container mx-auto px-4 relative z-10">
         {/* Intro text */}
         <div className="text-center max-w-4xl mx-auto mb-16">
-          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#39C54A]/10 border border-[#39C54A]/30 text-[#39C54A] text-xs font-bold uppercase tracking-wider mb-4">
+          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#A7F3D0] text-[#00A859] text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
             <Trophy className="h-3.5 w-3.5" />
             Software Especializado en Pádel & Tenis
           </span>
-          <h2 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.1] mb-6">
+          <h2 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-[1.1] mb-6">
             La grilla llena. La caja cuadrada.{' '}
-            <span className="text-[#39C54A]">Tus finanzas claras en vivo.</span>
+            <span className="text-[#00A859]">Tus finanzas claras en vivo.</span>
           </h2>
-          <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
             Eliminá planillas paralelas y discusiones en el mostrador. MatchGo conecta la
             reserva del jugador, el cobro en recepción y el balance del club en una sola plataforma.
           </p>
@@ -140,7 +140,7 @@ export function PadelScrollReveal() {
               ref={(el) => {
                 tagRefs.current[idx] = el;
               }}
-              className="px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold tracking-tight shadow-xl flex items-center gap-2.5 transition-transform hover:scale-105"
+              className="px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold tracking-tight shadow-sm flex items-center gap-2.5 transition-transform hover:scale-105"
               style={{
                 backgroundColor: tag.background,
                 color: tag.color,
@@ -157,33 +157,33 @@ export function PadelScrollReveal() {
         <div ref={videoWrapperRef} className="max-w-5xl mx-auto mb-16 relative">
           <div
             ref={videoBoxRef}
-            className="relative rounded-3xl overflow-hidden border border-white/15 bg-[#07132a] shadow-[0_25px_60px_rgba(0,0,0,0.8)]"
+            className="relative rounded-3xl overflow-hidden border border-[#E2DDD1] bg-white shadow-[0_25px_60px_-15px_rgba(24,26,27,0.1)]"
           >
             <div className="relative aspect-[16/9] w-full">
               <img
                 src="/assets/padel-1.jpg"
                 alt="MatchGo Pádel Software"
-                className="w-full h-full object-cover opacity-80"
+                className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#040914] via-transparent to-black/40" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20" />
 
               {/* Overlay Content */}
               <div className="absolute bottom-6 left-6 right-6 sm:bottom-10 sm:left-10 sm:right-10 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4">
                 <div>
-                  <span className="px-3 py-1 rounded-full bg-[#39C54A] text-slate-950 font-black text-xs uppercase tracking-wider inline-block mb-2">
+                  <span className="px-3 py-1 rounded-full bg-[#00A859] text-white font-black text-xs uppercase tracking-wider inline-block mb-2 shadow-md">
                     Operación 100% en vivo
                   </span>
                   <h3 className="text-xl sm:text-3xl font-black text-white">
                     Todo lo que pasa en la cancha, registrado al instante
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-lg">
+                  <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-lg">
                     Desde el alquiler de paletas hasta la recaudación del turno nocturno.
                   </p>
                 </div>
 
                 <Link
                   to="/player"
-                  className="px-6 py-3 bg-[#39C54A] hover:bg-[#43da54] text-slate-950 font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_25px_rgba(57,197,74,0.4)] transition-all shrink-0"
+                  className="px-6 py-3 bg-[#00A859] hover:bg-[#008f4c] text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/30 transition-all shrink-0"
                 >
                   Probar Reserva Online
                   <ArrowRight className="h-4 w-4" />
@@ -194,11 +194,11 @@ export function PadelScrollReveal() {
         </div>
 
         {/* Outro text */}
-        <div className="text-center max-w-3xl mx-auto pt-8 border-t border-white/10">
-          <p className="text-xs uppercase font-extrabold tracking-widest text-[#D9F23B] mb-2">
+        <div className="text-center max-w-3xl mx-auto pt-8 border-t border-[#E2DDD1]">
+          <p className="text-xs uppercase font-extrabold tracking-widest text-[#00A859] mb-2">
             MatchGo para Clubes
           </p>
-          <p className="text-lg sm:text-2xl font-bold text-slate-200">
+          <p className="text-lg sm:text-2xl font-bold text-slate-800">
             "La diferencia entre adivinar si tu club gana plata y saber exactamente cuánto rinde cada cancha."
           </p>
         </div>
