@@ -234,9 +234,10 @@ function PanelParaAtender() {
 
   const alarmas: AlarmaItem[] = [];
   if (cantViejos > 0) {
+    const primerFecha = turnosViejos.data?.[0]?.fecha;
     alarmas.push({
       id: 'turnos-viejos',
-      to: '/app/reservas',
+      to: primerFecha ? `/app/reservas?fecha=${primerFecha}` : '/app/reservas',
       severidad: 'rojo',
       icon: Clock,
       titulo: `${cantViejos} ${
@@ -260,7 +261,7 @@ function PanelParaAtender() {
   if (productos.length > 0) {
     alarmas.push({
       id: 'reponer',
-      to: '/inventario?tab=reposicion',
+      to: '/app/inventario?tab=reposicion',
       severidad: hayStockCero ? 'rojo' : 'ambar',
       icon: PackageX,
       titulo: `${productos.length} ${

@@ -826,10 +826,10 @@ function SetupPendientesBanner() {
 
   const pendientes: ItemPendiente[] = [];
   if (horariosFaltantes) {
-    pendientes.push({ label: 'Horarios del club', to: '/configuracion/horarios' });
+    pendientes.push({ label: 'Horarios del club', to: '/app/configuracion/horarios' });
   }
   if (tarifasFaltantes) {
-    pendientes.push({ label: 'Al menos una tarifa', to: '/configuracion/tarifas' });
+    pendientes.push({ label: 'Al menos una tarifa', to: '/app/configuracion/tarifas' });
   }
 
   return (
