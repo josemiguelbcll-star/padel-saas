@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Heart, Users, Clock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useNoticiasAppFeed } from '../hooks/useNoticiasAppFeed';
-import { useTurnosAbiertosApp } from '../hooks/useTurnosAbiertosApp';
 import { 
   useInvitacionesPendientes, 
   usePartidosMutations, 
@@ -13,28 +12,11 @@ import { formatFechaReserva, formatHoraReserva } from '../hooks/useMyReservas';
 // Importar Diálogo del Perfil
 import { PlayerProfileDialog } from './PlayerProfileDialog';
 
-const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-
-function formatearFecha(iso: string): string {
-  const parts = iso.split('-').map(Number);
-  const y = parts[0] ?? new Date().getFullYear();
-  const m = parts[1] ?? 1;
-  const d = parts[2] ?? 1;
-  const dt = new Date(y, m - 1, d);
-  return `${DIAS[dt.getDay()]} ${d} ${MESES[m - 1]}`;
-}
-
-function formatearHora(time: string): string {
-  return time.slice(0, 5);
-}
-
 /**
- * Feed Central Simple - Noticias + Turnos + Invitaciones Pendientes + Partidos Abiertos
+ * Feed Central Simple - Novedades en Carousel Continuo + Invitaciones Pendientes + Partidos Abiertos
  */
 export function FeedCentralSimple() {
   const { data: noticias, isLoading: noticiasLoading } = useNoticiasAppFeed();
-  const { data: turnosAbiertos, isLoading: turnosLoading } = useTurnosAbiertosApp();
   
   // Invitaciones pendientes recibidas por amigos
   const { data: invitaciones, isLoading: invitesLoading } = useInvitacionesPendientes();
@@ -46,6 +28,11 @@ export function FeedCentralSimple() {
 
   // Estado para ver el perfil de un jugador
   const [activePlayerProfileId, setActivePlayerProfileId] = useState<string | null>(null);
+
+  // Carousel state
+  const [currentNoticiaIndex, setCurrentNoticiaIndex] = useState(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const isInteractingRef = useRef(false);
 
   useEffect(() => {
     async function loadId() {
@@ -62,12 +49,70 @@ export function FeedCentralSimple() {
     void loadId();
   }, []);
 
-  const isLoading = noticiasLoading || turnosLoading || invitesLoading || partidosLoading;
+  // Auto-play continuo para el carousel de novedades
+  useEffect(() => {
+    if (!noticias || noticias.length <= 1) return;
+
+    const interval = setInterval(() => {
+      if (!isInteractingRef.current) {
+        setCurrentNoticiaIndex((prev) => {
+          const next = (prev + 1) % noticias.length;
+          if (carouselRef.current) {
+            const container = carouselRef.current;
+            const scrollWidth = container.offsetWidth;
+            container.scrollTo({
+              left: next * scrollWidth,
+              behavior: 'smooth',
+            });
+          }
+          return next;
+        });
+      }
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [noticias]);
+
+  const handleScroll = () => {
+    if (!carouselRef.current || !noticias || noticias.length === 0) return;
+    const container = carouselRef.current;
+    const scrollPosition = container.scrollLeft;
+    const cardWidth = container.offsetWidth;
+    const newIndex = Math.round(scrollPosition / cardWidth);
+    if (newIndex !== currentNoticiaIndex && newIndex >= 0 && newIndex < noticias.length) {
+      setCurrentNoticiaIndex(newIndex);
+    }
+  };
+
+  const scrollToSlide = (index: number) => {
+    if (!carouselRef.current || !noticias) return;
+    const container = carouselRef.current;
+    const scrollWidth = container.offsetWidth;
+    container.scrollTo({
+      left: index * scrollWidth,
+      behavior: 'smooth',
+    });
+    setCurrentNoticiaIndex(index);
+  };
+
+  const prevSlide = () => {
+    if (!noticias || noticias.length <= 1) return;
+    const prev = (currentNoticiaIndex - 1 + noticias.length) % noticias.length;
+    scrollToSlide(prev);
+  };
+
+  const nextSlide = () => {
+    if (!noticias || noticias.length <= 1) return;
+    const next = (currentNoticiaIndex + 1) % noticias.length;
+    scrollToSlide(next);
+  };
+
+  const isLoading = noticiasLoading || invitesLoading || partidosLoading;
 
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {[...Array(3)].map((_, i) => (
+        {[...Array(2)].map((_, i) => (
           <div key={i} className="h-48 bg-gray-100 rounded-2xl animate-pulse" />
         ))}
       </div>
@@ -83,6 +128,110 @@ export function FeedCentralSimple() {
 
   return (
     <div className="space-y-5">
+
+      {/* ── Novedades del Club: Carousel Constante ── */}
+      {noticias && noticias.length > 0 && (
+        <div 
+          className="relative w-full group"
+          onMouseEnter={() => { isInteractingRef.current = true; }}
+          onMouseLeave={() => { isInteractingRef.current = false; }}
+          onTouchStart={() => { isInteractingRef.current = true; }}
+          onTouchEnd={() => { 
+            setTimeout(() => { isInteractingRef.current = false; }, 3000); 
+          }}
+        >
+          {/* Slider Container */}
+          <div
+            ref={carouselRef}
+            onScroll={handleScroll}
+            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full rounded-2xl border border-gray-200 bg-white shadow-sm"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {noticias.map((noticia) => (
+              <div
+                key={noticia.id}
+                className="w-full shrink-0 snap-center flex flex-col justify-between"
+              >
+                {/* Imagen completa sin recortar */}
+                {noticia.imagen_url && (
+                  <div className="relative w-full overflow-hidden bg-slate-900/5 flex items-center justify-center border-b border-gray-100">
+                    <img
+                      src={noticia.imagen_url}
+                      alt={noticia.titulo}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-auto max-h-[480px] object-contain"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
+                  </div>
+                )}
+
+                {/* Info de la noticia (sin botón de me gusta) */}
+                <div className="p-4 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-extrabold text-gray-900 text-sm sm:text-base leading-snug">
+                        {noticia.titulo}
+                      </h4>
+                      <p className="text-xs text-gray-500 font-medium">
+                        {noticia.club_nombre}
+                      </p>
+                    </div>
+                    <span className="text-[11px] font-bold text-gray-400 shrink-0">
+                      {new Date(noticia.creado_en).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+
+                  {noticia.descripcion && (
+                    <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed pt-1">
+                      {noticia.descripcion}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Flechas de navegación (si hay más de 1 noticia) */}
+          {noticias.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prevSlide}
+                aria-label="Anterior"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center transition shadow-md opacity-70 hover:opacity-100 z-10"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={nextSlide}
+                aria-label="Siguiente"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center transition shadow-md opacity-70 hover:opacity-100 z-10"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+
+              {/* Indicadores de puntos (Dots) */}
+              <div className="flex justify-center items-center gap-1.5 pt-2">
+                {noticias.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => scrollToSlide(idx)}
+                    aria-label={`Ir a novedad ${idx + 1}`}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${
+                      currentNoticiaIndex === idx
+                        ? 'w-6 bg-[#00A859]'
+                        : 'w-2 bg-gray-300 hover:bg-gray-400'
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Invitaciones Recibidas de Amigos a Partidos ── */}
       {invitaciones && invitaciones.length > 0 && (
@@ -159,101 +308,103 @@ export function FeedCentralSimple() {
         </div>
       )}
 
-      {/* ── Partidos Abiertos de la Comunidad ── */}
+      {/* ── Partidos Abiertos / Convocatorias ── */}
       {partidosActivos && partidosActivos.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 px-2">
-            🎾 Partidos abiertos de la comunidad
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            🎾 Partidos abiertos en la comunidad ({partidosActivos.length})
           </h3>
-          {partidosActivos.slice(0, 5).map((p) => {
-            const esOrganizador = p.organizador_id === miJugadorId;
-            const confirmados = p.participantes.filter(pt => pt.confirmado);
-            const vacantesRestantes = Math.max(0, p.faltan_jugadores - confirmados.length);
-            
-            const esParticipante = confirmados.find(pt => pt.jugador_app_id === miJugadorId);
-            const invitacionPendiente = p.participantes.find(pt => pt.jugador_app_id === miJugadorId && !pt.confirmado && pt.solicitado_by === 'organizador');
-            const solicitudPendiente = p.participantes.find(pt => pt.jugador_app_id === miJugadorId && !pt.confirmado && pt.solicitado_by === 'jugador');
+          
+          {partidosActivos.map((p) => {
+            const orgNombre = p.organizador?.nombre_display || 'Organizador';
+            const orgAlias = p.organizador?.alias ? `@${p.organizador.alias}` : '';
+            const orgId = p.organizador_id;
+            const vacantesRestantes = p.faltan_jugadores ?? 1;
+            const yaSolicito = p.participantes?.some(
+              (part) => part.jugador_app_id === miJugadorId && !part.confirmado
+            );
+            const yaAceptado = p.participantes?.some(
+              (part) => part.jugador_app_id === miJugadorId && part.confirmado
+            );
 
             return (
-              <div
-                key={p.id}
-                className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div 
-                    onClick={() => setActivePlayerProfileId(p.organizador_id)}
-                    className="flex items-center gap-2 min-w-0 cursor-pointer"
-                  >
+              <div key={p.id} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
                     {p.organizador?.foto_url ? (
                       <div 
-                        className="h-8 w-8 rounded-full bg-cover bg-center shrink-0 border border-slate-200"
+                        onClick={() => orgId && setActivePlayerProfileId(orgId)}
+                        className="h-10 w-10 rounded-full bg-cover bg-center shrink-0 border border-slate-200 cursor-pointer"
                         style={{ backgroundImage: `url(${p.organizador.foto_url})` }}
                       />
                     ) : (
-                      <div className="h-8 w-8 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-200">
-                        {p.organizador?.nombre_display?.charAt(0).toUpperCase() || 'JG'}
+                      <div 
+                        onClick={() => orgId && setActivePlayerProfileId(orgId)}
+                        className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-extrabold text-sm shrink-0 cursor-pointer"
+                      >
+                        {orgNombre.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate hover:underline">
-                        {p.organizador?.nombre_display || 'Jugador'}
+                    <div>
+                      <p 
+                        onClick={() => orgId && setActivePlayerProfileId(orgId)}
+                        className="text-xs font-extrabold text-slate-900 cursor-pointer hover:underline"
+                      >
+                        {orgNombre} {orgAlias}
                       </p>
-                      <p className="text-[10px] text-slate-400">Organizador</p>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'}
+                      </p>
                     </div>
                   </div>
-
-                  <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full uppercase">
-                    {p.categoria}
+                  <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-[#008F4C] border border-emerald-200">
+                    {vacantesRestantes > 0 ? `${vacantesRestantes} vacantes` : 'Completo'}
                   </span>
                 </div>
 
-                <div className="bg-slate-50 p-2.5 rounded-xl text-xs space-y-1">
-                  <p className="font-bold text-slate-800">
-                    📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'} <span className="font-normal text-slate-500">({p.reserva?.cancha?.nombre || p.cancha_nombre_manual || 'Cancha'})</span>
-                  </p>
-                  <p className="text-slate-600">
-                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
-                  </p>
-                  {p.nota && (
-                    <p className="text-[11px] text-slate-500 italic mt-1 border-t border-slate-100 pt-1">
-                      "{p.nota}"
-                    </p>
-                  )}
+                <div className="flex items-center justify-between text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="font-bold">
+                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')}
+                  </span>
+                  <span className="font-bold text-[#00A859]">
+                    🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
+                  </span>
                 </div>
+
+                {p.nota && (
+                  <p className="text-xs text-slate-600 italic">
+                    "{p.nota}"
+                  </p>
+                )}
 
                 <div className="flex items-center justify-between pt-1">
-                  <span className={`text-[11px] font-bold ${vacantesRestantes > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {vacantesRestantes > 0 ? `⚡ Faltan ${vacantesRestantes} jugadores` : '🚫 Completo'}
-                  </span>
+                  <div className="flex -space-x-2 overflow-hidden">
+                    {p.participantes?.map((part: any, i: number) => (
+                      <div
+                        key={part.id || i}
+                        className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-200 text-slate-700 text-[10px] font-black flex items-center justify-center"
+                        title={part.jugador?.nombre_display || 'Jugador'}
+                      >
+                        {(part.jugador?.nombre_display || 'J').charAt(0).toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
 
                   <div>
-                    {esOrganizador ? (
-                      <span className="text-[10px] text-slate-400 font-semibold italic">Tu partido</span>
-                    ) : esParticipante ? (
-                      <span className="text-[11px] text-green-600 font-bold">✓ Anotado</span>
-                    ) : invitacionPendiente ? (
-                      <div className="flex gap-1.5">
-                        <button
-                          onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: true })}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1 rounded transition"
-                        >
-                          Aceptar
-                        </button>
-                        <button
-                          onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: false })}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-1 rounded transition"
-                        >
-                          No
-                        </button>
-                      </div>
-                    ) : solicitudPendiente ? (
-                      <span className="text-[11px] text-amber-600 font-bold italic">Enviada...</span>
+                    {yaAceptado ? (
+                      <span className="text-[11px] text-[#008F4C] font-black bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                        Ya estás en el partido
+                      </span>
+                    ) : yaSolicito ? (
+                      <span className="text-[11px] text-amber-600 font-bold italic">
+                        Solicitud enviada...
+                      </span>
                     ) : (
                       vacantesRestantes > 0 && (
                         <button
                           onClick={() => solicitarUnirse.mutate({ partidoId: p.id })}
                           disabled={solicitarUnirse.isPending}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold px-3 py-1.5 rounded-lg transition"
+                          className="bg-[#00A859] hover:bg-[#008F4C] text-white text-xs font-extrabold px-4 py-2 rounded-xl transition shadow-sm"
                         >
                           Unirme
                         </button>
@@ -267,100 +418,8 @@ export function FeedCentralSimple() {
         </div>
       )}
 
-      {/* Noticias */}
-      {noticias && noticias.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 px-2">
-            📰 Novedades del club
-          </h3>
-          {noticias.map((noticia) => (
-            <div
-              key={noticia.id}
-              className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-md transition"
-            >
-              {/* Imagen (si existe) - Formato banner 16:9 */}
-              {noticia.imagen_url && (
-                <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', background: '#F1F5F9' }}>
-                  <img
-                    src={noticia.imagen_url}
-                    alt={noticia.titulo}
-                    className="w-full h-full object-cover"
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                  />
-                  {/* Overlay gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                </div>
-              )}
-
-              {/* Contenido */}
-              <div className="px-4 py-3 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <h4 className="font-bold text-gray-900 text-sm">{noticia.titulo}</h4>
-                    <p className="text-xs text-gray-500 mt-0.5">{noticia.club_nombre}</p>
-                  </div>
-                </div>
-
-                {noticia.descripcion && (
-                  <p className="text-xs text-gray-600 line-clamp-2">{noticia.descripcion}</p>
-                )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-400">
-                    {new Date(noticia.creado_en).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
-                  </p>
-                  <button className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1">
-                    <Heart className="h-3 w-3" />
-                    Me gusta
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Turnos abiertos */}
-      {turnosAbiertos && turnosAbiertos.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 px-2">
-            🎾 Turnos disponibles esta semana
-          </h3>
-          {turnosAbiertos.slice(0, 4).map((turno) => (
-            <div
-              key={`${turno.club_id}|${turno.cancha_id}|${turno.fecha}|${turno.hora_inicio}`}
-              className="rounded-2xl border border-green-200 bg-green-50 p-3 shadow-sm"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-green-900">{turno.club_nombre}</p>
-                  <p className="text-xs text-green-700">{turno.cancha_nombre}</p>
-                </div>
-                <div className="flex items-center gap-1 bg-green-200 text-green-900 px-2 py-1 rounded-full">
-                  <Users className="h-3 w-3" />
-                  <span className="text-xs font-bold">{turno.vacias}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 text-xs text-green-800">
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span className="font-semibold">
-                    {formatearFecha(turno.fecha)} · {formatearHora(turno.hora_inicio)}
-                  </span>
-                </div>
-                <span className="text-green-600 font-bold">
-                  ${turno.precio.toLocaleString('es-AR')}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Empty state */}
-      {(!noticias || noticias.length === 0) && (!turnosAbiertos || turnosAbiertos.length === 0) && (!invitaciones || invitaciones.length === 0) && (partidosActivos.length === 0) && (
+      {(!noticias || noticias.length === 0) && (!invitaciones || invitaciones.length === 0) && (partidosActivos.length === 0) && (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 py-12 text-center">
           <p style={{ fontSize: 14, color: '#64748B', fontWeight: 600 }}>No hay novedades ni partidos</p>
           <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>Vuelve más tarde 🎾</p>

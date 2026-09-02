@@ -12,6 +12,55 @@ export interface NoticiaFeed {
 }
 
 /**
+ * Optimiza y comprime la imagen en el navegador antes de subirla a Supabase.
+ * Reduce el peso de 5-10MB a ~150KB en formato WebP para que cargue al instante.
+ */
+async function optimizarImagen(file: File): Promise<Blob> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1600;
+        let { width, height } = img;
+
+        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+          if (width / height > MAX_WIDTH / MAX_HEIGHT) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          } else {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              resolve(blob ?? file);
+            },
+            'image/webp',
+            0.85
+          );
+        } else {
+          resolve(file);
+        }
+      };
+      img.onerror = () => resolve(file);
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
  * Hook para cargar noticias del club (solo las propias)
  */
 export function useNoticiasClub(clubId: number) {
@@ -54,21 +103,26 @@ export function useCrearNoticia() {
   };
 
   const subirImagen = async (file: File, clubId: number): Promise<string> => {
-    if (file.size > 10 * 1024 * 1024) {
-      throw new Error('Imagen muy grande (máximo 10MB)');
+    if (file.size > 15 * 1024 * 1024) {
+      throw new Error('Imagen muy grande (máximo 15MB)');
     }
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      throw new Error('Solo JPG, PNG o WebP');
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/heic'].includes(file.type) && !file.type.startsWith('image/')) {
+      throw new Error('Solo formatos de imagen (JPG, PNG, WebP)');
     }
 
+    // Optimizar imagen para carga ultra rápida
+    const optimizedBlob = await optimizarImagen(file);
     const timestamp = Date.now();
-    const ext = file.name.split('.').pop();
-    const filename = `noticias/${clubId}/${timestamp}.${ext}`;
+    const filename = `noticias/${clubId}/${timestamp}.webp`;
 
     const { data, error: uploadError } = await supabase.storage
       .from('club-posts-images')
-      .upload(filename, file, { cacheControl: '3600', upsert: false });
+      .upload(filename, optimizedBlob, { 
+        cacheControl: '31536000', 
+        contentType: 'image/webp',
+        upsert: false 
+      });
 
     if (uploadError) throw uploadError;
 

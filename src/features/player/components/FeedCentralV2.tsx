@@ -116,21 +116,17 @@ function PostCard({ post }: { post: any }) {
         )}
       </div>
 
-      {/* Imagen (si existe) */}
+      {/* Imagen (si existe) - Completa sin recortar */}
       {post.imagen_url && (
-        <div className="relative w-full bg-gray-100 aspect-video overflow-hidden">
+        <div className="relative w-full bg-slate-900/5 overflow-hidden flex items-center justify-center">
           <img
             src={post.imagen_url}
             alt={post.titulo}
-            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+            className="w-full h-auto max-h-[500px] object-contain"
             onError={(e) => (e.currentTarget.style.display = 'none')}
           />
-          {/* Overlay de info sobre imagen */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
-            <h3 className="font-bold text-white text-base line-clamp-2">
-              {post.titulo}
-            </h3>
-          </div>
         </div>
       )}
 

@@ -79,13 +79,15 @@ export function FeedCentral() {
                 {post.contenido}
               </p>
 
-              {/* Imagen (si existe) */}
+              {/* Imagen (si existe) - Completa sin recortar */}
               {post.imagen_url && (
-                <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 aspect-video">
+                <div className="mb-2 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center">
                   <img
                     src={post.imagen_url}
                     alt={post.titulo}
-                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-auto max-h-[500px] object-contain"
                     onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 </div>
