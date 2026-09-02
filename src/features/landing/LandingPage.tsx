@@ -1,5 +1,5 @@
 import './landing.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -38,6 +38,48 @@ export function LandingPage() {
   
   const [activeFeatureTab, setActiveFeatureTab] = useState<number>(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Active showcase photo index in hero
+  const [activePhotoIdx, setActivePhotoIdx] = useState<number>(0);
+
+  const courtShowcasePhotos = [
+    {
+      url: '/assets/padel-1.jpg',
+      title: 'Cancha 1 · Cristal Panorámico Pro',
+      tag: 'Pádel Indoor · Salta',
+      price: '$36.000 / 90 min',
+      desc: 'Cristal templado 12mm e iluminación LED profesional sin reflejo.',
+    },
+    {
+      url: '/assets/act-padel-a.jpg',
+      title: 'Cancha 2 · Partidos y Torneos',
+      tag: 'Comunidad Activa',
+      price: '$36.000 / 90 min',
+      desc: 'Ambiente climatizado, gradas y transmisión en vivo de partidos.',
+    },
+    {
+      url: '/assets/padel-2.jpg',
+      title: 'Cancha 3 · Pista Techada Climatizada',
+      tag: 'Césped Texturado',
+      price: '$34.000 / 90 min',
+      desc: 'Superficie de máxima tracción ideal para juego rápido y seguro.',
+    },
+    {
+      url: '/assets/tennis-1.jpg',
+      title: 'Cancha 4 · Tenis Polvo de Ladrillo',
+      tag: 'Tenis Single & Dobles',
+      price: '$28.000 / 60 min',
+      desc: 'Mantenimiento diario de polvo con riego automático y flejes profesionales.',
+    },
+  ];
+
+  // Auto rotate showcase photo every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActivePhotoIdx((prev) => (prev + 1) % courtShowcasePhotos.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Split demo state
   const [beverageCount, setBeverageCount] = useState(4);
@@ -169,7 +211,7 @@ export function LandingPage() {
         <div className="container">
           <div className="nav-content">
             <Link to="/" className="flex items-center">
-              <img src="/matchgo_logo.svg" alt="MatchGo" className="h-8 w-auto object-contain" />
+              <img src="/matchgo_logo.svg" alt="MatchGo" className="h-10 sm:h-12 w-auto object-contain transition-transform hover:scale-105" />
             </Link>
 
             <nav className="nav-menu">
@@ -180,7 +222,7 @@ export function LandingPage() {
                 Experiencia en Vivo
               </a>
               <a href="#funcionalidades" className="nav-link">
-                Funcionalidades
+                Software Clubes
               </a>
               <a href="#faq" className="nav-link">
                 Preguntas
@@ -219,6 +261,13 @@ export function LandingPage() {
               🎾 Reservar Cancha (Jugadores)
             </Link>
             <a
+              href="#experiencia"
+              className="block text-slate-700 font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              ⚡ Experiencia en Vivo
+            </a>
+            <a
               href="#funcionalidades"
               className="block text-slate-700 font-medium"
               onClick={() => setMobileMenuOpen(false)}
@@ -252,19 +301,30 @@ export function LandingPage() {
         )}
       </header>
 
-      {/* ===== HERO SECTION (Warm Bone with Floating Search Bar) ===== */}
+      {/* ===== HERO SECTION (Full Background Slider with Real Assets) ===== */}
       <section className="hero-section">
-        <div className="hero-court-bg" />
-        <div className="container relative z-10">
+        {/* Dynamic Background Slideshow (Real Photos from /assets/) */}
+        <div className="hero-bg-container">
+          {courtShowcasePhotos.map((photo, idx) => (
+            <div
+              key={photo.url}
+              className={`hero-bg-slide ${activePhotoIdx === idx ? 'active' : ''}`}
+              style={{ backgroundImage: `url(${photo.url})` }}
+            />
+          ))}
+          <div className="hero-bg-overlay" />
+        </div>
+
+        <div className="container relative z-10 py-12">
           <div className="max-w-3xl mb-8">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#A7F3D0] text-[#00A859] text-xs font-bold uppercase tracking-wider mb-5 shadow-sm">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#00FF87] text-xs font-bold uppercase tracking-wider mb-6 shadow-sm animate-glow">
               <Sparkles className="h-3.5 w-3.5" />
               Portal de Reservas & Software para Clubes
             </div>
 
             <h1 className="hero-title-emerald">
               Reserva tu cancha <br />
-              <span className="text-slate-900">al instante</span>
+              <span className="hero-title-highlight">al instante</span>
             </h1>
 
             <p className="hero-subtitle">
@@ -356,15 +416,54 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* 5. Botón de Acción */}
-            <Link to="/player" className="btn-search-action active">
+            {/* 5. Botón de Acción con efecto Shimmer */}
+            <Link to="/player" className="btn-search-action active shimmer-effect">
               <Search className="h-4 w-4" />
               Buscar canchas
             </Link>
           </div>
 
-          {/* Visual Interactive Demo (Court Simulation Card) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Selector interactivo de fondo en el Hero */}
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider mr-1">
+              📸 Complejos en vivo:
+            </span>
+            {courtShowcasePhotos.map((photo, idx) => (
+              <button
+                key={photo.url}
+                type="button"
+                onClick={() => setActivePhotoIdx(idx)}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-full transition-all cursor-pointer backdrop-blur-md ${
+                  activePhotoIdx === idx
+                    ? 'bg-[#00A859] text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/40'
+                    : 'bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white border border-white/10'
+                }`}
+              >
+                {photo.tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== DISPONIBILIDAD EN VIVO & GRILLA DEL DÍA ===== */}
+      <section className="section-light py-16">
+        <div className="container">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <span className="pill-badge mb-3">
+              <span className="w-2 h-2 rounded-full bg-[#00A859] animate-pulse" />
+              Grilla Operativa en Tiempo Real
+            </span>
+            <h2 className="section-title">
+              Elegí tu horario y reservá al instante
+            </h2>
+            <p className="section-desc mx-auto">
+              Visualizá turnos libres, fijos y clases en vivo en Salta y los principales clubes del país.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left: Grilla del día interactiva */}
             <div className="lg:col-span-7">
               <div className="grilla-simulator p-6">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
@@ -378,7 +477,7 @@ export function LandingPage() {
                     </h4>
                   </div>
                   <span className="text-xs font-semibold px-3 py-1 rounded-lg bg-slate-100 text-slate-600">
-                    4 Canchas de Cristal
+                    4 Canchas Activas
                   </span>
                 </div>
 
@@ -475,7 +574,7 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Quick Metrics Cards */}
+            {/* Right: Quick Features Cards */}
             <div className="lg:col-span-5 space-y-4">
               <div className="athletic-card border-[#A7F3D0]">
                 <div className="flex items-start justify-between">
@@ -1007,50 +1106,13 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ===== FINAL CALL TO ACTION (Warm Bone & Light Gray Container) ===== */}
-      <section className="section-light py-16">
-        <div className="container max-w-4xl">
-          <div className="rounded-3xl bg-[#ECE8DE] text-slate-900 p-10 sm:p-14 text-center shadow-lg border border-[#E2DDD1] relative overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,168,89,0.1),transparent_70%)] pointer-events-none" />
-            
-            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white text-[#00A859] text-xs font-bold uppercase tracking-wider mb-6 border border-[#A7F3D0] shadow-sm">
-              <Sparkles className="h-3.5 w-3.5" />
-              Tu Club al Siguiente Nivel
-            </span>
-
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tight mb-4 text-slate-900">
-              Gestioná tu club con <span className="text-[#00A859]">MatchGo</span>
-            </h2>
-            <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto mb-8 leading-relaxed">
-              Unite a los complejos deportivos que ya automatizaron sus turnos, simplificaron sus cobros en mostrador y tienen finanzas transparentes.
-            </p>
-
-            <div className="flex flex-wrap justify-center gap-4 relative z-10">
-              <Link
-                to="/player"
-                className="px-8 py-3.5 rounded-full bg-[#00A859] hover:bg-[#008F4C] text-white font-black text-sm transition-all shadow-lg shadow-emerald-500/25 flex items-center gap-2"
-              >
-                <span>🎾 Probar Reserva Online</span>
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                to="/login"
-                className="px-8 py-3.5 rounded-full bg-white hover:bg-[#FAF9F5] text-slate-800 font-bold text-sm transition-all border border-[#E2DDD1] shadow-sm"
-              >
-                🏢 Acceso Administrador Club
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ===== FOOTER (Warm Bone Theme) ===== */}
       <footer className="footer-light">
         <div className="container">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
             <div className="space-y-3">
-              <Link to="/" className="inline-block mb-1">
-                <img src="/matchgo_logo.svg" alt="MatchGo" className="h-8 w-auto object-contain" />
+              <Link to="/" className="inline-block mb-2">
+                <img src="/matchgo_logo.svg" alt="MatchGo" className="h-10 sm:h-12 w-auto object-contain" />
               </Link>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Plataforma de gestión integral para clubes de pádel y tenis. Grilla en vivo, cuenta del turno, mostrador y finanzas.

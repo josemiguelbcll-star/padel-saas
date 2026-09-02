@@ -192,42 +192,114 @@
   }
 }
 
-/* Hero Section */
+/* Hero Section - Full Background Showcase with Real Assets */
 .mg-landing .hero-section {
   position: relative;
-  padding: 50px 0 80px;
-  background: linear-gradient(180deg, #F4F2EB 0%, #EFECE4 50%, #ECE8DE 100%);
+  min-height: 82vh;
+  padding: 85px 0 100px;
+  display: flex;
+  align-items: center;
   overflow: hidden;
+  background: #0B132B;
 }
 
-.mg-landing .hero-court-bg {
+.mg-landing .hero-bg-container {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 55%;
-  height: 100%;
-  background-image: radial-gradient(circle at 70% 30%, rgba(0, 168, 89, 0.08) 0%, transparent 65%),
-                    linear-gradient(135deg, rgba(37, 99, 235, 0.04) 0%, transparent 50%);
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
   pointer-events: none;
+}
+
+.mg-landing .hero-bg-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.mg-landing .hero-bg-slide.active {
+  opacity: 1;
+}
+
+.mg-landing .hero-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 19, 43, 0.62) 0%,
+    rgba(11, 19, 43, 0.35) 45%,
+    rgba(11, 19, 43, 0.82) 100%
+  );
+  z-index: 1;
 }
 
 .mg-landing .hero-title-emerald {
   font-family: var(--font-title);
-  font-size: clamp(38px, 5.5vw, 68px);
+  font-size: clamp(40px, 6vw, 76px);
   font-weight: 900;
-  line-height: 1.06;
+  line-height: 1.05;
   letter-spacing: -1.5px;
-  color: var(--emerald-primary);
-  margin-bottom: 16px;
+  color: #ffffff;
+  margin-bottom: 18px;
+}
+
+.mg-landing .hero-title-highlight {
+  color: #00FF87;
+  text-shadow: 0 0 35px rgba(0, 255, 135, 0.5);
 }
 
 .mg-landing .hero-subtitle {
   font-size: clamp(16px, 1.8vw, 20px);
-  color: var(--slate-body);
+  color: #E2E8F0;
   font-weight: 500;
-  max-width: 580px;
-  line-height: 1.5;
-  margin-bottom: 36px;
+  max-width: 620px;
+  line-height: 1.6;
+  margin-bottom: 38px;
+}
+
+/* Micro animations */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.mg-landing .animate-float {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.mg-landing .animate-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+.mg-landing .shimmer-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.mg-landing .shimmer-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  animation: shimmer 3.2s infinite;
 }
 
 /* Floating Search Bar (Inspiration Style on Bone Palette) */
