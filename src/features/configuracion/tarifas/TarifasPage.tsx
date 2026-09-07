@@ -6,8 +6,6 @@ import { tarifasTurnosConfig } from './tarifasModuleConfig';
  * config de TURNOS (comportamiento histórico).
  *
  * Usado por:
- *  - `StepTarifas.tsx` (wizard de onboarding) — siempre opera sobre
- *    tarifas de turnos, sin tabs.
  *  - `TarifasConfigPage.tsx` (ruta `/configuracion/tarifas`) — cuando
  *    el tab activo es Turnos.
  *

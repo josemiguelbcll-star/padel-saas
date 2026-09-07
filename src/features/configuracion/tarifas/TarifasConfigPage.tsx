@@ -21,10 +21,6 @@ function parseTipo(raw: string | null): TipoTarifa {
  *   params funciona como antes y muestra turnos).
  * - Cada tab renderiza el mismo `TarifasPanel` con su config
  *   (tarifasTurnosConfig vs tarifasClasesConfig).
- *
- * El onboarding (StepTarifas) NO usa esta página — usa TarifasPanel
- * directo con tarifasTurnosConfig vía `TarifasPage`, evitando exponer
- * el concepto "Clases" durante el setup inicial.
  */
 export function TarifasConfigPage() {
   const [searchParams, setSearchParams] = useSearchParams();

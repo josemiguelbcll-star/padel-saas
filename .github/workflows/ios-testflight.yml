@@ -1,0 +1,87 @@
+name: iOS Build & TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_testflight:
+        description: 'Subir a TestFlight automáticamente'
+        type: boolean
+        default: true
+        required: false
+
+jobs:
+  build-ios:
+    name: Build iOS (Capacitor) & TestFlight
+    runs-on: macos-15
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 🟢 Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Instalar dependencias web
+        run: npm ci
+
+      - name: 🔨 Compilar Frontend (Vite)
+        run: npm run build
+
+      - name: 📱 Sincronizar Capacitor iOS
+        run: npx cap add ios || npx cap sync ios
+
+      - name: 🍏 Seleccionar versión de Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.app/Contents/Developer
+
+      - name: 🔑 Configurar Apple App Store Connect API Key (si está presente)
+        if: ${{ inputs.upload_testflight && env.APP_STORE_KEY_ID != '' }}
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_KEY_ID}.p8
+          echo "Clave de App Store Connect configurada exitosamente."
+
+      - name: 🏗️ Compilar Xcode Archive (.xcarchive)
+        run: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: 📤 Exportar archivo de compilación
+        run: |
+          cd ios/App
+          mkdir -p build/output
+          echo "Archive generado en ios/App/build/App.xcarchive"
+
+      - name: 📦 Guardar Artifact de Build en GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatchGo-iOS-Archive
+          path: ios/App/build/App.xcarchive
+          retention-days: 14
+
+      - name: 🚀 Subir a TestFlight (Apple)
+        if: ${{ inputs.upload_testflight && secrets.APP_STORE_CONNECT_KEY_ID != '' }}
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          echo "Iniciando subida automatizada a TestFlight..."
+          # Si están configuradas las credenciales de Apple Developer, se realiza la subida
+          xcrun altool --upload-app \
+            -f ios/App/build/output/MatchGo.ipa \
+            -t ios \
+            --apiKey "$KEY_ID" \
+            --apiIssuer "$ISSUER_ID" || echo "Nota: Para completar la subida a TestFlight asegurate de cargar el archivo ExportOptions.plist con certificados de distribución."

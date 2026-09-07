@@ -71,6 +71,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
     club.mercadopago_habilitado ? 'mercadopago' : 'transferencia'
   );
   const [redirectingMP, setRedirectingMP] = useState(false);
+  const [aliasCopiado, setAliasCopiado] = useState(false);
 
   async function handleConfirmar() {
     if (isPastDateTime(fecha, slot.hora_inicio)) {
@@ -310,11 +311,39 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
                       <p className="text-sm text-gray-700">
                         Transferí <strong>${result.monto_sena.toLocaleString('es-AR')}</strong> al siguiente alias para que el club confirme tu reserva:
                       </p>
-                      <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center">
-                        <p className="text-xl font-black tracking-wide text-[#0B1F4D]">{result.cbu_alias}</p>
+                      <div className="mt-2 rounded-xl bg-white px-4 py-3 text-center border border-gray-100 flex flex-col items-center gap-1.5">
+                        <p className="text-xl font-black tracking-wide text-[#0B1F4D] select-all">{result.cbu_alias}</p>
                         {result.nombre_banco && (
-                          <p className="mt-0.5 text-xs text-gray-400">{result.nombre_banco}</p>
+                          <p className="text-xs text-gray-400">{result.nombre_banco}</p>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (result.cbu_alias) {
+                              void navigator.clipboard.writeText(result.cbu_alias);
+                              setAliasCopiado(true);
+                              setTimeout(() => setAliasCopiado(false), 3000);
+                            }
+                          }}
+                          className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#0B1F4D]/5 hover:bg-[#0B1F4D]/10 text-[#0B1F4D] transition"
+                        >
+                          {aliasCopiado ? (
+                            <>
+                              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              <span className="text-[#16A34A]">¡Alias copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                              Copiar Alias
+                            </>
+                          )}
+                        </button>
                       </div>
                       {result.instagram && (
                         <p className="mt-2 text-xs text-gray-500">
@@ -380,12 +409,34 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
               </div>
             )}
 
-            <button
-              onClick={onReservaCreada}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#39C54A] py-5 text-lg font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
-            >
-              Ver mis reservas →
-            </button>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(
+                  `🎾 *¡Tenemos partido de pádel en MatchGo!*\n\n` +
+                  `📍 Club: *${club.nombre}*\n` +
+                  `🏟️ Cancha: ${result.cancha_nombre}\n` +
+                  `📅 Fecha: ${formatFechaBooking(result.fecha)}\n` +
+                  `⏰ Horario: ${formatTime(result.hora_inicio)}\n` +
+                  `💵 Total: $${result.monto_total.toLocaleString('es-AR')} (Seña: $${result.monto_sena.toLocaleString('es-AR')})\n\n` +
+                  `¡Prepará la paleta!`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] py-4 text-base font-extrabold text-white transition active:scale-[0.98] shadow-sm"
+              >
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+                Invitar amigos por WhatsApp
+              </a>
+
+              <button
+                onClick={onReservaCreada}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#39C54A] hover:bg-[#32b041] py-4 text-base font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
+              >
+                Ver mis reservas →
+              </button>
+            </div>
           </div>
         )}
       </div>
