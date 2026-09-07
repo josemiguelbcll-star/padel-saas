@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
@@ -43,6 +44,34 @@ export interface PartidoAbiertoDb {
 }
 
 export function usePartidosAbiertos() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const channelId = `partidos-abiertos-${Math.random().toString(36).substring(2, 9)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'partidos_abiertos' },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['partidos-abiertos'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'partido_participantes' },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['partidos-abiertos'] });
+          void queryClient.invalidateQueries({ queryKey: ['invitaciones-pendientes'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const query = useQuery<PartidoAbiertoDb[]>({
     queryKey: ['partidos-abiertos'],
     queryFn: async () => {

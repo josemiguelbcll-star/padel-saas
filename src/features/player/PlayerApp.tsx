@@ -12,6 +12,7 @@ import { PartidosTab } from './tabs/PartidosTab';
 import { PerfilTab } from './tabs/PerfilTab';
 import { ClubProfilePage } from '@/features/landing';
 import { NotificationsBell } from './components/NotificationsDialog';
+import { initPush } from '@/lib/pushNotifications';
 
 type PlayerTab = 'home' | 'reservar' | 'jugar' | 'partidos' | 'perfil';
 
@@ -185,6 +186,25 @@ function PlayerAppContent() {
     const timeout = window.setTimeout(() => setNotification(null), 5000);
     return () => window.clearTimeout(timeout);
   }, [notification]);
+
+  useEffect(() => {
+    if (phase === 'app') {
+      void initPush({
+        onTap: (action) => {
+          const data = action.notification.data as Record<string, unknown> | undefined;
+          if (typeof data?.tab === 'string') {
+            setClubSlug(null);
+            setTab(data.tab as PlayerTab);
+            navigate(data.tab === 'home' ? '/player' : `/player/${data.tab}`);
+          } else {
+            setClubSlug(null);
+            setTab('partidos');
+            navigate('/player/partidos');
+          }
+        },
+      });
+    }
+  }, [phase, navigate]);
 
   // ── Splash ────────────────────────────────────────────────────
   if (phase === 'loading') {

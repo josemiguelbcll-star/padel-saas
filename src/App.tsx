@@ -9,14 +9,12 @@ import { AppShell } from '@/components/layout/AppShell';
 import { LandingPage, ClubProfilePage } from '@/features/landing';
 import { PlayerApp } from '@/features/player/PlayerApp';
 import { DesafiosPrototype } from '@/features/desafios';
-import { OnboardingGate } from '@/features/onboarding/OnboardingGate';
 import { PlataformaProtectedRoute } from '@/features/plataforma/PlataformaProtectedRoute';
 import { getPermiso } from '@/lib/permisos';
 
 // Lazy-loaded pages
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
-const OnboardingPage = lazy(() => import('@/features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
 const ReservasPage = lazy(() => import('@/features/reservas/ReservasPage').then((m) => ({ default: m.ReservasPage })));
 const TurnosFijosPage = lazy(() => import('@/features/turnos-fijos/TurnosFijosPage').then((m) => ({ default: m.TurnosFijosPage })));
 const InventarioPage = lazy(() => import('@/features/inventario/InventarioPage').then((m) => ({ default: m.InventarioPage })));
@@ -50,8 +48,17 @@ const TesoreriaPage = lazy(() => import('@/features/configuracion/tesoreria/Teso
 const PerfilPublicoPage = lazy(() => import('@/features/configuracion/perfil-publico/PerfilPublicoPage').then((m) => ({ default: m.PerfilPublicoPage })));
 const MensajeriaPage = lazy(() => import('@/features/configuracion/mensajeria/MensajeriaPage').then((m) => ({ default: m.MensajeriaPage })));
 
+import { Capacitor } from '@capacitor/core';
+
 export function App() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Si la app corre en un dispositivo móvil nativo (Capacitor) y arranca en la raíz, ir directo al módulo de jugador
+    if (Capacitor.isNativePlatform() && (window.location.pathname === '/' || window.location.pathname === '')) {
+      navigate('/player', { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     // Si la URL contiene el hash o query de recuperación generado por Supabase Auth
@@ -122,16 +129,7 @@ export function App() {
             </ProtectedRoute>
           }
         >
-          <Route
-            index
-            element={
-              <OnboardingGate>
-                <DashboardPage />
-              </OnboardingGate>
-            }
-          />
-
-          <Route path="onboarding" element={<OnboardingPage />} />
+          <Route index element={<DashboardPage />} />
 
           <Route path="reservas" element={<ModuleRoute modulo="reservas"><ReservasPage /></ModuleRoute>} />
           <Route path="turnos-fijos" element={<ModuleRoute modulo="reservas"><TurnosFijosPage /></ModuleRoute>} />

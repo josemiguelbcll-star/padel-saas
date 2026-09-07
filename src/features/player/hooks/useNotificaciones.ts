@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
@@ -19,6 +20,26 @@ export const NOTIFICACIONES_QUERY_KEY = ['notificaciones-jugador'] as const;
 export function useNotificaciones() {
   const { user } = useSession();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channelId = `notif-jugador-${Math.random().toString(36).substring(2, 9)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notificaciones' },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: NOTIFICACIONES_QUERY_KEY });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   // 1. Obtener notificaciones del jugador actual
   const query = useQuery<Notificacion[], Error>({
