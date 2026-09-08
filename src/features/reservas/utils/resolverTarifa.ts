@@ -62,34 +62,67 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
   const { fecha, hora, tarifas, duracion, cantidad_alumnos } = params;
   const diaSemana = diaSemanaDe(fecha);
 
-  const aplicables = tarifas.filter((t) =>
-    tarifaAplicaA(t, fecha, diaSemana, hora, duracion, cantidad_alumnos),
+  // 1. Filtrar tarifas activas que aplican a fecha, día, hora y alumnos
+  const activasEnFranja = tarifas.filter((t) =>
+    tarifaAplicaFranja(t, fecha, diaSemana, hora, cantidad_alumnos),
   );
 
-  if (aplicables.length === 0) {
+  if (activasEnFranja.length === 0) {
     return { tarifa: null, monto: 0 };
   }
 
-  const ordenadas = [...aplicables].sort((a, b) => {
-    // Duración específica gana sobre NULL (solo si hay duración objetivo),
-    // igual que el ORDER BY del SQL.
-    const aEsp = duracion !== undefined && a.duracion_min !== null ? 1 : 0;
-    const bEsp = duracion !== undefined && b.duracion_min !== null ? 1 : 0;
-    if (aEsp !== bEsp) return bEsp - aEsp;
+  // 2. Intentar buscar coincidencia con filtro de duración (exacta o NULL)
+  const aplicablesDuracion = activasEnFranja.filter(
+    (t) =>
+      duracion === undefined ||
+      t.duracion_min === null ||
+      t.duracion_min === duracion,
+  );
+
+  const listaParaOrdenar =
+    aplicablesDuracion.length > 0 ? aplicablesDuracion : activasEnFranja;
+
+  const ordenadas = [...listaParaOrdenar].sort((a, b) => {
+    // Exact match de duración primero
+    const aExact =
+      duracion !== undefined && a.duracion_min === duracion ? 1 : 0;
+    const bExact =
+      duracion !== undefined && b.duracion_min === duracion ? 1 : 0;
+    if (aExact !== bExact) return bExact - aExact;
+
+    // Duración genérica (NULL) segundo
+    const aGen = a.duracion_min === null ? 1 : 0;
+    const bGen = b.duracion_min === null ? 1 : 0;
+    if (aGen !== bGen) return bGen - aGen;
+
+    // Prioridad
     if (a.prioridad !== b.prioridad) return b.prioridad - a.prioridad;
     return b.id - a.id;
   });
 
   const elegida = ordenadas[0]!;
-  return { tarifa: elegida, monto: elegida.monto };
+  
+  // Si la tarifa tiene una duración fija diferente a la requerida, calculamos el proporcional
+  let montoCalculado = elegida.monto;
+  if (
+    duracion !== undefined &&
+    elegida.duracion_min !== null &&
+    elegida.duracion_min !== duracion &&
+    elegida.duracion_min > 0
+  ) {
+    montoCalculado = Math.round(
+      (elegida.monto / elegida.duracion_min) * duracion,
+    );
+  }
+
+  return { tarifa: elegida, monto: montoCalculado };
 }
 
-function tarifaAplicaA(
+function tarifaAplicaFranja(
   tarifa: Tarifa,
   fechaISO: string,
   diaSemana: number,
   hora: string,
-  duracion: number | undefined,
   cantidad_alumnos: number | undefined,
 ): boolean {
   if (!tarifa.activa) return false;
@@ -112,16 +145,6 @@ function tarifaAplicaA(
         : tarifa.hasta_hora;
     if (compararHoras(hora, tarifa.desde_hora) < 0) return false;
     if (compararHoras(hora, hastaNorm) >= 0) return false;
-  }
-
-  // Duración (0051): se excluye solo si hay duración objetivo Y la tarifa
-  // es de una duración específica distinta. (NULL = cualquier duración.)
-  if (
-    duracion !== undefined &&
-    tarifa.duracion_min !== null &&
-    tarifa.duracion_min !== duracion
-  ) {
-    return false;
   }
 
   // Tarifas de Clases escalonadas (0096)

@@ -85,6 +85,8 @@ export function useCrearTurnoFijo(): UseMutationResult<
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: TURNOS_FIJOS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+      void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
     },
   });
 }
@@ -139,6 +141,8 @@ export function useActualizarTurnoFijo(): UseMutationResult<
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: TURNOS_FIJOS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+      void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
     },
   });
 }
