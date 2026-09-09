@@ -25,6 +25,8 @@ import { DetalleClaseDialog } from './DetalleClaseDialog';
 import { DetalleReservaDialog } from './DetalleReservaDialog';
 import { GrillaDia } from './GrillaDia';
 import { NavegacionFecha } from './NavegacionFecha';
+import { DeportesTabs } from './DeportesTabs';
+import { detectarDeporte } from '@/lib/deportes';
 import {
   NuevaReservaDialog,
   type NuevoReservaSlot,
@@ -134,6 +136,13 @@ export function ReservasPage() {
     () => (canchasQuery.data ?? []).filter((c) => c.activa),
     [canchasQuery.data],
   );
+
+  const [deporteSeleccionado, setDeporteSeleccionado] = useState<string>('todos');
+
+  const canchasFiltradas = useMemo(() => {
+    if (deporteSeleccionado === 'todos') return canchasActivas;
+    return canchasActivas.filter((c) => detectarDeporte(c) === deporteSeleccionado);
+  }, [canchasActivas, deporteSeleccionado]);
 
   // Filtramos clases activas que aplican al día de la fecha mostrada.
   // Esto es el equivalente del "filter by weekday" de la grilla — lo
@@ -292,6 +301,12 @@ export function ReservasPage() {
         />
       )}
 
+      <DeportesTabs
+        canchas={canchasActivas}
+        deporteSeleccionado={deporteSeleccionado}
+        onSelectDeporte={setDeporteSeleccionado}
+      />
+
       <ReservasBody
         loadingHorarios={horariosQuery.isLoading}
         loadingCanchas={canchasQuery.isLoading}
@@ -304,7 +319,7 @@ export function ReservasPage() {
         duracionDefault={horariosQuery.data?.duracion_turno_default ?? 90}
         franjas={franjasQuery.data ?? []}
         infoReservas={infoReservas}
-        canchasActivas={canchasActivas}
+        canchasActivas={canchasFiltradas}
         reservas={reservasQuery.data ?? []}
         clases={clasesDelDia}
         cobrosPorClase={cobrosPorClase}

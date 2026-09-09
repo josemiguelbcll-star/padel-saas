@@ -17,6 +17,7 @@ import {
 } from '@/features/configuracion/hooks/useCanchas';
 import type { Cancha } from '@/types/database';
 import { CanchaFormDialog } from './CanchaFormDialog';
+import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
 
 export function CanchasPage() {
   const { user } = useSession();
@@ -197,7 +198,8 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
         <thead>
           <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 font-medium">Nombre</th>
-            <th className="px-3 py-2 font-medium">Tipo</th>
+            <th className="px-3 py-2 font-medium">Deporte</th>
+            <th className="px-3 py-2 font-medium">Superficie / Tipo</th>
             <th className="px-3 py-2 font-medium">Cubierta</th>
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 font-medium">Orden</th>
@@ -209,25 +211,35 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
           </tr>
         </thead>
         <tbody>
-          {canchas.map((c) => (
-            <tr
-              key={c.id}
-              className={cn(
-                'border-b border-border last:border-b-0 transition-colors',
-                !c.activa && 'bg-muted/20',
-              )}
-            >
-              <td
+          {canchas.map((c) => {
+            const depId = c.deporte ?? detectarDeporte(c);
+            const infoDep = obtenerInfoDeporte(depId);
+
+            return (
+              <tr
+                key={c.id}
                 className={cn(
-                  'px-3 py-3 font-medium',
-                  c.activa ? 'text-foreground' : 'text-muted-foreground',
+                  'border-b border-border last:border-b-0 transition-colors',
+                  !c.activa && 'bg-muted/20',
                 )}
               >
-                {c.nombre}
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {c.tipo ?? '—'}
-              </td>
+                <td
+                  className={cn(
+                    'px-3 py-3 font-medium',
+                    c.activa ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {c.nombre}
+                </td>
+                <td className="px-3 py-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-muted/40 px-2 py-0.5 text-xs font-medium">
+                    <span>{infoDep.icono}</span>
+                    <span>{infoDep.label}</span>
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {c.tipo ?? '—'}
+                </td>
               <td className="px-3 py-3 text-muted-foreground">
                 {c.cubierta ? 'Sí' : 'No'}
               </td>
@@ -265,8 +277,9 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
                   </div>
                 </td>
               )}
-            </tr>
-          ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

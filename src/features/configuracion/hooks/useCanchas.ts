@@ -57,11 +57,29 @@ export function useCreateCancha(): UseMutationResult<Cancha, Error, CanchaInput>
           'No pudimos identificar tu club. Refrescá la página e intentá nuevamente.',
         );
       }
-      const { data, error } = await supabase
+      const payload: Record<string, any> = { ...input, club_id: club.id };
+      let { data, error } = await supabase
         .from('canchas')
-        .insert({ ...input, club_id: club.id })
+        .insert(payload)
         .select()
         .single();
+
+      // Si la columna `deporte` aún no fue agregada en Supabase (PGRST204), hacemos fallback
+      if (error && (error.code === 'PGRST204' || error.message?.includes('deporte'))) {
+        const { deporte, ...sinDeporte } = payload;
+        let tipoFinal = sinDeporte.tipo;
+        if (deporte && deporte !== 'padel') {
+          tipoFinal = tipoFinal ? `${deporte} (${tipoFinal})` : deporte;
+        }
+        const fallbackRes = await supabase
+          .from('canchas')
+          .insert({ ...sinDeporte, tipo: tipoFinal })
+          .select()
+          .single();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
+
       if (error) throw new Error(mapPostgrestError(error));
       return data as Cancha;
     },
@@ -81,12 +99,33 @@ export function useUpdateCancha(): UseMutationResult<Cancha, Error, UpdateCancha
 
   return useMutation<Cancha, Error, UpdateCanchaArgs>({
     mutationFn: async ({ id, changes }) => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('canchas')
         .update(changes)
         .eq('id', id)
         .select()
         .single();
+
+      // Si la columna `deporte` aún no fue agregada en Supabase (PGRST204), hacemos fallback
+      if (error && (error.code === 'PGRST204' || error.message?.includes('deporte'))) {
+        const { deporte, ...sinDeporte } = changes;
+        let tipoFinal = sinDeporte.tipo;
+        if (deporte && deporte !== 'padel') {
+          tipoFinal = tipoFinal ? `${deporte} (${tipoFinal})` : deporte;
+        }
+        const fallbackRes = await supabase
+          .from('canchas')
+          .update({
+            ...sinDeporte,
+            ...(tipoFinal !== undefined ? { tipo: tipoFinal } : {}),
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
+
       if (error) throw new Error(mapPostgrestError(error));
       return data as Cancha;
     },

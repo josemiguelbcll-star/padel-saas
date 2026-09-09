@@ -7,6 +7,7 @@ import { LeyendaGrilla } from './LeyendaGrilla';
 import { LineaAhora } from './LineaAhora';
 import type { InfoReservaVisual } from './utils/derivarEstadoOperativo';
 import { formatearHora, generarSlots, horaToMinutos } from './utils/horaUtils';
+import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
 
 interface GrillaDiaProps {
   /** Canchas activas, ya ordenadas (vienen del hook que ordena por orden + nombre). */
@@ -176,14 +177,18 @@ export function GrillaDia({
           />
           {canchas.map((c) => {
             const occ = ocupacionDe(c.id);
+            const depId = c.deporte ?? detectarDeporte(c);
+            const infoDep = obtenerInfoDeporte(depId);
+
             return (
               <div
                 key={c.id}
                 className="shrink-0 px-3 pb-2"
                 style={{ width: COL_CANCHA_WIDTH }}
               >
-                <div className="truncate text-sm font-semibold text-foreground">
-                  {c.nombre}
+                <div className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">
+                  <span className="text-sm shrink-0" title={infoDep.label}>{infoDep.icono}</span>
+                  <span className="truncate">{c.nombre}</span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
