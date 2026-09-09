@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import {
   useCreateCancha,
   useUpdateCancha,
@@ -20,6 +21,10 @@ import {
   canchaSchema,
   type CanchaFormState,
 } from './canchaSchema';
+import {
+  DEPORTES_CATALOGO,
+  detectarDeporte,
+} from '@/lib/deportes';
 
 interface CanchaFormDialogProps {
   open: boolean;
@@ -56,6 +61,7 @@ type FieldErrors = Partial<
 const defaultState: CanchaFormState = {
   nombre: '',
   tipo: '',
+  deporte: 'padel',
   cubierta: false,
   activa: true,
   orden: 0,
@@ -65,6 +71,7 @@ function canchaToFormState(c: Cancha): CanchaFormState {
   return {
     nombre: c.nombre,
     tipo: c.tipo ?? '',
+    deporte: c.deporte ?? detectarDeporte(c),
     cubierta: c.cubierta,
     activa: c.activa,
     orden: c.orden,
@@ -100,6 +107,7 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
         if (
           field === 'nombre' ||
           field === 'tipo' ||
+          field === 'deporte' ||
           field === 'cubierta' ||
           field === 'activa' ||
           field === 'orden'
@@ -144,65 +152,39 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {!isEdit && (
-          <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
-            <p className="text-xs font-semibold text-muted-foreground">Deporte / Ajuste Rápido:</p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    nombre: prev.nombre || 'Cancha 1 (Tenis)',
-                    tipo: 'Tenis (Polvo de ladrillo)',
-                  }))
-                }
-              >
-                🎾 Tenis
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    nombre: prev.nombre || 'Cancha 1 (Pickleball)',
-                    tipo: 'Pickleball (Outdoor)',
-                  }))
-                }
-              >
-                🏓 Pickleball
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    nombre: prev.nombre || 'Cancha 1 (Pádel)',
-                    tipo: 'Pádel (Cristal)',
-                  }))
-                }
-              >
-                🔲 Pádel
-              </Button>
-            </div>
+        {/* Selector de Deporte */}
+        <div className="space-y-1.5">
+          <Label>Deporte</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {DEPORTES_CATALOGO.map((dep) => {
+              const sel = (state.deporte || 'padel') === dep.id;
+              return (
+                <button
+                  key={dep.id}
+                  type="button"
+                  onClick={() => setState((prev) => ({ ...prev, deporte: dep.id }))}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-all text-left',
+                    sel
+                      ? 'border-primary bg-primary/10 text-primary font-semibold shadow-xs ring-1 ring-primary'
+                      : 'border-border bg-background text-foreground hover:bg-muted',
+                  )}
+                >
+                  <span className="text-base">{dep.icono}</span>
+                  <span>{dep.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
         <div className="space-y-2">
-          <Label htmlFor="cancha-nombre">Nombre</Label>
+          <Label htmlFor="cancha-nombre">Nombre de la cancha</Label>
           <Input
             id="cancha-nombre"
             value={state.nombre}
             onChange={(e) => setState({ ...state, nombre: e.target.value })}
+            placeholder="Ej: Cancha 1, Cancha Central..."
             maxLength={60}
             disabled={isPending}
             autoFocus
@@ -215,7 +197,7 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="cancha-tipo">Tipo / Deporte</Label>
+          <Label htmlFor="cancha-tipo">Superficie / Tipo (Opcional)</Label>
           <Input
             id="cancha-tipo"
             list="cancha-tipo-sugerencias"
@@ -223,20 +205,18 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
             onChange={(e) => setState({ ...state, tipo: e.target.value })}
             maxLength={40}
             disabled={isPending}
-            placeholder="Tenis, Pickleball, Pádel cristal, cemento…"
+            placeholder="Cristal, Polvo de ladrillo, Sintético, Cemento, Muro..."
             aria-invalid={errors.tipo ? true : undefined}
           />
           <datalist id="cancha-tipo-sugerencias">
-            <option value="Tenis (Polvo de ladrillo)" />
-            <option value="Tenis (Cemento)" />
-            <option value="Tenis (Césped)" />
-            <option value="Pickleball (Outdoor)" />
-            <option value="Pickleball (Indoor)" />
-            <option value="Pádel (Cristal)" />
-            <option value="Pádel (Muro)" />
-            <option value="cristal" />
-            <option value="cemento" />
-            <option value="muro" />
+            <option value="Cristal" />
+            <option value="Polvo de ladrillo" />
+            <option value="Césped sintético" />
+            <option value="Cemento" />
+            <option value="Muro" />
+            <option value="Parquet" />
+            <option value="Outdoor" />
+            <option value="Indoor" />
           </datalist>
           {errors.tipo && <p className="text-xs text-destructive">{errors.tipo}</p>}
           <p className="text-xs text-muted-foreground">

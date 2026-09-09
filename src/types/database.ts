@@ -424,6 +424,8 @@ export interface Cancha {
   nombre: string;
   /** Texto libre: 'cristal', 'cemento', 'muro', etc. NULL si no se especificó. */
   tipo: string | null;
+  /** Deporte: 'padel', 'tenis', 'pickleball', 'futbol', etc. */
+  deporte?: string | null;
   cubierta: boolean;
   activa: boolean;
   /** Orden de aparición en la grilla. Default 0. */

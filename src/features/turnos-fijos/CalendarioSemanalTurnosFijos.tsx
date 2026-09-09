@@ -21,6 +21,7 @@ import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases'
 import { DiaColumnaTurnosFijos } from './DiaColumnaTurnosFijos';
 import { idsConCruce, ocupacionDelDia } from './utils/ocupacionTurnoFijo';
 import type { TurnoFijoPrefill } from './NuevoTurnoFijoDialog';
+import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
 
 const SLOT_HEIGHT = 36;
 const GRAN = 30;
@@ -243,26 +244,33 @@ export function CalendarioSemanalTurnosFijos({
       {/* Selector de cancha */}
       {canchas.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground mr-1">
             <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Cancha:
           </span>
-          {canchas.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setCanchaIdSel(c.id)}
-              aria-pressed={c.id === canchaSel}
-              className={cn(
-                'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                c.id === canchaSel
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-foreground hover:bg-muted',
-              )}
-            >
-              {c.nombre}
-            </button>
-          ))}
+          {canchas.map((c) => {
+            const depId = c.deporte ?? detectarDeporte(c);
+            const infoDep = obtenerInfoDeporte(depId);
+            const isSel = c.id === canchaSel;
+
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCanchaIdSel(c.id)}
+                aria-pressed={isSel}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  isSel
+                    ? 'border-primary bg-primary text-primary-foreground font-semibold shadow-xs'
+                    : 'border-border bg-background text-foreground hover:bg-muted',
+                )}
+              >
+                <span>{infoDep.icono}</span>
+                <span>{c.nombre}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 

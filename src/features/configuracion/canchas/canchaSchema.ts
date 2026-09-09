@@ -21,6 +21,11 @@ export const canchaSchema = z.object({
     .max(40, 'El tipo no puede tener más de 40 caracteres.')
     .transform((v) => v.trim())
     .transform((v) => (v === '' ? null : v)),
+  deporte: z
+    .string()
+    .max(40, 'El deporte no puede tener más de 40 caracteres.')
+    .optional()
+    .transform((v) => (v ? v.trim() : null)),
   cubierta: z.boolean(),
   activa: z.boolean(),
   orden: z
