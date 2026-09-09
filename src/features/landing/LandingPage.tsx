@@ -1,5 +1,5 @@
 import './landing.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -10,7 +10,6 @@ import {
   Clock,
   Layers,
   MapPin,
-  Menu,
   Package,
   Receipt,
   Search,
@@ -21,20 +20,35 @@ import {
   Users,
   UtensilsCrossed,
   Wallet,
-  X,
 } from 'lucide-react';
 
 import { PadelScrollReveal } from './PadelScrollReveal';
+import { PlayerNavDropdown } from './components/PlayerNavDropdown';
+import { RealCourtSearchResults } from './components/RealCourtSearchResults';
+import { DEPORTES_CATALOGO } from '@/lib/deportes';
 
 export function LandingPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Hero Floating Search Bar state (Default ciudad: Salta)
+  // Real dynamic dates (Hoy / Mañana)
+  const todayDate = useMemo(() => new Date(), []);
+  const tomorrowDate = useMemo(() => new Date(Date.now() + 86400000), []);
+  const formatDateLabel = (d: Date) => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  const todayLabel = `Hoy ${formatDateLabel(todayDate)}`;
+  const tomorrowLabel = `Mañana ${formatDateLabel(tomorrowDate)}`;
+
+  // Hero Floating Search Bar state (Default ciudad: Salta, deporte: padel)
   const [selectedCity, setSelectedCity] = useState('Salta');
-  const [selectedSport, setSelectedSport] = useState<'padel' | 'tenis'>('padel');
-  const [selectedDate, setSelectedDate] = useState('Hoy 02/09');
-  const [selectedTime, setSelectedTime] = useState('19:30hs');
-  const [activeSlot, setActiveSlot] = useState<string>('19:30');
+  const [selectedSport, setSelectedSport] = useState<string>('padel');
+  const [selectedDate, setSelectedDate] = useState(tomorrowLabel);
+  const [selectedTime, setSelectedTime] = useState('14:30hs');
+  const [activeSlot, setActiveSlot] = useState<string>('14:30');
+
+  const targetDateISO = useMemo(() => {
+    if (selectedDate.startsWith('Mañana')) {
+      return tomorrowDate.toISOString().slice(0, 10);
+    }
+    return todayDate.toISOString().slice(0, 10);
+  }, [selectedDate, todayDate, tomorrowDate]);
   
   const [activeFeatureTab, setActiveFeatureTab] = useState<number>(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -209,96 +223,31 @@ export function LandingPage() {
       {/* ===== NAV BAR (Warm Bone & MatchGo Branding) ===== */}
       <header className="nav-bar">
         <div className="container">
-          <div className="nav-content">
+          <div className="nav-content flex items-center justify-between">
+            {/* Logo oficial de MatchGo */}
             <Link to="/" className="flex items-center">
-              <img src="/matchgo_logo.svg" alt="MatchGo" className="h-10 sm:h-12 w-auto object-contain transition-transform hover:scale-105" />
+              <img
+                src="/matchgo_logo.svg"
+                alt="MatchGo"
+                className="h-9 sm:h-11 md:h-12 w-auto object-contain transition-transform hover:scale-105"
+              />
             </Link>
 
-            <nav className="nav-menu">
-              <Link to="/player" className="nav-link">
-                🎾 Reservar Cancha
-              </Link>
-              <a href="#experiencia" className="nav-link">
-                Experiencia en Vivo
-              </a>
-              <a href="#funcionalidades" className="nav-link">
-                Software Clubes
-              </a>
-              <a href="#faq" className="nav-link">
-                Preguntas
-              </a>
-            </nav>
-
-            <div className="nav-actions">
-              <Link to="/login" className="btn-club-badge">
-                <Trophy className="h-4 w-4" />
-                Software para clubes
-              </Link>
-              <Link to="/login" className="btn-nav-login">
-                <span>Acceder</span>
-              </Link>
-            </div>
-
-            <button
-              type="button"
-              className="mobile-toggle"
-              aria-label="Abrir menú"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-[#E2DDD1] bg-[#F4F2EB] p-6 space-y-4 shadow-xl">
-            <Link
-              to="/player"
-              className="block font-semibold text-slate-900 text-lg"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              🎾 Reservar Cancha (Jugadores)
-            </Link>
-            <a
-              href="#experiencia"
-              className="block text-slate-700 font-medium"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              ⚡ Experiencia en Vivo
-            </a>
-            <a
-              href="#funcionalidades"
-              className="block text-slate-700 font-medium"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              ⚙️ Software para Clubes
-            </a>
-            <a
-              href="#faq"
-              className="block text-slate-700 font-medium"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              ❓ Preguntas Frecuentes
-            </a>
-            <div className="pt-4 flex flex-col gap-3">
-              <Link
-                to="/player"
-                className="btn-club-badge justify-center text-center py-3"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Buscar Canchas Online
-              </Link>
+            {/* Acciones a la derecha: Botón verde para clubes + Perfil de Jugador */}
+            <div className="nav-actions flex items-center gap-3 sm:gap-4">
+              {/* Botón verde "Software para clubes" */}
               <Link
                 to="/login"
-                className="btn-nav-login justify-center text-center py-3"
-                onClick={() => setMobileMenuOpen(false)}
+                className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-2"
               >
-                Acceso Administrador del Club
+                <span>Software para clubes</span>
               </Link>
+
+              {/* Apartado de Jugador con Avatar, Badge y Menú Desplegable */}
+              <PlayerNavDropdown />
             </div>
           </div>
-        )}
+        </div>
       </header>
 
       {/* ===== HERO SECTION (Full Background Slider with Real Assets) ===== */}
@@ -328,22 +277,21 @@ export function LandingPage() {
             </h1>
 
             <p className="hero-subtitle">
-              Explorá las canchas disponibles en tu ciudad y en tiempo real. 
-              Para clubes, la plataforma de gestión más completa con grilla, cobros y finanzas.
+              Explorá las canchas disponibles en tu ciudad y en tiempo real.
             </p>
           </div>
 
-          {/* Floating Search Bar with Salta by default */}
+          {/* Floating Search Bar (Idéntico a la captura) */}
           <div className="floating-search-bar">
-            {/* 1. Ciudad (Salta Default) */}
+            {/* 1. Buscar Ciudad */}
             <div className="search-item">
-              <MapPin className="search-item-icon h-4 w-4" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Ciudad</p>
+              <MapPin className="search-item-icon h-4 w-4 text-emerald-600" />
+              <div className="w-full">
+                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Buscar Ciudad</p>
                 <select
                   value={selectedCity}
                   onChange={(e) => setSelectedCity(e.target.value)}
-                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer"
+                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
                   <option value="Salta">Salta</option>
                   <option value="Buenos Aires">Buenos Aires</option>
@@ -357,18 +305,21 @@ export function LandingPage() {
 
             <div className="search-divider" />
 
-            {/* 2. Deporte */}
+            {/* 2. Elige Deporte (Limpio sin iconos cuadrados extraños) */}
             <div className="search-item">
-              <Trophy className="search-item-icon h-4 w-4" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Deporte</p>
+              <Trophy className="search-item-icon h-4 w-4 text-emerald-600" />
+              <div className="w-full">
+                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Elige deporte</p>
                 <select
                   value={selectedSport}
-                  onChange={(e) => setSelectedSport(e.target.value as 'padel' | 'tenis')}
-                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer"
+                  onChange={(e) => setSelectedSport(e.target.value)}
+                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  <option value="padel">Pádel</option>
-                  <option value="tenis">Tenis</option>
+                  {DEPORTES_CATALOGO.map((dep) => (
+                    <option key={dep.id} value={dep.id}>
+                      {dep.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -377,18 +328,19 @@ export function LandingPage() {
 
             {/* 3. Fecha */}
             <div className="search-item">
-              <Calendar className="search-item-icon h-4 w-4" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Fecha</p>
+              <Calendar className="search-item-icon h-4 w-4 text-emerald-600" />
+              <div className="w-full">
+                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Fecha</p>
                 <select
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer"
+                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  <option value="Hoy 02/09">Hoy 02/09</option>
-                  <option value="Mañana 03/09">Mañana 03/09</option>
-                  <option value="Viernes 05/09">Viernes 05/09</option>
-                  <option value="Sábado 06/09">Sábado 06/09</option>
+                  <option value={todayLabel}>{todayLabel}</option>
+                  <option value={tomorrowLabel}>{tomorrowLabel}</option>
+                  <option value="Viernes 12/09">Viernes 12/09</option>
+                  <option value="Sábado 13/09">Sábado 13/09</option>
+                  <option value="Domingo 14/09">Domingo 14/09</option>
                 </select>
               </div>
             </div>
@@ -397,30 +349,43 @@ export function LandingPage() {
 
             {/* 4. Horario */}
             <div className="search-item">
-              <Clock className="search-item-icon h-4 w-4" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Horario</p>
+              <Clock className="search-item-icon h-4 w-4 text-emerald-600" />
+              <div className="w-full">
+                <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Horario</p>
                 <select
                   value={selectedTime}
                   onChange={(e) => {
                     setSelectedTime(e.target.value);
                     setActiveSlot(e.target.value.replace('hs', ''));
                   }}
-                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer"
+                  className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
+                  <option value="10:00hs">10:00hs</option>
                   <option value="11:30hs">11:30hs</option>
+                  <option value="14:30hs">14:30hs</option>
+                  <option value="16:00hs">16:00hs</option>
                   <option value="18:00hs">18:00hs</option>
                   <option value="19:30hs">19:30hs</option>
                   <option value="21:00hs">21:00hs</option>
+                  <option value="22:30hs">22:30hs</option>
                 </select>
               </div>
             </div>
 
             {/* 5. Botón de Acción con efecto Shimmer */}
-            <Link to="/player" className="btn-search-action active shimmer-effect">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('resultados-busqueda');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="btn-search-action active shimmer-effect cursor-pointer"
+            >
               <Search className="h-4 w-4" />
-              Buscar canchas
-            </Link>
+              <span>Buscar canchas</span>
+            </button>
           </div>
 
           {/* Selector interactivo de fondo en el Hero */}
@@ -445,6 +410,15 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ===== RESULTADOS EN TIEMPO REAL DE CANCHAS ===== */}
+      <RealCourtSearchResults
+        selectedCity={selectedCity}
+        selectedSport={selectedSport}
+        selectedDate={selectedDate}
+        selectedTime={selectedTime}
+        targetDateISO={targetDateISO}
+      />
 
       {/* ===== DISPONIBILIDAD EN VIVO & GRILLA DEL DÍA ===== */}
       <section className="section-light py-16">
