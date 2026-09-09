@@ -334,22 +334,34 @@
   padding: 6px 12px;
   border-radius: 12px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.mg-landing .search-item select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  padding-right: 14px;
 }
 
 .mg-landing .search-item:hover {
-  background: var(--bg-bone);
+  background: rgba(0, 168, 89, 0.05);
 }
 
 .mg-landing .search-item-icon {
   color: var(--emerald-primary);
   font-size: 16px;
+  flex-shrink: 0;
 }
 
 .mg-landing .search-divider {
   width: 1px;
   height: 28px;
-  background: var(--border-bone);
+  background: #E2DDD1;
+  flex-shrink: 0;
 }
 
 .mg-landing .btn-search-action {

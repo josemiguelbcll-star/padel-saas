@@ -158,6 +158,12 @@ function PlayerAppContent() {
   }, [paymentStatus, reservaId, paymentId]);
 
   useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'reservar' || tabParam === 'jugar' || tabParam === 'partidos' || tabParam === 'perfil' || tabParam === 'home') {
+      setTab(tabParam);
+      return;
+    }
+
     const pathParts = location.pathname.replace(/\/+$/, '').split('/').slice(2);
     const first = pathParts[0] ?? '';
     if (first === 'reservar') {
@@ -179,7 +185,7 @@ function PlayerAppContent() {
     if (first === '' || first === '/') {
       setTab('home');
     }
-  }, [location.pathname]);
+  }, [location.pathname, searchParams]);
 
   useEffect(() => {
     if (!notification) return;

@@ -8,10 +8,10 @@ export function useClubsPublicos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('v_clubes_publicos')
-        .select('id, nombre, slug, ciudad, provincia, logo_path, portada_url, descripcion, lat, lng')
+        .select('id, nombre, slug, ciudad, provincia, logo_path, portada_url, descripcion, lat, lng, sena_obligatoria, sena_valor, mercadopago_habilitado')
         .order('nombre');
       if (error) throw error;
-      return (data ?? []) as (Pick<ClubPublico, 'id' | 'nombre' | 'slug' | 'ciudad' | 'provincia' | 'logo_path' | 'descripcion' | 'lat' | 'lng'> & { portada_url: string | null })[];
+      return (data ?? []) as ClubPublico[];
     },
     staleTime: 1000 * 60 * 5,
   });
