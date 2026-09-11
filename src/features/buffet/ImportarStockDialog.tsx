@@ -44,26 +44,23 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
   function handleDescargarPlantilla(e: React.MouseEvent): void {
     e.preventDefault();
 
-    // Headers y datos de ejemplo genéricos
+    // Headers de la plantilla vacía (esqueleto)
     const headers = ['Producto', 'Stock', 'Costo', 'Precio', 'Categoria'];
-    const dummyRows = [
-      ['Coca Cola 350ml', 50, 800, 1200, 'bebidas'],
-      ['Agua Mineral 500ml', 30, 600, 900, 'bebidas'],
-      ['Papas Fritas 150g', 20, 1000, 1600, 'snacks'],
-      ['Alfajor Triple', 40, 500, 850, 'snacks'],
-      ['Barra de Cereal', 15, 300, 500, 'snacks'],
+    const data = [headers];
+
+    // Crear worksheet con ancho de columnas configurado
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    worksheet['!cols'] = [
+      { wch: 35 }, // Producto
+      { wch: 10 }, // Stock
+      { wch: 12 }, // Costo
+      { wch: 12 }, // Precio
+      { wch: 15 }, // Categoria
     ];
-
-    const data = [headers, ...dummyRows];
-
-    // Crear worksheets para los locales DOMO y SIGNO (asociados al parser del SaaS)
-    const worksheetDomo = XLSX.utils.aoa_to_sheet(data);
-    const worksheetSigno = XLSX.utils.aoa_to_sheet(data);
 
     // Crear el libro de trabajo (workbook)
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheetDomo, 'DOMO');
-    XLSX.utils.book_append_sheet(workbook, worksheetSigno, 'SIGNO');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');
 
     // Generar buffer en array y descargar como Blob de Excel (.xlsx)
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
@@ -155,22 +152,24 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
 
         {lectura && (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">¿Qué sede querés importar?</p>
-              <div className="flex flex-wrap gap-2">
-                {lectura.sedes.map((item) => (
-                  <Button
-                    key={item}
-                    type="button"
-                    size="sm"
-                    variant={sede === item ? 'default' : 'outline'}
-                    onClick={() => setSede(item)}
-                  >
-                    {item} · {lectura.productosPorSede[item]?.length ?? 0} productos
-                  </Button>
-                ))}
+            {lectura.sedes.length > 1 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">¿Qué sede o sección querés importar?</p>
+                <div className="flex flex-wrap gap-2">
+                  {lectura.sedes.map((item) => (
+                    <Button
+                      key={item}
+                      type="button"
+                      size="sm"
+                      variant={sede === item ? 'default' : 'outline'}
+                      onClick={() => setSede(item)}
+                    >
+                      {item} · {lectura.productosPorSede[item]?.length ?? 0} productos
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="rounded-xl border border-border">
               <div className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
