@@ -11,6 +11,8 @@ import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibi
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
 
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -73,6 +75,46 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
   const [redirectingMP, setRedirectingMP] = useState(false);
   const [aliasCopiado, setAliasCopiado] = useState(false);
 
+  async function pagarConMercadoPago(reservaId: number) {
+    setRedirectingMP(true);
+    setLocalError(null);
+    try {
+      const isNative = Capacitor.isNativePlatform();
+      const apiUrl = isNative
+        ? 'https://matchogo.vercel.app/api/create-preference'
+        : '/api/create-preference';
+      const originUrl = isNative
+        ? 'https://matchogo.vercel.app'
+        : window.location.origin;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reserva_id: reservaId,
+          club_id: club.id,
+          origin_url: originUrl,
+        }),
+      });
+      const data = await response.json();
+      if (data.init_point) {
+        if (isNative) {
+          await Browser.open({ url: data.init_point, windowName: '_self' });
+        } else {
+          window.location.href = data.init_point;
+        }
+      } else {
+        const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
+        throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
+      }
+    } catch (err: any) {
+      console.error('[BookingBottomSheet] Error al crear preferencia:', err);
+      setLocalError('Reserva realizada, pero no pudimos redirigirte a Mercado Pago: ' + err.message);
+    } finally {
+      setRedirectingMP(false);
+    }
+  }
+
   async function handleConfirmar() {
     if (isPastDateTime(fecha, slot.hora_inicio)) {
       setLocalError('No se pueden reservar horarios en el pasado. Elegí otro horario.');
@@ -87,29 +129,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
     if (res) {
       setResult(res);
       if (metodoPago === 'mercadopago') {
-        setRedirectingMP(true);
-        try {
-          const response = await fetch('/api/create-preference', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reserva_id: res.reserva_id,
-              club_id: club.id,
-              origin_url: window.location.origin,
-            }),
-          });
-          const data = await response.json();
-          if (data.init_point) {
-            window.location.href = data.init_point;
-          } else {
-            const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
-            throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
-          }
-        } catch (err: any) {
-          console.error('[BookingBottomSheet] Error al crear preferencia:', err);
-          setLocalError('Reserva realizada, pero no pudimos redirigirte a Mercado Pago: ' + err.message);
-          setRedirectingMP(false);
-        }
+        await pagarConMercadoPago(res.reserva_id);
       }
     }
   }
@@ -269,31 +289,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
                   </div>
                 ) : (
                   <button
-                    onClick={async () => {
-                      setRedirectingMP(true);
-                      try {
-                        const response = await fetch('/api/create-preference', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            reserva_id: result.reserva_id,
-                            club_id: club.id,
-                            origin_url: window.location.origin,
-                          }),
-                        });
-                         const data = await response.json();
-                         if (data.init_point) {
-                           window.location.href = data.init_point;
-                         } else {
-                           const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
-                           throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
-                         }
-                      } catch (err: any) {
-                        console.error('[BookingBottomSheet] Error al crear preferencia:', err);
-                        setLocalError('Error al redirigir: ' + err.message);
-                        setRedirectingMP(false);
-                      }
-                    }}
+                    onClick={() => void pagarConMercadoPago(result.reserva_id)}
                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#009EE3] py-4 text-base font-extrabold text-white transition active:scale-[0.98]"
                   >
                     Pagar seña con Mercado Pago
@@ -374,31 +370,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
                       </div>
                     ) : (
                       <button
-                        onClick={async () => {
-                          setRedirectingMP(true);
-                          try {
-                            const response = await fetch('/api/create-preference', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                reserva_id: result.reserva_id,
-                                club_id: club.id,
-                                origin_url: window.location.origin,
-                              }),
-                            });
-                             const data = await response.json();
-                             if (data.init_point) {
-                               window.location.href = data.init_point;
-                             } else {
-                               const detailMsg = data.details ? ` - ${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details}` : '';
-                               throw new Error((data.error ? `${data.error}${detailMsg}` : null) || 'No se pudo generar el link de pago.');
-                             }
-                          } catch (err: any) {
-                            console.error('[BookingBottomSheet] Error al crear preferencia:', err);
-                            setLocalError('Error al redirigir: ' + err.message);
-                            setRedirectingMP(false);
-                          }
-                        }}
+                        onClick={() => void pagarConMercadoPago(result.reserva_id)}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#009EE3] py-4 text-base font-extrabold text-white transition active:scale-[0.98]"
                       >
                         Pagar seña con Mercado Pago

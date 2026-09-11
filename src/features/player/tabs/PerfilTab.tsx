@@ -8,8 +8,7 @@ import { AmigosPanel } from '../components/AmigosPanel';
 import { DesafiosPanel } from '../components/DesafiosPanel';
 import { DetalleReservaDrawer } from '../components/DetalleReservaDrawer';
 import { FichaJugadorModal } from '../components/FichaJugadorModal';
-import { usePlayerSession } from '../hooks/usePlayerSession';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { ConfigurarNotificacionesModal } from '../components/ConfigurarNotificacionesModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,62 +132,6 @@ function SettingsRow({ icon, label, onPress, isLast }: { icon: ReactNode; label:
   );
 }
 
-function SettingsSwitchRow({
-  icon,
-  label,
-  checked,
-  onChange,
-  isLast,
-  disabled = false
-}: {
-  icon: ReactNode;
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  isLast?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14,
-      width: '100%', padding: '15px 0',
-      borderBottom: isLast ? 'none' : '1px solid #F1F5F9',
-    }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: 10, background: '#F1F5F9',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>
-        {icon}
-      </div>
-      <span style={{ flex: 1, fontSize: 15, fontWeight: 500, color: '#1E293B', fontFamily: "'Inter', sans-serif" }}>
-        {label}
-      </span>
-      <label style={{ display: 'flex', alignItems: 'center', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1 }}>
-        <input
-          type="checkbox"
-          checked={checked}
-          disabled={disabled}
-          onChange={(e) => onChange(e.target.checked)}
-          style={{ display: 'none' }}
-        />
-        <div style={{
-          width: 44, height: 24, borderRadius: 12,
-          background: checked ? '#10B981' : '#CBD5E1',
-          position: 'relative',
-          transition: 'background 0.2s',
-        }}>
-          <div style={{
-            width: 20, height: 20, borderRadius: '50%', background: '#fff',
-            position: 'absolute', top: 2, left: checked ? 22 : 2,
-            transition: 'left 0.2s',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-          }} />
-        </div>
-      </label>
-    </div>
-  );
-}
-
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 interface PerfilTabProps {
@@ -202,30 +145,8 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
   const { profile, saveProfile, isSaving, isLoading, iniciales } = usePlayerProfile();
   const [editOpen, setEditOpen] = useState(false);
   const [fichaOpen, setFichaOpen] = useState(false);
+  const [notifConfigOpen, setNotifConfigOpen] = useState(false);
   const [selectedReserva, setSelectedReserva] = useState<MiReservaReal | null>(null);
-
-  const { userId } = usePlayerSession();
-  const { webPushActivo, solicitarPermisoWebPush, desactivarWebPush } = usePushNotifications();
-  const [togglingPush, setTogglingPush] = useState(false);
-
-  const handleTogglePush = async (checked: boolean) => {
-    if (!userId) return;
-    setTogglingPush(true);
-    try {
-      if (checked) {
-        const success = await solicitarPermisoWebPush(userId);
-        if (!success) {
-          alert('No se pudieron activar las notificaciones. Asegurate de dar permisos en tu navegador e iniciar la app como PWA.');
-        }
-      } else {
-        await desactivarWebPush(userId);
-      }
-    } catch (err) {
-      console.error('[WebPush] Error al alternar notificaciones:', err);
-    } finally {
-      setTogglingPush(false);
-    }
-  };
 
   // Nombre a mostrar: alias si tiene, sino nombre, sino fallback
   const displayName = profile.alias || profile.nombre || 'Tu nombre';
@@ -443,25 +364,27 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
 
         {/* ── Ajustes ──────────────────────────────────────────── */}
         <div style={{ margin: '20px 16px 0', background: '#fff', borderRadius: 16, border: '1.5px solid #E2E8F0', padding: '0 16px' }}>
-          <SettingsSwitchRow
+          <SettingsRow
             icon={
               <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0B1F4D" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
             }
-            label="Notificaciones Push"
-            checked={webPushActivo}
-            onChange={handleTogglePush}
-            disabled={togglingPush}
+            label="Notificaciones y Alertas"
+            onPress={() => setNotifConfigOpen(true)}
           />
-          <SettingsRow icon={
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0B1F4D" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          } label="Ayuda y soporte" isLast />
+          <SettingsRow
+            icon={
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0B1F4D" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            }
+            label="Ayuda y soporte"
+            isLast
+          />
         </div>
 
         {/* ── Cerrar sesión ────────────────────────────────────── */}
@@ -494,6 +417,13 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
           proximas={proximas}
           iniciales={iniciales}
           onClose={() => setFichaOpen(false)}
+        />
+      )}
+      {notifConfigOpen && (
+        <ConfigurarNotificacionesModal
+          onClose={() => setNotifConfigOpen(false)}
+          jugadorId={profile.id || ''}
+          nombreJugador={displayName}
         />
       )}
     </>

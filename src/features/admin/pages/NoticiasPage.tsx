@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
-import { Trash2, Upload, Pencil, X, Newspaper } from 'lucide-react';
+import { Trash2, Upload, Pencil, X, Newspaper, Bell, Flame, Trophy, Radio, Sparkles } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
+import { notificarNoticiaClub } from '@/lib/notifications';
 import { 
   useNoticiasClub, 
   useCrearNoticia, 
@@ -11,7 +12,7 @@ import {
 } from '../hooks/useNoticiasClub';
 
 export function NoticiasPage() {
-  const { user } = useSession();
+  const { user, club } = useSession();
   const clubId = user?.club_id;
   const canEdit = getPermiso(user, 'noticias', 'editar');
 
@@ -34,6 +35,7 @@ export function NoticiasPage() {
   // State del formulario
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [tipoContenido, setTipoContenido] = useState<'promo' | 'noticia' | 'torneo'>('promo');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [editingNoticia, setEditingNoticia] = useState<NoticiaFeed | null>(null);
@@ -77,6 +79,10 @@ export function NoticiasPage() {
   }
 
   function handleStartEdit(noticia: NoticiaFeed) {
+    if (noticia.club_id !== clubIdNum) {
+      setError('No tienes permisos para editar noticias de otro club');
+      return;
+    }
     setEditingNoticia(noticia);
     setTitulo(noticia.titulo);
     setDescripcion(noticia.descripcion || '');
@@ -121,12 +127,27 @@ export function NoticiasPage() {
         imagenUrl = null;
       }
 
+      let createdNoticiaId: number | undefined;
+
       if (editingNoticia) {
-        await editNoticia(editingNoticia.id, titulo.trim(), descripcion.trim(), imagenUrl);
+        await editNoticia(editingNoticia.id, clubIdNum, titulo.trim(), descripcion.trim(), imagenUrl);
+        createdNoticiaId = editingNoticia.id;
         setEditingNoticia(null);
       } else {
-        await createNoticia(clubIdNum, titulo.trim(), descripcion.trim(), imagenUrl || undefined);
+        const res = await createNoticia(clubIdNum, titulo.trim(), descripcion.trim(), imagenUrl || undefined);
+        createdNoticiaId = res?.id;
       }
+
+      // Disparar siempre la notificación push automática a todos los jugadores
+      void notificarNoticiaClub({
+        clubId: clubIdNum,
+        clubNombre: club?.nombre || 'Club',
+        titulo: titulo.trim(),
+        descripcion: descripcion.trim(),
+        tipo: tipoContenido,
+        noticiaId: createdNoticiaId,
+        imagenUrl: imagenUrl || undefined,
+      });
 
       // Reset form
       setTitulo('');
@@ -149,7 +170,7 @@ export function NoticiasPage() {
     if (!confirm('¿Estás seguro de que deseas eliminar esta noticia?')) return;
 
     try {
-      await eliminarNoticia(noticiaId);
+      await eliminarNoticia(noticiaId, clubIdNum);
       // Si estábamos editando la noticia eliminada, cancelamos la edición
       if (editingNoticia?.id === noticiaId) {
         handleCancelEdit();
@@ -275,6 +296,71 @@ export function NoticiasPage() {
                 </div>
               </div>
 
+              {/* Tipo de Publicación */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                  Tipo de publicación
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoContenido('promo')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      tipoContenido === 'promo'
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                        : 'bg-muted/50 hover:bg-muted text-muted-foreground border-border'
+                    }`}
+                  >
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>🔥 Promo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTipoContenido('noticia')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      tipoContenido === 'noticia'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-muted/50 hover:bg-muted text-muted-foreground border-border'
+                    }`}
+                  >
+                    <Radio className="w-3.5 h-3.5" />
+                    <span>📢 Novedad</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTipoContenido('torneo')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      tipoContenido === 'torneo'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-muted/50 hover:bg-muted text-muted-foreground border-border'
+                    }`}
+                  >
+                    <Trophy className="w-3.5 h-3.5" />
+                    <span>🏆 Torneo</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Notificación Push Automática al Celular */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-500/20 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                    <span>Notificación automática activa</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                      Siempre
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 leading-tight mt-0.5">
+                    Al publicar se enviará automáticamente con alerta sonora y vibración a todos los jugadores.
+                  </p>
+                </div>
+              </div>
+
               {error && (
                 <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
                   ⚠️ {error}
@@ -283,7 +369,7 @@ export function NoticiasPage() {
 
               {success && (
                 <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-xs text-green-600">
-                  {editingNoticia ? '✓ Noticia editada con éxito' : '✓ Noticia publicada con éxito'}
+                  {editingNoticia ? '✓ Noticia editada con éxito' : '✓ Noticia publicada y enviada a los celulares con éxito'}
                 </div>
               )}
 
@@ -291,14 +377,18 @@ export function NoticiasPage() {
               <button
                 type="submit"
                 disabled={isSubmitting || uploadingImage || !titulo.trim()}
-                className="w-full py-2.5 px-4 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="w-full py-2.5 px-4 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
               >
-                {isSubmitting || uploadingImage 
-                  ? '⏳ Guardando...' 
-                  : editingNoticia 
-                    ? 'Actualizar noticia' 
-                    : 'Publicar noticia'
-                }
+                {isSubmitting || uploadingImage ? (
+                  '⏳ Guardando y notificando...'
+                ) : editingNoticia ? (
+                  'Actualizar publicación'
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Publicar y Enviar a Jugadores</span>
+                  </>
+                )}
               </button>
             </form>
           </div>

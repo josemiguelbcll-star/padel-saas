@@ -64,49 +64,47 @@ export async function initPush(handlers: PushHandlers = {}): Promise<void> {
   initialized = true;
 
   try {
-    // 1. Pedir permiso
-    const { receive } = await PushNotifications.requestPermissions();
-    if (receive !== 'granted') {
-      console.info('[Push] Permiso denegado por el usuario');
+    // 1. Verificar o pedir permiso de manera segura
+    let status = await PushNotifications.checkPermissions().catch(() => null);
+    if (!status || status.receive === 'prompt' || status.receive === 'prompt-with-rationale') {
+      status = await PushNotifications.requestPermissions().catch(() => null);
+    }
+
+    if (!status || status.receive !== 'granted') {
+      console.info('[Push] Permiso no concedido o no disponible');
       return;
     }
 
-    // 2. Registrar dispositivo (genera el token FCM/APNs)
-    await PushNotifications.register();
-
-    // 3. Listeners
+    // 2. Adjuntar listeners antes de registrar
     await PushNotifications.addListener('registration', (token: Token) => {
       deviceToken = token.value;
       console.info('[Push] Token registrado:', token.value.slice(0, 12) + '…');
       handlers.onToken?.(token.value);
-      // TODO: enviar token a Supabase Edge Function para asociarlo al jugador
-      // await supabase.functions.invoke('push-register', { body: { token: token.value } });
-    });
+    }).catch((e) => console.warn('[Push] Error al agregar listener registration:', e));
 
     await PushNotifications.addListener('registrationError', (err) => {
-      console.error('[Push] Error de registro:', err);
+      console.warn('[Push] Error de registro (FCM no configurado o sin conexión):', err);
       handlers.onError?.(err);
-    });
+    }).catch((e) => console.warn('[Push] Error al agregar listener registrationError:', e));
 
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      // Notificación recibida con la app ABIERTA
       console.info('[Push] Notificación en primer plano:', notification.title);
       handlers.onForeground?.(notification);
-    });
+    }).catch((e) => console.warn('[Push] Error al agregar listener pushNotificationReceived:', e));
 
     await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      // El usuario tocó la notificación (app en segundo plano o cerrada)
       console.info('[Push] Notificación tocada:', action.notification.title);
       handlers.onTap?.(action);
-      // Ejemplo de deep link:
-      // const data = action.notification.data;
-      // if (data?.tipo === 'desafio') router.push(`/desafios/${data.id}`);
+    }).catch((e) => console.warn('[Push] Error al agregar listener pushNotificationActionPerformed:', e));
+
+    // 3. Registrar dispositivo (genera token)
+    await PushNotifications.register().catch((err) => {
+      console.warn('[Push] PushNotifications.register() falló de forma no fatal:', err);
     });
 
   } catch (err) {
-    console.error('[Push] Error inesperado en initPush:', err);
+    console.warn('[Push] initPush capturó error no fatal:', err);
     handlers.onError?.(err);
-    initialized = false; // permitir reintento
   }
 }
 

@@ -1,4 +1,4 @@
-import type { TipoPersonaTurno } from '@/types/database';
+ import type { TipoPersonaTurno } from '@/types/database';
 
 /**
  * Cálculo de la división de la cuenta del turno (paso 3 del módulo

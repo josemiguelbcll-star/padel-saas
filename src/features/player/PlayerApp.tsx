@@ -12,7 +12,9 @@ import { PartidosTab } from './tabs/PartidosTab';
 import { PerfilTab } from './tabs/PerfilTab';
 import { ClubProfilePage } from '@/features/landing';
 import { NotificationsBell } from './components/NotificationsDialog';
-import { initPush } from '@/lib/pushNotifications';
+import { initNotificationsService } from '@/lib/notifications';
+import { supabase } from '@/lib/supabase';
+import { Capacitor } from '@capacitor/core';
 
 type PlayerTab = 'home' | 'reservar' | 'jugar' | 'partidos' | 'perfil';
 
@@ -111,7 +113,10 @@ function PlayerAppContent() {
       setNotification('Confirmando tu pago de seña en Mercado Pago...');
       void (async () => {
         try {
-          const response = await fetch('/api/confirm-payment', {
+          const apiUrl = Capacitor.isNativePlatform()
+            ? 'https://matchogo.vercel.app/api/confirm-payment'
+            : '/api/confirm-payment';
+          const response = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -195,22 +200,24 @@ function PlayerAppContent() {
 
   useEffect(() => {
     if (phase === 'app') {
-      void initPush({
-        onTap: (action) => {
-          const data = action.notification.data as Record<string, unknown> | undefined;
-          if (typeof data?.tab === 'string') {
-            setClubSlug(null);
-            setTab(data.tab as PlayerTab);
-            navigate(data.tab === 'home' ? '/player' : `/player/${data.tab}`);
-          } else {
-            setClubSlug(null);
-            setTab('partidos');
-            navigate('/player/partidos');
+      void (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const { data: jugadorApp } = await supabase
+              .from('jugadores_app')
+              .select('id')
+              .eq('auth_user_id', session.user.id)
+              .maybeSingle();
+
+            await initNotificationsService(session.user.id, jugadorApp?.id);
           }
-        },
-      });
+        } catch (err) {
+          console.warn('[PlayerApp] Error inicializando servicio de notificaciones:', err);
+        }
+      })();
     }
-  }, [phase, navigate]);
+  }, [phase]);
 
   // ── Splash ────────────────────────────────────────────────────
   if (phase === 'loading') {

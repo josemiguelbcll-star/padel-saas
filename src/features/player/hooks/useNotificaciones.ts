@@ -65,12 +65,11 @@ export function useNotificaciones() {
 
       if (error) throw new Error(mapPostgrestError(error));
       
-      // Filtrar: Desaparece si ya está leída o de forma automática/periódica tras 3 días (72 horas)
+      // Filtrar por antigüedad de hasta 7 días (168 horas)
       const limiteFecha = new Date();
-      limiteFecha.setHours(limiteFecha.getHours() - 72);
+      limiteFecha.setHours(limiteFecha.getHours() - 168);
 
       const filtradas = (data ?? []).filter((n: any) => {
-        if (n.leido) return false;
         const fechaNotif = new Date(n.fecha);
         return fechaNotif >= limiteFecha;
       });
@@ -78,7 +77,7 @@ export function useNotificaciones() {
       return filtradas as Notificacion[];
     },
     enabled: !!user,
-    staleTime: 1000 * 30, // 30 segundos
+    staleTime: 1000 * 20, // 20 segundos
   });
 
   // 2. Marcar una notificación como leída
@@ -122,6 +121,21 @@ export function useNotificaciones() {
     },
   });
 
+  // 4. Eliminar una notificación
+  const eliminarNotificacionMutation = useMutation<void, Error, number>({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('notificaciones')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw new Error(mapPostgrestError(error));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: NOTIFICACIONES_QUERY_KEY });
+    },
+  });
+
   const unreadCount = query.data?.filter(n => !n.leido).length ?? 0;
 
   return {
@@ -131,6 +145,7 @@ export function useNotificaciones() {
     unreadCount,
     marcarLeida: marcarLeidaMutation.mutate,
     marcarTodasLeidas: marcarTodasLeidasMutation.mutate,
+    eliminarNotificacion: eliminarNotificacionMutation.mutate,
     refetch: query.refetch,
   };
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { UserCheck, UserPlus, UserX, Star, Phone } from 'lucide-react';
+import { notificarSolicitudAmigo, notificarAmistadAceptada } from '@/lib/notifications';
 
 interface PlayerProfileDialogProps {
   jugadorId: string | null;
@@ -28,42 +29,39 @@ export function PlayerProfileDialog({ jugadorId, onClose }: PlayerProfileDialogP
   });
 
   useEffect(() => {
-    if (!jugadorId) return;
-
-    async function loadProfile() {
-      const targetId = jugadorId;
-      if (!targetId) return;
+    const loadProfile = async () => {
+      if (!jugadorId) return;
       setLoading(true);
       try {
-        // 1. Obtener sesión del usuario actual
         const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         let myAppId = '';
-        if (session?.user) {
-          const { data } = await supabase
+        if (user) {
+          const { data: myP } = await supabase
             .from('jugadores_app')
             .select('id')
-            .eq('auth_user_id', session.user.id)
-            .maybeSingle();
-          if (data) {
-            myAppId = data.id;
-            setMiId(data.id);
+            .eq('auth_user_id', user.id)
+            .single();
+          if (myP) {
+            myAppId = myP.id;
+            setMiId(myP.id);
           }
         }
 
-        // 2. Obtener datos del jugador objetivo
-        const { data: targetPlayer, error: pError } = await supabase
+        // Cargar jugador
+        const { data: p, error: pErr } = await supabase
           .from('jugadores_app')
           .select('*')
-          .eq('id', targetId)
-          .maybeSingle();
+          .eq('id', jugadorId)
+          .single();
 
-        if (pError) throw pError;
-        setPlayer(targetPlayer);
+        if (pErr) throw pErr;
+        setPlayer(p);
 
-        // 3. Obtener relación de amistad si no soy yo mismo
-        if (myAppId && myAppId !== targetId) {
-          const id1 = myAppId < targetId ? myAppId : targetId;
-          const id2 = myAppId < targetId ? targetId : myAppId;
+        // Cargar relación si no es uno mismo
+        if (myAppId && myAppId !== jugadorId) {
+          const id1 = myAppId < jugadorId ? myAppId : jugadorId;
+          const id2 = myAppId < jugadorId ? jugadorId : myAppId;
 
           const { data: rel } = await supabase
             .from('jugador_amigos')
@@ -75,44 +73,53 @@ export function PlayerProfileDialog({ jugadorId, onClose }: PlayerProfileDialogP
           setRelacion(rel);
         }
 
-        // 4. Obtener estadísticas de partidos de este jugador
-        // A. Obtener cantidad de partidos organizados
-        const { count: organizados } = await supabase
-          .from('partidos_abiertos')
-          .select('*', { count: 'exact', head: true })
-          .eq('organizador_id', targetId);
-
-        // B. Obtener todas las participaciones del jugador que estén confirmadas
-        const { data: participaciones } = await supabase
+        // Cargar estadísticas
+        const { count: partCount } = await supabase
           .from('partido_participantes')
-          .select('asistio, calificacion_nivel')
-          .eq('jugador_app_id', targetId)
+          .select('*', { count: 'exact', head: true })
+          .eq('jugador_app_id', jugadorId)
           .eq('confirmado', true);
 
-        const parts = participaciones ?? [];
-        const asistidos = parts.filter(pt => pt.asistio === true).length;
-        const noshows = parts.filter(pt => pt.asistio === false).length;
-        
-        const lvlCorrecto = parts.filter(pt => pt.calificacion_nivel === 'correcto').length;
-        const lvlAlto = parts.filter(pt => pt.calificacion_nivel === 'alto').length;
-        const lvlBajo = parts.filter(pt => pt.calificacion_nivel === 'bajo').length;
+        const { count: orgCount } = await supabase
+          .from('partidos_abiertos')
+          .select('*', { count: 'exact', head: true })
+          .eq('organizador_id', jugadorId);
+
+        const { data: history } = await supabase
+          .from('partido_participantes')
+          .select('asistio, calificacion_nivel')
+          .eq('jugador_app_id', jugadorId);
+
+        let asistencias = 0;
+        let noShows = 0;
+        let nivelCorrecto = 0;
+        let nivelAlto = 0;
+        let nivelBajo = 0;
+
+        (history ?? []).forEach(h => {
+          if (h.asistio === true) asistencias++;
+          if (h.asistio === false) noShows++;
+          if (h.calificacion_nivel === 'correcto') nivelCorrecto++;
+          if (h.calificacion_nivel === 'alto') nivelAlto++;
+          if (h.calificacion_nivel === 'bajo') nivelBajo++;
+        });
 
         setStats({
-          partidosJugados: parts.length,
-          partidosOrganizados: organizados || 0,
-          asistencias: asistidos,
-          noShows: noshows,
-          nivelCorrecto: lvlCorrecto,
-          nivelAlto: lvlAlto,
-          nivelBajo: lvlBajo
+          partidosJugados: partCount || 0,
+          partidosOrganizados: orgCount || 0,
+          asistencias,
+          noShows,
+          nivelCorrecto,
+          nivelAlto,
+          nivelBajo
         });
 
       } catch (err) {
-        console.error('Error al cargar perfil de jugador', err);
+        console.error('Error al cargar perfil público:', err);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     void loadProfile();
   }, [jugadorId]);
@@ -139,13 +146,17 @@ export function PlayerProfileDialog({ jugadorId, onClose }: PlayerProfileDialogP
       if (error) throw error;
       setRelacion(data);
 
-      // Crear notificación
-      await supabase.from('notificaciones').insert({
-        jugador_app_id: jugadorId,
-        titulo: '🤝 Nueva solicitud de amistad',
-        mensaje: `${player?.nombre_display || 'Un jugador'} te envió una solicitud de amistad.`,
-        tipo: 'solicitud_amigo',
-        leido: false,
+      // Obtener mis datos para la notificación
+      const { data: miPerfil } = await supabase
+        .from('jugadores_app')
+        .select('nombre_display, alias')
+        .eq('id', miId)
+        .maybeSingle();
+
+      await notificarSolicitudAmigo({
+        amigoDestinoId: jugadorId,
+        remitenteNombre: miPerfil?.nombre_display || 'Un jugador',
+        remitenteAlias: miPerfil?.alias,
       });
 
     } catch (err) {
@@ -173,13 +184,17 @@ export function PlayerProfileDialog({ jugadorId, onClose }: PlayerProfileDialogP
       if (error) throw error;
       setRelacion(data);
 
-      // Crear notificación
-      await supabase.from('notificaciones').insert({
-        jugador_app_id: jugadorId,
-        titulo: '✅ Solicitud de amistad aceptada',
-        mensaje: `${player?.nombre_display || 'Un amigo'} aceptó tu solicitud de amistad.`,
-        tipo: 'solicitud_aceptada',
-        leido: false,
+      // Obtener mis datos para la notificación
+      const { data: miPerfil } = await supabase
+        .from('jugadores_app')
+        .select('nombre_display, alias')
+        .eq('id', miId)
+        .maybeSingle();
+
+      const miNombre = miPerfil?.alias ? `@${miPerfil.alias}` : (miPerfil?.nombre_display || 'Tu amigo');
+      await notificarAmistadAceptada({
+        amigoDestinoId: jugadorId,
+        amigoNombre: miNombre,
       });
 
     } catch (err) {
