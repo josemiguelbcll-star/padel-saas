@@ -6,7 +6,7 @@ import { LoginPage, ResetPasswordPage } from '@/features/auth';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { useSession } from '@/features/auth/useSession';
 import { AppShell } from '@/components/layout/AppShell';
-import { LandingPage, ClubProfilePage } from '@/features/landing';
+import { LandingPage, ClubProfilePage, BuscarPage } from '@/features/landing';
 import { PlayerApp } from '@/features/player/PlayerApp';
 import { DesafiosPrototype } from '@/features/desafios';
 import { PlataformaProtectedRoute } from '@/features/plataforma/PlataformaProtectedRoute';
@@ -49,6 +49,8 @@ const PerfilPublicoPage = lazy(() => import('@/features/configuracion/perfil-pub
 const MensajeriaPage = lazy(() => import('@/features/configuracion/mensajeria/MensajeriaPage').then((m) => ({ default: m.MensajeriaPage })));
 
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 
 export function App() {
   const navigate = useNavigate();
@@ -58,6 +60,59 @@ export function App() {
     if (Capacitor.isNativePlatform() && (window.location.pathname === '/' || window.location.pathname === '')) {
       navigate('/player', { replace: true });
     }
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const handleAppUrl = async (data: { url: string }) => {
+      try {
+        await Browser.close().catch(() => {});
+
+        const rawUrl = data.url;
+        let accessToken: string | null = null;
+        let refreshToken: string | null = null;
+
+        if (rawUrl.includes('#')) {
+          const hashStr = rawUrl.substring(rawUrl.indexOf('#') + 1);
+          const hashParams = new URLSearchParams(hashStr);
+          accessToken = hashParams.get('access_token');
+          refreshToken = hashParams.get('refresh_token');
+        }
+
+        if (!accessToken && rawUrl.includes('?')) {
+          const queryStr = rawUrl.substring(rawUrl.indexOf('?') + 1);
+          const queryParams = new URLSearchParams(queryStr);
+          accessToken = queryParams.get('access_token');
+          refreshToken = queryParams.get('refresh_token');
+        }
+
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (!error) {
+            navigate('/player', { replace: true });
+          }
+        } else if (rawUrl.includes('code=')) {
+          const queryStr = rawUrl.substring(rawUrl.indexOf('?') + 1);
+          const queryParams = new URLSearchParams(queryStr);
+          const code = queryParams.get('code');
+          if (code) {
+            await supabase.auth.exchangeCodeForSession(code);
+            navigate('/player', { replace: true });
+          }
+        }
+      } catch (err) {
+        console.warn('[DeepLink] Error handling URL open:', err);
+      }
+    };
+
+    const listenerPromise = CapApp.addListener('appUrlOpen', handleAppUrl);
+    return () => {
+      void listenerPromise.then(l => l.remove()).catch(() => {});
+    };
   }, [navigate]);
 
   useEffect(() => {
@@ -94,6 +149,7 @@ export function App() {
     >
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/buscar" element={<BuscarPage />} />
         <Route path="/club/:slug" element={<ClubProfilePage />} />
         <Route path="/prototipo/desafios" element={<DesafiosPrototype />} />
         <Route path="/player/*" element={<PlayerApp />} />

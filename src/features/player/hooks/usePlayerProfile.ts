@@ -18,6 +18,7 @@ export type PosicionPadel = 'drive' | 'reves' | 'ambos' | '';
 export type ManoDominante = 'diestro' | 'zurdo' | '';
 
 export interface PlayerProfile {
+  id?:        string;
   nombre:     string;
   alias:      string;
   telefono:   string;
@@ -30,7 +31,7 @@ export interface PlayerProfile {
 }
 
 const DEFAULT: PlayerProfile = {
-  nombre: '', alias: '', telefono: '', email: '',
+  id: '', nombre: '', alias: '', telefono: '', email: '',
   categoria: '', genero: '', posicion: '', mano: '', avatar_url: null,
 };
 
@@ -76,6 +77,7 @@ async function resolveAvatarUrl(userId: string, dataUri: string): Promise<string
 }
 
 interface JugadorRow {
+  id?:            string;
   nombre_display: string;
   foto_url:       string | null;
   alias?:         string | null;
@@ -104,7 +106,7 @@ export function usePlayerProfile() {
       // Consulta de columnas estándar para evitar error 400 REST por columnas inexistentes
       const { data: row, error: e1 } = await supabase
         .from('jugadores_app')
-        .select('nombre_display, alias, telefono, genero, categoria, foto_url')
+        .select('id, nombre_display, alias, telefono, genero, categoria, foto_url')
         .eq('auth_user_id', user.id)
         .maybeSingle();
 
@@ -116,6 +118,7 @@ export function usePlayerProfile() {
 
       const r = row as JugadorRow;
       return {
+        id:         r.id                          ?? '',
         nombre:     r.nombre_display              ?? '',
         alias:      r.alias                       ?? '',
         telefono:   r.telefono                    ?? '',

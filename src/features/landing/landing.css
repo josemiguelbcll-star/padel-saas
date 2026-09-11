@@ -183,12 +183,25 @@
 }
 
 @media (max-width: 900px) {
-  .mg-landing .nav-menu,
-  .mg-landing .nav-actions {
+  .mg-landing .nav-menu {
     display: none;
   }
+  .mg-landing .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .mg-landing .mobile-toggle {
-    display: block;
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .mg-landing .container {
+    padding: 0 16px;
+  }
+  .mg-landing .nav-content {
+    height: 64px;
   }
 }
 

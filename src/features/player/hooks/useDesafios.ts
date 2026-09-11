@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { notificarDesafioRecibido, notificarRespuestaDesafio } from '@/lib/notifications';
 
 export interface Desafio {
   id:                  number;
@@ -86,6 +87,14 @@ export function useDesafios() {
   }) => {
     setError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      const { data: jugadorApp } = await supabase
+        .from('jugadores_app')
+        .select('id, nombre_display, alias')
+        .eq('auth_user_id', user?.id)
+        .maybeSingle();
+
       const { data, error: rpcError } = await supabase.rpc('fn_crear_desafio', {
         p_jugador_app_id_para: params.jugador_id_para,
         p_club_id: params.club_id,
@@ -97,6 +106,30 @@ export function useDesafios() {
       });
 
       if (rpcError) throw new Error(rpcError.message);
+
+      // Notificar al rival
+      try {
+        const { data: clubData } = await supabase
+          .from('clubes')
+          .select('nombre')
+          .eq('id', params.club_id)
+          .maybeSingle();
+
+        const miNombre = jugadorApp?.alias ? `@${jugadorApp.alias}` : (jugadorApp?.nombre_display || 'Un rival');
+        const clubNombre = clubData?.nombre || 'Club';
+
+        await notificarDesafioRecibido({
+          rivalJugadorId: params.jugador_id_para,
+          retadorNombre: miNombre,
+          clubNombre,
+          fecha: params.fecha,
+          hora: params.hora_inicio.slice(0, 5),
+          desafioId: data?.id || 0,
+        });
+      } catch (notifErr) {
+        console.warn('[crearDesafio] Error al notificar:', notifErr);
+      }
+
       await refetch();
       return data;
     } catch (err) {
@@ -109,11 +142,46 @@ export function useDesafios() {
   const aceptarDesafio = useCallback(async (desafioId: number) => {
     setError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      const { data: jugadorApp } = await supabase
+        .from('jugadores_app')
+        .select('id, nombre_display, alias')
+        .eq('auth_user_id', user?.id)
+        .maybeSingle();
+
+      const { data: desafioRow } = await supabase
+        .from('desafios')
+        .select('id, jugador_app_id_de, fecha, hora_inicio, club:clubes(nombre)')
+        .eq('id', desafioId)
+        .maybeSingle();
+
       const { data, error: rpcError } = await supabase.rpc('fn_aceptar_desafio', {
         p_desafio_id: desafioId,
       });
 
       if (rpcError) throw new Error(rpcError.message);
+
+      // Notificar al retador que su desafío fue aceptado
+      if (desafioRow?.jugador_app_id_de) {
+        try {
+          const miNombre = jugadorApp?.alias ? `@${jugadorApp.alias}` : (jugadorApp?.nombre_display || 'Tu rival');
+          const clubNombre = (desafioRow.club as any)?.nombre || 'Club';
+
+          await notificarRespuestaDesafio({
+            retadorJugadorId: desafioRow.jugador_app_id_de,
+            rivalNombre: miNombre,
+            clubNombre,
+            fecha: desafioRow.fecha,
+            hora: desafioRow.hora_inicio ? desafioRow.hora_inicio.slice(0, 5) : '',
+            aceptado: true,
+            desafioId,
+          });
+        } catch (notifErr) {
+          console.warn('[aceptarDesafio] Error al notificar:', notifErr);
+        }
+      }
+
       await refetch();
       return data;
     } catch (err) {
@@ -126,11 +194,46 @@ export function useDesafios() {
   const rechazarDesafio = useCallback(async (desafioId: number) => {
     setError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      const { data: jugadorApp } = await supabase
+        .from('jugadores_app')
+        .select('id, nombre_display, alias')
+        .eq('auth_user_id', user?.id)
+        .maybeSingle();
+
+      const { data: desafioRow } = await supabase
+        .from('desafios')
+        .select('id, jugador_app_id_de, fecha, hora_inicio, club:clubes(nombre)')
+        .eq('id', desafioId)
+        .maybeSingle();
+
       const { data, error: rpcError } = await supabase.rpc('fn_rechazar_desafio', {
         p_desafio_id: desafioId,
       });
 
       if (rpcError) throw new Error(rpcError.message);
+
+      // Notificar al retador
+      if (desafioRow?.jugador_app_id_de) {
+        try {
+          const miNombre = jugadorApp?.alias ? `@${jugadorApp.alias}` : (jugadorApp?.nombre_display || 'Tu rival');
+          const clubNombre = (desafioRow.club as any)?.nombre || 'Club';
+
+          await notificarRespuestaDesafio({
+            retadorJugadorId: desafioRow.jugador_app_id_de,
+            rivalNombre: miNombre,
+            clubNombre,
+            fecha: desafioRow.fecha,
+            hora: desafioRow.hora_inicio ? desafioRow.hora_inicio.slice(0, 5) : '',
+            aceptado: false,
+            desafioId,
+          });
+        } catch (notifErr) {
+          console.warn('[rechazarDesafio] Error al notificar:', notifErr);
+        }
+      }
+
       await refetch();
       return data;
     } catch (err) {

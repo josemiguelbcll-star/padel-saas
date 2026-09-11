@@ -1,9 +1,10 @@
 import './landing.css';
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   BarChart3,
+  Building2,
   Calendar,
   CheckCircle2,
   ChevronDown,
@@ -24,10 +25,10 @@ import {
 
 import { PadelScrollReveal } from './PadelScrollReveal';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
-import { RealCourtSearchResults } from './components/RealCourtSearchResults';
 import { DEPORTES_CATALOGO } from '@/lib/deportes';
 
 export function LandingPage() {
+  const navigate = useNavigate();
   
   // Real dynamic dates (Hoy / Mañana)
   const todayDate = useMemo(() => new Date(), []);
@@ -42,13 +43,6 @@ export function LandingPage() {
   const [selectedDate, setSelectedDate] = useState(tomorrowLabel);
   const [selectedTime, setSelectedTime] = useState('14:30hs');
   const [activeSlot, setActiveSlot] = useState<string>('14:30');
-
-  const targetDateISO = useMemo(() => {
-    if (selectedDate.startsWith('Mañana')) {
-      return tomorrowDate.toISOString().slice(0, 10);
-    }
-    return todayDate.toISOString().slice(0, 10);
-  }, [selectedDate, todayDate, tomorrowDate]);
   
   const [activeFeatureTab, setActiveFeatureTab] = useState<number>(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -234,13 +228,15 @@ export function LandingPage() {
             </Link>
 
             {/* Acciones a la derecha: Botón verde para clubes + Perfil de Jugador */}
-            <div className="nav-actions flex items-center gap-3 sm:gap-4">
+            <div className="nav-actions flex items-center gap-2 sm:gap-4">
               {/* Botón verde "Software para clubes" */}
               <Link
                 to="/login"
-                className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
-                <span>Software para clubes</span>
+                <Building2 className="w-3.5 h-3.5 hidden xs:inline" />
+                <span className="hidden sm:inline">Software para clubes</span>
+                <span className="sm:hidden">Clubes</span>
               </Link>
 
               {/* Apartado de Jugador con Avatar, Badge y Menú Desplegable */}
@@ -266,10 +262,14 @@ export function LandingPage() {
 
         <div className="container relative z-10 py-12">
           <div className="max-w-3xl mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#00FF87] text-xs font-bold uppercase tracking-wider mb-6 shadow-sm animate-glow">
-              <Sparkles className="h-3.5 w-3.5" />
-              Portal de Reservas & Software para Clubes
-            </div>
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 hover:border-emerald-400/50 text-[#00FF87] text-xs font-bold uppercase tracking-wider mb-6 shadow-sm transition-all cursor-pointer group"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+              <span>Portal de Reservas & Software para Clubes</span>
+              <ArrowRight className="h-3 w-3 text-emerald-400 opacity-80 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
 
             <h1 className="hero-title-emerald">
               Reserva tu cancha <br />
@@ -376,10 +376,7 @@ export function LandingPage() {
             <button
               type="button"
               onClick={() => {
-                const el = document.getElementById('resultados-busqueda');
-                if (el) {
-                  el.scrollIntoView({ behavior: 'smooth' });
-                }
+                navigate(`/buscar?ciudad=${encodeURIComponent(selectedCity)}&deporte=${encodeURIComponent(selectedSport)}&fecha=${encodeURIComponent(selectedDate)}&hora=${encodeURIComponent(selectedTime)}`);
               }}
               className="btn-search-action active shimmer-effect cursor-pointer"
             >
@@ -410,15 +407,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* ===== RESULTADOS EN TIEMPO REAL DE CANCHAS ===== */}
-      <RealCourtSearchResults
-        selectedCity={selectedCity}
-        selectedSport={selectedSport}
-        selectedDate={selectedDate}
-        selectedTime={selectedTime}
-        targetDateISO={targetDateISO}
-      />
 
       {/* ===== DISPONIBILIDAD EN VIVO & GRILLA DEL DÍA ===== */}
       <section className="section-light py-16">

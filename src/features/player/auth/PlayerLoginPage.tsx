@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/network';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 interface PlayerLoginPageProps {
   /** @deprecated — no-op; la transición la maneja onAuthStateChange */
@@ -92,11 +94,33 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
 
   async function handleGoogle() {
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options:  { redirectTo: `${window.location.origin}/player` },
-    });
-    if (error) setError(translateError(error.message));
+    setIsLoading(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: 'ar.matchgo.app://auth-callback',
+            skipBrowserRedirect: true,
+          },
+        });
+        if (error) throw error;
+        if (data?.url) {
+          await Browser.open({ url: data.url, windowName: '_self' });
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: `${window.location.origin}/player` },
+        });
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : 'Error inesperado';
+      setError(translateError(msg));
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   // ── Pantalla post-registro: "revisá tu email" ─────────────────────────────

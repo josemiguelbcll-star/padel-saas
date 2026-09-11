@@ -137,11 +137,12 @@ export function useCrearNoticia() {
 }
 
 /**
- * Hook para editar noticia
+ * Hook para editar noticia asegurando pertenencia al club
  */
 export function useEditarNoticia() {
   const editNoticia = async (
     noticiaId: number,
+    clubId: number,
     titulo: string,
     descripcion: string,
     imagenUrl?: string | null
@@ -153,7 +154,8 @@ export function useEditarNoticia() {
         descripcion: descripcion,
         imagen_url: imagenUrl,
       })
-      .eq('id', noticiaId);
+      .eq('id', noticiaId)
+      .eq('club_id', clubId);
 
     if (error) throw error;
   };
@@ -162,14 +164,15 @@ export function useEditarNoticia() {
 }
 
 /**
- * Hook para eliminar noticia
+ * Hook para eliminar noticia asegurando pertenencia al club
  */
 export function useEliminarNoticia() {
-  return async (noticiaId: number) => {
+  return async (noticiaId: number, clubId: number) => {
     const { error } = await supabase
       .from('noticias_feed')
       .update({ activo: false })
-      .eq('id', noticiaId);
+      .eq('id', noticiaId)
+      .eq('club_id', clubId);
 
     if (error) throw error;
   };

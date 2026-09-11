@@ -245,22 +245,28 @@ export function useInvitacionesPendientes() {
   });
 }
 
+import {
+  notificarInvitacionPartido,
+  notificarSolicitudUnirse,
+  notificarRespuestaPartido,
+} from '@/lib/notifications';
+
 export function usePartidosMutations() {
   const queryClient = useQueryClient();
 
-  const getMiJugadorAppId = async () => {
+  const getMiJugadorApp = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) throw new Error('Sin sesión activa');
 
     const { data: jugadorApp } = await supabase
       .from('jugadores_app')
-      .select('id')
+      .select('id, nombre_display, alias')
       .eq('auth_user_id', user.id)
       .single();
 
     if (!jugadorApp) throw new Error('Perfil de jugador no encontrado');
-    return jugadorApp.id;
+    return jugadorApp;
   };
 
   const publicarPartido = useMutation({
@@ -276,13 +282,13 @@ export function usePartidosMutations() {
       fechaManual?: string;
       horaInicioManual?: string;
     }) => {
-      const organizadorId = await getMiJugadorAppId();
+      const miJugador = await getMiJugadorApp();
 
       const { data, error } = await supabase
         .from('partidos_abiertos')
         .insert({
           reserva_id: params.reservaId,
-          organizador_id: organizadorId,
+          organizador_id: miJugador.id,
           categoria: params.categoria,
           faltan_jugadores: params.faltanJugadores,
           posicion_buscada: params.posicionBuscada,
@@ -306,6 +312,8 @@ export function usePartidosMutations() {
 
   const invitarAmigo = useMutation({
     mutationFn: async (params: { partidoId: number; amigoId: string }) => {
+      const miJugador = await getMiJugadorApp();
+
       const { data, error } = await supabase
         .from('partido_participantes')
         .insert({
@@ -318,6 +326,47 @@ export function usePartidosMutations() {
         .single();
 
       if (error) throw error;
+
+      // Obtener datos del partido para enriquecer la notificación
+      try {
+        const { data: p } = await supabase
+          .from('partidos_abiertos')
+          .select(`
+            id,
+            club_nombre_manual,
+            cancha_nombre_manual,
+            fecha_manual,
+            hora_inicio_manual,
+            reserva:reserva_id(
+              fecha,
+              hora_inicio,
+              club:club_id(nombre),
+              cancha:cancha_id(nombre)
+            )
+          `)
+          .eq('id', params.partidoId)
+          .single();
+
+        const clubNombre = (p?.reserva as any)?.club?.nombre || p?.club_nombre_manual || 'Club';
+        const canchaNombre = (p?.reserva as any)?.cancha?.nombre || p?.cancha_nombre_manual || '';
+        const fecha = (p?.reserva as any)?.fecha || p?.fecha_manual || '';
+        const hora = (p?.reserva as any)?.hora_inicio || p?.hora_inicio_manual || '';
+        const miNombre = miJugador.alias ? `@${miJugador.alias}` : (miJugador.nombre_display || 'Un amigo');
+
+        await notificarInvitacionPartido({
+          amigoJugadorId: params.amigoId,
+          organizadorNombre: miNombre,
+          clubNombre,
+          canchaNombre,
+          fecha,
+          hora,
+          partidoId: params.partidoId,
+          participanteId: data.id,
+        });
+      } catch (notifErr) {
+        console.warn('[invitarAmigo] Error al enviar notificación:', notifErr);
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -327,12 +376,12 @@ export function usePartidosMutations() {
 
   const solicitarUnirse = useMutation({
     mutationFn: async (params: { partidoId: number }) => {
-      const miJugadorId = await getMiJugadorAppId();
+      const miJugador = await getMiJugadorApp();
       const { data, error } = await supabase
         .from('partido_participantes')
         .insert({
           partido_abierto_id: params.partidoId,
-          jugador_app_id: miJugadorId,
+          jugador_app_id: miJugador.id,
           confirmado: false,
           solicitado_by: 'jugador',
         })
@@ -340,6 +389,46 @@ export function usePartidosMutations() {
         .single();
 
       if (error) throw error;
+
+      // Obtener datos del partido para notificar al organizador
+      try {
+        const { data: p } = await supabase
+          .from('partidos_abiertos')
+          .select(`
+            id,
+            organizador_id,
+            club_nombre_manual,
+            fecha_manual,
+            hora_inicio_manual,
+            reserva:reserva_id(
+              fecha,
+              hora_inicio,
+              club:club_id(nombre)
+            )
+          `)
+          .eq('id', params.partidoId)
+          .single();
+
+        if (p?.organizador_id) {
+          const clubNombre = (p?.reserva as any)?.club?.nombre || p?.club_nombre_manual || '';
+          const fecha = (p?.reserva as any)?.fecha || p?.fecha_manual || '';
+          const hora = (p?.reserva as any)?.hora_inicio || p?.hora_inicio_manual || '';
+          const solicitanteNombre = miJugador.alias ? `@${miJugador.alias}` : (miJugador.nombre_display || 'Un jugador');
+
+          await notificarSolicitudUnirse({
+            organizadorJugadorId: p.organizador_id,
+            solicitanteNombre,
+            clubNombre,
+            fecha,
+            hora,
+            partidoId: params.partidoId,
+            participanteId: data.id,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('[solicitarUnirse] Error al enviar notificación:', notifErr);
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -349,6 +438,31 @@ export function usePartidosMutations() {
 
   const responderInvitacion = useMutation({
     mutationFn: async (params: { participanteId: number; aceptar: boolean }) => {
+      const miJugador = await getMiJugadorApp();
+
+      // Consultar participante y partido antes de modificar
+      const { data: partRow } = await supabase
+        .from('partido_participantes')
+        .select(`
+          id,
+          jugador_app_id,
+          solicitado_by,
+          partido:partido_abierto_id(
+            id,
+            organizador_id,
+            club_nombre_manual,
+            fecha_manual,
+            hora_inicio_manual,
+            reserva:reserva_id(
+              fecha,
+              hora_inicio,
+              club:club_id(nombre)
+            )
+          )
+        `)
+        .eq('id', params.participanteId)
+        .maybeSingle();
+
       if (params.aceptar) {
         const { data, error } = await supabase
           .from('partido_participantes')
@@ -358,6 +472,28 @@ export function usePartidosMutations() {
           .single();
 
         if (error) throw error;
+
+        // Notificar a la contraparte
+        if (partRow && partRow.partido) {
+          const p: any = partRow.partido;
+          const esSolicitudUnirse = partRow.solicitado_by === 'jugador';
+          const destinatarioId = esSolicitudUnirse ? partRow.jugador_app_id : p.organizador_id;
+          const clubNombre = p.reserva?.club?.nombre || p.club_nombre_manual || '';
+          const fecha = p.reserva?.fecha || p.fecha_manual || '';
+          const hora = p.reserva?.hora_inicio || p.hora_inicio_manual || '';
+          const emisorNombre = miJugador.alias ? `@${miJugador.alias}` : (miJugador.nombre_display || 'Un jugador');
+
+          await notificarRespuestaPartido({
+            jugadorDestinoId: destinatarioId,
+            emisorNombre,
+            clubNombre,
+            fecha,
+            hora,
+            aceptado: true,
+            esSolicitudUnirse,
+          }).catch(() => {});
+        }
+
         return data;
       } else {
         const { error } = await supabase
@@ -366,6 +502,27 @@ export function usePartidosMutations() {
           .eq('id', params.participanteId);
 
         if (error) throw error;
+
+        if (partRow && partRow.partido) {
+          const p: any = partRow.partido;
+          const esSolicitudUnirse = partRow.solicitado_by === 'jugador';
+          const destinatarioId = esSolicitudUnirse ? partRow.jugador_app_id : p.organizador_id;
+          const clubNombre = p.reserva?.club?.nombre || p.club_nombre_manual || '';
+          const fecha = p.reserva?.fecha || p.fecha_manual || '';
+          const hora = p.reserva?.hora_inicio || p.hora_inicio_manual || '';
+          const emisorNombre = miJugador.alias ? `@${miJugador.alias}` : (miJugador.nombre_display || 'Un jugador');
+
+          await notificarRespuestaPartido({
+            jugadorDestinoId: destinatarioId,
+            emisorNombre,
+            clubNombre,
+            fecha,
+            hora,
+            aceptado: false,
+            esSolicitudUnirse,
+          }).catch(() => {});
+        }
+
         return null;
       }
     },

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatFechaReserva, formatHoraReserva, useMyReservas } from '../hooks/useMyReservas';
 import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
-import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import { supabase } from '@/lib/supabase';
 import { 
   usePartidosAbiertos, 
@@ -19,8 +18,10 @@ function isPartidoPasado(p: any): boolean {
   const horaStr = p.reserva ? p.reserva.hora_inicio : p.hora_inicio_manual;
   if (!fechaStr || !horaStr) return false;
 
-  // Combinar fecha y hora
-  const matchDateTime = new Date(`${fechaStr}T${horaStr.slice(0, 5)}`);
+  const [year, month, day] = fechaStr.split('-').map(Number);
+  const [hour, minute] = horaStr.split(':').map(Number);
+
+  const matchDateTime = new Date(year, month - 1, day, hour, minute);
   
   // Duración aproximada del partido: 2 horas
   matchDateTime.setHours(matchDateTime.getHours() + 2);
@@ -29,7 +30,6 @@ function isPartidoPasado(p: any): boolean {
 }
 
 export function JugarTab() {
-  const { profile } = usePlayerProfile();
   const [selectedCategoria, setSelectedCategoria] = useState<string>('Todos');
   const [modalOpen, setModalOpen] = useState(false);
   const [friendsModalOpen, setFriendsModalOpen] = useState(false);
@@ -131,7 +131,7 @@ export function JugarTab() {
         horaInicioManual: isManual ? horaInicioManual : undefined,
       });
 
-      // Invitar amigos seleccionados directamente y enviarles push notifications
+      // Invitar amigos seleccionados directamente
       if (partido && selectedFriendIds.length > 0) {
         for (const friendId of selectedFriendIds) {
           try {
@@ -139,22 +139,6 @@ export function JugarTab() {
               partidoId: partido.id,
               amigoId: friendId,
             });
-
-            // Disparar Web Push Notification a través de la API Serverless
-            const amigoObj = amigosConfirmados.find(a => a.id === friendId);
-            if (amigoObj?.auth_user_id) {
-              const miNombre = profile?.nombre || 'Un amigo';
-              void fetch('/api/send-pwa-push', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  user_id: amigoObj.auth_user_id,
-                  title: '🤝 Invitación a partido',
-                  body: `${miNombre} te invitó a jugar un partido.`,
-                  url: '/player'
-                })
-              }).catch(e => console.warn('[PWA-Push] Error al enviar:', e));
-            }
           } catch (err) {
             console.error('Error al invitar amigo', friendId, err);
           }
@@ -267,83 +251,79 @@ export function JugarTab() {
             return (
               <div
                 key={p.id}
-                style={{
-                  background: '#ffffff',
-                  borderRadius: 20,
-                  border: '1.5px solid #E2E8F0',
-                  padding: 16,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-                }}
+                className="bg-white rounded-2xl border border-slate-200/90 p-4 flex flex-col gap-3.5 shadow-sm hover:shadow-md transition duration-200"
               >
                 {/* Organizador y Visibilidad */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="flex items-center justify-between gap-2">
                   <div 
                     onClick={() => setActivePlayerProfileId(p.organizador_id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                    className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 group"
                   >
                     {p.organizador?.foto_url ? (
-                      <div
-                        style={{
-                          width: 40, height: 40, borderRadius: '50%',
-                          backgroundImage: `url(${p.organizador.foto_url})`,
-                          backgroundSize: 'cover', backgroundPosition: 'center',
-                          border: '2px solid #39C54A'
-                        }}
+                      <img
+                        src={p.organizador.foto_url}
+                        alt={p.organizador?.nombre_display || 'Jugador'}
+                        className="w-11 h-11 rounded-full object-cover shrink-0 border-2 border-[#39C54A] shadow-xs group-hover:opacity-90 transition"
                       />
                     ) : (
-                      <div style={{
-                        width: 40, height: 40, borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #0B1F4D 0%, #162d6b 100%)',
-                        color: '#ffffff', fontWeight: 800, fontSize: 14,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: "'Poppins', sans-serif",
-                        border: '2px solid #D9F23B',
-                      }}>
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#0B1F4D] to-[#162d6b] text-white font-extrabold text-sm flex items-center justify-center shrink-0 border-2 border-[#D9F23B] shadow-xs font-['Poppins']">
                         {p.organizador?.nombre_display?.charAt(0).toUpperCase() || 'JG'}
                       </div>
                     )}
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-[#0B1F4D] truncate group-hover:text-primary transition">
                         {p.organizador?.nombre_display || 'Jugador'} {p.organizador?.alias ? `(@${p.organizador.alias})` : ''}
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>
-                        {esOrganizador ? 'Organizado por vos' : 'Organizador'}
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        {esOrganizador ? '⭐ Organizado por vos' : 'Organizador'}
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 800,
-                      color: p.visibilidad === 'amigos' ? '#D97706' : '#1D4ED8',
-                      background: p.visibilidad === 'amigos' ? '#FEF3C7' : '#DBEAFE',
-                      borderRadius: 12, padding: '4px 10px', textTransform: 'uppercase'
-                    }}>
-                      🔒 {p.visibilidad === 'amigos' ? 'Amigos' : 'Público'}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                      p.visibilidad === 'amigos' 
+                        ? 'text-amber-700 bg-amber-100/80 border border-amber-200' 
+                        : 'text-blue-700 bg-blue-100/80 border border-blue-200'
+                    }`}>
+                      {p.visibilidad === 'amigos' ? '🔒 Amigos' : '🌐 Público'}
                     </span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 800,
-                      color: '#0B1F4D', background: '#D9F23B',
-                      borderRadius: 12, padding: '4px 10px'
-                    }}>
+                    <span className="text-[11px] font-extrabold text-[#0B1F4D] bg-[#D9F23B] px-2.5 py-1 rounded-full border border-lime-400/50 shadow-2xs">
                       {p.categoria}
                     </span>
                   </div>
                 </div>
 
                 {/* Detalle del Turno */}
-                <div style={{ background: '#F8F9FC', borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F4D' }}>
-                    📍 {p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'} <span style={{ fontWeight: 500, color: '#64748B' }}>({p.reserva?.cancha?.nombre || p.cancha_nombre_manual || 'Cancha'})</span>
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex flex-col gap-1.5">
+                  <div className="text-sm font-bold text-[#0B1F4D] flex items-center gap-1.5 truncate">
+                    <span className="shrink-0 text-base">📍</span>
+                    <span className="truncate">{p.reserva?.club?.nombre || p.club_nombre_manual || 'Club'}</span>
+                    <span className="text-xs font-semibold text-slate-500 shrink-0">
+                      ({p.reserva?.cancha?.nombre || p.cancha_nombre_manual || 'Cancha'})
+                    </span>
                   </div>
-                  <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
-                    📅 {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')} · 🕒 {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
+                  <div className="text-xs text-slate-700 font-semibold flex items-center gap-1.5 flex-wrap">
+                    <span className="shrink-0">📅</span>
+                    <span>
+                      {p.reserva ? formatFechaReserva(p.reserva.fecha) : (p.fecha_manual ? formatFechaReserva(p.fecha_manual) : '')}
+                    </span>
+                    <span className="text-slate-300">·</span>
+                    <span className="shrink-0">🕒</span>
+                    <span>
+                      {p.reserva ? formatHoraReserva(p.reserva.hora_inicio) : (p.hora_inicio_manual ? formatHoraReserva(p.hora_inicio_manual) : '')} hs
+                    </span>
+                    {p.posicion_buscada && p.posicion_buscada !== 'Cualquiera' && (
+                      <>
+                        <span className="text-slate-300">·</span>
+                        <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md text-[11px] border border-indigo-100">
+                          Posición: {p.posicion_buscada}
+                        </span>
+                      </>
+                    )}
                   </div>
                   {p.nota && (
-                    <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', marginTop: 4, background: '#ffffff', padding: '6px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                    <div className="text-xs text-slate-600 italic bg-white p-2.5 rounded-xl border border-slate-200/60 mt-1 shadow-2xs leading-relaxed">
                       "{p.nota}"
                     </div>
                   )}
@@ -351,19 +331,29 @@ export function JugarTab() {
 
                 {/* Participantes confirmados */}
                 {confirmados.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 4px' }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', margin: 0 }}>PARTICIPANTES CONFIRMADOS:</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div className="space-y-1.5 px-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Participantes confirmados ({confirmados.length}):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
                       {confirmados.map(pt => (
                         <div 
                           key={pt.id} 
                           onClick={() => setActivePlayerProfileId(pt.jugador_app_id)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F1F5F9', padding: '4px 8px', borderRadius: 20, cursor: 'pointer' }}
+                          className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-full cursor-pointer transition text-xs"
                         >
-                          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold' }}>
-                            {pt.jugador?.nombre_display?.charAt(0).toUpperCase() || 'P'}
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>
+                          {pt.jugador?.foto_url ? (
+                            <img 
+                              src={pt.jugador.foto_url} 
+                              alt={pt.jugador?.nombre_display || 'Jugador'} 
+                              className="w-4 h-4 rounded-full object-cover shrink-0" 
+                            />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full bg-slate-300 text-slate-800 flex items-center justify-center text-[9px] font-bold shrink-0">
+                              {pt.jugador?.nombre_display?.charAt(0).toUpperCase() || 'P'}
+                            </div>
+                          )}
+                          <span className="font-semibold text-slate-700">
                             {pt.jugador?.nombre_display}
                           </span>
                         </div>
@@ -372,28 +362,64 @@ export function JugarTab() {
                   </div>
                 )}
 
-                {/* Acciones de la Tarjeta */}
-                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      fontSize: 12, fontWeight: 700,
-                      color: vacantesRestantes > 0 ? '#16A34A' : '#DC2626', 
-                      background: vacantesRestantes > 0 ? '#F0FDF4' : '#FEF2F2',
-                      border: `1px solid ${vacantesRestantes > 0 ? '#BBF7D0' : '#FECACA'}`, 
-                      padding: '4px 10px', borderRadius: 20
-                    }}>
+                {/* ── BANNER DESTACADO SI TE INVITARON AL PARTIDO ── */}
+                {invitacionPendiente && (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-teal-500/5 border-2 border-emerald-500/40 shadow-xs flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                        📩
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-extrabold text-emerald-950 dark:text-emerald-100 leading-tight">
+                          ¡Te invitaron a jugar este partido!
+                        </p>
+                        <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-tight">
+                          Aceptá para confirmar tu lugar en la cancha.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-500/20">
+                      <button
+                        type="button"
+                        onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: true })}
+                        disabled={responderInvitacion.isPending}
+                        className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <span>✓ Aceptar Invitación</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: false })}
+                        disabled={responderInvitacion.isPending}
+                        className="w-full py-2.5 px-3 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-slate-200 active:scale-98 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>✕ Rechazar</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Footer de Estado y Acciones ── */}
+                <div className="border-t border-slate-100 pt-3 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className={`text-xs font-extrabold px-3 py-1 rounded-full border ${
+                      vacantesRestantes > 0 
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
+                        : 'text-red-700 bg-red-50 border-red-200'
+                    }`}>
                       {vacantesRestantes > 0 ? `⚡ Faltan ${vacantesRestantes} jugadores` : '🚫 Partido completo'}
                     </span>
 
                     {/* Controles de Organizador */}
                     {esOrganizador && (
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleOpenFriendsModal(p.id)}
-                          style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#ffffff', color: '#0B1F4D', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[#0B1F4D] font-bold text-xs transition shadow-2xs flex items-center gap-1 cursor-pointer"
                         >
-                          ➕ Invitar amigos
+                          ➕ Invitar
                         </button>
                         <button
                           type="button"
@@ -402,44 +428,32 @@ export function JugarTab() {
                               await eliminarPartido.mutateAsync(p.id);
                             }
                           }}
-                          style={{ padding: '8px 12px', borderRadius: 10, border: 'none', background: '#FEE2E2', color: '#DC2626', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                          className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition flex items-center gap-1 cursor-pointer"
                         >
                           🗑️ Cancelar
                         </button>
                       </div>
                     )}
 
-                    {/* Controles de Tercero / Amigo */}
-                    {!esOrganizador && (
-                      <div>
+                    {/* Controles de Jugador Anotado / Solicitud */}
+                    {!esOrganizador && !invitacionPendiente && (
+                      <div className="flex items-center gap-2">
                         {esParticipante ? (
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <span style={{ fontSize: 12, color: '#16A34A', fontWeight: 'bold' }}>✓ Ya estás anotado</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                              ✓ Ya estás anotado
+                            </span>
                             <button
+                              type="button"
                               onClick={() => responderInvitacion.mutate({ participanteId: esParticipante.id, aceptar: false })}
-                              style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#F1F5F9', color: '#64748B', fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 text-xs font-bold transition cursor-pointer"
                             >
                               Salir
                             </button>
                           </div>
-                        ) : invitacionPendiente ? (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: true })}
-                              style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#10B981', color: '#ffffff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
-                            >
-                              Aceptar Inv.
-                            </button>
-                            <button
-                              onClick={() => responderInvitacion.mutate({ participanteId: invitacionPendiente.id, aceptar: false })}
-                              style={{ padding: '8px 12px', borderRadius: 10, border: 'none', background: '#F1F5F9', color: '#64748B', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-                            >
-                              Rechazar
-                            </button>
-                          </div>
                         ) : solicitudPendiente ? (
-                          <span style={{ fontSize: 12, color: '#D97706', fontWeight: 'bold', fontStyle: 'italic' }}>
-                            Solicitud enviada...
+                          <span className="text-xs text-amber-700 font-bold italic bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                            ⏳ Solicitud enviada...
                           </span>
                         ) : (
                           vacantesRestantes > 0 && (
@@ -447,17 +461,7 @@ export function JugarTab() {
                               type="button"
                               onClick={() => solicitarUnirse.mutate({ partidoId: p.id })}
                               disabled={solicitarUnirse.isPending}
-                              style={{
-                                padding: '10px 18px',
-                                borderRadius: 12,
-                                border: 'none',
-                                background: '#39C54A',
-                                color: '#0B1F4D',
-                                fontWeight: 800,
-                                fontSize: 13,
-                                cursor: 'pointer',
-                                boxShadow: '0 2px 8px rgba(57,197,74,0.3)',
-                              }}
+                              className="px-4 py-2 rounded-xl bg-[#39C54A] hover:bg-[#32b041] active:scale-98 text-[#0B1F4D] font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
                             >
                               🎾 Solicitar unirme
                             </button>
@@ -469,36 +473,41 @@ export function JugarTab() {
 
                   {/* Solicitudes de ingreso pendientes (para el organizador) */}
                   {esOrganizador && solicitudesEntrantes.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#FFFBEB', border: '1px dashed #FDE68A', padding: 10, borderRadius: 12, marginTop: 4 }}>
-                      <p style={{ fontSize: 11, fontWeight: 800, color: '#B45309', margin: 0 }}>SOLICITUDES DE UNIÓN PENDIENTES:</p>
-                      {solicitudesEntrantes.map(sol => (
-                        <div key={sol.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span 
-                            onClick={() => setActivePlayerProfileId(sol.jugador_app_id)}
-                            style={{ fontSize: 12, fontWeight: 700, color: '#78350F', cursor: 'pointer' }}
-                          >
-                            {sol.jugador?.nombre_display}
-                          </span>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button
-                              onClick={() => responderInvitacion.mutate({ participanteId: sol.id, aceptar: true })}
-                              style={{ padding: '4px 8px', fontSize: 11, borderRadius: 6, border: 'none', background: '#10B981', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+                    <div className="flex flex-col gap-2 bg-amber-50/80 border border-amber-200 p-3 rounded-2xl mt-1">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-amber-900">
+                        Solicitudes de unión pendientes ({solicitudesEntrantes.length}):
+                      </p>
+                      <div className="space-y-1.5">
+                        {solicitudesEntrantes.map(sol => (
+                          <div key={sol.id} className="flex items-center justify-between gap-2 bg-white p-2 rounded-xl border border-amber-100 shadow-2xs">
+                            <span 
+                              onClick={() => setActivePlayerProfileId(sol.jugador_app_id)}
+                              className="text-xs font-bold text-amber-950 cursor-pointer hover:underline truncate"
                             >
-                              Aceptar
-                            </button>
-                            <button
-                              onClick={() => responderInvitacion.mutate({ participanteId: sol.id, aceptar: false })}
-                              style={{ padding: '4px 8px', fontSize: 11, borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
-                            >
-                              Rechazar
-                            </button>
+                              {sol.jugador?.nombre_display}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => responderInvitacion.mutate({ participanteId: sol.id, aceptar: true })}
+                                className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-xs cursor-pointer"
+                              >
+                                Aceptar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => responderInvitacion.mutate({ participanteId: sol.id, aceptar: false })}
+                                className="px-2.5 py-1 text-[11px] rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold transition cursor-pointer"
+                              >
+                                Rechazar
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-
               </div>
             );
           })
@@ -906,21 +915,6 @@ export function JugarTab() {
                             partidoId: activePartidoIdForFriends,
                             amigoId: amigo.id,
                           });
-
-                          // Enviar push notification al amigo
-                          if (amigo.auth_user_id) {
-                            const miNombre = profile?.nombre || 'Un amigo';
-                            void fetch('/api/send-pwa-push', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                user_id: amigo.auth_user_id,
-                                title: '🤝 Invitación a partido',
-                                body: `${miNombre} te invitó a jugar un partido.`,
-                                url: '/player'
-                              })
-                            }).catch(e => console.warn('[PWA-Push] Error al enviar:', e));
-                          }
                         }}
                         style={{
                           padding: '6px 12px',

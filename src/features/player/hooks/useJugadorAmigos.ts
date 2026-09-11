@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/network';
+import { notificarSolicitudAmigo, notificarAmistadAceptada } from '@/lib/notifications';
 
 export interface Amigo {
   id:             string; // UUID del jugador_app
@@ -172,17 +173,16 @@ export function useJugadorAmigos() {
         if (e2) throw e2;
       }
 
-      // 3. Notificación explícita al destinatario
+      // 3. Notificación explícita al destinatario con Push / Realtime
       try {
-        const miNombre = jugadorApp.alias ? `@${jugadorApp.alias}` : (jugadorApp.nombre_display || 'Un jugador');
-        await supabase.from('notificaciones').insert({
-          jugador_app_id: jugadorDestino.id,
-          titulo: '🤝 ¡Nueva solicitud de amistad!',
-          mensaje: `${miNombre} quiere agregarte como amigo en MatchGo.`,
-          tipo: 'solicitud_amigo',
-          leido: false,
+        await notificarSolicitudAmigo({
+          amigoDestinoId: jugadorDestino.id,
+          remitenteNombre: jugadorApp.nombre_display || 'Un jugador',
+          remitenteAlias: jugadorApp.alias,
         });
-      } catch {}
+      } catch (notifErr) {
+        console.warn('[agregarAmigo] Error al notificar:', notifErr);
+      }
 
       await refetch();
     } catch (err) {
@@ -201,7 +201,7 @@ export function useJugadorAmigos() {
 
       const { data: jugadorApp } = await supabase
         .from('jugadores_app')
-        .select('id')
+        .select('id, nombre_display, alias')
         .eq('auth_user_id', user.id)
         .single();
 
@@ -217,6 +217,18 @@ export function useJugadorAmigos() {
         .eq('jugador_app_id_2', id2);
 
       if (error) throw error;
+
+      // Notificar al amigo que su solicitud fue aceptada
+      try {
+        const miNombre = jugadorApp.alias ? `@${jugadorApp.alias}` : (jugadorApp.nombre_display || 'Tu amigo');
+        await notificarAmistadAceptada({
+          amigoDestinoId: amigoId,
+          amigoNombre: miNombre,
+        });
+      } catch (notifErr) {
+        console.warn('[confirmarAmigo] Error al notificar:', notifErr);
+      }
+
       await refetch();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al confirmar amigo';

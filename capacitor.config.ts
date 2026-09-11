@@ -54,11 +54,12 @@ const config: CapacitorConfig = {
     // a partir de assets/icon.png (1024×1024) y assets/splash.png (2732×2732).
     // Comando: npx @capacitor/assets generate
     SplashScreen: {
-      launchShowDuration: 1800,
+      launchShowDuration: 2000,
       launchAutoHide: true,
+      launchFadeOutDuration: 300,
       backgroundColor: '#0B1F4D',
-      androidSplashResourceName: 'splash',
-      androidScaleType: 'CENTER_CROP',
+      androidSplashResourceName: 'launch_splash',
+      androidScaleType: 'CENTER',
       showSpinner: false,
     },
   },
