@@ -57,6 +57,7 @@ export function ClubesList({ clubes, onClickClub }: ClubesListProps) {
         <thead>
           <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 font-medium">Club</th>
+            <th className="px-3 py-2 font-medium">Admin / Email</th>
             <th className="px-3 py-2 font-medium">Plan</th>
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 text-right font-medium">Usuarios</th>
@@ -92,6 +93,20 @@ export function ClubesList({ clubes, onClickClub }: ClubesListProps) {
                     </span>
                   </div>
                 </div>
+              </td>
+              <td className="px-3 py-3">
+                {c.admin_email ? (
+                  <div className="flex flex-col min-w-0 max-w-[200px]">
+                    <span className="truncate text-xs font-medium text-foreground">
+                      {c.admin_nombre || 'Administrador'}
+                    </span>
+                    <span className="truncate text-[11px] text-muted-foreground font-mono" title={c.admin_email}>
+                      {c.admin_email}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Sin admin</span>
+                )}
               </td>
               <td className="px-3 py-3 text-muted-foreground">
                 {c.plan_nombre}
