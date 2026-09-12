@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Building2, RotateCcw } from 'lucide-react';
+import {
+  AlertTriangle,
+  Building2,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  User,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,6 +34,8 @@ import { usePlanesDisponibles } from './hooks/usePlanesDisponibles';
 import { useResetearClub } from './hooks/useResetearClub';
 import { useEditarClubInfo } from './hooks/useEditarClubInfo';
 import { useEliminarClub } from './hooks/useEliminarClub';
+import { useUsuariosClubPlataforma } from './hooks/useUsuariosClubPlataforma';
+import { useCambiarPasswordUsuario } from './hooks/useCambiarPasswordUsuario';
 
 const fechaFmt = new Intl.DateTimeFormat('es-AR', {
   year: 'numeric',
@@ -282,6 +297,9 @@ export function DetalleClubDialog({
                   </Button>
                 </div>
               </form>
+
+              {/* Administradores y Accesos */}
+              <UsuariosClubSeccion clubId={club.id} clubNombre={club.nombre} />
 
               {/* Plan */}
               <section className="space-y-2">
@@ -672,3 +690,284 @@ function EstadoPill({
     </button>
   );
 }
+
+function generarPasswordLegible(clubNombre: string): string {
+  const base = clubNombre.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6) || 'Padel';
+  const cap = base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+  const anio = new Date().getFullYear();
+  const num = Math.floor(10 + Math.random() * 90);
+  return `${cap}${anio}!${num}`;
+}
+
+function UsuariosClubSeccion({
+  clubId,
+  clubNombre,
+}: {
+  clubId: number;
+  clubNombre: string;
+}) {
+  const usuariosQuery = useUsuariosClubPlataforma(clubId);
+  const cambiarPassMutation = useCambiarPasswordUsuario();
+
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedCredsId, setCopiedCredsId] = useState<string | null>(null);
+  const [successUserId, setSuccessUserId] = useState<string | null>(null);
+  const [passError, setPassError] = useState<string | null>(null);
+
+  const usuarios = usuariosQuery.data ?? [];
+
+  function handleStartChangePass(userId: string) {
+    setEditingUserId(userId);
+    setNewPassword(generarPasswordLegible(clubNombre));
+    setShowPassword(true);
+    setPassError(null);
+    setSuccessUserId(null);
+    setCopiedCredsId(null);
+  }
+
+  async function handleSavePass(userId: string) {
+    if (!newPassword || newPassword.length < 6) {
+      setPassError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    setPassError(null);
+    try {
+      await cambiarPassMutation.mutateAsync({
+        userId,
+        newPassword,
+        clubId,
+      });
+      setSuccessUserId(userId);
+      setEditingUserId(null);
+      setTimeout(() => setSuccessUserId(null), 5000);
+    } catch (err) {
+      setPassError(
+        err instanceof Error ? err.message : 'Error al actualizar la contraseña.',
+      );
+    }
+  }
+
+  function handleCopyEmail(email: string, id: string) {
+    navigator.clipboard.writeText(email);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  function handleCopyCredenciales(email: string, pass: string, id: string) {
+    navigator.clipboard.writeText(`Email: ${email}\nContraseña: ${pass}`);
+    setCopiedCredsId(id);
+    setTimeout(() => setCopiedCredsId(null), 2500);
+  }
+
+  return (
+    <section className="space-y-3 rounded-md border border-border p-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Shield className="h-3.5 w-3.5 text-primary" />
+          Administradores y Accesos ({usuarios.length})
+        </h4>
+      </div>
+
+      {usuariosQuery.isLoading ? (
+        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Cargando usuarios del club…
+        </div>
+      ) : usuarios.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-1">
+          No se encontraron usuarios registrados para este club.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {usuarios.map((u) => {
+            const isEditing = editingUserId === u.id;
+            const isSuccess = successUserId === u.id;
+            const isCopied = copiedId === u.id;
+            const isCredsCopied = copiedCredsId === u.id;
+
+            return (
+              <div
+                key={u.id}
+                className="rounded-lg border border-border/80 bg-muted/20 p-2.5 space-y-2 text-xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground flex items-center gap-1">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        {u.nombre}
+                      </span>
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[10px] font-medium uppercase',
+                          u.rol === 'admin'
+                            ? 'bg-primary/10 text-primary border border-primary/20'
+                            : 'bg-muted text-muted-foreground border border-border',
+                        )}
+                      >
+                        {u.rol}
+                      </span>
+                      {!u.activo && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-destructive/10 text-destructive border border-destructive/20">
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
+
+                    {u.email ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground pt-0.5">
+                        <span className="font-mono text-[11px] text-foreground/90 select-all">
+                          {u.email}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyEmail(u.email || '', u.id)}
+                          className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Copiar email"
+                        >
+                          {isCopied ? (
+                            <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground italic">
+                        Sin email registrado
+                      </p>
+                    )}
+                  </div>
+
+                  {!isEditing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStartChangePass(u.id)}
+                      className="h-7 text-xs gap-1 shrink-0"
+                    >
+                      <KeyRound className="h-3 w-3 text-primary" />
+                      Cambiar clave
+                    </Button>
+                  )}
+                </div>
+
+                {isSuccess && (
+                  <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
+                    <span>✓ Contraseña actualizada correctamente.</span>
+                  </div>
+                )}
+
+                {isEditing && (
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-2.5 space-y-2 mt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-foreground text-[11px]">
+                        Asignar nueva contraseña para <strong>{u.nombre}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewPassword(generarPasswordLegible(clubNombre))
+                        }
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium bg-transparent border-0 cursor-pointer"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Generar sugerida
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Nueva contraseña (mín 6 car.)"
+                        className="h-8 text-xs font-mono pr-8 bg-background"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+
+                    {passError && (
+                      <p className="text-[11px] text-destructive">{passError}</p>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      {u.email && newPassword.length >= 6 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCopyCredenciales(u.email || '', newPassword, u.id)
+                          }
+                          className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 bg-transparent border-0 cursor-pointer"
+                        >
+                          {isCredsCopied ? (
+                            <>
+                              <Check className="h-3 w-3 text-emerald-600" />
+                              <span className="text-emerald-600 font-medium">
+                                Credenciales copiadas
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3" />
+                              <span>Copiar credenciales</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+
+                      <div className="flex gap-1.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingUserId(null)}
+                          disabled={cambiarPassMutation.isPending}
+                          className="h-7 text-xs"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleSavePass(u.id)}
+                          disabled={
+                            cambiarPassMutation.isPending ||
+                            newPassword.length < 6
+                          }
+                          className="h-7 text-xs"
+                        >
+                          {cambiarPassMutation.isPending
+                            ? 'Guardando…'
+                            : 'Guardar clave'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
