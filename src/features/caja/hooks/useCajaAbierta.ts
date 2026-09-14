@@ -32,9 +32,9 @@ export function useCajaAbierta(): UseQueryResult<TurnoCaja | null, Error> {
         .from('turnos_caja')
         .select('*')
         .eq('id', cajaId as number)
-        .single();
+        .maybeSingle();
       if (error) throw new Error(mapPostgrestError(error));
-      return data as TurnoCaja;
+      return (data ?? null) as TurnoCaja | null;
     },
   });
 }

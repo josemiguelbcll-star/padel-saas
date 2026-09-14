@@ -50,10 +50,14 @@ export async function fetchClubPublico(slug: string) {
     .from('v_clubes_publicos')
     .select('*')
     .eq('slug', slug)
-    .single();
+    .maybeSingle();
 
-  if (clubError || !club) {
-    throw clubError ?? new Error('Club no encontrado');
+  if (clubError) {
+    throw clubError;
+  }
+
+  if (!club) {
+    throw new Error('Club no encontrado o perfil público aún no activado');
   }
 
   const [{ data: canchas }, { data: fotos }] = await Promise.all([

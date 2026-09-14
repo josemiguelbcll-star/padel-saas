@@ -3,20 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useClubsPublicos } from '@/features/landing/hooks/useClubsPublicos';
 import { fetchClubPublico } from '@/features/landing/hooks/useClubPublico';
 import { fetchDisponibilidadClub } from '@/features/landing/hooks/useDisponibilidadClub';
-
-// ── Fotos reales de canchas de pádel (Pexels — licencia libre) ─────────────
-const COURT_PHOTOS = [
-  'https://images.pexels.com/photos/32474981/pexels-photo-32474981/free-photo-of-indoor-padel-court-with-blue-surface.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop',
-  'https://images.pexels.com/photos/35261961/pexels-photo-35261961/free-photo-of-dynamic-indoor-padel-tennis-match-action.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop',
-  'https://images.pexels.com/photos/32897040/pexels-photo-32897040/free-photo-of-vibrant-indoor-padel-court-with-racket-and-balls.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop',
-  'https://images.pexels.com/photos/35525977/pexels-photo-35525977/free-photo-of-man-playing-paddle-tennis-on-blue-court.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop',
-  'https://images.pexels.com/photos/35248501/pexels-photo-35248501/free-photo-of-group-of-women-playing-indoor-padel-tennis.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop',
-];
-
-function courtPhoto(clubId: number, portada_url: string | null): string {
-  if (portada_url) return portada_url;
-  return COURT_PHOTOS[clubId % COURT_PHOTOS.length] ?? COURT_PHOTOS[0]!;
-}
+import { getLogoClubUrl } from '@/lib/clubBrand';
 
 // ── Club card ─────────────────────────────────────────────────────────────────
 
@@ -26,17 +13,26 @@ interface ClubCardProps {
     nombre: string;
     slug: string;
     ciudad: string | null;
-    portada_url: string | null;
+    logo_path?: string | null;
+    portada_url?: string | null;
   };
   onSelect: (slug: string) => void;
 }
 
 function ClubCard({ club, onSelect }: ClubCardProps) {
   const queryClient = useQueryClient();
-  const foto = courtPhoto(club.id, club.portada_url);
-  const [fotoError, setFotoError] = useState(false);
+  const logoUrl = getLogoClubUrl(club.logo_path ?? null);
+  const [logoError, setLogoError] = useState(false);
 
-  const displayFoto = fotoError ? COURT_PHOTOS[0]! : foto;
+  // Iniciales del club como fallback prolijo
+  const iniciales = club.nombre
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('') || club.nombre.slice(0, 2).toUpperCase() || 'C';
+
+  const muestraLogo = Boolean(logoUrl && !logoError);
 
   const handlePrefetch = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -76,26 +72,49 @@ function ClubCard({ club, onSelect }: ClubCardProps) {
         boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
       }}
     >
-      {/* Miniatura cuadrada — no se deforma y ocupa poco espacio */}
+      {/* Miniatura cuadrada con el LOGO cargado desde el panel */}
       <div style={{
         width: 80,
         height: 80,
-        borderRadius: 12,
+        borderRadius: 14,
         overflow: 'hidden',
         flexShrink: 0,
-        background: '#F1F5F9',
-        border: '1px solid #E2E8F0',
+        background: '#ffffff',
+        border: '1.5px solid #E2E8F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: muestraLogo ? 6 : 0,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
       }}>
-        <img 
-          src={displayFoto} 
-          alt={club.nombre} 
-          onError={() => setFotoError(true)}
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            objectFit: 'cover' 
-          }} 
-        />
+        {muestraLogo ? (
+          <img 
+            src={logoUrl!} 
+            alt={`Logo ${club.nombre}`} 
+            onError={() => setLogoError(true)}
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              objectFit: 'contain',
+            }} 
+          />
+        ) : (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(135deg, #0B1F4D 0%, #1E3A8A 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#D9F23B',
+            fontFamily: "'Poppins', sans-serif",
+            fontWeight: 800,
+            fontSize: 22,
+            letterSpacing: '0.04em',
+          }}>
+            {iniciales}
+          </div>
+        )}
       </div>
 
       {/* Info a la derecha */}
