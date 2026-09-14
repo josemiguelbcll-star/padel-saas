@@ -99,7 +99,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             src={logoUrl ?? ''}
             alt={`Logo de ${club?.nombre ?? 'el club'}`}
             onError={() => setLogoError(true)}
-            className="h-7 w-7 shrink-0 rounded object-contain"
+            className="h-7 max-w-[5rem] shrink-0 rounded object-contain"
           />
         )}
         <span className="truncate text-base font-semibold text-foreground">

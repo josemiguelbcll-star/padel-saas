@@ -173,26 +173,143 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
 
   // ── Pantalla principal de login / registro ─────────────────────────────────
   return (
-    <div className="mgp-auth" style={{ background: '#F0F4F8' }}>
+    <div className="mgp-auth" style={{
+      minHeight: '100dvh',
+      background: 'radial-gradient(circle at 50% 10%, #17326D 0%, #0B1F4D 60%, #061129 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px 16px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Círculos de acento decorativos en el fondo */}
+      <div style={{
+        position: 'absolute',
+        top: '-10%',
+        right: '-5%',
+        width: 320,
+        height: 320,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(217, 242, 59, 0.08) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-10%',
+        left: '-5%',
+        width: 300,
+        height: 300,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(57, 197, 74, 0.08) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
       <div className="mgp-auth-card" style={{
-        width: '100%', maxWidth: 380,
-        background: '#ffffff', borderRadius: 24,
-        padding: 32,
-        boxShadow: '0 4px 24px rgba(11,31,77,0.10)',
+        width: '100%',
+        maxWidth: 390,
+        background: '#ffffff',
+        borderRadius: 28,
+        padding: '32px 28px',
+        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1)',
         boxSizing: 'border-box',
+        position: 'relative',
+        zIndex: 1,
       }}>
 
-        {/* Logo */}
+        {/* ── Logo e Identidad MatchGo ── */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div className="mgp-auth-logo">MatchGo</div>
-          <div className="mgp-auth-sub">El pádel de Salta en tu bolsillo</div>
+          <div style={{
+            width: 60,
+            height: 60,
+            margin: '0 auto 12px',
+            borderRadius: 16,
+            overflow: 'hidden',
+            boxShadow: '0 6px 18px rgba(11, 31, 77, 0.18)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#0B1F4D',
+          }}>
+            <img
+              src="/icons/icon.svg"
+              alt="MatchGo"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          </div>
+
+          <h1 style={{
+            fontFamily: "'Poppins', sans-serif",
+            fontWeight: 800,
+            fontSize: 26,
+            color: '#0B1F4D',
+            margin: '0 0 4px',
+            letterSpacing: '-0.02em',
+          }}>
+            Match<span style={{ color: '#16A34A' }}>Go</span>
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748B', margin: 0, fontWeight: 500 }}>
+            El pádel de Salta en tu bolsillo 🎾
+          </p>
         </div>
+
+        {/* ── Tabs de Modo (Iniciar sesión / Crear cuenta) ── */}
+        {mode !== 'recover' && (
+          <div style={{
+            display: 'flex',
+            background: '#F1F5F9',
+            borderRadius: 12,
+            padding: 3,
+            marginBottom: 20,
+          }}>
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setError(null); }}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                borderRadius: 10,
+                border: 'none',
+                background: mode === 'login' ? '#ffffff' : 'transparent',
+                color: mode === 'login' ? '#0B1F4D' : '#64748B',
+                fontWeight: mode === 'login' ? 700 : 500,
+                fontSize: 13,
+                boxShadow: mode === 'login' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                fontFamily: 'inherit',
+              }}
+            >
+              Iniciar sesión
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('register'); setError(null); }}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                borderRadius: 10,
+                border: 'none',
+                background: mode === 'register' ? '#ffffff' : 'transparent',
+                color: mode === 'register' ? '#0B1F4D' : '#64748B',
+                fontWeight: mode === 'register' ? 700 : 500,
+                fontSize: 13,
+                boxShadow: mode === 'register' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                fontFamily: 'inherit',
+              }}
+            >
+              Crear cuenta
+            </button>
+          </div>
+        )}
 
         {/* Error banner */}
         {error && (
           <div style={{
             background: '#FEF2F2', border: '1px solid #FECACA',
-            borderRadius: 10, padding: '11px 14px', marginBottom: 16,
+            borderRadius: 12, padding: '11px 14px', marginBottom: 16,
             fontSize: 13, color: '#DC2626',
             display: 'flex', alignItems: 'flex-start', gap: 8,
           }}>
@@ -209,17 +326,20 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
 
         {mode !== 'recover' ? (
           <>
-            <form onSubmit={handleSubmit}>
-              <input
-                className="mgp-input"
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={e => { setEmail(e.target.value); setError(null); }}
-                autoComplete="email"
-                required
-                disabled={isLoading}
-              />
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <input
+                  className="mgp-input"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setError(null); }}
+                  autoComplete="email"
+                  required
+                  disabled={isLoading}
+                  style={{ borderRadius: 12 }}
+                />
+              </div>
 
               <div className="mgp-password-field">
                 <input
@@ -231,6 +351,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
                   disabled={isLoading}
+                  style={{ borderRadius: 12 }}
                 />
                 <button
                   type="button"
@@ -256,7 +377,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
               </div>
 
               {mode === 'login' && (
-                <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 16 }}>
+                <div style={{ textAlign: 'right', marginTop: -4, marginBottom: 4 }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -269,7 +390,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
                       background: 'none', border: 'none',
                       color: '#64748B', fontSize: 12,
                       cursor: 'pointer', textDecoration: 'underline',
-                      padding: 0, fontFamily: 'inherit',
+                      padding: 0, fontFamily: 'inherit', fontWeight: 500,
                     }}
                   >
                     ¿Olvidaste tu contraseña?
@@ -280,7 +401,14 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
               <button
                 type="submit"
                 className="mgp-btn mgp-btn-primary mgp-btn-full"
-                style={{ marginTop: 4 }}
+                style={{
+                  marginTop: 4,
+                  borderRadius: 12,
+                  padding: '13px',
+                  fontWeight: 700,
+                  fontSize: 15,
+                  boxShadow: '0 4px 14px rgba(22, 163, 74, 0.25)',
+                }}
                 disabled={isLoading}
               >
                 {isLoading
@@ -291,7 +419,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
             </form>
 
             {/* Divisor */}
-            <div className="mgp-divider">o</div>
+            <div className="mgp-divider" style={{ margin: '18px 0', fontSize: 12, color: '#94A3B8' }}>o</div>
 
             {/* Google OAuth */}
             <button
@@ -299,6 +427,18 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
               className="mgp-btn mgp-btn-outline mgp-btn-full"
               onClick={handleGoogle}
               disabled={isLoading}
+              style={{
+                borderRadius: 12,
+                padding: '12px',
+                fontWeight: 600,
+                fontSize: 14,
+                border: '1.5px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                transition: 'all 0.2s',
+              }}
             >
               <svg width={18} height={18} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -308,23 +448,6 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
               </svg>
               Continuar con Google
             </button>
-
-            {/* Toggle login / registro */}
-            <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#64748B' }}>
-              {mode === 'login' ? '¿Primera vez?' : '¿Ya tenés cuenta?'}{' '}
-              <button
-                type="button"
-                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
-                style={{
-                  background: 'none', border: 'none',
-                  color: '#0B1F4D', fontWeight: 600,
-                  fontSize: 13, cursor: 'pointer',
-                  padding: 0, fontFamily: 'inherit',
-                }}
-              >
-                {mode === 'login' ? 'Creá tu cuenta' : 'Iniciá sesión'}
-              </button>
-            </p>
           </>
         ) : (
           <form onSubmit={handleRecoverySubmit}>
@@ -332,7 +455,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
               <div style={{ textAlign: 'center' }}>
                 <div style={{
                   background: '#ECFDF5', border: '1px solid #A7F3D0',
-                  borderRadius: 12, padding: '16px', marginBottom: 20,
+                  borderRadius: 14, padding: '16px', marginBottom: 20,
                   fontSize: 14, color: '#065F46', lineHeight: 1.5,
                 }}>
                   Te enviamos un email a <strong>{recoveryEmail}</strong> con las instrucciones para recuperar tu contraseña.
@@ -340,6 +463,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
                 <button
                   type="button"
                   className="mgp-btn mgp-btn-primary mgp-btn-full"
+                  style={{ borderRadius: 12 }}
                   onClick={() => { setMode('login'); setRecoverySent(false); }}
                 >
                   Volver al login
@@ -347,7 +471,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
               </div>
             ) : (
               <>
-                <p style={{ fontSize: 14, color: '#64748B', marginBottom: 16, lineHeight: 1.4 }}>
+                <p style={{ fontSize: 14, color: '#64748B', marginBottom: 16, lineHeight: 1.4, textAlign: 'center' }}>
                   Ingresá tu email y te enviaremos un link para reponer tu clave.
                 </p>
 
@@ -359,12 +483,13 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
                   onChange={e => { setRecoveryEmail(e.target.value); setError(null); }}
                   required
                   disabled={isLoading}
+                  style={{ borderRadius: 12, marginBottom: 12 }}
                 />
 
                 <button
                   type="submit"
                   className="mgp-btn mgp-btn-primary mgp-btn-full"
-                  style={{ marginTop: 8 }}
+                  style={{ borderRadius: 12 }}
                   disabled={isLoading}
                 >
                   {isLoading ? 'Enviando...' : 'Enviar instrucciones'}

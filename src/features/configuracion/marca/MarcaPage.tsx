@@ -423,7 +423,7 @@ function LogoSection({
           <img
             src={logoUrl}
             alt={`Logo de ${nombreClub}`}
-            className="h-20 w-20 shrink-0 rounded border border-border bg-background object-contain p-1"
+            className="h-20 min-w-[5rem] max-w-[10rem] shrink-0 rounded border border-border bg-background object-contain p-2 shadow-sm"
           />
         ) : (
           <div

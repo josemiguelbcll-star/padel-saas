@@ -50,9 +50,13 @@ export function useHorariosClub(): UseQueryResult<HorariosClub, Error> {
         .from('clubes')
         .select('hora_apertura, hora_cierre, duracion_turno_default')
         .eq('id', club.id)
-        .single();
+        .maybeSingle();
       if (error) throw new Error(mapPostgrestError(error));
-      return data as HorariosClub;
+      return (data ?? {
+        hora_apertura: null,
+        hora_cierre: null,
+        duracion_turno_default: 90,
+      }) as HorariosClub;
     },
     enabled: !!club,
     staleTime: 5 * 60 * 1000, // 5 minutos de cache en memoria

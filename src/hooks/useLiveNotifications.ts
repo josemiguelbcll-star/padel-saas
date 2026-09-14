@@ -105,7 +105,7 @@ export function useLiveNotifications() {
               .from('reservas')
               .select('id, fecha, hora_inicio, cancha:cancha_id(nombre), jugador:jugador_id(nombre), fecha_alta')
               .eq('id', newId)
-              .single();
+              .maybeSingle();
 
             if (error) {
               console.error('[useLiveNotifications] Error loading inserted reservation details:', error);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Clock, Phone, Globe, Instagram,
-  ChevronLeft, Search, SlidersHorizontal, CalendarDays, X,
+  ChevronLeft, ChevronRight, Search, SlidersHorizontal, CalendarDays, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLogoClubUrl } from '@/lib/clubBrand';
@@ -580,6 +580,7 @@ export function ClubProfilePage({
   const [bookingSlot,  setBookingSlot]  = useState<BookingSlot | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [portadaError, setPortadaError] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const dispQuery = useDisponibilidadClub(slug ?? '', fecha);
   const allSlots  = dispQuery.data ?? [];
@@ -603,6 +604,23 @@ export function ClubProfilePage({
     else if (onBack) onBack();
   }
 
+  // Keyboard navigation para el lightbox de fotos
+  useEffect(() => {
+    if (lightboxIndex === null || !data?.fotos) return;
+    const totalFotos = data.fotos.length;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLightboxIndex(null);
+      } else if (e.key === 'ArrowRight' && totalFotos > 0) {
+        setLightboxIndex((prev) => (prev !== null ? (prev + 1) % totalFotos : 0));
+      } else if (e.key === 'ArrowLeft' && totalFotos > 0) {
+        setLightboxIndex((prev) => (prev !== null ? (prev - 1 + totalFotos) % totalFotos : 0));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, data?.fotos]);
+
   if (isLoading) return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -621,7 +639,6 @@ export function ClubProfilePage({
 
   const { club, canchas, fotos } = data;
   const portada: FotoClub | null  = fotos.find(f => f.es_portada) ?? fotos[0] ?? null;
-  const galeria  = fotos.length > 1 ? fotos : [];
   const logoUrl  = getLogoClubUrl(club.logo_path);
 
   const contactHref       = club.telefono
@@ -687,13 +704,21 @@ export function ClubProfilePage({
       </header>
 
       {/* ── Hero photo ── */}
-      <div className="relative h-52 w-full overflow-hidden bg-muted sm:h-72">
+      <div 
+        className="relative h-52 w-full overflow-hidden bg-muted sm:h-72 cursor-pointer group"
+        onClick={() => {
+          if (fotos.length > 0) {
+            const portadaIdx = fotos.findIndex(f => f.es_portada);
+            setLightboxIndex(portadaIdx >= 0 ? portadaIdx : 0);
+          }
+        }}
+      >
         {portada && !portadaError ? (
           <img
             src={portada.url}
             alt={club.nombre}
             onError={() => setPortadaError(true)}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="eager"
           />
         ) : (
@@ -705,20 +730,23 @@ export function ClubProfilePage({
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
-        <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
+        <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3" onClick={(e) => e.stopPropagation()}>
           {logoUrl && !logoError && (
-            <img
-              src={logoUrl}
-              alt={club.nombre}
-              onError={() => setLogoError(true)}
-              className="h-14 w-14 shrink-0 rounded-2xl border-2 border-white bg-white p-1.5 shadow-xl sm:h-16 sm:w-16"
-            />
+            <div className="flex h-14 min-w-[3.5rem] max-w-[6.5rem] sm:h-16 sm:min-w-[4rem] sm:max-w-[8.5rem] shrink-0 items-center justify-center rounded-2xl border-2 border-white bg-white p-2 shadow-xl">
+              <img
+                src={logoUrl}
+                alt={club.nombre}
+                onError={() => setLogoError(true)}
+                className="h-full w-full object-contain"
+              />
+            </div>
           )}
           <div className="min-w-0 flex-1 pb-0.5">
-            <h1 className="truncate text-lg font-black text-white sm:text-2xl">{club.nombre}</h1>
+            <h1 className="truncate text-lg font-black text-white sm:text-2xl drop-shadow-md">{club.nombre}</h1>
             {(club.ciudad || club.provincia) && (
-              <p className="flex items-center gap-1 text-xs text-white/75">
-                <MapPin className="h-3 w-3 shrink-0" />{[club.ciudad, club.provincia].filter(Boolean).join(', ')}
+              <p className="flex items-center gap-1 text-xs text-white/90 drop-shadow">
+                <MapPin className="h-3 w-3 shrink-0" />
+                <span className="truncate">{[club.ciudad, club.provincia].filter(Boolean).join(', ')}</span>
               </p>
             )}
           </div>
@@ -919,20 +947,119 @@ export function ClubProfilePage({
           </div>
         )}
 
-        {/* ── Gallery ── */}
-        {galeria.length > 0 && (
+        {/* ── Gallery / Fotos ── */}
+        {fotos.length > 0 && (
           <div>
-            <p className="mb-3 text-[11px] font-black uppercase tracking-widest text-muted-foreground">Fotos</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {galeria.map(foto => (
-                <div key={foto.id} className="aspect-video overflow-hidden rounded-2xl bg-muted">
-                  <img src={foto.url} alt={foto.caption ?? ''} className="h-full w-full object-cover transition-transform hover:scale-105" loading="lazy" />
-                </div>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                Fotos ({fotos.length})
+              </p>
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Tocá una foto para ampliar
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {fotos.map((foto, idx) => (
+                <button
+                  key={foto.id}
+                  type="button"
+                  onClick={() => setLightboxIndex(idx)}
+                  className="group relative aspect-video overflow-hidden rounded-2xl bg-muted border border-border/50 text-left focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                >
+                  <img
+                    src={foto.url}
+                    alt={foto.caption ?? `Foto ${idx + 1} de ${club.nombre}`}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  {foto.es_portada && (
+                    <span className="absolute top-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                      Portada
+                    </span>
+                  )}
+                  {foto.caption && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-4">
+                      <p className="truncate text-xs font-medium text-white">{foto.caption}</p>
+                    </div>
+                  )}
+                </button>
               ))}
             </div>
           </div>
         )}
       </div>
+
+      {/* ── Lightbox / Visor de Fotos en pantalla completa ── */}
+      {lightboxIndex !== null && fotos[lightboxIndex] && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md transition-all animate-in fade-in duration-200"
+          onClick={() => setLightboxIndex(null)}
+        >
+          {/* Botón cerrar */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
+            className="absolute top-4 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition hover:bg-white/30 active:scale-95"
+            aria-label="Cerrar visor"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {/* Contador */}
+          {fotos.length > 1 && (
+            <div className="absolute top-5 left-5 z-50 rounded-full bg-black/60 px-3.5 py-1 text-xs font-bold text-white/90 backdrop-blur-md border border-white/10">
+              {lightboxIndex + 1} / {fotos.length}
+            </div>
+          )}
+
+          {/* Flecha Anterior */}
+          {fotos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((prev) => (prev !== null ? (prev - 1 + fotos.length) % fotos.length : 0));
+              }}
+              className="absolute left-3 sm:left-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition hover:bg-white/30 active:scale-95"
+              aria-label="Foto anterior"
+            >
+              <ChevronLeft className="h-7 w-7" />
+            </button>
+          )}
+
+          {/* Imagen central */}
+          <div 
+            className="relative flex max-h-[85vh] max-w-[92vw] sm:max-w-[85vw] flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={fotos[lightboxIndex]?.url}
+              alt={fotos[lightboxIndex]?.caption ?? club.nombre}
+              className="max-h-[75vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
+            />
+            {fotos[lightboxIndex]?.caption && (
+              <p className="mt-3 text-center text-sm font-medium text-white/90 drop-shadow">
+                {fotos[lightboxIndex]?.caption}
+              </p>
+            )}
+          </div>
+
+          {/* Flecha Siguiente */}
+          {fotos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((prev) => (prev !== null ? (prev + 1) % fotos.length : 0));
+              }}
+              className="absolute right-3 sm:right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition hover:bg-white/30 active:scale-95"
+              aria-label="Foto siguiente"
+            >
+              <ChevronRight className="h-7 w-7" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Sticky bottom CTA (solo si NO es player app y hay contacto) ── */}
       {!fromPlayer && contactHref && (
