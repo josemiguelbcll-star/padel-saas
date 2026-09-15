@@ -32,8 +32,12 @@ export interface CanchaPublica {
   club_id: number;
   nombre: string;
   tipo: string | null;
+  deporte?: string | null;
   cubierta: boolean;
   orden: number;
+  tarifa_id?: number | null;
+  tarifa_nombre?: string | null;
+  tarifa_monto?: number | null;
 }
 
 export interface FotoClub {

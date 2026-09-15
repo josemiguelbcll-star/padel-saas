@@ -39,7 +39,7 @@ export interface TarifaResuelta {
   monto: number;
 }
 
-interface ResolverTarifaParams {
+export interface ResolverTarifaParams {
   /** 'YYYY-MM-DD' */
   fecha: string;
   /** 'HH:MM' o 'HH:MM:SS' — hora de inicio del slot */
@@ -56,10 +56,37 @@ interface ResolverTarifaParams {
    * Cantidad de alumnos. Opcional: solo aplica para tarifas de clases.
    */
   cantidad_alumnos?: number;
+  /**
+   * Tarifa fija asignada a la cancha (opcional). Si existe y está activa,
+   * se prioriza esta tarifa sobre la resolución general por horario.
+   */
+  tarifaId?: number | null;
 }
 
 export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
-  const { fecha, hora, tarifas, duracion, cantidad_alumnos } = params;
+  const { fecha, hora, tarifas, duracion, cantidad_alumnos, tarifaId } = params;
+
+  // 0. Si la cancha tiene una tarifa asignada específica
+  if (tarifaId) {
+    const tarifaFija = tarifas.find(
+      (t) => (t.id === tarifaId || t.lineage_id === tarifaId) && t.activa,
+    );
+    if (tarifaFija) {
+      let montoCalculado = tarifaFija.monto;
+      if (
+        duracion !== undefined &&
+        tarifaFija.duracion_min !== null &&
+        tarifaFija.duracion_min !== duracion &&
+        tarifaFija.duracion_min > 0
+      ) {
+        montoCalculado = Math.round(
+          (tarifaFija.monto / tarifaFija.duracion_min) * duracion,
+        );
+      }
+      return { tarifa: tarifaFija, monto: montoCalculado };
+    }
+  }
+
   const diaSemana = diaSemanaDe(fecha);
 
   // 1. Filtrar tarifas activas que aplican a fecha, día, hora y alumnos

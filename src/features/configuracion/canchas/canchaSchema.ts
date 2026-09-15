@@ -26,6 +26,11 @@ export const canchaSchema = z.object({
     .max(40, 'El deporte no puede tener más de 40 caracteres.')
     .optional()
     .transform((v) => (v ? v.trim() : null)),
+  tarifa_id: z
+    .number()
+    .nullable()
+    .optional()
+    .transform((v) => (v && v > 0 ? v : null)),
   cubierta: z.boolean(),
   activa: z.boolean(),
   orden: z

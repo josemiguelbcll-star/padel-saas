@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useMemo, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,6 +16,8 @@ import {
   useCreateCancha,
   useUpdateCancha,
 } from '@/features/configuracion/hooks/useCanchas';
+import { useTarifas } from '@/features/configuracion/hooks/useTarifas';
+import { agruparPorLinaje } from '@/features/configuracion/tarifas/tarifaLineage';
 import type { Cancha } from '@/types/database';
 import {
   canchaSchema,
@@ -40,7 +42,7 @@ export function CanchaFormDialog({
 }: CanchaFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         {/* `key` fuerza remount del form al abrir con otra cancha, así
             el estado interno arranca limpio sin tener que sincronizar
             con un useEffect. */}
@@ -62,6 +64,7 @@ const defaultState: CanchaFormState = {
   nombre: '',
   tipo: '',
   deporte: 'padel',
+  tarifa_id: null,
   cubierta: false,
   activa: true,
   orden: 0,
@@ -72,6 +75,7 @@ function canchaToFormState(c: Cancha): CanchaFormState {
     nombre: c.nombre,
     tipo: c.tipo ?? '',
     deporte: c.deporte ?? detectarDeporte(c),
+    tarifa_id: c.tarifa_id ?? null,
     cubierta: c.cubierta,
     activa: c.activa,
     orden: c.orden,
@@ -87,11 +91,29 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
   const isEdit = initialValue !== null;
   const createMutation = useCreateCancha();
   const updateMutation = useUpdateCancha();
+  const tarifasQuery = useTarifas();
 
   const [state, setState] = useState<CanchaFormState>(
     initialValue ? canchaToFormState(initialValue) : defaultState,
   );
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  const tarifasDisponibles = useMemo(() => {
+    const raw = tarifasQuery.data ?? [];
+    const linajes = agruparPorLinaje(raw);
+    return linajes
+      .filter((l) => l.activa && l.vigenteHoy)
+      .map((l) => ({
+        id: l.vigenteHoy!.id,
+        nombre: l.nombre,
+        monto: l.vigenteHoy!.monto,
+        duracion_min: l.duracion_min,
+        horario:
+          l.desde_hora && l.hasta_hora
+            ? `${l.desde_hora.slice(0, 5)} a ${l.hasta_hora.slice(0, 5)}`
+            : 'Todo el día',
+      }));
+  }, [tarifasQuery.data]);
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
@@ -108,6 +130,7 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
           field === 'nombre' ||
           field === 'tipo' ||
           field === 'deporte' ||
+          field === 'tarifa_id' ||
           field === 'cubierta' ||
           field === 'activa' ||
           field === 'orden'
@@ -220,8 +243,50 @@ function CanchaFormBody({ initialValue, onDone }: CanchaFormBodyProps) {
           </datalist>
           {errors.tipo && <p className="text-xs text-destructive">{errors.tipo}</p>}
           <p className="text-xs text-muted-foreground">
-            Podés especificar el deporte o tipo de superficie.
+            Podés especificar el tipo de superficie o detalle técnico.
           </p>
+        </div>
+
+        {/* Tarifa asignada */}
+        <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="cancha-tarifa" className="font-semibold text-foreground text-xs sm:text-sm">
+              Tarifa asignada a esta cancha
+            </Label>
+            {state.tarifa_id && (
+              <span className="text-[11px] font-medium text-primary">Tarifa fija asignada</span>
+            )}
+          </div>
+          <select
+            id="cancha-tarifa"
+            value={state.tarifa_id ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              setState({
+                ...state,
+                tarifa_id: val ? Number(val) : null,
+              });
+            }}
+            disabled={isPending || tarifasQuery.isLoading}
+            className="flex h-9.5 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs sm:text-sm font-medium shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">
+              ✨ Sin tarifa fija (Aplica tarifas dinámicas del club por horario/día)
+            </option>
+            {tarifasDisponibles.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nombre} — ${t.monto.toLocaleString('es-AR')}{t.duracion_min ? ` (${t.duracion_min} min)` : ''} [{t.horario}]
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {state.tarifa_id
+              ? 'Esta cancha tendrá este precio fijo asignado para sus reservas.'
+              : 'Al no asignar una tarifa fija, el sistema calculará el precio automáticamente según los horarios y días definidos en Configuración → Tarifas.'}
+          </p>
+          {errors.tarifa_id && (
+            <p className="text-xs text-destructive">{errors.tarifa_id}</p>
+          )}
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border p-3">

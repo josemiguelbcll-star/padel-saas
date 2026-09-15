@@ -430,6 +430,14 @@ export interface Cancha {
   activa: boolean;
   /** Orden de aparición en la grilla. Default 0. */
   orden: number;
+  /** Tarifa asignada o predeterminada a esta cancha (opcional). */
+  tarifa_id?: number | null;
+  /** Tarifa relacionada si se consulta con join */
+  tarifa?: {
+    id: number;
+    nombre: string;
+    monto: number;
+  } | null;
 }
 
 export interface Tarifa {

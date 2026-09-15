@@ -69,8 +69,7 @@ export function CanchasPage() {
             Canchas
           </h2>
           <p className="text-sm text-muted-foreground">
-            Definí las canchas del club, su tipo y el orden en que aparecen
-            en la grilla.
+            Definí las canchas del club, sus tarifas asignadas y características.
           </p>
         </div>
         {isAdmin && (
@@ -202,7 +201,7 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
             <th className="px-3 py-2 font-medium">Superficie / Tipo</th>
             <th className="px-3 py-2 font-medium">Cubierta</th>
             <th className="px-3 py-2 font-medium">Estado</th>
-            <th className="px-3 py-2 font-medium">Orden</th>
+            <th className="px-3 py-2 font-medium">Tarifa / Precio</th>
             {isAdmin && (
               <th className="w-1 px-3 py-2 text-right font-medium">
                 <span className="sr-only">Acciones</span>
@@ -240,43 +239,56 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
                 <td className="px-3 py-3 text-muted-foreground">
                   {c.tipo ?? '—'}
                 </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                {c.cubierta ? 'Sí' : 'No'}
-              </td>
-              <td className="px-3 py-3">
-                {c.activa ? (
-                  <span className="text-foreground">Activa</span>
-                ) : (
-                  <span className="text-muted-foreground">Inactiva</span>
-                )}
-              </td>
-              <td className="px-3 py-3 tabular-nums text-muted-foreground">
-                {c.orden}
-              </td>
-              {isAdmin && (
-                <td className="px-3 py-3">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(c)}
-                      aria-label={`Editar ${c.nombre}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(c)}
-                      aria-label={`Eliminar ${c.nombre}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {c.cubierta ? 'Sí' : 'No'}
                 </td>
-              )}
+                <td className="px-3 py-3">
+                  {c.activa ? (
+                    <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      Activa
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      Inactiva
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-3">
+                  {c.tarifa ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 shadow-2xs">
+                      <span>${c.tarifa.monto.toLocaleString('es-AR')}</span>
+                      <span className="font-normal text-muted-foreground text-[11px]">({c.tarifa.nombre})</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-md border border-border/80 bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
+                      Dinámica (por horario)
+                    </span>
+                  )}
+                </td>
+                {isAdmin && (
+                  <td className="px-3 py-3">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEdit(c)}
+                        aria-label={`Editar ${c.nombre}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDelete(c)}
+                        aria-label={`Eliminar ${c.nombre}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                )}
               </tr>
             );
           })}

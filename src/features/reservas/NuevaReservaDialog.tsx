@@ -176,7 +176,7 @@ function NuevaReservaBodyReady({
     return allowedDurations.includes(90) ? 90 : (allowedDurations[0] ?? 90);
   });
 
-  // Tarifa sugerida por (fecha, hora, DURACIÓN). Recalcula al cambiar la
+  // Tarifa sugerida por (cancha tarifa_id o fecha, hora, DURACIÓN). Recalcula al cambiar la
   // duración → tarifa 2D (0051): resolverTarifa filtra por duración y la
   // tarifa específica de esa duración gana sobre la de "cualquier duración".
   const tarifaResuelta = useMemo(
@@ -186,8 +186,9 @@ function NuevaReservaBodyReady({
         hora: slot.hora,
         tarifas,
         duracion,
+        tarifaId: slot.cancha.tarifa_id,
       }),
-    [slot.fecha, slot.hora, tarifas, duracion],
+    [slot.fecha, slot.hora, slot.cancha.tarifa_id, tarifas, duracion],
   );
 
   const [titular, setTitular] = useState<JugadorSeleccionado | null>(null);

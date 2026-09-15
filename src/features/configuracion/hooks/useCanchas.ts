@@ -34,12 +34,23 @@ export function useCanchas(): UseQueryResult<Cancha[], Error> {
   return useQuery<Cancha[], Error>({
     queryKey: CANCHAS_QUERY_KEY,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('canchas')
-        .select('*')
+        .select('*, tarifa:tarifas(id, nombre, monto)')
         .order('orden', { ascending: true })
         .order('nombre', { ascending: true });
-      if (error) throw new Error(mapPostgrestError(error));
+
+      if (error) {
+        // Fallback si la relación no está disponible
+        const fallbackRes = await supabase
+          .from('canchas')
+          .select('*')
+          .order('orden', { ascending: true })
+          .order('nombre', { ascending: true });
+        if (fallbackRes.error) throw new Error(mapPostgrestError(fallbackRes.error));
+        return (fallbackRes.data ?? []) as Cancha[];
+      }
+
       return (data ?? []) as Cancha[];
     },
     staleTime: CACHE_TIEMPO_ESTATICO,
@@ -61,19 +72,25 @@ export function useCreateCancha(): UseMutationResult<Cancha, Error, CanchaInput>
       let { data, error } = await supabase
         .from('canchas')
         .insert(payload)
-        .select()
+        .select('*, tarifa:tarifas(id, nombre, monto)')
         .single();
 
-      // Si la columna `deporte` aún no fue agregada en Supabase (PGRST204), hacemos fallback
-      if (error && (error.code === 'PGRST204' || error.message?.includes('deporte'))) {
-        const { deporte, ...sinDeporte } = payload;
-        let tipoFinal = sinDeporte.tipo;
-        if (deporte && deporte !== 'padel') {
-          tipoFinal = tipoFinal ? `${deporte} (${tipoFinal})` : deporte;
+      // Si la columna `tarifa_id` o `deporte` aún no fue agregada en Supabase (PGRST204), hacemos fallback progresivo
+      if (error && (error.code === 'PGRST204' || error.message?.includes('tarifa_id') || error.message?.includes('deporte'))) {
+        const cleanPayload = { ...payload };
+        if (error.message?.includes('tarifa_id') || error.code === 'PGRST204') {
+          delete cleanPayload.tarifa_id;
+        }
+        if (error.message?.includes('deporte') || error.code === 'PGRST204') {
+          const dep = cleanPayload.deporte;
+          delete cleanPayload.deporte;
+          if (dep && dep !== 'padel') {
+            cleanPayload.tipo = cleanPayload.tipo ? `${dep} (${cleanPayload.tipo})` : dep;
+          }
         }
         const fallbackRes = await supabase
           .from('canchas')
-          .insert({ ...sinDeporte, tipo: tipoFinal })
+          .insert(cleanPayload)
           .select()
           .single();
         data = fallbackRes.data;
@@ -103,22 +120,25 @@ export function useUpdateCancha(): UseMutationResult<Cancha, Error, UpdateCancha
         .from('canchas')
         .update(changes)
         .eq('id', id)
-        .select()
+        .select('*, tarifa:tarifas(id, nombre, monto)')
         .single();
 
-      // Si la columna `deporte` aún no fue agregada en Supabase (PGRST204), hacemos fallback
-      if (error && (error.code === 'PGRST204' || error.message?.includes('deporte'))) {
-        const { deporte, ...sinDeporte } = changes;
-        let tipoFinal = sinDeporte.tipo;
-        if (deporte && deporte !== 'padel') {
-          tipoFinal = tipoFinal ? `${deporte} (${tipoFinal})` : deporte;
+      // Si la columna `tarifa_id` o `deporte` falla por schema
+      if (error && (error.code === 'PGRST204' || error.message?.includes('tarifa_id') || error.message?.includes('deporte'))) {
+        const cleanChanges = { ...changes } as Record<string, any>;
+        if (error.message?.includes('tarifa_id') || error.code === 'PGRST204') {
+          delete cleanChanges.tarifa_id;
+        }
+        if (error.message?.includes('deporte') || error.code === 'PGRST204') {
+          const dep = cleanChanges.deporte;
+          delete cleanChanges.deporte;
+          if (dep && dep !== 'padel') {
+            cleanChanges.tipo = cleanChanges.tipo ? `${dep} (${cleanChanges.tipo})` : dep;
+          }
         }
         const fallbackRes = await supabase
           .from('canchas')
-          .update({
-            ...sinDeporte,
-            ...(tipoFinal !== undefined ? { tipo: tipoFinal } : {}),
-          })
+          .update(cleanChanges)
           .eq('id', id)
           .select()
           .single();
