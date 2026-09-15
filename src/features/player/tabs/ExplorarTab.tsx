@@ -5,17 +5,12 @@ import {
   Calendar,
   Clock,
   Trophy,
-  ArrowRight,
-  Info,
   SlidersHorizontal,
-  Sparkles,
-  ChevronDown,
-  Check,
 } from 'lucide-react';
 import { useClubsPublicos } from '@/features/landing/hooks/useClubsPublicos';
 import { supabase } from '@/lib/supabase';
 import { getLogoClubUrl } from '@/lib/clubBrand';
-import { DEPORTES_CATALOGO, obtenerInfoDeporte } from '@/lib/deportes';
+import { DEPORTES_CATALOGO } from '@/lib/deportes';
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
 
 // Precios de referencia según club para visuales atractivas
