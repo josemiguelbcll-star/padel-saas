@@ -461,7 +461,7 @@ function ChartCard({ titulo, subtitulo, children }: ChartCardProps) {
           <p className="text-xs text-muted-foreground">{subtitulo}</p>
         )}
       </header>
-      <div className="h-56">{children}</div>
+      <div className="h-56 w-full min-w-0">{children}</div>
     </article>
   );
 }

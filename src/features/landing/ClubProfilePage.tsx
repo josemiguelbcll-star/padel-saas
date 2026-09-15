@@ -554,10 +554,14 @@ export function ClubProfilePage({
   slugProp,
   onBack,
   onReservaCreada,
+  initialFechaProp,
+  initialHoraProp,
 }: {
   slugProp?:        string;
   onBack?:          () => void;
   onReservaCreada?: () => void;
+  initialFechaProp?: string;
+  initialHoraProp?: string;
 } = {}) {
   const params = useParams<{ slug: string }>();
   const slug = slugProp ?? params.slug;
@@ -569,18 +573,31 @@ export function ClubProfilePage({
 
   const { data, isLoading, isError } = useClubPublico(slug ?? '');
   const [initialFecha] = useState(() =>
-    paramFecha && paramFecha >= todayISO() ? paramFecha : todayISO(),
+    initialFechaProp ?? (paramFecha && paramFecha >= todayISO() ? paramFecha : todayISO()),
   );
   const [fecha, setFecha] = useState(initialFecha);
   const [selectedHour, setSelectedHour] = useState<string | null>(() => {
-    if (!paramHora) return null;
-    if (isPastDateTime(initialFecha, paramHora)) return null;
-    return paramHora;
+    const h = initialHoraProp ?? paramHora;
+    if (!h) return null;
+    if (isPastDateTime(initialFecha, h)) return null;
+    return h;
   });
   const [bookingSlot,  setBookingSlot]  = useState<BookingSlot | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [portadaError, setPortadaError] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (initialFechaProp && initialFechaProp !== fecha) {
+      setFecha(initialFechaProp);
+    }
+  }, [initialFechaProp]);
+
+  useEffect(() => {
+    if (initialHoraProp) {
+      setSelectedHour(initialHoraProp);
+    }
+  }, [initialHoraProp]);
 
   const dispQuery = useDisponibilidadClub(slug ?? '', fecha);
   const allSlots  = dispQuery.data ?? [];
@@ -803,7 +820,7 @@ export function ClubProfilePage({
         <div>
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Elegí un horario</h2>
+              <h2 className="text-base font-black tracking-tight text-foreground">Elige tu turno</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">Solo se muestran turnos con canchas disponibles</p>
             </div>
             {selectedHour && (
