@@ -162,8 +162,8 @@ function IngresosPorMedioChart({ anio, mes }: { anio: number; mes: number }) {
   return (
     <div className="grid h-full grid-cols-5 items-center gap-3">
       {/* Donut con total centrado */}
-      <div className="relative col-span-2 h-full">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="relative col-span-2 h-full w-full min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <PieChart>
             <Pie
               data={chartData}
@@ -267,7 +267,7 @@ function TopGastosChart({ resumen }: { resumen: ResumenFinanciero }) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <BarChart
         data={datos}
         layout="vertical"

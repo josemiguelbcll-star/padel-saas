@@ -100,7 +100,7 @@ function PlayerAppContent() {
   const { phase, login, completeOnboarding, logout } = usePlayerSession();
   const { proximas, historial, isLoading: isLoadingReservas, reload } = useMyReservas();
   const [tab, setTab] = useState<PlayerTab>('home');
-  const [clubSlug, setClubSlug] = useState<string | null>(null);
+  const [selectedClub, setSelectedClub] = useState<{ slug: string; fecha?: string; hora?: string } | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -243,7 +243,7 @@ function PlayerAppContent() {
     <div className="mg-player">
 
       {/* ── Topbar ─────────────────────────────────────────────── */}
-      {!clubSlug && (
+      {!selectedClub && (
         <div className="mgp-topbar">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <div>
@@ -285,13 +285,15 @@ function PlayerAppContent() {
 
       {/* ── Contenido ──────────────────────────────────────────── */}
       <div className="mgp-content">
-        {clubSlug ? (
+        {selectedClub ? (
           <div className="mgp-tab-wrapper" style={{ padding: 0 }}>
             <ClubProfilePage
-              slugProp={clubSlug}
-              onBack={() => setClubSlug(null)}
+              slugProp={selectedClub.slug}
+              initialFechaProp={selectedClub.fecha}
+              initialHoraProp={selectedClub.hora}
+              onBack={() => setSelectedClub(null)}
               onReservaCreada={() => {
-                setClubSlug(null);
+                setSelectedClub(null);
                 setTab('partidos');
                 setNotification('¡Pre-reserva realizada! Recordá enviar la seña para confirmar tu turno.');
                 // Recargar reservas para mostrar la nueva
@@ -310,7 +312,11 @@ function PlayerAppContent() {
               />
             </div>
             <div className="mgp-tab-wrapper" style={{ display: tab === 'reservar' ? 'block' : 'none', padding: 0 }}>
-              <ExplorarTab onSelectClub={setClubSlug} />
+              <ExplorarTab
+                onSelectClub={(slug, fecha, hora) => {
+                  setSelectedClub({ slug, fecha, hora });
+                }}
+              />
             </div>
             <div className="mgp-tab-wrapper" style={{ display: tab === 'jugar' ? 'block' : 'none' }}>
               <JugarTab />
@@ -341,7 +347,7 @@ function PlayerAppContent() {
             key={item.id}
             className={`mgp-tab${tab === item.id ? ' active' : ''}`}
             onClick={() => {
-              setClubSlug(null);
+              setSelectedClub(null);
               setTab(item.id);
               navigate(item.id === 'home' ? '/player' : `/player/${item.id}`);
             }}

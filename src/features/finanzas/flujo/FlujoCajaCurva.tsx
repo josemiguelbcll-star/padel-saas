@@ -235,7 +235,7 @@ function CurvaInterior({ combinado, loading, granularidad }: FlujoCajaCurvaProps
   const valleColor = valle.saldoCierre < 0 ? 'hsl(var(--destructive))' : '#f59e0b';
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <AreaChart data={data} margin={{ top: 14, right: 16, left: 4, bottom: 0 }}>
         <defs>
           {/* Línea: corte duro azul/rojo en y=0. */}

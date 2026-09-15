@@ -125,8 +125,8 @@ export function ReservasPage() {
     }).then(({ data, error }) => {
       if (error) {
         console.error('Error auto-materializando turnos fijos:', error);
-      } else if (data && (data as any).reservas_creadas > 0) {
-        // Refrescar las reservas si se generaron nuevas materializaciones
+      } else if (data && ((data as any).reservas_creadas > 0 || (data as any).creadas > 0 || (data as any).actualizadas > 0)) {
+        // Refrescar las reservas si se generaron nuevas materializaciones o actualizaciones
         void queryClient.invalidateQueries({ queryKey: ['reservas'] });
       }
     });

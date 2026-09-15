@@ -8,7 +8,7 @@ export function useClubsPublicos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('v_clubes_publicos')
-        .select('id, nombre, slug, ciudad, provincia, logo_path, portada_url, descripcion, lat, lng, sena_obligatoria, sena_valor, mercadopago_habilitado')
+        .select('*')
         .order('nombre');
       if (error) throw error;
       return (data ?? []) as ClubPublico[];

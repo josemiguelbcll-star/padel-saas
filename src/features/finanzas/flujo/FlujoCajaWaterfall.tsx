@@ -287,7 +287,7 @@ function WfInterior({ combinado, loading, granularidad }: FlujoCajaWaterfallProp
   const mostrarLabels = rows.length <= 8;
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <BarChart data={rows} margin={{ top: 16, right: 16, left: 4, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
         <XAxis

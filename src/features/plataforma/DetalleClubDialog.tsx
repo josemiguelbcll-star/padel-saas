@@ -508,15 +508,25 @@ export function DetalleClubDialog({
                 {confirmingEliminar && (
                   <div className="mt-3 space-y-3 border-t border-red-600/20 pt-3">
                     <div className="space-y-2 text-xs">
-                      <p className="font-semibold text-red-600">
-                        ¿Confirmás la eliminación permanente del club "{club.nombre}"?
+                      <p className="font-bold text-red-600 text-sm">
+                        ¿Confirmás la eliminación total y permanente del club "{club.nombre}"?
                       </p>
-                      <p className="text-muted-foreground">
-                        Esta acción es definitiva y no se puede deshacer. Se eliminarán todos los registros y usuarios vinculados a este club.
-                      </p>
+                      
+                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-2.5 text-xs space-y-1.5 text-red-700 dark:text-red-300">
+                        <p className="font-semibold">⚠️ Se eliminará toda la información vinculada al club de forma definitiva:</p>
+                        <ul className="list-disc pl-4 space-y-0.5 text-[11px] opacity-90">
+                          <li><strong>Turnos y Reservas:</strong> Historial completo, turnos fijos, consumos y señas.</li>
+                          <li><strong>Canchas y Tarifas:</strong> Todas las canchas, horarios, tarifas y fotos del club.</li>
+                          <li><strong>Jugadores y Clientes:</strong> Base de jugadores registrados y vínculos de app.</li>
+                          <li><strong>Finanzas y Buffet:</strong> Movimientos de caja, ventas, compras, stock, gastos y cuentas.</li>
+                          <li><strong>Clases y Profesores:</strong> Clases registradas, alumnos y profesores asociados.</li>
+                          <li><strong>Usuarios y Accesos:</strong> Todas las cuentas administradoras y operadoras del club.</li>
+                        </ul>
+                      </div>
+
                       <div className="space-y-1 mt-2">
                         <Label htmlFor="confirm-nombre-delete" className="text-muted-foreground text-[11px]">
-                          Para continuar, escribí el nombre del club (<strong>{club.nombre}</strong>):
+                          Para confirmar la eliminación total, escribí el nombre del club (<strong>{club.nombre}</strong>):
                         </Label>
                         <Input
                           id="confirm-nombre-delete"
