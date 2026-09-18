@@ -53,7 +53,7 @@ interface SlotPublico {
 }
 
 export interface ExplorarTabProps {
-  onSelectClub: (slug: string, fecha?: string, hora?: string) => void;
+  onSelectClub: (slug: string, fecha?: string, hora?: string, deporte?: string) => void;
 }
 
 export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
@@ -665,7 +665,12 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
             return (
               <div
                 key={club.id}
-                onClick={() => onSelectClub(club.slug, selectedFecha, pills[0] || (selectedHora !== 'todas' ? selectedHora : undefined))}
+                onClick={() => onSelectClub(
+                  club.slug,
+                  selectedFecha,
+                  pills[0] || (selectedHora !== 'todas' ? selectedHora : undefined),
+                  selectedDeporte !== 'todos' ? selectedDeporte : undefined
+                )}
                 style={{
                   background: '#FFFFFF',
                   borderRadius: '16px',
@@ -846,7 +851,12 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onSelectClub(club.slug, selectedFecha, horaSlot);
+                            onSelectClub(
+                              club.slug,
+                              selectedFecha,
+                              horaSlot,
+                              selectedDeporte !== 'todos' ? selectedDeporte : undefined
+                            );
                           }}
                           style={{
                             padding: '6px 14px',
