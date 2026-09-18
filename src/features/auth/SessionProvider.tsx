@@ -186,15 +186,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         if (!data) {
-          // Caso borde: auth.users existe pero ni `usuarios` ni
-          // `plataforma_admins` tienen fila. Pantalla NO_USUARIO_ROW.
+          // Si no es admin de plataforma ni de club, verificamos si es jugador de la app
+          const { data: jugadorRow } = await supabase
+            .from('jugadores_app')
+            .select('nombre_display, nombre_corto')
+            .eq('auth_user_id', session.user.id)
+            .maybeSingle();
+
+          const jugadorNombre =
+            jugadorRow?.nombre_display ||
+            jugadorRow?.nombre_corto ||
+            session.user.user_metadata?.nombre ||
+            session.user.user_metadata?.full_name ||
+            session.user.email?.split('@')[0] ||
+            '';
+
           setState({
             user: null,
             club: null,
             plataformaAdmin: null,
             modulosHabilitados: [],
             loading: false,
-            error: { code: 'NO_USUARIO_ROW' },
+            error: {
+              code: 'ES_JUGADOR',
+              email: session.user.email ?? '',
+              nombre: jugadorNombre,
+            },
           });
           return;
         }

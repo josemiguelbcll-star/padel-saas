@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSession } from './useSession';
 import { NoClubAssignedScreen } from './NoClubAssignedScreen';
+import { EsJugadorSessionScreen } from './EsJugadorSessionScreen';
 import { SessionFetchErrorScreen } from './SessionFetchErrorScreen';
 import { UsuarioDesactivadoScreen } from './UsuarioDesactivadoScreen';
 import { ClubBloqueadoScreen } from './ClubBloqueadoScreen';
@@ -48,6 +49,15 @@ export function LoginPage() {
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Cargando…
       </div>
+    );
+  }
+
+  if (sessionError?.code === 'ES_JUGADOR') {
+    return (
+      <EsJugadorSessionScreen
+        email={sessionError.email}
+        nombre={sessionError.nombre}
+      />
     );
   }
 

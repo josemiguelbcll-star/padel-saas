@@ -8,11 +8,19 @@ import {
   LogOut,
   ChevronDown,
   Shield,
-  LogIn
+  LogIn,
+  Building2,
+  ExternalLink,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { usePlayerProfile } from '@/features/player/hooks/usePlayerProfile';
 import { useNotificaciones } from '@/features/player/hooks/useNotificaciones';
+
+interface ClubAdminInfo {
+  isClubAdmin: boolean;
+  clubNombre: string;
+  rol: string;
+}
 
 export function PlayerNavDropdown() {
   const navigate = useNavigate();
@@ -26,16 +34,49 @@ export function PlayerNavDropdown() {
 
   // Estado de sesión real de auth
   const [sessionUser, setSessionUser] = useState<any>(null);
+  const [clubAdminInfo, setClubAdminInfo] = useState<ClubAdminInfo | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
+    async function loadAccountData(userId: string) {
+      try {
+        const { data: usuarioData } = await supabase
+          .from('usuarios')
+          .select('nombre, rol, clubes(nombre, slug)')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (usuarioData) {
+          const club = (usuarioData.clubes as unknown as { nombre?: string; slug?: string }) || null;
+          setClubAdminInfo({
+            isClubAdmin: true,
+            clubNombre: club?.nombre || 'Tu Club',
+            rol: usuarioData.rol === 'admin' ? 'Administrador' : 'Vendedor',
+          });
+        } else {
+          setClubAdminInfo(null);
+        }
+      } catch (err) {
+        console.warn('[PlayerNavDropdown] error checking usuario:', err);
+        setClubAdminInfo(null);
+      }
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSessionUser(session?.user ?? null);
+      if (session?.user) {
+        void loadAccountData(session.user.id);
+      }
       setIsCheckingAuth(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSessionUser(session?.user ?? null);
+      if (session?.user) {
+        void loadAccountData(session.user.id);
+      } else {
+        setClubAdminInfo(null);
+      }
       setIsCheckingAuth(false);
     });
 
@@ -70,16 +111,19 @@ export function PlayerNavDropdown() {
     );
   }
 
-  // Nombre y datos del jugador autenticado
+  // Nombre y datos a mostrar
+  const isClubAdmin = !!clubAdminInfo?.isClubAdmin;
   const displayName =
     profile?.nombre?.trim() ||
     sessionUser?.user_metadata?.nombre ||
     sessionUser?.email?.split('@')[0] ||
-    'Mi Cuenta';
+    (isClubAdmin ? 'Administrador' : 'Mi Cuenta');
 
   const displayAvatar = profile?.avatar_url || null;
   const displayEmail = profile?.email || sessionUser?.email || '';
-  const displayCategory = profile?.categoria ? `${profile.categoria} Categoría` : 'Jugador';
+  const displayCategory = isClubAdmin
+    ? clubAdminInfo?.clubNombre
+    : profile?.categoria ? `${profile.categoria} Categoría` : 'Jugador';
 
   const handleLogout = async () => {
     setIsOpen(false);
@@ -87,6 +131,7 @@ export function PlayerNavDropdown() {
       await supabase.auth.signOut();
       queryClient.clear();
       setSessionUser(null);
+      setClubAdminInfo(null);
       navigate('/');
     } catch (e) {
       console.error('Error al cerrar sesión:', e);
@@ -95,7 +140,7 @@ export function PlayerNavDropdown() {
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
-      {/* Botón de Perfil con Avatar y Badge (Estilo idéntico a la captura) */}
+      {/* Botón de Perfil con Avatar y Badge */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -110,23 +155,34 @@ export function PlayerNavDropdown() {
               className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200"
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-[#E8EEF5] text-slate-600 flex items-center justify-center font-bold text-sm ring-2 ring-slate-200">
-              <User className="w-5 h-5 text-slate-500" />
+            <div className={`w-9 h-9 rounded-full ${isClubAdmin ? 'bg-[#0B1F4D] text-[#00FF87]' : 'bg-[#E8EEF5] text-slate-600'} flex items-center justify-center font-bold text-sm ring-2 ring-slate-200`}>
+              {isClubAdmin ? (
+                <Building2 className="w-4 h-4 text-[#00FF87]" />
+              ) : (
+                <User className="w-5 h-5 text-slate-500" />
+              )}
             </div>
           )}
           
           {/* Badge de Notificación si hay */}
-          {unreadCount > 0 && (
+          {unreadCount > 0 && !isClubAdmin && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#00B050] text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm border-2 border-white z-10">
               {unreadCount}
             </span>
           )}
         </div>
 
-        {/* Nombre del Jugador */}
-        <span className="text-xs sm:text-sm font-semibold text-slate-800 tracking-tight">
-          {displayName}
-        </span>
+        {/* Nombre del Usuario y Rol */}
+        <div className="flex flex-col text-left">
+          <span className="text-xs sm:text-sm font-semibold text-slate-800 tracking-tight truncate max-w-[120px] sm:max-w-[150px]">
+            {displayName}
+          </span>
+          {isClubAdmin && (
+            <span className="text-[10px] font-bold text-emerald-600 truncate max-w-[120px]">
+              {clubAdminInfo?.clubNombre}
+            </span>
+          )}
+        </div>
 
         <ChevronDown
           className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
@@ -148,15 +204,19 @@ export function PlayerNavDropdown() {
                   className="w-12 h-12 rounded-full object-cover border-2 border-[#00FF87]/60 shadow"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#D9F23B] to-[#39C54A] text-[#0B1F4D] flex items-center justify-center font-extrabold text-base border-2 border-white/40 shadow">
-                  {displayName.charAt(0).toUpperCase()}
+                <div className={`w-12 h-12 rounded-full ${isClubAdmin ? 'bg-gradient-to-br from-[#0B1F4D] to-[#17326D] border-[#00FF87]/50 text-[#00FF87]' : 'bg-gradient-to-br from-[#D9F23B] to-[#39C54A] text-[#0B1F4D]'} flex items-center justify-center font-extrabold text-base border-2 shadow`}>
+                  {isClubAdmin ? (
+                    <Building2 className="w-6 h-6 text-[#00FF87]" />
+                  ) : (
+                    displayName.charAt(0).toUpperCase()
+                  )}
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h4 className="text-sm font-bold text-white truncate">{displayName}</h4>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#00A859]/30 text-[#00FF87] border border-[#00FF87]/30 uppercase">
-                    Jugador
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${isClubAdmin ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' : 'bg-[#00A859]/30 text-[#00FF87] border border-[#00FF87]/30'}`}>
+                    {isClubAdmin ? clubAdminInfo?.rol || 'Club' : 'Jugador'}
                   </span>
                 </div>
                 {displayEmail && <p className="text-xs text-slate-300 truncate">{displayEmail}</p>}
@@ -165,8 +225,26 @@ export function PlayerNavDropdown() {
             </div>
           </div>
 
-          {/* Menú de Acciones Rápidas con rutas reales a cada pestaña */}
+          {/* Menú de Acciones Rápidas */}
           <div className="p-2 space-y-1">
+            {/* Si es Admin de Club, el ítem principal destacado es su Panel de Gestión */}
+            {isClubAdmin && (
+              <Link
+                to="/app"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors border border-emerald-200/60"
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-emerald-950">Panel de Gestión del Club</p>
+                  <p className="text-[11px] text-emerald-700">Reservas, caja, canchas y clientes</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-emerald-600 opacity-70" />
+              </Link>
+            )}
+
             <Link
               to="/player/partidos"
               onClick={() => setIsOpen(false)}
@@ -210,16 +288,22 @@ export function PlayerNavDropdown() {
             </Link>
           </div>
 
-          {/* Footer del Dropdown con Logout Real y Funcional */}
+          {/* Footer del Dropdown */}
           <div className="p-2 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <Link
-              to="/login"
-              onClick={() => setIsOpen(false)}
-              className="text-[11px] font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 px-2 py-1"
-            >
-              <Shield className="w-3.5 h-3.5 text-slate-400" />
-              Panel de Clubes
-            </Link>
+            {!isClubAdmin ? (
+              <Link
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                className="text-[11px] font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 px-2 py-1"
+              >
+                <Shield className="w-3.5 h-3.5 text-slate-400" />
+                Panel de Clubes
+              </Link>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-400 px-2 py-1">
+                MatchGo Clubes
+              </span>
+            )}
 
             <button
               type="button"
@@ -235,3 +319,4 @@ export function PlayerNavDropdown() {
     </div>
   );
 }
+

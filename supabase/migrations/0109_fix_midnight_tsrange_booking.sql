@@ -151,14 +151,13 @@ BEGIN
   LIMIT 1;
 
   IF NOT FOUND THEN
-    INSERT INTO jugadores(club_id, nombre, email, telefono, es_socio, origen)
+    INSERT INTO jugadores(club_id, nombre, email, telefono, activo)
     VALUES (
       v_club_id, 
       COALESCE(v_jugador_app.nombre_display, 'Jugador App'), 
       v_email, 
       v_jugador_app.telefono, 
-      FALSE, 
-      'app'
+      TRUE
     )
     RETURNING id INTO v_jugador_id;
   END IF;

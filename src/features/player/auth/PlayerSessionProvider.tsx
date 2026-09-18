@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
-import { withTimeout } from '@/lib/network';
 
 export type PlayerPhase = 'loading' | 'auth' | 'onboarding' | 'app';
 
@@ -12,6 +11,9 @@ export interface CompleteOnboardingData {
 export interface PlayerSessionContextValue {
   phase:               PlayerPhase;
   userId:              string | null;
+  isClubAdmin:         boolean;
+  clubNombre:          string | null;
+  clubSlug:            string | null;
   completeOnboarding:  (data: CompleteOnboardingData) => Promise<void>;
   logout:              () => Promise<void>;
   login:               () => void;
@@ -19,25 +21,69 @@ export interface PlayerSessionContextValue {
 
 const PlayerSessionContext = createContext<PlayerSessionContextValue | null>(null);
 
-async function fetchPlayerPhase(userId: string): Promise<'onboarding' | 'app'> {
-  try {
-    const promise = supabase
-      .from('jugadores_app')
-      .select('nombre_display')
-      .eq('auth_user_id', userId)
-      .maybeSingle();
+interface ResolvedSession {
+  phase: 'onboarding' | 'app';
+  isClubAdmin: boolean;
+  clubNombre: string | null;
+  clubSlug: string | null;
+}
 
-    const { data } = await (withTimeout(promise as any, 5000, 'fetchPlayerPhase:jugadores_app') as any);
-    return data?.nombre_display ? 'app' : 'onboarding';
+async function resolvePlayerSession(userId: string): Promise<ResolvedSession> {
+  try {
+    const [jugadorRes, usuarioRes] = await Promise.all([
+      supabase
+        .from('jugadores_app')
+        .select('nombre_display')
+        .eq('auth_user_id', userId)
+        .maybeSingle(),
+      supabase
+        .from('usuarios')
+        .select('nombre, rol, clubes(nombre, slug)')
+        .eq('id', userId)
+        .maybeSingle(),
+    ]);
+
+    const jugadorData = jugadorRes.data;
+    const usuarioData = usuarioRes.data;
+
+    const isClubAdmin = !!usuarioData;
+    const clubInfo = (usuarioData?.clubes as unknown as { nombre?: string; slug?: string }) || null;
+    const clubNombre = clubInfo?.nombre ?? null;
+    const clubSlug = clubInfo?.slug ?? null;
+
+    if (jugadorData?.nombre_display) {
+      return { phase: 'app', isClubAdmin, clubNombre, clubSlug };
+    }
+
+    if (usuarioData) {
+      // Es usuario de club pero todavía no tenía fila en jugadores_app.
+      // Auto-creamos el perfil básico para que pueda usar la app de jugador sin onboarding forzado.
+      const nombreAdmin = usuarioData.nombre || 'Administrador';
+      const nombreCorto = nombreAdmin.split(' ')[0] ?? nombreAdmin;
+      void supabase.from('jugadores_app').upsert(
+        {
+          auth_user_id: userId,
+          nombre_display: nombreAdmin,
+          nombre_corto: nombreCorto,
+        },
+        { onConflict: 'auth_user_id' }
+      );
+      return { phase: 'app', isClubAdmin: true, clubNombre, clubSlug };
+    }
+
+    return { phase: 'onboarding', isClubAdmin: false, clubNombre: null, clubSlug: null };
   } catch (err) {
-    console.warn('[PlayerSessionProvider] fetchPlayerPhase timeout o error, asumiendo app:', err);
-    return 'app';
+    console.warn('[PlayerSessionProvider] resolvePlayerSession error, asumiendo app:', err);
+    return { phase: 'app', isClubAdmin: false, clubNombre: null, clubSlug: null };
   }
 }
 
 export function PlayerSessionProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<PlayerPhase>('loading');
   const [userId, setUserId] = useState<string | null>(null);
+  const [isClubAdmin, setIsClubAdmin] = useState(false);
+  const [clubNombre, setClubNombre] = useState<string | null>(null);
+  const [clubSlug, setClubSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +95,9 @@ export function PlayerSessionProvider({ children }: { children: ReactNode }) {
 
         if (!session) {
           setUserId(null);
+          setIsClubAdmin(false);
+          setClubNombre(null);
+          setClubSlug(null);
           setPhase('auth');
           return;
         }
@@ -61,16 +110,19 @@ export function PlayerSessionProvider({ children }: { children: ReactNode }) {
           event === 'TOKEN_REFRESHED' ||
           event === 'USER_UPDATED'
         ) {
-          // Desacoplar de la pila síncrona de _notifyAllSubscribers para que
-          // Supabase JS SDK complete _recoverAndRefresh sin producir deadlock en PostgREST.
           setTimeout(() => {
             if (!mounted) return;
-            fetchPlayerPhase(session.user.id)
-              .then((nextPhase) => {
-                if (mounted) setPhase(nextPhase);
+            resolvePlayerSession(session.user.id)
+              .then((res) => {
+                if (mounted) {
+                  setPhase(res.phase);
+                  setIsClubAdmin(res.isClubAdmin);
+                  setClubNombre(res.clubNombre);
+                  setClubSlug(res.clubSlug);
+                }
               })
               .catch((err) => {
-                console.warn('[PlayerSessionProvider] Error procesando fase, manteniendo app:', err);
+                console.warn('[PlayerSessionProvider] Error procesando sesión:', err);
                 if (mounted) setPhase('app');
               });
           }, 0);
@@ -111,6 +163,9 @@ export function PlayerSessionProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     setUserId(null);
+    setIsClubAdmin(false);
+    setClubNombre(null);
+    setClubSlug(null);
     setPhase('auth');
     try {
       await supabase.auth.signOut();
@@ -122,6 +177,9 @@ export function PlayerSessionProvider({ children }: { children: ReactNode }) {
   const value: PlayerSessionContextValue = {
     phase,
     userId,
+    isClubAdmin,
+    clubNombre,
+    clubSlug,
     completeOnboarding,
     logout,
     login: () => { /* no-op */ },
@@ -141,3 +199,4 @@ export function usePlayerSession(): PlayerSessionContextValue {
   }
   return ctx;
 }
+

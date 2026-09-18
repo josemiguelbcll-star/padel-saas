@@ -19,6 +19,7 @@ import { useClubsPublicos } from './hooks/useClubsPublicos';
 import { supabase } from '@/lib/supabase';
 import { DEPORTES_CATALOGO, obtenerInfoDeporte } from '@/lib/deportes';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
+import { useSession } from '@/features/auth';
 import './landing.css';
 
 // Fotos atractivas reales de canchas
@@ -54,6 +55,7 @@ interface SlotReal {
 
 export function BuscarPage() {
   const navigate = useNavigate();
+  const { user } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Fechas dinámicas
@@ -192,14 +194,25 @@ export function BuscarPage() {
 
             {/* Acciones a la derecha: Botón verde para clubes + Perfil de Jugador */}
             <div className="flex items-center gap-2 sm:gap-4">
-              <Link
-                to="/login"
-                className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <Building2 className="w-3.5 h-3.5 hidden xs:inline" />
-                <span className="hidden sm:inline">Software para clubes</span>
-                <span className="sm:hidden">Clubes</span>
-              </Link>
+              {user ? (
+                <Link
+                  to="/app"
+                  className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Mi Panel de Gestión</span>
+                  <span className="sm:hidden">Mi Club</span>
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <Building2 className="w-3.5 h-3.5 hidden xs:inline" />
+                  <span className="hidden sm:inline">Software para clubes</span>
+                  <span className="sm:hidden">Clubes</span>
+                </Link>
+              )}
 
               <PlayerNavDropdown />
             </div>

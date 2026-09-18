@@ -26,9 +26,11 @@ import {
 import { PadelScrollReveal } from './PadelScrollReveal';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
 import { DEPORTES_CATALOGO } from '@/lib/deportes';
+import { useSession } from '@/features/auth';
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useSession();
   
   // Real dynamic dates (Hoy / Mañana)
   const todayDate = useMemo(() => new Date(), []);
@@ -229,15 +231,26 @@ export function LandingPage() {
 
             {/* Acciones a la derecha: Botón verde para clubes + Perfil de Jugador */}
             <div className="nav-actions flex items-center gap-2 sm:gap-4">
-              {/* Botón verde "Software para clubes" */}
-              <Link
-                to="/login"
-                className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-              >
-                <Building2 className="w-3.5 h-3.5 hidden xs:inline" />
-                <span className="hidden sm:inline">Software para clubes</span>
-                <span className="sm:hidden">Clubes</span>
-              </Link>
+              {/* Botón verde para clubes o ir a panel si ya es admin */}
+              {user ? (
+                <Link
+                  to="/app"
+                  className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Mi Panel de Gestión</span>
+                  <span className="sm:hidden">Mi Club</span>
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="bg-[#00B050] hover:bg-[#009243] text-white font-bold text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5 hidden xs:inline" />
+                  <span className="hidden sm:inline">Software para clubes</span>
+                  <span className="sm:hidden">Clubes</span>
+                </Link>
+              )}
 
               {/* Apartado de Jugador con Avatar, Badge y Menú Desplegable */}
               <PlayerNavDropdown />
@@ -263,11 +276,11 @@ export function LandingPage() {
         <div className="container relative z-10 py-12">
           <div className="max-w-3xl mb-8">
             <Link
-              to="/login"
+              to={user ? "/app" : "/login"}
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 hover:border-emerald-400/50 text-[#00FF87] text-xs font-bold uppercase tracking-wider mb-6 shadow-sm transition-all cursor-pointer group"
             >
               <Sparkles className="h-3.5 w-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-              <span>Portal de Reservas & Software para Clubes</span>
+              <span>{user ? "Acceder a mi Software de Club" : "Portal de Reservas & Software para Clubes"}</span>
               <ArrowRight className="h-3 w-3 text-emerald-400 opacity-80 group-hover:translate-x-0.5 transition-transform" />
             </Link>
 

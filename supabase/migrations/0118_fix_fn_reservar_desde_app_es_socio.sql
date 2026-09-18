@@ -1,39 +1,8 @@
 -- ==============================================================================
--- MIGRACIÓN 0117: Asignación de Tarifa Predeterminada a Canchas
+-- MIGRACIÓN 0118: Corregir inserción de jugadores en fn_reservar_desde_app
+-- Elimina columnas inexistentes `es_socio` y `origen` en la inserción de jugadores.
 -- ==============================================================================
 
--- 1. Agregar columna tarifa_id a canchas
-ALTER TABLE public.canchas
-  ADD COLUMN IF NOT EXISTS tarifa_id BIGINT REFERENCES public.tarifas(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_canchas_tarifa ON public.canchas(tarifa_id);
-
--- 2. Actualizar la vista pública de canchas
-DROP VIEW IF EXISTS public.v_canchas_publicas;
-
-CREATE VIEW public.v_canchas_publicas
-  WITH (security_invoker = false)
-AS
-SELECT
-  c.id,
-  c.club_id,
-  c.nombre,
-  c.tipo,
-  c.deporte,
-  c.cubierta,
-  c.activa,
-  c.orden,
-  c.tarifa_id,
-  t.nombre AS tarifa_nombre,
-  t.monto AS tarifa_monto
-FROM public.canchas c
-LEFT JOIN public.tarifas t ON t.id = c.tarifa_id
-WHERE c.activa = TRUE;
-
-GRANT SELECT ON public.v_canchas_publicas TO anon;
-GRANT SELECT ON public.v_canchas_publicas TO authenticated;
-
--- 3. Actualizar fn_reservar_desde_app para respetar tarifa_id de la cancha si existe
 CREATE OR REPLACE FUNCTION public.fn_reservar_desde_app(
   p_cancha_id    BIGINT,
   p_fecha        DATE,
