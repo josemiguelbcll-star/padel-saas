@@ -2,14 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Clock, Phone, Globe, Instagram,
-  ChevronLeft, ChevronRight, Search, SlidersHorizontal, CalendarDays, X, Trophy,
+  ChevronLeft, ChevronRight, Search, SlidersHorizontal, CalendarDays, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 import { useClubPublico, type FotoClub, type CanchaPublica, type ClubPublico } from './hooks/useClubPublico';
 import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibilidadClub';
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
-import { detectarDeporte, obtenerInfoDeporte, type DeporteId } from '@/lib/deportes';
+import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
 
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
 import { Capacitor } from '@capacitor/core';

@@ -10,7 +10,6 @@ import {
 import { useClubsPublicos } from '@/features/landing/hooks/useClubsPublicos';
 import { supabase } from '@/lib/supabase';
 import { getLogoClubUrl } from '@/lib/clubBrand';
-import { DEPORTES_CATALOGO } from '@/lib/deportes';
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
 
 // Precios de referencia según club para visuales atractivas
@@ -95,7 +94,7 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
   const [ordenarPor, setOrdenarPor] = useState<'relevancia' | 'turnos' | 'nombre'>('relevancia');
 
   // Cargar clubes públicos
-  const { data: clubs = [], isLoading: isLoadingClubs, ciudades, deportesDisponibles, getDeportesPorCiudad } = useClubsPublicos();
+  const { data: clubs = [], isLoading: isLoadingClubs, ciudades, getDeportesPorCiudad } = useClubsPublicos();
 
   const sportsForCity = useMemo(() => {
     return getDeportesPorCiudad(selectedCiudad);

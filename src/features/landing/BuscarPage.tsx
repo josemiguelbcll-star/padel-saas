@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useClubsPublicos } from './hooks/useClubsPublicos';
 import { supabase } from '@/lib/supabase';
-import { DEPORTES_CATALOGO, detectarDeporte, obtenerInfoDeporte, type DeporteId } from '@/lib/deportes';
+import { detectarDeporte, obtenerInfoDeporte, type DeporteId } from '@/lib/deportes';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
 import { useSession } from '@/features/auth';
 import './landing.css';
@@ -269,7 +269,7 @@ export function BuscarPage() {
                   onChange={(e) => {
                     const newCity = e.target.value;
                     const sports = getDeportesPorCiudad(newCity);
-                    const newSport = sports.length > 0 && !sports.some((s) => s.id === selectedSport) ? sports[0].id : selectedSport;
+                    const newSport = sports.length > 0 && !sports.some((s) => s.id === selectedSport) ? (sports[0]?.id || selectedSport) : selectedSport;
                     updateFilters(newCity, newSport, selectedDateISO, selectedTime);
                   }}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"

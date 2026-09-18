@@ -64,7 +64,7 @@ export function LandingPage() {
 
   // Mantener sincronizado si la ciudad o deportes disponibles cambian
   useEffect(() => {
-    if (ciudades.length > 0 && !ciudades.includes(selectedCity)) {
+    if (ciudades.length > 0 && !ciudades.includes(selectedCity) && ciudades[0]) {
       setSelectedCity(ciudades[0]);
     }
   }, [ciudades, selectedCity]);
@@ -75,7 +75,7 @@ export function LandingPage() {
   }, [getDeportesPorCiudad, selectedCity]);
 
   useEffect(() => {
-    if (sportsForCity.length > 0 && !sportsForCity.some((s) => s.id === selectedSport)) {
+    if (sportsForCity.length > 0 && !sportsForCity.some((s) => s.id === selectedSport) && sportsForCity[0]) {
       setSelectedSport(sportsForCity[0].id);
     }
   }, [sportsForCity, selectedSport]);
@@ -341,7 +341,7 @@ export function LandingPage() {
                     const newCity = e.target.value;
                     setSelectedCity(newCity);
                     const sports = getDeportesPorCiudad(newCity);
-                    if (sports.length > 0 && !sports.some((s) => s.id === selectedSport)) {
+                    if (sports.length > 0 && !sports.some((s) => s.id === selectedSport) && sports[0]) {
                       setSelectedSport(sports[0].id);
                     }
                   }}
