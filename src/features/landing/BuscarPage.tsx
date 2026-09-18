@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import {
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useClubsPublicos } from './hooks/useClubsPublicos';
 import { supabase } from '@/lib/supabase';
-import { DEPORTES_CATALOGO, obtenerInfoDeporte } from '@/lib/deportes';
+import { DEPORTES_CATALOGO, detectarDeporte, obtenerInfoDeporte, type DeporteId } from '@/lib/deportes';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
 import { useSession } from '@/features/auth';
 import './landing.css';
@@ -58,79 +58,98 @@ export function BuscarPage() {
   const { user } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Fechas dinámicas
-  const todayDate = useMemo(() => new Date(), []);
-  const tomorrowDate = useMemo(() => new Date(Date.now() + 86400000), []);
-  const formatDateLabel = (d: Date) => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-  const todayLabel = `Hoy ${formatDateLabel(todayDate)}`;
-  const tomorrowLabel = `Mañana ${formatDateLabel(tomorrowDate)}`;
+  // Fechas dinámicas (Próximos 7 días)
+  const dateOptions = useMemo(() => {
+    const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now.getTime() + i * 86400000);
+      const iso = d.toISOString().slice(0, 10);
+      const dayMonth = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+      let label = `${DIAS[d.getDay()]} ${dayMonth}`;
+      if (i === 0) label = `Hoy ${dayMonth}`;
+      if (i === 1) label = `Mañana ${dayMonth}`;
+      return { iso, label };
+    });
+  }, []);
+
+  const { data: clubs = [], isLoading: isLoadingClubs, ciudades, deportesDisponibles, getDeportesPorCiudad } = useClubsPublicos();
 
   // Parámetros de búsqueda iniciales desde URL o defaults
   const paramCiudad = searchParams.get('ciudad') || 'Salta';
   const paramDeporte = searchParams.get('deporte') || 'padel';
-  const paramFecha = searchParams.get('fecha') || tomorrowLabel;
+  const paramFecha = searchParams.get('fecha') || '';
   const paramHora = searchParams.get('hora') || '14:30hs';
+
+  const initialDateISO = useMemo(() => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(paramFecha)) return paramFecha;
+    return dateOptions[1]?.iso || dateOptions[0]?.iso || new Date().toISOString().slice(0, 10);
+  }, [paramFecha, dateOptions]);
 
   const [selectedCity, setSelectedCity] = useState(paramCiudad);
   const [selectedSport, setSelectedSport] = useState(paramDeporte);
-  const [selectedDate, setSelectedDate] = useState(paramFecha);
+  const [selectedDateISO, setSelectedDateISO] = useState(initialDateISO);
   const [selectedTime, setSelectedTime] = useState(paramHora);
 
   const [selectedSlotByClub, setSelectedSlotByClub] = useState<Record<string, { hora: string; cancha_id?: number }>>({});
 
-  const targetDateISO = useMemo(() => {
-    if (selectedDate.startsWith('Mañana')) {
-      return tomorrowDate.toISOString().slice(0, 10);
+  // Sincronizar con parámetros de URL si cambian
+  useEffect(() => {
+    if (searchParams.get('ciudad')) setSelectedCity(searchParams.get('ciudad')!);
+    if (searchParams.get('deporte')) setSelectedSport(searchParams.get('deporte')!);
+    if (searchParams.get('fecha') && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('fecha')!)) {
+      setSelectedDateISO(searchParams.get('fecha')!);
     }
-    if (selectedDate.startsWith('Hoy')) {
-      return todayDate.toISOString().slice(0, 10);
-    }
-    // Si viene en formato ISO directo (YYYY-MM-DD)
-    if (/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-      return selectedDate;
-    }
-    return tomorrowDate.toISOString().slice(0, 10);
-  }, [selectedDate, todayDate, tomorrowDate]);
+    if (searchParams.get('hora')) setSelectedTime(searchParams.get('hora')!);
+  }, [searchParams]);
 
   const sportInfo = obtenerInfoDeporte(selectedSport);
 
+  const sportsForCity = useMemo(() => {
+    const list = getDeportesPorCiudad(selectedCity);
+    return list.length > 0 ? list : deportesDisponibles;
+  }, [getDeportesPorCiudad, selectedCity, deportesDisponibles]);
+
   // Sincronizar cambios de filtros con la URL
-  const updateFilters = (city: string, sport: string, date: string, time: string) => {
+  const updateFilters = (city: string, sport: string, dateISO: string, time: string) => {
     setSelectedCity(city);
     setSelectedSport(sport);
-    setSelectedDate(date);
+    setSelectedDateISO(dateISO);
     setSelectedTime(time);
     setSearchParams({
       ciudad: city,
       deporte: sport,
-      fecha: date,
+      fecha: dateISO,
       hora: time,
     });
   };
 
-  const { data: clubs = [], isLoading: isLoadingClubs } = useClubsPublicos();
-
-  // Filtrar clubes por ciudad si aplica (o mostrar todos si no hay match directo)
+  // Filtrado estrictamente real de clubes por ciudad Y deporte
   const filteredClubs = useMemo(() => {
     if (!clubs || clubs.length === 0) return [];
     
-    const cityMatch = clubs.filter((c) =>
-      c.ciudad && c.ciudad.toLowerCase().includes(selectedCity.toLowerCase())
-    );
+    return clubs.filter((c) => {
+      // 1. Filtrar por ciudad (case-insensitive)
+      const ciudadClub = (c.ciudad || '').trim().toLowerCase();
+      const ciudadFiltro = selectedCity.trim().toLowerCase();
+      const coincideCiudad = !selectedCity || ciudadClub === ciudadFiltro || ciudadClub.includes(ciudadFiltro);
+      if (!coincideCiudad) return false;
 
-    if (cityMatch.length > 0) return cityMatch;
-    return clubs;
-  }, [clubs, selectedCity]);
+      // 2. Filtrar por deporte: el club DEBE tener canchas de ese deporte
+      const coincideDeporte = c.deportesDisponibles.includes(selectedSport as DeporteId);
+      return coincideDeporte;
+    });
+  }, [clubs, selectedCity, selectedSport]);
 
   // Consultar disponibilidad real de cada club desde la base de datos de Supabase
   const availabilityQueries = useQueries({
     queries: filteredClubs.map((club) => ({
-      queryKey: ['disponibilidad-real-club', club.slug, targetDateISO],
+      queryKey: ['disponibilidad-real-club', club.slug, selectedDateISO],
       queryFn: async (): Promise<{ slug: string; slots: SlotReal[] }> => {
         try {
           const { data, error } = await supabase.rpc('fn_disponibilidad_publica', {
             p_club_slug: club.slug,
-            p_fecha: targetDateISO,
+            p_fecha: selectedDateISO,
           });
           if (error) {
             console.warn(`Error al obtener turnos para ${club.slug}:`, error);
@@ -164,8 +183,10 @@ export function BuscarPage() {
   };
 
   const handleBooking = (slug: string, hora: string) => {
-    navigate(`/club/${slug}?fecha=${targetDateISO}&hora=${hora}&deporte=${selectedSport}`);
+    navigate(`/club/${slug}?fecha=${selectedDateISO}&hora=${hora}&deporte=${selectedSport}`);
   };
+
+  const currentDateLabel = dateOptions.find((d) => d.iso === selectedDateISO)?.label || selectedDateISO;
 
   return (
     <div className="mg-landing min-h-screen bg-[#F4F2EB] flex flex-col">
@@ -245,15 +266,19 @@ export function BuscarPage() {
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Ciudad</p>
                 <select
                   value={selectedCity}
-                  onChange={(e) => updateFilters(e.target.value, selectedSport, selectedDate, selectedTime)}
+                  onChange={(e) => {
+                    const newCity = e.target.value;
+                    const sports = getDeportesPorCiudad(newCity);
+                    const newSport = sports.length > 0 && !sports.some((s) => s.id === selectedSport) ? sports[0].id : selectedSport;
+                    updateFilters(newCity, newSport, selectedDateISO, selectedTime);
+                  }}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  <option value="Salta">Salta</option>
-                  <option value="Buenos Aires">Buenos Aires</option>
-                  <option value="Córdoba">Córdoba</option>
-                  <option value="Rosario">Rosario</option>
-                  <option value="Mendoza">Mendoza</option>
-                  <option value="Tucumán">Tucumán</option>
+                  {ciudades.map((ciudad) => (
+                    <option key={ciudad} value={ciudad}>
+                      {ciudad}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -267,10 +292,10 @@ export function BuscarPage() {
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Deporte</p>
                 <select
                   value={selectedSport}
-                  onChange={(e) => updateFilters(selectedCity, e.target.value, selectedDate, selectedTime)}
+                  onChange={(e) => updateFilters(selectedCity, e.target.value, selectedDateISO, selectedTime)}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  {DEPORTES_CATALOGO.map((dep) => (
+                  {sportsForCity.map((dep) => (
                     <option key={dep.id} value={dep.id}>
                       {dep.label}
                     </option>
@@ -287,15 +312,15 @@ export function BuscarPage() {
               <div className="w-full">
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Fecha</p>
                 <select
-                  value={selectedDate}
+                  value={selectedDateISO}
                   onChange={(e) => updateFilters(selectedCity, selectedSport, e.target.value, selectedTime)}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  <option value={todayLabel}>{todayLabel}</option>
-                  <option value={tomorrowLabel}>{tomorrowLabel}</option>
-                  <option value="Viernes 12/09">Viernes 12/09</option>
-                  <option value="Sábado 13/09">Sábado 13/09</option>
-                  <option value="Domingo 14/09">Domingo 14/09</option>
+                  {dateOptions.map((opt) => (
+                    <option key={opt.iso} value={opt.iso}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -309,7 +334,7 @@ export function BuscarPage() {
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Horario</p>
                 <select
                   value={selectedTime}
-                  onChange={(e) => updateFilters(selectedCity, selectedSport, selectedDate, e.target.value)}
+                  onChange={(e) => updateFilters(selectedCity, selectedSport, selectedDateISO, e.target.value)}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
                   <option value="10:00hs">10:00hs</option>
@@ -341,7 +366,7 @@ export function BuscarPage() {
                 Clubes con canchas de {sportInfo.label} en {selectedCity}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 mt-1 flex items-center gap-2">
-                <span>{selectedDate}</span>
+                <span>{currentDateLabel}</span>
                 <span>•</span>
                 <span>Horario sugerido: <strong>{selectedTime}</strong></span>
               </p>
@@ -364,23 +389,53 @@ export function BuscarPage() {
 
           {/* Sin Resultados */}
           {!isAnyLoading && filteredClubs.length === 0 && (
-            <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm max-w-xl mx-auto">
+            <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200 shadow-sm max-w-xl mx-auto">
               <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
                 <Info className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                No encontramos canchas registradas en {selectedCity}
+              <h3 className="text-xl font-bold text-slate-900 mb-2">
+                No encontramos canchas de {sportInfo.label} en {selectedCity}
               </h3>
               <p className="text-sm text-slate-500 mb-6">
-                Probá seleccionando <strong>Salta</strong> o cambiá el deporte para ver los clubes con disponibilidad en tiempo real.
+                Actualmente no hay complejos de {sportInfo.label} registrados con disponibilidad en {selectedCity}.
               </p>
-              <button
-                type="button"
-                onClick={() => updateFilters('Salta', 'padel', selectedDate, selectedTime)}
-                className="px-6 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow transition-all"
-              >
-                Ver clubes en Salta
-              </button>
+
+              {/* Sugerencias de otros deportes en la misma ciudad */}
+              {sportsForCity.length > 0 && (
+                <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                    Otros deportes con canchas en {selectedCity}:
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {sportsForCity.map((dep) => (
+                      <button
+                        key={dep.id}
+                        type="button"
+                        onClick={() => updateFilters(selectedCity, dep.id, selectedDateISO, selectedTime)}
+                        className="px-4 py-2 rounded-full bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-xs font-bold text-slate-800 transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                      >
+                        <Trophy className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Ver {dep.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Botón de acción rápido a ciudad principal */}
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {ciudades.filter((c) => c.toLowerCase() !== selectedCity.toLowerCase()).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => updateFilters(c, selectedSport, selectedDateISO, selectedTime)}
+                    className="px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Buscar en {c}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -392,9 +447,13 @@ export function BuscarPage() {
                 const defaultFoto = fotos[0] || '/assets/padel-1.jpg';
                 const displayFoto = club.portada_url || fotos[idx % (fotos.length || 1)] || defaultFoto;
                 
-                // Turnos reales desde Supabase
+                // Turnos reales desde Supabase filtrados por canchas del deporte seleccionado
+                const canchasDelDeporte = club.canchas.filter((c) => detectarDeporte(c) === selectedSport);
+                const canchasDelDeporteIds = new Set(canchasDelDeporte.map((c) => c.id));
+
                 const allSlots = availabilityBySlug.get(club.slug) || [];
-                const freeSlots = allSlots.filter((s) => s.disponible);
+                const slotsDeporte = allSlots.filter((s) => canchasDelDeporteIds.size === 0 || canchasDelDeporteIds.has(s.cancha_id));
+                const freeSlots = slotsDeporte.filter((s) => s.disponible);
 
                 // Formatear horas a 5 caracteres (HH:MM)
                 const formattedSlots = freeSlots.map((s) => ({
@@ -471,7 +530,7 @@ export function BuscarPage() {
                       <div>
                         <div className="flex items-center justify-between mb-3">
                           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            Horarios libres ({selectedDate}):
+                            Horarios libres ({currentDateLabel}):
                           </p>
                           <span className="text-emerald-700 font-extrabold text-xs flex items-center gap-1">
                             <ShieldCheck className="w-3.5 h-3.5" /> Reserva instantánea

@@ -95,29 +95,30 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
   const [ordenarPor, setOrdenarPor] = useState<'relevancia' | 'turnos' | 'nombre'>('relevancia');
 
   // Cargar clubes públicos
-  const { data: clubs = [], isLoading: isLoadingClubs } = useClubsPublicos();
+  const { data: clubs = [], isLoading: isLoadingClubs, ciudades, deportesDisponibles, getDeportesPorCiudad } = useClubsPublicos();
 
-  // Filtrar clubes por ciudad (considerando default 'Salta' si no tiene ciudad seteada)
+  const sportsForCity = useMemo(() => {
+    return getDeportesPorCiudad(selectedCiudad);
+  }, [getDeportesPorCiudad, selectedCiudad]);
+
+  // Filtrar clubes por ciudad y deporte real
   const clubsFiltrados = useMemo(() => {
     if (!clubs || clubs.length === 0) return [];
     return clubs.filter((c) => {
-      // Excluir registros vacíos o sin canchas conocidas
-      if (c.slug === 'juancito-macana' || c.slug === 'domo-padel') return false;
-      if (!selectedCiudad || selectedCiudad === 'todas') return true;
-      const ciudadClub = c.ciudad || 'Salta';
-      return ciudadClub.toLowerCase().includes(selectedCiudad.toLowerCase());
+      // Excluir registros de prueba si aplica
+      if (c.slug === 'juancito-macana') return false;
+      if (selectedCiudad && selectedCiudad !== 'todas') {
+        const ciudadClub = c.ciudad || 'Salta';
+        if (!ciudadClub.toLowerCase().includes(selectedCiudad.toLowerCase())) return false;
+      }
+      if (selectedDeporte && selectedDeporte !== 'todos') {
+        if (!c.deportesDisponibles.includes(selectedDeporte as any)) return false;
+      }
+      return true;
     });
-  }, [clubs, selectedCiudad]);
+  }, [clubs, selectedCiudad, selectedDeporte]);
 
-  // Obtener ciudades disponibles
-  const ciudadesDisponibles = useMemo(() => {
-    const set = new Set<string>();
-    set.add('Salta');
-    for (const c of clubs) {
-      if (c.ciudad) set.add(c.ciudad);
-    }
-    return Array.from(set);
-  }, [clubs]);
+  const ciudadesDisponibles = ciudades;
 
   // ── Consultar disponibilidad real de cada club para la fecha ──
   const availabilityQueries = useQueries({
@@ -355,7 +356,8 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
                     marginTop: '2px',
                   }}
                 >
-                  {DEPORTES_CATALOGO.map((dep) => (
+                  <option value="todos">Todos los deportes</option>
+                  {sportsForCity.map((dep) => (
                     <option key={dep.id} value={dep.id}>{dep.label}</option>
                   ))}
                 </select>
