@@ -97,7 +97,7 @@ const TAB_TITLE: Record<PlayerTab, string> = {
 function PlayerAppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { phase, login, completeOnboarding, logout } = usePlayerSession();
+  const { phase, login, completeOnboarding, logout, isClubAdmin, clubNombre } = usePlayerSession();
   const { proximas, historial, isLoading: isLoadingReservas, reload } = useMyReservas();
   const [tab, setTab] = useState<PlayerTab>('home');
   const [selectedClub, setSelectedClub] = useState<{ slug: string; fecha?: string; hora?: string } | null>(null);
@@ -242,6 +242,45 @@ function PlayerAppContent() {
   return (
     <div className="mg-player">
 
+      {/* ── Banner Modo Jugador para Administrador de Club ─────── */}
+      {isClubAdmin && !selectedClub && (
+        <div style={{
+          background: 'linear-gradient(90deg, #0B1F4D 0%, #17326D 100%)',
+          color: '#ffffff',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          fontSize: 12,
+          borderBottom: '1px solid rgba(255,255,255,0.15)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ fontSize: 14 }}>🎾</span>
+            <span style={{ color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Modo Jugador · <strong style={{ color: '#00FF87' }}>{clubNombre || 'Administrador'}</strong>
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/app')}
+            style={{
+              background: '#00B050',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 20,
+              padding: '4px 12px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+            }}
+          >
+            Volver al Software →
+          </button>
+        </div>
+      )}
+
       {/* ── Topbar ─────────────────────────────────────────────── */}
       {!selectedClub && (
         <div className="mgp-topbar">
@@ -334,6 +373,8 @@ function PlayerAppContent() {
                 proximas={proximas}
                 historial={historial}
                 isLoadingReservas={isLoadingReservas}
+                isClubAdmin={isClubAdmin}
+                clubNombre={clubNombre}
               />
             </div>
           </>

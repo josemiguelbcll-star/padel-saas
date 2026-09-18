@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import { EditPerfilScreen } from './EditPerfilScreen';
 import type { MiReservaReal } from '../hooks/useMyReservas';
@@ -135,13 +136,23 @@ function SettingsRow({ icon, label, onPress, isLast }: { icon: ReactNode; label:
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 interface PerfilTabProps {
-  onLogout:         () => void;
-  proximas:         MiReservaReal[];
-  historial:        MiReservaReal[];
-  isLoadingReservas: boolean;
+  onLogout:          () => void;
+  proximas:          MiReservaReal[];
+  historial:         MiReservaReal[];
+  isLoadingReservas:  boolean;
+  isClubAdmin?:      boolean;
+  clubNombre?:       string | null;
 }
 
-export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: PerfilTabProps) {
+export function PerfilTab({
+  onLogout,
+  proximas,
+  historial,
+  isLoadingReservas,
+  isClubAdmin,
+  clubNombre,
+}: PerfilTabProps) {
+  const navigate = useNavigate();
   const { profile, saveProfile, isSaving, isLoading, iniciales } = usePlayerProfile();
   const [editOpen, setEditOpen] = useState(false);
   const [fichaOpen, setFichaOpen] = useState(false);
@@ -303,6 +314,65 @@ export function PerfilTab({ onLogout, proximas, historial, isLoadingReservas }: 
             </button>
           </div>
         </div>
+
+        {/* ── Acceso rápido a Panel de Club (si es admin) ────────── */}
+        {isClubAdmin && (
+          <div style={{ padding: '16px 16px 0' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #0B1F4D 0%, #17326D 100%)',
+              borderRadius: 16,
+              padding: '16px 18px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              boxShadow: '0 4px 14px rgba(11, 31, 77, 0.25)',
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{
+                    fontSize: 10,
+                    background: '#00B050',
+                    color: '#fff',
+                    padding: '2px 7px',
+                    borderRadius: 6,
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase'
+                  }}>
+                    ADMIN
+                  </span>
+                  <p style={{ fontWeight: 700, fontSize: 14, margin: 0, color: '#fff' }}>
+                    {clubNombre || 'Panel del Club'}
+                  </p>
+                </div>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', margin: 0 }}>
+                  Gestioná turnos, caja, inventario y canchas
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/app')}
+                style={{
+                  background: '#00B050',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 8px rgba(0, 176, 80, 0.4)',
+                }}
+              >
+                Ir al Software →
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Próximas reservas ─────────────────────────────────── */}
         <div style={{ padding: '20px 16px 0' }}>

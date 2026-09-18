@@ -19,6 +19,7 @@ import type { Club, PlataformaAdmin, Usuario } from '@/types/database';
  *   hizo signOut.
  */
 export type SessionError =
+  | { code: 'ES_JUGADOR'; email?: string; nombre?: string }
   | { code: 'NO_USUARIO_ROW' }
   | { code: 'FETCH_FAILED'; detail: string }
   | { code: 'USUARIO_DESACTIVADO' }

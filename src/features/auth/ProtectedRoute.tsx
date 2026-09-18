@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSession } from './useSession';
 import { NoClubAssignedScreen } from './NoClubAssignedScreen';
+import { EsJugadorSessionScreen } from './EsJugadorSessionScreen';
 import { SessionFetchErrorScreen } from './SessionFetchErrorScreen';
 import { UsuarioDesactivadoScreen } from './UsuarioDesactivadoScreen';
 import { ClubBloqueadoScreen } from './ClubBloqueadoScreen';
@@ -20,6 +21,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         Cargando…
       </div>
     );
+  }
+
+  if (error?.code === 'ES_JUGADOR') {
+    return <EsJugadorSessionScreen email={error.email} nombre={error.nombre} />;
   }
 
   if (error?.code === 'NO_USUARIO_ROW') {
