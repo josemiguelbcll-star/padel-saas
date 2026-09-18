@@ -26,25 +26,59 @@ import {
 import { PadelScrollReveal } from './PadelScrollReveal';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
 import { DEPORTES_CATALOGO } from '@/lib/deportes';
+import { useClubsPublicos } from './hooks/useClubsPublicos';
 import { useSession } from '@/features/auth';
 
 export function LandingPage() {
   const navigate = useNavigate();
   const { user } = useSession();
   
-  // Real dynamic dates (Hoy / Mañana)
-  const todayDate = useMemo(() => new Date(), []);
-  const tomorrowDate = useMemo(() => new Date(Date.now() + 86400000), []);
-  const formatDateLabel = (d: Date) => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-  const todayLabel = `Hoy ${formatDateLabel(todayDate)}`;
-  const tomorrowLabel = `Mañana ${formatDateLabel(tomorrowDate)}`;
+  // Real dynamic dates (Próximos 7 días)
+  const dateOptions = useMemo(() => {
+    const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now.getTime() + i * 86400000);
+      const iso = d.toISOString().slice(0, 10);
+      const dayMonth = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+      let label = `${DIAS[d.getDay()]} ${dayMonth}`;
+      if (i === 0) label = `Hoy ${dayMonth}`;
+      if (i === 1) label = `Mañana ${dayMonth}`;
+      return { iso, label };
+    });
+  }, []);
 
-  // Hero Floating Search Bar state (Default ciudad: Salta, deporte: padel)
+  // Clubes y deportes reales desde la base de datos
+  const { ciudades, getDeportesPorCiudad } = useClubsPublicos();
+
+  // Hero Floating Search Bar state
   const [selectedCity, setSelectedCity] = useState('Salta');
   const [selectedSport, setSelectedSport] = useState<string>('padel');
-  const [selectedDate, setSelectedDate] = useState(tomorrowLabel);
+  const [selectedDateISO, setSelectedDateISO] = useState<string>(() => dateOptions[1]?.iso || dateOptions[0]?.iso || '');
   const [selectedTime, setSelectedTime] = useState('14:30hs');
   const [activeSlot, setActiveSlot] = useState<string>('14:30');
+
+  const selectedDateLabel = useMemo(() => {
+    return dateOptions.find((d) => d.iso === selectedDateISO)?.label || 'Hoy';
+  }, [dateOptions, selectedDateISO]);
+
+  // Mantener sincronizado si la ciudad o deportes disponibles cambian
+  useEffect(() => {
+    if (ciudades.length > 0 && !ciudades.includes(selectedCity) && ciudades[0]) {
+      setSelectedCity(ciudades[0]);
+    }
+  }, [ciudades, selectedCity]);
+
+  const sportsForCity = useMemo(() => {
+    const list = getDeportesPorCiudad(selectedCity);
+    return list.length > 0 ? list : [DEPORTES_CATALOGO[0]!];
+  }, [getDeportesPorCiudad, selectedCity]);
+
+  useEffect(() => {
+    if (sportsForCity.length > 0 && !sportsForCity.some((s) => s.id === selectedSport) && sportsForCity[0]) {
+      setSelectedSport(sportsForCity[0].id);
+    }
+  }, [sportsForCity, selectedSport]);
   
   const [activeFeatureTab, setActiveFeatureTab] = useState<number>(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -303,15 +337,21 @@ export function LandingPage() {
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Buscar Ciudad</p>
                 <select
                   value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
+                  onChange={(e) => {
+                    const newCity = e.target.value;
+                    setSelectedCity(newCity);
+                    const sports = getDeportesPorCiudad(newCity);
+                    if (sports.length > 0 && !sports.some((s) => s.id === selectedSport) && sports[0]) {
+                      setSelectedSport(sports[0].id);
+                    }
+                  }}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  <option value="Salta">Salta</option>
-                  <option value="Buenos Aires">Buenos Aires</option>
-                  <option value="Córdoba">Córdoba</option>
-                  <option value="Rosario">Rosario</option>
-                  <option value="Mendoza">Mendoza</option>
-                  <option value="Tucumán">Tucumán</option>
+                  {ciudades.map((ciudad) => (
+                    <option key={ciudad} value={ciudad}>
+                      {ciudad}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -328,7 +368,7 @@ export function LandingPage() {
                   onChange={(e) => setSelectedSport(e.target.value)}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  {DEPORTES_CATALOGO.map((dep) => (
+                  {sportsForCity.map((dep) => (
                     <option key={dep.id} value={dep.id}>
                       {dep.label}
                     </option>
@@ -345,15 +385,15 @@ export function LandingPage() {
               <div className="w-full">
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">Fecha</p>
                 <select
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  value={selectedDateISO}
+                  onChange={(e) => setSelectedDateISO(e.target.value)}
                   className="bg-transparent font-bold text-xs sm:text-sm text-slate-800 outline-none cursor-pointer w-full"
                 >
-                  <option value={todayLabel}>{todayLabel}</option>
-                  <option value={tomorrowLabel}>{tomorrowLabel}</option>
-                  <option value="Viernes 12/09">Viernes 12/09</option>
-                  <option value="Sábado 13/09">Sábado 13/09</option>
-                  <option value="Domingo 14/09">Domingo 14/09</option>
+                  {dateOptions.map((opt) => (
+                    <option key={opt.iso} value={opt.iso}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -389,7 +429,8 @@ export function LandingPage() {
             <button
               type="button"
               onClick={() => {
-                navigate(`/buscar?ciudad=${encodeURIComponent(selectedCity)}&deporte=${encodeURIComponent(selectedSport)}&fecha=${encodeURIComponent(selectedDate)}&hora=${encodeURIComponent(selectedTime)}`);
+                const dateLabel = dateOptions.find((d) => d.iso === selectedDateISO)?.label || selectedDateISO;
+                navigate(`/buscar?ciudad=${encodeURIComponent(selectedCity)}&deporte=${encodeURIComponent(selectedSport)}&fecha=${encodeURIComponent(selectedDateISO)}&fechaLabel=${encodeURIComponent(dateLabel)}&hora=${encodeURIComponent(selectedTime)}`);
               }}
               className="btn-search-action active shimmer-effect cursor-pointer"
             >
@@ -448,7 +489,7 @@ export function LandingPage() {
                       Disponibilidad en Vivo ({selectedCity})
                     </span>
                     <h4 className="font-extrabold text-base text-slate-900">
-                      Club Central Padel · {selectedDate}
+                      Club Central Padel · {selectedDateLabel}
                     </h4>
                   </div>
                   <span className="text-xs font-semibold px-3 py-1 rounded-lg bg-slate-100 text-slate-600">

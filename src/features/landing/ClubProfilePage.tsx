@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   MapPin, Clock, Phone, Globe, Instagram,
@@ -9,6 +9,7 @@ import { getLogoClubUrl } from '@/lib/clubBrand';
 import { useClubPublico, type FotoClub, type CanchaPublica, type ClubPublico } from './hooks/useClubPublico';
 import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibilidadClub';
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
+import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
 
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
 import { Capacitor } from '@capacitor/core';
@@ -485,7 +486,11 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono,
         <h3 className="text-base font-black text-foreground">{court.canchaName}</h3>
         {cancha && (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {[cancha.tipo, cancha.cubierta != null ? (cancha.cubierta ? 'Cubierta' : 'Descubierta') : null]
+            {[
+              obtenerInfoDeporte(detectarDeporte(cancha)).label,
+              cancha.tipo,
+              cancha.cubierta != null ? (cancha.cubierta ? 'Cubierta' : 'Descubierta') : null
+            ]
               .filter(Boolean).join(' · ')}
           </p>
         )}
@@ -556,22 +561,48 @@ export function ClubProfilePage({
   onReservaCreada,
   initialFechaProp,
   initialHoraProp,
+  initialDeporteProp,
 }: {
   slugProp?:        string;
   onBack?:          () => void;
   onReservaCreada?: () => void;
   initialFechaProp?: string;
   initialHoraProp?: string;
+  initialDeporteProp?: string;
 } = {}) {
   const params = useParams<{ slug: string }>();
   const slug = slugProp ?? params.slug;
   const [searchParams] = useSearchParams();
-  const paramFecha  = searchParams.get('fecha');
-  const paramHora   = searchParams.get('hora') ?? searchParams.get('horario');
-  const fromPlayer  = !!onBack || searchParams.get('from') === 'player';
-  const backHref    = fromPlayer ? '/player' : '/';
+  const paramFecha   = searchParams.get('fecha');
+  const paramHora    = searchParams.get('hora') ?? searchParams.get('horario');
+  const paramDeporte = searchParams.get('deporte') ?? initialDeporteProp ?? null;
+  const fromPlayer   = !!onBack || searchParams.get('from') === 'player';
+  const backHref     = fromPlayer ? '/player' : '/';
 
   const { data, isLoading, isError } = useClubPublico(slug ?? '');
+  const canchas = data?.canchas ?? [];
+  const club    = data?.club;
+  const fotos   = data?.fotos ?? [];
+
+  // Extraer deportes presentes en las canchas de este club
+  const deportesDelClub = useMemo(() => {
+    if (!canchas || canchas.length === 0) return [];
+    const sportIds = Array.from(new Set(canchas.map((c) => detectarDeporte(c))));
+    return sportIds.map((id) => obtenerInfoDeporte(id));
+  }, [canchas]);
+
+  // Estado del deporte seleccionado
+  const [selectedDeporte, setSelectedDeporte] = useState<string>(() => {
+    if (paramDeporte) return paramDeporte;
+    return 'todos';
+  });
+
+  useEffect(() => {
+    if (paramDeporte) {
+      setSelectedDeporte(paramDeporte);
+    }
+  }, [paramDeporte]);
+
   const [initialFecha] = useState(() =>
     initialFechaProp ?? (paramFecha && paramFecha >= todayISO() ? paramFecha : todayISO()),
   );
@@ -601,7 +632,24 @@ export function ClubProfilePage({
 
   const dispQuery = useDisponibilidadClub(slug ?? '', fecha);
   const allSlots  = dispQuery.data ?? [];
-  const times     = availableTimes(allSlots, fecha);
+
+  // Filtrar canchas según el deporte seleccionado
+  const canchasFiltradas = useMemo(() => {
+    if (selectedDeporte === 'todos') return canchas;
+    return canchas.filter((c) => detectarDeporte(c) === selectedDeporte);
+  }, [canchas, selectedDeporte]);
+
+  const canchasFiltradasIds = useMemo(() => {
+    return new Set(canchasFiltradas.map((c) => c.id));
+  }, [canchasFiltradas]);
+
+  // Filtrar turnos según las canchas del deporte seleccionado
+  const filteredSlots = useMemo(() => {
+    if (selectedDeporte === 'todos') return allSlots;
+    return allSlots.filter((s) => canchasFiltradasIds.has(s.cancha_id));
+  }, [allSlots, selectedDeporte, canchasFiltradasIds]);
+
+  const times = availableTimes(filteredSlots, fecha);
 
   useEffect(() => {
     setLogoError(false);
@@ -646,7 +694,7 @@ export function ClubProfilePage({
       </div>
     </div>
   );
-  if (isError || !data) return (
+  if (isError || !data || !club) return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <h1 className="text-xl font-bold">Club no encontrado</h1>
       <p className="text-sm text-muted-foreground">Este club no tiene un perfil público activo o la URL es incorrecta.</p>
@@ -654,7 +702,6 @@ export function ClubProfilePage({
     </div>
   );
 
-  const { club, canchas, fotos } = data;
   const portada: FotoClub | null  = fotos.find(f => f.es_portada) ?? fotos[0] ?? null;
   const logoUrl  = getLogoClubUrl(club.logo_path);
 
@@ -673,7 +720,7 @@ export function ClubProfilePage({
   const DAYS = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(todayISO(), i));
   const canchasMap = new Map(canchas.map(c => [c.id, c]));
   const selectedHourSafe = selectedHour && times.includes(selectedHour) ? selectedHour : null;
-  const courts = selectedHourSafe ? courtsAtTime(allSlots, selectedHourSafe) : [];
+  const courts = selectedHourSafe ? courtsAtTime(filteredSlots, selectedHourSafe) : [];
 
   const brandStyle = club.color_primario_hsl
     ? ({ '--primary': club.color_primario_hsl } as React.CSSProperties)
@@ -816,12 +863,70 @@ export function ClubProfilePage({
       {/* ── Content ── */}
       <div className="mx-auto max-w-2xl px-4 py-5 space-y-6">
 
+        {/* ── SELECTOR DE DEPORTE (Si el club ofrece más de 1 deporte) ── */}
+        {deportesDelClub.length > 1 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Deporte</span>
+              {selectedDeporte !== 'todos' && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedDeporte('todos'); setSelectedHour(null); }}
+                  className="text-xs font-bold text-primary underline underline-offset-2"
+                >
+                  Ver todos los deportes
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+              <button
+                type="button"
+                onClick={() => { setSelectedDeporte('todos'); setSelectedHour(null); }}
+                className={cn(
+                  'px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0',
+                  selectedDeporte === 'todos'
+                    ? 'bg-primary text-primary-foreground shadow-md scale-[1.02]'
+                    : 'bg-card border border-border text-foreground hover:border-primary/50'
+                )}
+              >
+                Todos ({canchas.length})
+              </button>
+              {deportesDelClub.map((dep) => {
+                const count = canchas.filter((c) => detectarDeporte(c) === dep.id).length;
+                const isSel = selectedDeporte === dep.id;
+                return (
+                  <button
+                    key={dep.id}
+                    type="button"
+                    onClick={() => { setSelectedDeporte(dep.id); setSelectedHour(null); }}
+                    className={cn(
+                      'px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5',
+                      isSel
+                        ? 'bg-primary text-primary-foreground shadow-md scale-[1.02]'
+                        : 'bg-card border border-border text-foreground hover:border-primary/50'
+                    )}
+                  >
+                    <span>{dep.label}</span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-bold', isSel ? 'bg-white/20' : 'bg-muted text-muted-foreground')}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── TIME PICKER ── */}
         <div>
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-base font-black tracking-tight text-foreground">Elige tu turno</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">Solo se muestran turnos con canchas disponibles</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {selectedDeporte !== 'todos'
+                  ? `Turnos disponibles para canchas de ${obtenerInfoDeporte(selectedDeporte).label}`
+                  : 'Solo se muestran turnos con canchas disponibles'}
+              </p>
             </div>
             {selectedHour && (
               <button onClick={() => setSelectedHour(null)} className="text-xs font-bold text-primary underline underline-offset-2">
@@ -842,7 +947,11 @@ export function ClubProfilePage({
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-muted/20 py-10 text-center">
               <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
               <p className="font-bold text-foreground">Sin turnos disponibles</p>
-              <p className="text-sm text-muted-foreground">Probá eligiendo otro día</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedDeporte !== 'todos'
+                  ? `No hay turnos libres de ${obtenerInfoDeporte(selectedDeporte).label} para este día. Probá eligiendo otra fecha o deporte.`
+                  : 'Probá eligiendo otro día'}
+              </p>
             </div>
           )}
 
@@ -875,7 +984,9 @@ export function ClubProfilePage({
                 {fromPlayer ? 'Elegí una cancha para reservar' : 'Reservar una cancha'}
               </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {courts.length === 1 ? '1 cancha disponible' : `${courts.length} canchas disponibles`} a las <span className="font-bold text-foreground">{selectedHour}</span>
+                {courts.length === 1 ? '1 cancha disponible' : `${courts.length} canchas disponibles`}
+                {selectedDeporte !== 'todos' ? ` de ${obtenerInfoDeporte(selectedDeporte).label}` : ''} a las{' '}
+                <span className="font-bold text-foreground">{selectedHour}</span>
               </p>
             </div>
             {courts.map(court => (

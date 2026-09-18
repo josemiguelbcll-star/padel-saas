@@ -100,7 +100,7 @@ function PlayerAppContent() {
   const { phase, login, completeOnboarding, logout, isClubAdmin, clubNombre } = usePlayerSession();
   const { proximas, historial, isLoading: isLoadingReservas, reload } = useMyReservas();
   const [tab, setTab] = useState<PlayerTab>('home');
-  const [selectedClub, setSelectedClub] = useState<{ slug: string; fecha?: string; hora?: string } | null>(null);
+  const [selectedClub, setSelectedClub] = useState<{ slug: string; fecha?: string; hora?: string; deporte?: string } | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -330,6 +330,7 @@ function PlayerAppContent() {
               slugProp={selectedClub.slug}
               initialFechaProp={selectedClub.fecha}
               initialHoraProp={selectedClub.hora}
+              initialDeporteProp={selectedClub.deporte}
               onBack={() => setSelectedClub(null)}
               onReservaCreada={() => {
                 setSelectedClub(null);
@@ -352,8 +353,8 @@ function PlayerAppContent() {
             </div>
             <div className="mgp-tab-wrapper" style={{ display: tab === 'reservar' ? 'block' : 'none', padding: 0 }}>
               <ExplorarTab
-                onSelectClub={(slug, fecha, hora) => {
-                  setSelectedClub({ slug, fecha, hora });
+                onSelectClub={(slug, fecha, hora, deporte) => {
+                  setSelectedClub({ slug, fecha, hora, deporte });
                 }}
               />
             </div>
