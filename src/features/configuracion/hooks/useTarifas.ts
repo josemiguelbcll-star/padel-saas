@@ -10,6 +10,8 @@ import { mapPostgrestError } from '@/lib/dbErrors';
 import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { Tarifa } from '@/types/database';
 
+import { useSession } from '@/features/auth';
+
 export const TARIFAS_QUERY_KEY = ['tarifas'] as const;
 
 /**
@@ -18,15 +20,23 @@ export const TARIFAS_QUERY_KEY = ['tarifas'] as const;
  * agrupan con `agruparPorLinaje` para mostrar la franja con su historial.
  */
 export function useTarifas(): UseQueryResult<Tarifa[], Error> {
+  const { club } = useSession();
+
   return useQuery<Tarifa[], Error>({
-    queryKey: TARIFAS_QUERY_KEY,
+    queryKey: [...TARIFAS_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('tarifas')
         .select('*')
         .order('prioridad', { ascending: false })
         .order('nombre', { ascending: true })
         .order('vigente_desde', { ascending: false });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Tarifa[];
     },

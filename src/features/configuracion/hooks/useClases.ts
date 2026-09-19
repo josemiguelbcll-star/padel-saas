@@ -50,14 +50,22 @@ export type ClaseInput = Omit<Clase, 'id' | 'club_id' | 'fecha_alta' | 'precio'>
  * gusto (ej. la grilla del día sólo renderiza activas).
  */
 export function useClases(): UseQueryResult<ClaseConProfesor[], Error> {
+  const { club } = useSession();
+
   return useQuery<ClaseConProfesor[], Error>({
-    queryKey: CLASES_QUERY_KEY,
+    queryKey: [...CLASES_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('clases')
         .select('*, profesor:profesor_id(nombre)')
         .order('cancha_id', { ascending: true })
         .order('hora_inicio', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as unknown as ClaseConProfesor[];
     },

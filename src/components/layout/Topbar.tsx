@@ -38,7 +38,7 @@ function rolLabel(rol: 'admin' | 'vendedor' | undefined): string {
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
-  const { user, club, signOut } = useSession();
+  const { user, club, signOut, isImpersonating, stopImpersonating } = useSession();
   const { notifications, unreadCount, markAllAsRead } = useLiveNotifications();
   const { webPushActivo, solicitarPermisoWebPush, desactivarWebPush } = usePushNotifications();
   const [toggling, setToggling] = useState(false);
@@ -214,6 +214,20 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             />
           </div>
           <DropdownMenuSeparator />
+          {isImpersonating && (
+            <>
+              <DropdownMenuItem
+                className="cursor-pointer text-amber-600 dark:text-amber-400 font-medium"
+                onClick={async () => {
+                  await stopImpersonating();
+                  window.location.href = '/plataforma';
+                }}
+              >
+                Volver a Plataforma
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem
             onClick={() => {
               void signOut();

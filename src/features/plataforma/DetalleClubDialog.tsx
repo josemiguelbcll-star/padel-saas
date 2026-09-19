@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   Building2,
   Check,
   Copy,
+  ExternalLink,
   Eye,
   EyeOff,
   KeyRound,
   Loader2,
   RotateCcw,
   Shield,
+  Smartphone,
   Sparkles,
   User,
 } from 'lucide-react';
@@ -27,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 import type { EstadoClub, Plan } from '@/types/database';
+import { useSession } from '@/features/auth/useSession';
 import { useCambiarPlanClub } from './hooks/useCambiarPlanClub';
 import { useCambiarEstadoClub } from './hooks/useCambiarEstadoClub';
 import { useClubesPlataforma } from './hooks/useClubesPlataforma';
@@ -95,6 +99,10 @@ export function DetalleClubDialog({
   onOpenChange,
   clubId,
 }: DetalleClubDialogProps) {
+  const { impersonateClub } = useSession();
+  const navigate = useNavigate();
+  const [entering, setEntering] = useState(false);
+
   const clubesQuery = useClubesPlataforma();
   const planesQuery = usePlanesDisponibles();
   const cambiarPlan = useCambiarPlanClub();
@@ -139,13 +147,27 @@ export function DetalleClubDialog({
       setConfirmingEliminar(false);
       setConfirmNombre('');
       setEditSuccess(false);
+      setEntering(false);
     }
   }, [open, clubId, club]);
 
   function handleOpenChange(next: boolean): void {
-    if (anyPending) return;
+    if (anyPending || entering) return;
     onOpenChange(next);
   }
+
+  const handleIngresarAlClub = async () => {
+    if (!club) return;
+    setEntering(true);
+    try {
+      await impersonateClub(club.id);
+      onOpenChange(false);
+      navigate('/app');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al ingresar al club.');
+      setEntering(false);
+    }
+  };
 
   async function aplicarCambioPlan(planId: number): Promise<void> {
     if (!club || planId === club.plan_id) return;
@@ -247,7 +269,85 @@ export function DetalleClubDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-5">
+            <div className="space-y-4">
+              {/* Acceso Directo Superadmin */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <div className="space-y-0.5 min-w-0">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+                    Acceso Administrativo Directo
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Entrá al panel de este club con permisos completos de Superadmin.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5 text-xs font-semibold shrink-0"
+                  disabled={entering}
+                  onClick={handleIngresarAlClub}
+                >
+                  {entering ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  )}
+                  Ingresar al Club
+                </Button>
+              </div>
+
+              {/* Métricas de Reservas y Adopción MatchGo */}
+              <section className="space-y-2 rounded-lg border border-border bg-card p-3">
+                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Smartphone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Métricas de Reservas y Adopción MatchGo
+                </h4>
+
+                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
+                  <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-center">
+                    <span className="text-[10px] uppercase text-muted-foreground font-medium">
+                      Total Reservas
+                    </span>
+                    <p className="text-sm font-bold text-foreground mt-0.5">
+                      {(club.total_reservas ?? 0).toLocaleString('es-AR')}
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2 text-center">
+                    <span className="text-[10px] uppercase text-emerald-700 dark:text-emerald-300 font-medium">
+                      App MatchGo
+                    </span>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      {(club.reservas_app ?? 0).toLocaleString('es-AR')}
+                      {club.total_reservas ? (
+                        <span className="text-[10px] font-normal ml-1">
+                          ({Math.round(((club.reservas_app ?? 0) / club.total_reservas) * 100)}%)
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-center">
+                    <span className="text-[10px] uppercase text-muted-foreground font-medium">
+                      Recepción
+                    </span>
+                    <p className="text-sm font-bold text-foreground mt-0.5">
+                      {(club.reservas_presenciales ?? Math.max(0, (club.total_reservas ?? 0) - (club.reservas_app ?? 0))).toLocaleString('es-AR')}
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-center">
+                    <span className="text-[10px] uppercase text-muted-foreground font-medium">
+                      Jugadores
+                    </span>
+                    <p className="text-sm font-bold text-foreground mt-0.5">
+                      {club.total_jugadores ?? '—'}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
               {/* Información Básica */}
               <form onSubmit={handleGuardarInfo} className="space-y-3 rounded-md border border-border p-3">
                 <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">

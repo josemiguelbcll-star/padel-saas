@@ -13,6 +13,8 @@ import type {
   TurnoFijo,
 } from '@/types/database';
 
+import { useSession } from '@/features/auth';
+
 export const TURNOS_FIJOS_QUERY_KEY = ['turnos-fijos'] as const;
 
 /**
@@ -23,15 +25,17 @@ export const TURNOS_FIJOS_QUERY_KEY = ['turnos-fijos'] as const;
 export function useTurnosFijos(opts?: {
   incluirInactivos?: boolean;
 }): UseQueryResult<TurnoFijo[], Error> {
+  const { club } = useSession();
   const incluir = opts?.incluirInactivos ?? false;
   return useQuery<TurnoFijo[], Error>({
-    queryKey: [...TURNOS_FIJOS_QUERY_KEY, { incluirInactivos: incluir }],
+    queryKey: [...TURNOS_FIJOS_QUERY_KEY, { incluirInactivos: incluir }, club?.id],
     queryFn: async () => {
       let q = supabase
         .from('turnos_fijos')
         .select('*')
         .order('dia_semana', { ascending: true })
         .order('hora_inicio', { ascending: true });
+      if (club?.id) q = q.eq('club_id', club.id);
       if (!incluir) q = q.eq('activo', true);
       const { data, error } = await q;
       if (error) throw new Error(mapPostgrestError(error));

@@ -59,6 +59,18 @@ export interface SessionValue {
    * incluye, el `--primary` repinta automáticamente.
    */
   updateClub: (patch: Partial<Club>) => void;
+  /**
+   * Indica si el superadmin está actualmente operando un club en modo impersonación.
+   */
+  isImpersonating: boolean;
+  /**
+   * Permite al superadmin de plataforma ingresar y administrar un club directamente.
+   */
+  impersonateClub: (clubId: number) => Promise<void>;
+  /**
+   * Sale del modo impersonación y regresa al superadmin al panel de plataforma.
+   */
+  stopImpersonating: () => Promise<void>;
 }
 
 export const SessionContext = createContext<SessionValue | undefined>(undefined);

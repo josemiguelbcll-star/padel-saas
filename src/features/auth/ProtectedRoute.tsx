@@ -43,11 +43,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <ClubBloqueadoScreen motivo={error.code} />;
   }
 
-  // Superadmin de la plataforma (0019). NO tiene acceso al SaaS del
-  // club (Reservas, Buffet, etc.) — su destino es el panel de
-  // plataforma. Si ya está navegando dentro de /plataforma, no
-  // redirigimos (evita loop); cualquier otra ruta lo manda allá.
-  if (plataformaAdmin) {
+  // Superadmin de la plataforma (0019).
+  // Si está impersonando un club (`user` está presente), puede acceder al SaaS de ese club (`/app/*`).
+  // Si no está impersonando un club, su destino exclusivo es el panel de plataforma (`/plataforma`).
+  if (plataformaAdmin && !user) {
     if (location.pathname.startsWith('/plataforma')) {
       return <>{children}</>;
     }
