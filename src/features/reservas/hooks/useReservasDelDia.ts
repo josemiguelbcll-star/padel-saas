@@ -3,12 +3,14 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import type { Reserva } from '@/types/database';
 
+import { useSession } from '@/features/auth/useSession';
+
 /** Namespace de cache compartido por todas las queries de reservas. */
 export const RESERVAS_QUERY_KEY_BASE = 'reservas';
 
 /** Key específica para la query de reservas de un día. */
-export function reservasDelDiaQueryKey(fecha: string): readonly [string, string] {
-  return [RESERVAS_QUERY_KEY_BASE, fecha] as const;
+export function reservasDelDiaQueryKey(fecha: string, clubId?: number): readonly [string, string, number | undefined] {
+  return [RESERVAS_QUERY_KEY_BASE, fecha, clubId] as const;
 }
 
 /**
@@ -22,27 +24,27 @@ export interface ReservaConTitular extends Reserva {
 }
 
 /**
- * Reservas de un día puntual del club activo (filtra RLS).
- *
- * La query trae el nombre del titular en un solo round-trip vía
- * PostgREST. Excluye reservas canceladas no — la grilla las mostrará
- * con su color de estado y queda a criterio del componente decidir si
- * se muestran o se ocultan; el dato está disponible.
- *
- * El índice idx_reservas_club_fecha (migración 0004) hace este filtro
- * trivial incluso con miles de reservas históricas.
+ * Reservas de un día puntual del club activo.
  */
 export function useReservasDelDia(
   fecha: string,
 ): UseQueryResult<ReservaConTitular[], Error> {
+  const { club } = useSession();
+
   return useQuery<ReservaConTitular[], Error>({
-    queryKey: reservasDelDiaQueryKey(fecha),
+    queryKey: reservasDelDiaQueryKey(fecha, club?.id),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('reservas')
         .select('*, jugador:jugador_id(nombre, telefono)')
         .eq('fecha', fecha)
         .order('hora_inicio', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as unknown as ReservaConTitular[];
     },

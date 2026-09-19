@@ -106,16 +106,24 @@ export const JUGADORES_LIST_QUERY_KEY = [
 ] as const;
 
 export function useJugadores(): UseQueryResult<Jugador[], Error> {
+  const { club } = useSession();
+
   return useQuery<Jugador[], Error>({
-    queryKey: JUGADORES_LIST_QUERY_KEY,
+    queryKey: [...JUGADORES_LIST_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('jugadores')
         .select(`
           *,
           movimientos:jugador_movimientos_cuenta(monto)
         `)
         .order('nombre', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       
       const mapped = (data ?? []).map((j: any) => ({

@@ -69,14 +69,22 @@ function sanitizeInput<T extends Partial<ProveedorInput>>(input: T): T {
  * para una lista de ~decenas de proveedores).
  */
 export function useProveedores(): UseQueryResult<Proveedor[], Error> {
+  const { club } = useSession();
+
   return useQuery<Proveedor[], Error>({
-    queryKey: PROVEEDORES_QUERY_KEY,
+    queryKey: [...PROVEEDORES_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('proveedores')
         .select('*')
         .order('activo', { ascending: false })
         .order('nombre', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Proveedor[];
     },

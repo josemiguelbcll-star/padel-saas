@@ -24,14 +24,22 @@ export type CuentaInput = Omit<Cuenta, 'id' | 'club_id' | 'fecha_alta'>;
  * por `orden` y luego `nombre`.
  */
 export function useCuentas(): UseQueryResult<CuentaConSaldo[], Error> {
+  const { club } = useSession();
+
   return useQuery<CuentaConSaldo[], Error>({
-    queryKey: CUENTAS_QUERY_KEY,
+    queryKey: [...CUENTAS_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('v_cuentas_saldo')
         .select('*')
         .order('orden', { ascending: true })
         .order('nombre', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as CuentaConSaldo[];
     },

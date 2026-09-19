@@ -41,7 +41,7 @@ export function useHorariosClub(): UseQueryResult<HorariosClub, Error> {
   const { club } = useSession();
 
   return useQuery<HorariosClub, Error>({
-    queryKey: CLUB_HORARIOS_QUERY_KEY,
+    queryKey: [...CLUB_HORARIOS_QUERY_KEY, club?.id],
     queryFn: async () => {
       if (!club) {
         throw new Error('No hay sesión activa.');

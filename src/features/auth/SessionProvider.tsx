@@ -37,39 +37,44 @@ const initialState: SessionState = {
   error: null,
 };
 
-/**
- * Select que trae el usuario + su club en UNA sola query.
- *
- * PostgREST detecta la FK `usuarios.club_id -> clubes(id)` y embebe la fila
- * de `clubes` como objeto (relación many-to-one). Esto evita N+1 desde el
- * primer load. Si más adelante agregamos otra FK de `usuarios` hacia
- * `clubes`, vamos a tener que desambiguar con `clubes!club_id(...)`.
- *
- * El embed de `clubes` incluye `plan_id` y `estado` desde la 0019 — el
- * SessionProvider los necesita para traer los módulos del plan y para
- * exponer `Club.estado` al frontend.
- */
 const USUARIO_WITH_CLUB_SELECT =
   'id, club_id, nombre, rol, activo, fecha_alta, email, permisos, ' +
   'clubes(id, nombre, slug, direccion, ciudad, provincia, telefono, email, plan, activo, fecha_alta, config, ' +
   'hora_apertura, hora_cierre, duracion_turno_default, color_primario_hsl, logo_path, plan_id, estado, modalidad_caja, condicion_fiscal)';
 
+const CLUB_DETAIL_SELECT =
+  'id, nombre, slug, direccion, ciudad, provincia, telefono, email, plan, activo, fecha_alta, config, ' +
+  'hora_apertura, hora_cierre, duracion_turno_default, color_primario_hsl, logo_path, plan_id, estado, modalidad_caja, condicion_fiscal';
+
 type UsuarioConClub = Usuario & { clubes: Club };
+
+async function fetchModulosDePlan(planId: number): Promise<string[]> {
+  try {
+    const { data: pmRows, error: pmError } = await supabase
+      .from('plan_modulos')
+      .select('modulo_id')
+      .eq('plan_id', planId);
+
+    if (pmError || !pmRows || pmRows.length === 0) return [];
+
+    const moduloIds = (pmRows as Array<{ modulo_id: number }>).map((r) => r.modulo_id);
+    const { data: modRows, error: modError } = await supabase
+      .from('modulos')
+      .select('codigo')
+      .in('id', moduloIds);
+
+    if (modError || !modRows) return [];
+    return (modRows as Array<{ codigo: string }>).map((r) => r.codigo);
+  } catch (err) {
+    console.error('[SessionProvider] Error cargando módulos del plan:', err);
+    return [];
+  }
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>(initialState);
 
   // Ref para preservar el motivo del signOut a través del re-load
-  // que dispara `onAuthStateChange(session=null)`. Sin esto, el
-  // branch `if (!session)` pisaría con error=null y se perdería el
-  // motivo (la UI mostraría "sin sesión" sin explicar por qué).
-  //
-  // Casos cubiertos:
-  //   - USUARIO_DESACTIVADO: el admin del club desactivó al usuario,
-  //     o un superadmin desactivó su plataforma_admin (0018).
-  //   - CLUB_SUSPENDIDO: la plataforma puso el club en estado
-  //     'suspendido' (0019/0021).
-  //   - CLUB_BAJA: la plataforma puso el club en estado 'baja'.
   const pendingErrorRef = useRef<SessionError | null>(null);
 
   useEffect(() => {
@@ -97,9 +102,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       try {
         if (!session) {
-          // Si el logout vino de un motivo específico (usuario o
-          // plataforma_admin desactivado, club suspendido o en baja),
-          // levantamos el error preservado en el ref.
           const pendingError = pendingErrorRef.current;
           pendingErrorRef.current = null;
           setState({
@@ -114,7 +116,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         // === 1. PLATAFORMA_ADMINS Y USUARIOS EN PARALELO ===
-        // Ejecutamos ambas consultas en paralelo para acelerar el inicio
         const [plataformaRes, usuarioRes] = await Promise.all([
           supabase
             .from('plataforma_admins')
@@ -134,19 +135,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const { data, error } = usuarioRes;
 
         if (plataformaError) {
-          console.error(
-            '[SessionProvider] error consultando plataforma_admins:',
+          console.warn(
+            '[SessionProvider] aviso consultando plataforma_admins (no crítico):',
             plataformaError,
           );
-          setState({
-            user: null,
-            club: null,
-            plataformaAdmin: null,
-            modulosHabilitados: [],
-            loading: false,
-            error: { code: 'FETCH_FAILED', detail: plataformaError.message },
-          });
-          return;
         }
 
         if (plataformaRow) {
@@ -156,11 +148,62 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             await supabase.auth.signOut();
             return;
           }
+
           const pa = plataformaRow as {
             id: string;
             nombre: string;
             email: string;
+            impersonated_club_id?: number | null;
           };
+
+          // Chequear si hay un club impersonado en sessionStorage o DB
+          const storedClubId = sessionStorage.getItem('impersonated_club_id');
+          const impersonatedId = storedClubId
+            ? Number(storedClubId)
+            : pa.impersonated_club_id ?? null;
+
+          if (impersonatedId && !isNaN(impersonatedId)) {
+            try {
+              await supabase.rpc('fn_impersonar_club_plataforma', {
+                p_club_id: impersonatedId,
+              });
+            } catch (_) {
+              // RPC opcional si la migración aún no corrió
+            }
+
+            const { data: impClub } = await supabase
+              .from('clubes')
+              .select(CLUB_DETAIL_SELECT)
+              .eq('id', impersonatedId)
+              .maybeSingle();
+
+            if (impClub && mounted) {
+              const clubObj = impClub as unknown as Club;
+              const modulos = await fetchModulosDePlan(clubObj.plan_id);
+
+              const virtualUser: Usuario = {
+                id: pa.id,
+                club_id: clubObj.id,
+                nombre: `${pa.nombre} (Superadmin)`,
+                email: pa.email,
+                rol: 'admin',
+                activo: true,
+                fecha_alta: new Date().toISOString(),
+                permisos: {},
+              };
+
+              setState({
+                user: virtualUser,
+                club: clubObj,
+                plataformaAdmin: { id: pa.id, nombre: pa.nombre, email: pa.email },
+                modulosHabilitados: modulos,
+                loading: false,
+                error: null,
+              });
+              return;
+            }
+          }
+
           setState({
             user: null,
             club: null,
@@ -186,7 +229,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         if (!data) {
-          // Si no es admin de plataforma ni de club, verificamos si es jugador de la app
           const { data: jugadorRow } = await supabase
             .from('jugadores_app')
             .select('nombre_display, nombre_corto')
@@ -216,28 +258,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Usuario desactivado por el admin del club (0018).
         if ((data as { activo?: boolean }).activo === false) {
           pendingErrorRef.current = { code: 'USUARIO_DESACTIVADO' };
           await supabase.auth.signOut();
           return;
         }
 
-        // `as unknown as X` — el cliente de supabase-js no tipa joins sin
-        // esquema generado. Patrón estándar de TS para shape externo
-        // confiable; no estamos usando `any` (regla 5 del CLAUDE.md).
         const row = data as unknown as UsuarioConClub;
         const { clubes, ...usuario } = row;
 
-        // Estado del club (0019/0021): si la plataforma puso el club en
-        // 'suspendido' o 'baja', bloqueamos el acceso al próximo refresh.
-        // El bloqueo NO es instantáneo — el JWT vivo sigue operando
-        // hasta que expire (~1h) o se haga un load(). Aceptable según
-        // spec; si emerge necesidad de hard-block inmediato, agregar
-        // chequeo de `estado` dentro de los helpers RLS.
-        //
-        // El superadmin NO llega acá (su flujo retorna antes, en el
-        // branch de plataforma_admins) — naturalmente no se ve afectado.
         if (clubes.estado === 'suspendido') {
           pendingErrorRef.current = { code: 'CLUB_SUSPENDIDO' };
           await supabase.auth.signOut();
@@ -250,49 +279,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
 
         // === 3. Módulos del plan del club ===
-        // Dos queries separadas en lugar de un embed PostgREST (que
-        // antes daba 400 — PostgREST no siempre detecta limpio la
-        // relación plan_modulos.modulo_id → modulos cuando los nombres
-        // singular/plural no son obvios). Si alguna falla, no bloquea
-        // el login — modulosHabilitados queda vacío.
-        //
-        // En etapa 1 todos los clubes están en plan 'pro' por backfill
-        // (0019) → trae los 9 módulos.
-        let modulosHabilitados: string[] = [];
-
-        const { data: pmRows, error: pmError } = await supabase
-          .from('plan_modulos')
-          .select('modulo_id')
-          .eq('plan_id', clubes.plan_id);
+        const modulosHabilitados = await fetchModulosDePlan(clubes.plan_id);
 
         if (!mounted) return;
-
-        if (pmError) {
-          console.error(
-            '[SessionProvider] error trayendo plan_modulos:',
-            pmError,
-          );
-        } else if (pmRows && pmRows.length > 0) {
-          const moduloIds = (pmRows as Array<{ modulo_id: number }>).map(
-            (r) => r.modulo_id,
-          );
-          const { data: modRows, error: modError } = await supabase
-            .from('modulos')
-            .select('codigo')
-            .in('id', moduloIds);
-
-          if (!mounted) return;
-
-          if (modError) {
-            console.error(
-              '[SessionProvider] error trayendo modulos:',
-              modError,
-            );
-          } else {
-            modulosHabilitados = (modRows as Array<{ codigo: string }> | null ?? [])
-              .map((r) => r.codigo);
-          }
-        }
 
         setState({
           user: usuario as Usuario,
@@ -330,8 +319,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         });
         return;
       }
-      // Si recibimos INITIAL_SESSION y no hay sesión, pasamos a loading: false directo
-      // para evitar transiciones innecesarias
       if (event === 'INITIAL_SESSION' && !session) {
         setState({
           user: null,
@@ -354,6 +341,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    sessionStorage.removeItem('impersonated_club_id');
     await supabase.auth.signOut();
   }, []);
 
@@ -364,13 +352,67 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Marca del club (0016 — etapa 1): cuando el club se carga, aplicamos
-  // su color al token CSS --primary (el --ring se propaga gratis vía
-  // `var(--primary)` en globals.css). También lo cacheamos en
-  // localStorage para que el bootstrap del próximo reload lo aplique
-  // ANTES de que React monte (anti-flash — ver script inline en
-  // index.html). El re-run al cambiar `color_primario_hsl` cubre el
-  // caso de editar la marca en vivo desde la pantalla Marca.
+  const impersonateClub = useCallback(
+    async (clubId: number) => {
+      if (!state.plataformaAdmin) return;
+      sessionStorage.setItem('impersonated_club_id', String(clubId));
+
+      try {
+        await supabase.rpc('fn_impersonar_club_plataforma', { p_club_id: clubId });
+      } catch (err) {
+        console.warn('[SessionProvider] Error en RPC fn_impersonar_club_plataforma:', err);
+      }
+
+      const { data: impClub, error: clubErr } = await supabase
+        .from('clubes')
+        .select(CLUB_DETAIL_SELECT)
+        .eq('id', clubId)
+        .maybeSingle();
+
+      if (clubErr || !impClub) {
+        throw new Error('No se pudo cargar la información del club.');
+      }
+
+      const clubObj = impClub as unknown as Club;
+      const modulos = await fetchModulosDePlan(clubObj.plan_id);
+
+      const virtualUser: Usuario = {
+        id: state.plataformaAdmin.id,
+        club_id: clubObj.id,
+        nombre: `${state.plataformaAdmin.nombre} (Superadmin)`,
+        email: state.plataformaAdmin.email,
+        rol: 'admin',
+        activo: true,
+        fecha_alta: new Date().toISOString(),
+        permisos: {},
+      };
+
+      setState((prev) => ({
+        ...prev,
+        user: virtualUser,
+        club: clubObj,
+        modulosHabilitados: modulos,
+      }));
+    },
+    [state.plataformaAdmin],
+  );
+
+  const stopImpersonating = useCallback(async () => {
+    sessionStorage.removeItem('impersonated_club_id');
+    try {
+      await supabase.rpc('fn_dejar_de_impersonar_plataforma');
+    } catch (err) {
+      console.warn('[SessionProvider] Error en RPC fn_dejar_de_impersonar_plataforma:', err);
+    }
+
+    setState((prev) => ({
+      ...prev,
+      user: null,
+      club: null,
+      modulosHabilitados: [],
+    }));
+  }, []);
+
   useEffect(() => {
     const hsl = state.club?.color_primario_hsl;
     if (!hsl) return;
@@ -378,9 +420,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     guardarColorMarcaEnCache(hsl);
   }, [state.club?.color_primario_hsl]);
 
+  const isImpersonating = !!(state.plataformaAdmin && state.club);
+
   const value: SessionValue = useMemo(
-    () => ({ ...state, signOut, updateClub }),
-    [state, signOut, updateClub],
+    () => ({
+      ...state,
+      isImpersonating,
+      signOut,
+      updateClub,
+      impersonateClub,
+      stopImpersonating,
+    }),
+    [state, isImpersonating, signOut, updateClub, impersonateClub, stopImpersonating],
   );
 
   return (

@@ -26,14 +26,22 @@ export type FranjaTurnoInput = Omit<FranjaTurno, 'id' | 'club_id'>;
  * ABM de Configuración → Horarios (BLOQUE 2).
  */
 export function useFranjasTurno(): UseQueryResult<FranjaTurno[], Error> {
+  const { club } = useSession();
+
   return useQuery<FranjaTurno[], Error>({
-    queryKey: FRANJAS_TURNO_QUERY_KEY,
+    queryKey: [...FRANJAS_TURNO_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('franjas_turno')
         .select('*')
         .order('desde_hora', { ascending: true, nullsFirst: true })
         .order('nombre', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as FranjaTurno[];
     },

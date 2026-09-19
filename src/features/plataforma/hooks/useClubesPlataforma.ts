@@ -27,6 +27,11 @@ export interface ClubResumen {
   total_ventas_mes_actual: number;
   admin_email: string | null;
   admin_nombre: string | null;
+  total_reservas?: number;
+  reservas_app?: number;
+  reservas_presenciales?: number;
+  total_jugadores?: number;
+  total_ventas_reservas_app?: number;
 }
 
 export const CLUBES_PLATAFORMA_QUERY_KEY = ['clubes_plataforma'] as const;

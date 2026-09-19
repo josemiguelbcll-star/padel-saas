@@ -32,14 +32,22 @@ export type ProductoInput = Omit<Producto, 'id' | 'club_id' | 'fecha_alta'>;
  * (ej. el catálogo del buffet sólo muestra activos).
  */
 export function useProductos(): UseQueryResult<Producto[], Error> {
+  const { club } = useSession();
+
   return useQuery<Producto[], Error>({
-    queryKey: PRODUCTOS_QUERY_KEY,
+    queryKey: [...PRODUCTOS_QUERY_KEY, club?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('productos')
         .select('*')
         .order('categoria', { ascending: true })
         .order('nombre', { ascending: true });
+
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(mapPostgrestError(error));
       return (data ?? []) as Producto[];
     },

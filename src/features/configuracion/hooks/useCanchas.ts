@@ -31,22 +31,36 @@ export type CanchaInput = Omit<Cancha, 'id' | 'club_id'>;
  * renderizar lo que llega sin reordenar.
  */
 export function useCanchas(): UseQueryResult<Cancha[], Error> {
+  const { club } = useSession();
+
   return useQuery<Cancha[], Error>({
-    queryKey: CANCHAS_QUERY_KEY,
+    queryKey: [...CANCHAS_QUERY_KEY, club?.id],
     queryFn: async () => {
-      let { data, error } = await supabase
+      let query = supabase
         .from('canchas')
         .select('*, tarifa:tarifas(id, nombre, monto)')
         .order('orden', { ascending: true })
         .order('nombre', { ascending: true });
 
+      if (club?.id) {
+        query = query.eq('club_id', club.id);
+      }
+
+      let { data, error } = await query;
+
       if (error) {
         // Fallback si la relación no está disponible
-        const fallbackRes = await supabase
+        let fallbackQuery = supabase
           .from('canchas')
           .select('*')
           .order('orden', { ascending: true })
           .order('nombre', { ascending: true });
+
+        if (club?.id) {
+          fallbackQuery = fallbackQuery.eq('club_id', club.id);
+        }
+
+        const fallbackRes = await fallbackQuery;
         if (fallbackRes.error) throw new Error(mapPostgrestError(fallbackRes.error));
         return (fallbackRes.data ?? []) as Cancha[];
       }
