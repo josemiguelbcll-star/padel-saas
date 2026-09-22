@@ -75,7 +75,7 @@ export function EliminarTurnoFijoDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-destructive">
             <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
             Eliminar turno fijo
           </DialogTitle>
@@ -112,14 +112,14 @@ export function EliminarTurnoFijoDialog({
 
         <p className="text-xs text-muted-foreground">
           Si solo querés pausar el turno fijo conservándolo en la base,
-          usá "Desactivar" en su lugar.
+          usá &quot;Desactivar&quot; en su lugar.
         </p>
 
         <form onSubmit={handleSubmit} noValidate>
           {resultado && (
             <div
               role="status"
-              className="rounded-md border border-primary/30 bg-primary/5 p-2 text-xs text-foreground"
+              className="mt-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs text-foreground"
             >
               ✓ Turno fijo eliminado.{' '}
               {resultado.canceladas > 0
@@ -131,7 +131,7 @@ export function EliminarTurnoFijoDialog({
           {error && (
             <div
               role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive"
+              className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive"
             >
               {error}
             </div>
@@ -140,7 +140,7 @@ export function EliminarTurnoFijoDialog({
           <DialogFooter className="mt-4">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={pending}
             >
@@ -151,7 +151,7 @@ export function EliminarTurnoFijoDialog({
               variant="destructive"
               disabled={pending || resultado !== null}
             >
-              {pending ? 'Eliminando…' : 'Eliminar definitivamente'}
+              {pending ? 'Eliminando...' : 'Eliminar definitivamente'}
             </Button>
           </DialogFooter>
         </form>

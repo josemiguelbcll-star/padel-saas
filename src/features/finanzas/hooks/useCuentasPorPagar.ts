@@ -187,7 +187,7 @@ export function usePagosCuotaRecientes(): UseQueryResult<
         .from('gasto_cuotas')
         .select(
           `
-          id, gasto_id, numero, es_anticipo, monto, fecha_pago, medio_pago,
+          id, gasto_id, numero, es_anticipo, monto, fecha_pago, medio_pago, cuenta_id,
           gastos:gasto_id!inner (
             categoria_nombre, unidad_nombre, unidad_tipo, proveedor,
             gastos_recurrentes:gasto_recurrente_id ( concepto ),

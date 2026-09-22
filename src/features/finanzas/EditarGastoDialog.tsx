@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import type { Gasto, MedioPago } from '@/types/database';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,10 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { MEDIOS_PAGO, MEDIO_PAGO_LABEL } from './finanzasSchemas';
 import { useCategoriasGasto } from './hooks/useCategoriasGasto';
-import { useUnidadesNegocio } from './hooks/useUnidadesNegocio';
 import { useActualizarGasto } from './hooks/useActualizarGasto';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import type { Gasto, MedioPago } from '@/types/database';
+import { MEDIO_PAGO_LABEL, MEDIOS_PAGO } from './finanzasSchemas';
 
 interface EditarGastoDialogProps {
   open: boolean;
@@ -24,30 +24,17 @@ interface EditarGastoDialogProps {
   gasto: Gasto | null;
 }
 
-interface FormState {
+interface GastoEditState {
   categoria_id: number | null;
   monto: string;
   fecha_gasto: string;
   proveedor: string;
-  pagado: boolean;
-  medio_pago: MedioPago | null;
-  fecha_pago: string;
   observaciones: string;
+  pagado: boolean;
+  fecha_pago: string;
+  medio_pago: MedioPago | null;
+  cuenta_id: number | null;
 }
-
-type FieldErrors = Partial<
-  Record<
-    | 'categoria_id'
-    | 'monto'
-    | 'fecha_gasto'
-    | 'proveedor'
-    | 'medio_pago'
-    | 'fecha_pago'
-    | 'observaciones'
-    | 'form',
-    string
-  >
->;
 
 export function EditarGastoDialog({
   open,
@@ -55,52 +42,45 @@ export function EditarGastoDialog({
   gasto,
 }: EditarGastoDialogProps) {
   const categoriasQuery = useCategoriasGasto();
-  const unidadesQuery = useUnidadesNegocio();
-  const actualizar = useActualizarGasto();
+  const cuentasQuery = useCuentas();
+  const actualizarMutation = useActualizarGasto();
 
-  const [state, setState] = useState<FormState>({
+  const [state, setState] = useState<GastoEditState>({
     categoria_id: null,
     monto: '',
     fecha_gasto: '',
     proveedor: '',
-    pagado: false,
-    medio_pago: null,
-    fecha_pago: '',
     observaciones: '',
+    pagado: false,
+    fecha_pago: '',
+    medio_pago: null,
+    cuenta_id: null,
   });
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
 
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const cuentas = (cuentasQuery.data ?? []).filter((c) => c.activa || c.id === gasto?.cuenta_id);
 
   useEffect(() => {
     if (gasto && open) {
       setState({
         categoria_id: gasto.categoria_id,
-        monto: gasto.monto ? String(gasto.monto) : '',
-        fecha_gasto: gasto.fecha_gasto ?? '',
+        monto: String(gasto.monto),
+        fecha_gasto: gasto.fecha_gasto,
         proveedor: gasto.proveedor ?? '',
-        pagado: gasto.fecha_pago !== null,
-        medio_pago: gasto.medio_pago,
-        fecha_pago: gasto.fecha_pago ?? gasto.fecha_gasto ?? '',
         observaciones: gasto.observaciones ?? '',
+        pagado: gasto.fecha_pago !== null,
+        fecha_pago: gasto.fecha_pago ?? '',
+        medio_pago: gasto.medio_pago,
+        cuenta_id: gasto.cuenta_id ?? null,
       });
       setErrors({});
     }
   }, [gasto, open]);
 
-  // Agrupar categorías activas por unidad
-  const categoriasAgrupadas = useMemo(() => {
-    const unidades = unidadesQuery.data ?? [];
-    const categorias = (categoriasQuery.data ?? []).filter((c) => c.activa || c.id === gasto?.categoria_id);
-    return unidades
-      .map((u) => ({
-        unidad: u,
-        categorias: categorias.filter((c) => c.unidad_id === u.id),
-      }))
-      .filter((g) => g.categorias.length > 0);
-  }, [unidadesQuery.data, categoriasQuery.data, gasto]);
+  if (!open && !gasto) return null;
 
   function validate(): boolean {
-    const nextErrors: FieldErrors = {};
+    const nextErrors: { [k: string]: string } = {};
 
     if (!state.categoria_id) {
       nextErrors.categoria_id = 'Elegí una categoría.';
@@ -112,15 +92,15 @@ export function EditarGastoDialog({
     }
 
     if (!state.fecha_gasto) {
-      nextErrors.fecha_gasto = 'La fecha del gasto es obligatoria.';
+      nextErrors.fecha_gasto = 'Ingresá la fecha del gasto.';
     }
 
     if (state.pagado) {
-      if (!state.medio_pago) {
-        nextErrors.medio_pago = 'Elegí un medio de pago.';
-      }
       if (!state.fecha_pago) {
-        nextErrors.fecha_pago = 'Elegí la fecha de pago.';
+        nextErrors.fecha_pago = 'Ingresá la fecha de pago.';
+      }
+      if (!state.medio_pago) {
+        nextErrors.medio_pago = 'Elegí el medio de pago.';
       }
     }
 
@@ -128,12 +108,12 @@ export function EditarGastoDialog({
     return Object.keys(nextErrors).length === 0;
   }
 
-  async function handleSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault();
-    if (!gasto || !validate()) return;
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!validate() || !gasto) return;
 
     try {
-      await actualizar.mutateAsync({
+      await actualizarMutation.mutateAsync({
         gasto_id: gasto.id,
         categoria_id: state.categoria_id!,
         monto: parseFloat(state.monto),
@@ -142,17 +122,22 @@ export function EditarGastoDialog({
         medio_pago: state.pagado ? state.medio_pago : null,
         proveedor_nombre: state.proveedor.trim() || null,
         observaciones: state.observaciones.trim() || null,
+        cuenta_id: state.pagado ? state.cuenta_id : null,
       });
 
       onOpenChange(false);
     } catch (err) {
       setErrors({
-        form: err instanceof Error ? err.message : 'No pudimos actualizar el gasto.',
+        form:
+          err instanceof Error
+            ? err.message
+            : 'No pudimos actualizar el gasto. Probá de nuevo.',
       });
     }
   }
 
-  const pending = actualizar.isPending;
+  const categorias = (categoriasQuery.data ?? []).filter((c) => c.activa || c.id === gasto?.categoria_id);
+  const pending = actualizarMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,7 +145,7 @@ export function EditarGastoDialog({
         <DialogHeader>
           <DialogTitle>Editar gasto</DialogTitle>
           <DialogDescription>
-            Modificá el monto, fechas, categoría o medio de pago del gasto.
+            Modificá el monto, fechas, categoría, cuenta o medio de pago del gasto.
           </DialogDescription>
         </DialogHeader>
 
@@ -180,14 +165,10 @@ export function EditarGastoDialog({
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">— Elegí una categoría —</option>
-              {categoriasAgrupadas.map((g) => (
-                <optgroup key={g.unidad.id} label={g.unidad.nombre}>
-                  {g.categorias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </optgroup>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} ({c.unidad_nombre})
+                </option>
               ))}
             </select>
             {errors.categoria_id && (
@@ -297,6 +278,30 @@ export function EditarGastoDialog({
                 {errors.medio_pago && (
                   <p role="alert" className="text-xs text-destructive">{errors.medio_pago}</p>
                 )}
+              </div>
+
+              {/* Selector de cuenta */}
+              <div className="space-y-1">
+                <Label htmlFor="edit-gasto-cuenta">Cuenta de origen (opcional)</Label>
+                <select
+                  id="edit-gasto-cuenta"
+                  value={state.cuenta_id ?? ''}
+                  onChange={(e) =>
+                    setState({
+                      ...state,
+                      cuenta_id: e.target.value === '' ? null : Number(e.target.value),
+                    })
+                  }
+                  disabled={pending}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">— Seleccionar cuenta —</option>
+                  {cuentas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre} {c.detalle ? `(${c.detalle})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">

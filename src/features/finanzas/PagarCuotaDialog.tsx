@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AlertTriangle, Repeat, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useCajaAbierta } from '@/features/caja/hooks/useCajaAbierta';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { useMediosCuentaDefault } from '@/features/configuracion/hooks/useMediosCuentaDefault';
 import type { MedioPago } from '@/types/database';
 import { MEDIO_PAGO_LABEL, MEDIOS_PAGO } from './finanzasSchemas';
 import { usePagarCuota } from './hooks/usePagarCuota';
@@ -60,11 +62,30 @@ export function PagarCuotaDialog({
   cuota,
 }: PagarCuotaDialogProps) {
   const cajaQuery = useCajaAbierta();
+  const cuentasQuery = useCuentas();
+  const mediosDefaultQuery = useMediosCuentaDefault();
   const pagar = usePagarCuota();
 
   const [fechaPago, setFechaPago] = useState<string>(todayISO());
   const [medioPago, setMedioPago] = useState<MedioPago | ''>('transferencia');
+  const [cuentaId, setCuentaId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const porMedioDefault = useMemo(() => {
+    const m = new Map<MedioPago, number>();
+    for (const row of mediosDefaultQuery.data ?? []) m.set(row.medio_pago, row.cuenta_id);
+    return m;
+  }, [mediosDefaultQuery.data]);
+
+  const cuentasActivas = useMemo(() => {
+    return (cuentasQuery.data ?? []).filter((c) => c.activa);
+  }, [cuentasQuery.data]);
+
+  const cuentasById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of cuentasQuery.data ?? []) m.set(c.id, c.nombre);
+    return m;
+  }, [cuentasQuery.data]);
 
   const pending = pagar.isPending;
   const cajaAbierta = cajaQuery.data ?? null;
@@ -74,13 +95,14 @@ export function PagarCuotaDialog({
     if (open) {
       setFechaPago(todayISO());
       setMedioPago('transferencia');
+      const def = porMedioDefault.get('transferencia') ?? null;
+      setCuentaId(def);
       setError(null);
     }
-  }, [open, cuota?.id]);
+  }, [open, cuota?.id, porMedioDefault]);
 
   if (!cuota) return null;
 
-  // Días vs hoy para mostrar contexto del vencimiento.
   const venc = cuota.fecha_vencimiento;
   const hoy = todayISO();
   const diffDias = venc ? diasEntre(hoy, venc) : null;
@@ -88,6 +110,13 @@ export function PagarCuotaDialog({
   function handleOpenChange(next: boolean) {
     if (pending) return;
     onOpenChange(next);
+  }
+
+  function handleMedioChange(nextMedio: MedioPago | '') {
+    setMedioPago(nextMedio);
+    if (nextMedio) {
+      setCuentaId(porMedioDefault.get(nextMedio) ?? null);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -107,6 +136,7 @@ export function PagarCuotaDialog({
         cuota_id: cuota.id,
         fecha_pago: fechaPago,
         medio_pago: medioPago as MedioPago,
+        cuenta_id: cuentaId,
         turnoCajaIdParaInvalidate: cajaAbierta?.id ?? null,
       });
       onOpenChange(false);
@@ -119,13 +149,14 @@ export function PagarCuotaDialog({
     }
   }
 
-  // Label: "Anticipo" si es_anticipo, sino "Cuota N de M". M es el
-  // total_cuotas que viene del COUNT (incluye anticipo si existe).
   const cuotaLabel = cuota.es_anticipo
     ? 'Anticipo'
     : cuota.total_cuotas > 0
       ? `Cuota ${cuota.numero} de ${cuota.total_cuotas}`
       : `Cuota ${cuota.numero}`;
+
+  const defaultCuentaId = medioPago ? porMedioDefault.get(medioPago) : null;
+  const defaultCuentaNombre = defaultCuentaId ? cuentasById.get(defaultCuentaId) : null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -213,7 +244,7 @@ export function PagarCuotaDialog({
               <select
                 id="pc-medio"
                 value={medioPago}
-                onChange={(e) => setMedioPago(e.target.value as MedioPago | '')}
+                onChange={(e) => handleMedioChange(e.target.value as MedioPago | '')}
                 disabled={pending}
                 className={cn(
                   'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
@@ -229,6 +260,31 @@ export function PagarCuotaDialog({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Selector de cuenta de origen */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pc-cuenta" className="text-xs">
+              Cuenta de origen
+            </Label>
+            <select
+              id="pc-cuenta"
+              value={cuentaId ?? ''}
+              onChange={(e) => setCuentaId(e.target.value === '' ? null : Number(e.target.value))}
+              disabled={pending}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">
+                {defaultCuentaNombre
+                  ? `— Por defecto (${defaultCuentaNombre}) —`
+                  : '— Sin asignar / Cuenta por defecto —'}
+              </option>
+              {cuentasActivas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} {c.es_caja_fisica ? '(Caja física)' : `(${c.tipo})`}
+                </option>
+              ))}
+            </select>
           </div>
 
           {efectivoSinCaja && (
@@ -274,13 +330,8 @@ export function PagarCuotaDialog({
   );
 }
 
-/**
- * Diferencia en días entre dos fechas YYYY-MM-DD (b - a). Positivo si
- * b es posterior. Usa fecha local sin zona.
- */
 function diasEntre(aISO: string, bISO: string): number {
   const a = new Date(aISO + 'T00:00:00').getTime();
   const b = new Date(bISO + 'T00:00:00').getTime();
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
-

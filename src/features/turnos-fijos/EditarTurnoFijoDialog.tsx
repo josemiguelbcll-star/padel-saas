@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Repeat } from 'lucide-react';
+import { Repeat, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -35,6 +35,7 @@ interface EditarTurnoFijoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   turno: TurnoFijo | null;
+  onEliminar?: (t: TurnoFijo) => void;
 }
 
 type FieldErrors = Partial<Record<
@@ -53,6 +54,7 @@ export function EditarTurnoFijoDialog({
   open,
   onOpenChange,
   turno,
+  onEliminar,
 }: EditarTurnoFijoDialogProps) {
   const actualizar = useActualizarTurnoFijo();
   const canchasQuery = useCanchas();
@@ -348,18 +350,35 @@ export function EditarTurnoFijoDialog({
             </div>
           )}
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => handleOpenChange(false)}
-              disabled={pending}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? 'Guardando…' : 'Guardar cambios'}
-            </Button>
+          <DialogFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            {onEliminar && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  handleOpenChange(false);
+                  onEliminar(turno);
+                }}
+                disabled={pending}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 sm:mr-auto"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Eliminar turno fijo
+              </Button>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => handleOpenChange(false)}
+                disabled={pending}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
