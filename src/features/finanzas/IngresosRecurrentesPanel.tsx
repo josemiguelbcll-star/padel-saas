@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { NuevoIngresoRecurrenteDialog } from './NuevoIngresoRecurrenteDialog';
-import { NuevoOtroIngresoDialog, type OtroIngresoPrefill } from './NuevoOtroIngresoDialog';
+import { NuevoOtroIngresoDialog, type NuevoOtroIngresoPrefill } from './NuevoOtroIngresoDialog';
 import {
   useDesactivarIngresoRecurrente,
   useIngresosRecurrentes,
@@ -78,7 +78,7 @@ export function IngresosRecurrentesPanel({ readOnly }: { readOnly?: boolean }) {
   const [dialogNuevaPlantilla, setDialogNuevaPlantilla] = useState(false);
   const [plantillaAEditar, setPlantillaAEditar] = useState<IngresoRecurrenteFila | null>(null);
   const [plantillaADesactivar, setPlantillaADesactivar] = useState<IngresoRecurrenteFila | null>(null);
-  const [cargarRealPrefill, setCargarRealPrefill] = useState<OtroIngresoPrefill | null>(null);
+  const [cargarRealPrefill, setCargarRealPrefill] = useState<NuevoOtroIngresoPrefill | null>(null);
   const [dialogCargarReal, setDialogCargarReal] = useState(false);
 
   const { cardsData, resumen } = useMemo(() => {

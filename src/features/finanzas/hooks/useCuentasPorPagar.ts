@@ -142,6 +142,7 @@ export interface PagoCuotaReciente {
   /** Fecha en que se pagó (NOT NULL por definición de la lista). */
   fecha_pago: string;
   medio_pago: MedioPago | null;
+  cuenta_id: number | null;
   categoria_nombre: string;
   unidad_nombre: string;
   unidad_tipo: TipoUnidad;
@@ -187,7 +188,7 @@ export function usePagosCuotaRecientes(): UseQueryResult<
         .from('gasto_cuotas')
         .select(
           `
-          id, gasto_id, numero, es_anticipo, monto, fecha_pago, medio_pago,
+          id, gasto_id, numero, es_anticipo, monto, fecha_pago, medio_pago, cuenta_id,
           gastos:gasto_id!inner (
             categoria_nombre, unidad_nombre, unidad_tipo, proveedor,
             gastos_recurrentes:gasto_recurrente_id ( concepto ),
@@ -234,6 +235,7 @@ export function usePagosCuotaRecientes(): UseQueryResult<
         unidad_tipo: (r.gastos?.unidad_tipo ?? 'otro') as TipoUnidad,
         proveedor: r.gastos?.proveedor ?? null,
         concepto_recurrente: r.gastos?.gastos_recurrentes?.concepto ?? null,
+        cuenta_id: (r as unknown as { cuenta_id?: number | null }).cuenta_id ?? null,
         compra_id: r.compras?.[0]?.id ?? null,
         total_cuotas: r.gastos?.gasto_cuotas?.[0]?.count ?? 0,
       }));

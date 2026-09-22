@@ -1,3 +1,4 @@
+import { CUENTAS_QUERY_KEY } from '@/features/configuracion/hooks/useCuentas';
 import {
   useMutation,
   useQueryClient,
@@ -16,6 +17,7 @@ export interface PagarCuotaInput {
   fecha_pago: string;       // YYYY-MM-DD
   medio_pago: MedioPago;
   /** Para invalidar resumen/movimientos de la caja si efectivo. */
+  cuenta_id?: number | null;
   turnoCajaIdParaInvalidate?: number | null;
 }
 
@@ -64,6 +66,7 @@ export function usePagarCuota(): UseMutationResult<
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: CXP_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: GASTOS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CUENTAS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ['finanzas'] });
       if (
         variables.medio_pago === 'efectivo' &&

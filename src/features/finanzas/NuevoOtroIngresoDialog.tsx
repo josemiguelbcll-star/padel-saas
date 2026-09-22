@@ -12,68 +12,62 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { useCajaAbierta } from '@/features/caja/hooks/useCajaAbierta';
-import type { MedioPago } from '@/types/database';
-import { useRegistrarOtroIngreso } from './hooks/useRegistrarOtroIngreso';
 import { useUnidadesNegocio } from './hooks/useUnidadesNegocio';
-import {
-  MEDIO_PAGO_LABEL,
-  MEDIOS_PAGO,
-  registrarOtroIngresoSchema,
-  TIPO_UNIDAD_LABEL,
-  type RegistrarOtroIngresoFormValues,
-} from './finanzasSchemas';
+import { useRegistrarOtroIngreso } from './hooks/useRegistrarOtroIngreso';
+import { useCajaAbierta } from '@/features/caja/hooks/useCajaAbierta';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import type { MedioPago } from '@/types/database';
+import { MEDIO_PAGO_LABEL, MEDIOS_PAGO } from './finanzasSchemas';
 
-import { Repeat } from 'lucide-react';
-
-export interface OtroIngresoPrefill {
-  ingreso_recurrente_id: number;
-  unidad_id: number;
-  concepto: string;
-  monto: number;
-  fecha: string;
+export interface NuevoOtroIngresoPrefill {
+  unidad_id?: number;
+  concepto?: string;
+  monto?: number;
+  fecha?: string;
+  ingreso_recurrente_id?: number;
+  observaciones?: string;
 }
 
 interface NuevoOtroIngresoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  prefill?: OtroIngresoPrefill | null;
+  prefill?: NuevoOtroIngresoPrefill | null;
 }
 
-interface FormState {
+interface IngresoFormState {
   unidad_id: number | null;
   concepto: string;
   monto: string;
   fecha: string;
-  observaciones: string;
   cobrado: boolean;
-  medio_pago: MedioPago | '';
   fecha_cobro: string;
+  medio_pago: MedioPago;
+  cuenta_id: number | null;
+  observaciones: string;
 }
-
-type FieldErrors = Partial<
-  Record<
-    | 'unidad_id' | 'concepto' | 'monto' | 'fecha' | 'observaciones'
-    | 'medio_pago' | 'fecha_cobro' | 'form',
-    string
-  >
->;
 
 function todayISO(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-const INITIAL_STATE = (): FormState => ({
-  unidad_id: null,
-  concepto: '',
-  monto: '',
-  fecha: todayISO(),
-  observaciones: '',
-  cobrado: true,
-  medio_pago: '' as MedioPago | '',
-  fecha_cobro: todayISO(),
-});
+function INITIAL_STATE(): IngresoFormState {
+  const hoy = todayISO();
+  return {
+    unidad_id: null,
+    concepto: '',
+    monto: '',
+    fecha: hoy,
+    cobrado: true,
+    fecha_cobro: hoy,
+    medio_pago: 'efectivo',
+    cuenta_id: null,
+    observaciones: '',
+  };
+}
 
 export function NuevoOtroIngresoDialog({
   open,
@@ -82,152 +76,134 @@ export function NuevoOtroIngresoDialog({
 }: NuevoOtroIngresoDialogProps) {
   const unidadesQuery = useUnidadesNegocio();
   const cajaQuery = useCajaAbierta();
-  const registrar = useRegistrarOtroIngreso();
+  const cuentasQuery = useCuentas();
+  const registrarMutation = useRegistrarOtroIngreso();
 
-  const isCargarReal = Boolean(prefill);
+  const [state, setState] = useState<IngresoFormState>(INITIAL_STATE());
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
 
-  const [state, setState] = useState<FormState>(INITIAL_STATE);
-  const [errors, setErrors] = useState<FieldErrors>({});
-
-  const pending = registrar.isPending;
+  const isCargarReal = Boolean(prefill?.ingreso_recurrente_id);
+  const cuentas = (cuentasQuery.data ?? []).filter((c) => c.activa);
 
   useEffect(() => {
     if (open) {
+      const base = INITIAL_STATE();
       if (prefill) {
-        setState({
-          unidad_id: prefill.unidad_id,
-          concepto: prefill.concepto,
-          monto: prefill.monto ? String(prefill.monto) : '',
-          fecha: prefill.fecha,
-          observaciones: '',
-          cobrado: true,
-          medio_pago: 'transferencia',
-          fecha_cobro: prefill.fecha,
-        });
-      } else {
-        setState(INITIAL_STATE());
+        if (prefill.unidad_id) base.unidad_id = prefill.unidad_id;
+        if (prefill.concepto) base.concepto = prefill.concepto;
+        if (prefill.monto !== undefined) base.monto = String(prefill.monto);
+        if (prefill.observaciones) base.observaciones = prefill.observaciones;
+        if (prefill.fecha) base.fecha = prefill.fecha;
       }
+      setState(base);
       setErrors({});
     }
   }, [open, prefill]);
 
-  const unidadesActivas = (unidadesQuery.data ?? []).filter((u) => u.activa || u.id === prefill?.unidad_id);
+  function validate(): boolean {
+    const nextErrors: { [k: string]: string } = {};
 
-  function handleOpenChange(next: boolean): void {
-    if (pending) return;
-    onOpenChange(next);
+    if (!state.unidad_id) {
+      nextErrors.unidad_id = 'Elegí una unidad de negocio.';
+    }
+
+    const c = state.concepto.trim();
+    if (!c) {
+      nextErrors.concepto = 'El concepto es obligatorio.';
+    } else if (c.length > 200) {
+      nextErrors.concepto = 'El concepto puede tener hasta 200 caracteres.';
+    }
+
+    const m = parseFloat(state.monto);
+    if (Number.isNaN(m) || m <= 0) {
+      nextErrors.monto = 'El monto debe ser mayor a 0.';
+    }
+
+    if (!state.fecha) {
+      nextErrors.fecha = 'Ingresá la fecha del ingreso.';
+    }
+
+    if (state.cobrado) {
+      if (!state.fecha_cobro) {
+        nextErrors.fecha_cobro = 'Ingresá la fecha de cobro.';
+      }
+      if (!state.medio_pago) {
+        nextErrors.medio_pago = 'Elegí el medio de pago.';
+      }
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    setErrors({});
-
-    const formInput: RegistrarOtroIngresoFormValues = {
-      unidad_id: state.unidad_id ?? 0,
-      concepto: state.concepto,
-      monto: state.monto.trim() === '' ? NaN : Number(state.monto),
-      fecha: state.fecha,
-      observaciones: state.observaciones.trim() === '' ? undefined : state.observaciones.trim(),
-      cobrado: state.cobrado,
-      medio_pago: state.cobrado && state.medio_pago !== '' ? (state.medio_pago as MedioPago) : undefined,
-      fecha_cobro: state.cobrado ? state.fecha_cobro : undefined,
-    };
-
-    const parsed = registrarOtroIngresoSchema.safeParse(formInput);
-    if (!parsed.success) {
-      const fe: FieldErrors = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path[0];
-        if (
-          path === 'unidad_id' || path === 'concepto' || path === 'monto' ||
-          path === 'fecha' || path === 'observaciones' ||
-          path === 'medio_pago' || path === 'fecha_cobro'
-        ) {
-          fe[path] = issue.message;
-        }
-      }
-      setErrors(fe);
-      return;
-    }
+    if (!validate()) return;
 
     try {
-      await registrar.mutateAsync({
-        unidad_id: parsed.data.unidad_id,
-        concepto: parsed.data.concepto,
-        monto: parsed.data.monto,
-        fecha: parsed.data.fecha,
-        fecha_cobro: parsed.data.cobrado ? (parsed.data.fecha_cobro ?? null) : null,
-        medio_pago: parsed.data.cobrado ? (parsed.data.medio_pago ?? null) : null,
-        observaciones: parsed.data.observaciones ?? null,
+      await registrarMutation.mutateAsync({
+        unidad_id: state.unidad_id!,
+        concepto: state.concepto.trim(),
+        monto: parseFloat(state.monto),
+        fecha: state.fecha,
+        fecha_cobro: state.cobrado ? state.fecha_cobro : null,
+        medio_pago: state.cobrado ? state.medio_pago : null,
+        observaciones: state.observaciones.trim() || null,
+        cuenta_id: state.cobrado ? state.cuenta_id : null,
         ingreso_recurrente_id: prefill?.ingreso_recurrente_id ?? null,
         turnoCajaIdParaInvalidate: cajaQuery.data?.id ?? null,
       });
+
       onOpenChange(false);
     } catch (err) {
       setErrors({
-        form: err instanceof Error ? err.message : 'No pudimos registrar el ingreso.',
+        form:
+          err instanceof Error
+            ? err.message
+            : 'No pudimos registrar el ingreso. Probá de nuevo.',
       });
     }
   }
 
+  const unidades = (unidadesQuery.data ?? []).filter((u) => u.activa);
+  const pending = registrarMutation.isPending;
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isCargarReal ? 'Cargar real de ingreso recurrente' : 'Registrar otro ingreso'}
+            {isCargarReal ? 'Cargar cobro del mes' : 'Nuevo ingreso'}
           </DialogTitle>
           <DialogDescription>
-            {isCargarReal ? (
-              <>
-                Confirmá el cobro real de este ingreso recurrente.
-              </>
-            ) : (
-              <>
-                Cargá un ingreso que NO pase por reservas/buffet/clases
-                (auspicios, membresías, etc.). Atribuilo a una unidad de
-                negocio. Si lo cobrás en efectivo, entra a la caja del día.
-              </>
-            )}
+            {isCargarReal
+              ? 'Registrá el cobro real correspondiente a esta plantilla recurrente.'
+              : 'Registrá un ingreso ajeno a turnos y buffet (auspicios, membresías, eventos, etc.).'}
           </DialogDescription>
         </DialogHeader>
 
-        {isCargarReal && prefill && (
-          <div
-            className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm"
-            role="status"
-          >
-            <Repeat className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-            <div className="space-y-0.5">
-              <p className="font-medium text-foreground">
-                Cargando real de "{prefill.concepto}"
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Monto estimado: ${prefill.monto}. Ajustá el monto o medio antes de guardar.
-              </p>
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          {/* Unidad */}
+          {/* Unidad de negocio */}
           <div className="space-y-1">
-            <Label htmlFor="ing-unidad">Unidad de negocio</Label>
+            <Label htmlFor="ingreso-unidad">Unidad de negocio</Label>
             <select
-              id="ing-unidad"
+              id="ingreso-unidad"
               value={state.unidad_id ?? ''}
               onChange={(e) =>
-                setState({ ...state, unidad_id: e.target.value === '' ? null : Number(e.target.value) })
+                setState({
+                  ...state,
+                  unidad_id: e.target.value === '' ? null : Number(e.target.value),
+                })
               }
-              disabled={pending || unidadesQuery.isLoading}
+              disabled={pending}
               required
               aria-invalid={!!errors.unidad_id}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">— Elegí una unidad —</option>
-              {unidadesActivas.map((u) => (
+              {unidades.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.nombre} ({TIPO_UNIDAD_LABEL[u.tipo]})
+                  {u.nombre}
                 </option>
               ))}
             </select>
@@ -238,9 +214,9 @@ export function NuevoOtroIngresoDialog({
 
           {/* Concepto */}
           <div className="space-y-1">
-            <Label htmlFor="ing-concepto">Concepto</Label>
+            <Label htmlFor="ingreso-concepto">Concepto</Label>
             <Input
-              id="ing-concepto"
+              id="ingreso-concepto"
               type="text"
               value={state.concepto}
               onChange={(e) => setState({ ...state, concepto: e.target.value })}
@@ -254,12 +230,12 @@ export function NuevoOtroIngresoDialog({
             )}
           </div>
 
-          {/* Monto + fecha */}
+          {/* Monto y Fecha */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="ing-monto">Monto</Label>
+              <Label htmlFor="ingreso-monto">Monto</Label>
               <Input
-                id="ing-monto"
+                id="ingreso-monto"
                 type="number"
                 inputMode="decimal"
                 step="0.01"
@@ -274,10 +250,11 @@ export function NuevoOtroIngresoDialog({
                 <p role="alert" className="text-xs text-destructive">{errors.monto}</p>
               )}
             </div>
+
             <div className="space-y-1">
-              <Label htmlFor="ing-fecha">Fecha</Label>
+              <Label htmlFor="ingreso-fecha">Fecha</Label>
               <Input
-                id="ing-fecha"
+                id="ingreso-fecha"
                 type="date"
                 value={state.fecha}
                 onChange={(e) => setState({ ...state, fecha: e.target.value })}
@@ -290,10 +267,10 @@ export function NuevoOtroIngresoDialog({
             </div>
           </div>
 
-          {/* Toggle cobrado */}
-          <div className="flex items-center justify-between rounded-md border border-border p-3">
-            <div>
-              <Label htmlFor="ing-cobrado" className="cursor-pointer">
+          {/* Switch: ¿Ya cobrado? */}
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="ingreso-cobrado" className="text-sm font-medium">
                 ¿Ya cobrado?
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -301,16 +278,22 @@ export function NuevoOtroIngresoDialog({
               </p>
             </div>
             <Switch
-              id="ing-cobrado"
+              id="ingreso-cobrado"
               checked={state.cobrado}
-              onCheckedChange={(v) => setState({ ...state, cobrado: v })}
+              onCheckedChange={(checked) =>
+                setState({
+                  ...state,
+                  cobrado: checked,
+                  fecha_cobro: checked ? state.fecha_cobro || state.fecha : '',
+                })
+              }
               disabled={pending}
             />
           </div>
 
-          {/* Si cobrado: medio + fecha */}
+          {/* Bloque de cobro */}
           {state.cobrado && (
-            <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
               <div className="space-y-1.5">
                 <Label>Medio de pago</Label>
                 <div className="flex flex-wrap gap-1.5">
@@ -320,14 +303,11 @@ export function NuevoOtroIngresoDialog({
                       type="button"
                       onClick={() => setState({ ...state, medio_pago: m })}
                       disabled={pending}
-                      aria-pressed={state.medio_pago === m}
                       className={cn(
-                        'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        'disabled:cursor-not-allowed disabled:opacity-50',
+                        'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                         state.medio_pago === m
                           ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-background text-foreground hover:bg-muted',
+                          : 'border-input bg-background hover:bg-muted text-foreground',
                       )}
                     >
                       {MEDIO_PAGO_LABEL[m]}
@@ -337,17 +317,36 @@ export function NuevoOtroIngresoDialog({
                 {errors.medio_pago && (
                   <p role="alert" className="text-xs text-destructive">{errors.medio_pago}</p>
                 )}
-                {state.medio_pago === 'efectivo' && !cajaQuery.data && (
-                  <p className="text-xs" style={{ color: 'hsl(var(--destructive))' }}>
-                    No hay caja abierta. Abrila primero desde Caja, o usá otro medio de pago.
-                  </p>
-                )}
+              </div>
+
+              {/* Selector de cuenta */}
+              <div className="space-y-1">
+                <Label htmlFor="ingreso-cuenta">Cuenta de acreditación (opcional)</Label>
+                <select
+                  id="ingreso-cuenta"
+                  value={state.cuenta_id ?? ''}
+                  onChange={(e) =>
+                    setState({
+                      ...state,
+                      cuenta_id: e.target.value === '' ? null : Number(e.target.value),
+                    })
+                  }
+                  disabled={pending}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">— Seleccionar cuenta —</option>
+                  {cuentas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre} {c.detalle ? `(${c.detalle})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="ing-fecha-cobro">Fecha de cobro</Label>
+                <Label htmlFor="ingreso-fecha-cobro">Fecha de cobro</Label>
                 <Input
-                  id="ing-fecha-cobro"
+                  id="ingreso-fecha-cobro"
                   type="date"
                   value={state.fecha_cobro}
                   onChange={(e) => setState({ ...state, fecha_cobro: e.target.value })}
@@ -363,9 +362,9 @@ export function NuevoOtroIngresoDialog({
 
           {/* Observaciones */}
           <div className="space-y-1">
-            <Label htmlFor="ing-obs">Observaciones (opcional)</Label>
+            <Label htmlFor="ingreso-obs">Observaciones (opcional)</Label>
             <textarea
-              id="ing-obs"
+              id="ingreso-obs"
               value={state.observaciones}
               onChange={(e) => setState({ ...state, observaciones: e.target.value })}
               disabled={pending}
@@ -389,13 +388,15 @@ export function NuevoOtroIngresoDialog({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => handleOpenChange(false)}
+              onClick={() => onOpenChange(false)}
               disabled={pending}
             >
               Cancelar
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Registrando…' : 'Registrar ingreso'}
+              {pending
+                ? (isCargarReal ? 'Cargando…' : 'Registrando…')
+                : (isCargarReal ? 'Cargar cobro' : 'Registrar ingreso')}
             </Button>
           </DialogFooter>
         </form>

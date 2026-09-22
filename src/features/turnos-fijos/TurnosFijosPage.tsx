@@ -8,10 +8,13 @@ import {
   Plus,
   Power,
   Repeat,
+  Search,
   Trash2,
   Users,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,10 +63,7 @@ function fmtHora(time: string): string {
 
 /**
  * Pantalla principal del módulo de Turnos Fijos. Lista de activos +
- * alta/edición/cancelación de turnos fijos.
- *
- * La proyección financiera (KPI) se agrega en la Parte 3 (hook
- * useProyeccionTurnosFijos). Por ahora KPI simple = cantidad de activos.
+ * alta/edición/cancelación/eliminación de turnos fijos + buscador de jugadores.
  */
 export function TurnosFijosPage() {
   const { user } = useSession();
@@ -82,9 +82,10 @@ export function TurnosFijosPage() {
   const [eliminarOpen, setEliminarOpen] = useState(false);
   const [seleccionado, setSeleccionado] = useState<TurnoFijo | null>(null);
 
-  // Vista del módulo + precarga del alta desde el calendario.
+  // Vista del módulo + precarga del alta desde el calendario + buscador.
   const [vista, setVista] = useState<'calendario' | 'lista'>('calendario');
   const [prefillNuevo, setPrefillNuevo] = useState<TurnoFijoPrefill | null>(null);
+  const [busqueda, setBusqueda] = useState('');
 
   const canchasById = useMemo(() => {
     const m = new Map<number, string>();
@@ -122,6 +123,16 @@ export function TurnosFijosPage() {
 
   const turnos = turnosQuery.data ?? [];
 
+  const turnosFiltrados = useMemo(() => {
+    if (!busqueda.trim()) return turnos;
+    const q = busqueda.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return turnos.filter((t) => {
+      const titular = nombreTitularDe(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const obs = (t.observaciones ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return titular.includes(q) || obs.includes(q);
+    });
+  }, [turnos, busqueda, jugadoresById]);
+
   return (
     <section className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -154,7 +165,7 @@ export function TurnosFijosPage() {
               className="h-7 px-2.5 text-xs font-medium"
             >
               <List className="mr-1.5 h-3.5 w-3.5" />
-              Listado ({turnos.length})
+              Listado ({turnosFiltrados.length})
             </Button>
           </div>
           {canEdit && (
@@ -173,19 +184,36 @@ export function TurnosFijosPage() {
         </div>
       </header>
 
-      {/* KPI simple */}
-      <div className="max-w-xs">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Turnos fijos activos
-          </p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-            {turnosQuery.isLoading ? '…' : turnos.length}
-          </p>
+      {/* Barra de búsqueda y KPI */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Input
+            type="text"
+            placeholder="Buscar por jugador..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="h-9 pl-9 pr-8 text-sm"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card px-3.5 py-1.5 text-xs text-muted-foreground self-start sm:self-auto">
+          <span className="font-semibold text-foreground">{turnosFiltrados.length}</span> {turnosFiltrados.length === 1 ? 'turno fijo activo' : 'turnos fijos activos'}
+          {busqueda && ` (de ${turnos.length})`}
         </div>
       </div>
 
-      {/* Lista */}
+      {/* Lista / Calendario */}
       {turnosQuery.isLoading && (
         <div className="space-y-2" aria-busy="true">
           {[1, 2, 3].map((n) => (
@@ -202,7 +230,7 @@ export function TurnosFijosPage() {
 
       {!turnosQuery.isLoading && !turnosQuery.isError && vista === 'calendario' && (
         <CalendarioSemanalTurnosFijos
-          turnos={turnos}
+          turnos={turnosFiltrados}
           canchas={canchasQuery.data ?? []}
           resolverTitular={nombreTitularDe}
           horaApertura={horariosQuery.data?.hora_apertura ?? null}
@@ -219,16 +247,18 @@ export function TurnosFijosPage() {
         />
       )}
 
-      {!turnosQuery.isLoading && !turnosQuery.isError && vista === 'lista' && turnos.length === 0 && (
+      {!turnosQuery.isLoading && !turnosQuery.isError && vista === 'lista' && turnosFiltrados.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
           <Repeat className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
-          <p className="mt-2 text-sm text-muted-foreground">No hay turnos fijos registrados.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {busqueda ? 'No se encontraron turnos fijos que coincidan con la búsqueda.' : 'No hay turnos fijos registrados.'}
+          </p>
         </div>
       )}
 
-      {!turnosQuery.isLoading && !turnosQuery.isError && vista === 'lista' && turnos.length > 0 && (
+      {!turnosQuery.isLoading && !turnosQuery.isError && vista === 'lista' && turnosFiltrados.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-          {turnos.map((t) => {
+          {turnosFiltrados.map((t) => {
             const canchaNombre = canchasById.get(t.cancha_id) ?? `Cancha #${t.cancha_id}`;
             const titular = nombreTitularDe(t);
             return (
@@ -308,6 +338,7 @@ export function TurnosFijosPage() {
         open={editarOpen}
         onOpenChange={setEditarOpen}
         turno={seleccionado}
+        onEliminar={openEliminar}
       />
       <CancelarTurnoFijoDialog
         open={cancelarOpen}
@@ -316,7 +347,7 @@ export function TurnosFijosPage() {
       />
       <EliminarTurnoFijoDialog
         open={eliminarOpen}
-        onOpenChange={setEditarOpen}
+        onOpenChange={setEliminarOpen}
         turno={seleccionado}
         titularNombre={seleccionado ? nombreTitularDe(seleccionado) : undefined}
       />

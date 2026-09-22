@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useCajaAbierta } from '@/features/caja/hooks/useCajaAbierta';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import {
   useCuentasPorPagar,
   usePagosCuotaRecientes,
@@ -535,6 +536,13 @@ function PagosRecientesSection({
 }) {
   // Solo mostramos la sección si hay pagos recientes — si no, no hay
   // nada que corregir y no agregamos ruido.
+  const cuentasQuery = useCuentas();
+  const cuentasById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of cuentasQuery.data ?? []) m.set(c.id, c.nombre);
+    return m;
+  }, [cuentasQuery.data]);
+
   if (!query.data || query.data.length === 0) return null;
 
   return (
@@ -583,6 +591,9 @@ function PagosRecientesSection({
               <p className="text-[11px] text-muted-foreground">
                 Pagó {fmtDateShort(p.fecha_pago)}
                 {p.medio_pago && ` · ${MEDIO_PAGO_LABEL[p.medio_pago]}`}
+                {p.cuenta_id && cuentasById.get(p.cuenta_id) && (
+                  <span className="font-medium text-foreground"> · {cuentasById.get(p.cuenta_id)}</span>
+                )}
               </p>
             </div>
 

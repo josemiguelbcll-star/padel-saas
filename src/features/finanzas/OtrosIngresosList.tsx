@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Ban, Clock, Pencil, Repeat, TrendingUp } from 'lucide-react';
 import type { OtroIngreso } from '@/types/database';
-import { MEDIO_PAGO_LABEL, TIPO_UNIDAD_LABEL } from './finanzasSchemas';
+import { MEDIO_PAGO_LABEL } from './finanzasSchemas';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -28,6 +30,13 @@ export function OtrosIngresosList({
   onEditar?: (i: OtroIngreso) => void;
   onAnular?: (i: OtroIngreso) => void;
 }) {
+  const cuentasQuery = useCuentas();
+  const cuentasById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of cuentasQuery.data ?? []) m.set(c.id, c.nombre);
+    return m;
+  }, [cuentasQuery.data]);
+
   if (ingresos.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
@@ -51,7 +60,7 @@ export function OtrosIngresosList({
           <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 font-medium">Fecha</th>
             <th className="px-3 py-2 font-medium">Concepto / Unidad</th>
-            <th className="px-3 py-2 font-medium">Estado</th>
+            <th className="px-3 py-2 font-medium">Estado / Cuenta</th>
             <th className="px-3 py-2 text-right font-medium">Monto</th>
             {hasActions && (
               <th className="px-3 py-2 text-right font-medium">Acciones</th>
@@ -61,6 +70,7 @@ export function OtrosIngresosList({
         <tbody>
           {ingresos.map((i) => {
             const esCobrado = i.fecha_cobro !== null;
+            const cuentaNombre = i.cuenta_id ? cuentasById.get(i.cuenta_id) : null;
             return (
               <tr
                 key={i.id}
@@ -82,69 +92,60 @@ export function OtrosIngresosList({
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {i.unidad_nombre} · {TIPO_UNIDAD_LABEL[i.unidad_tipo]}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{i.unidad_nombre}</p>
+                  {i.observaciones && (
+                    <p className="text-[11px] italic text-muted-foreground/80 mt-0.5">
+                      &ldquo;{i.observaciones}&rdquo;
+                    </p>
+                  )}
                 </td>
                 <td className="px-3 py-2 align-top">
                   {esCobrado ? (
-                    <div className="space-y-0.5">
-                      <span
-                        className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
-                        style={{
-                          backgroundColor: 'hsl(var(--estado-pagada) / 0.12)',
-                          color: 'hsl(var(--estado-pagada))',
-                        }}
-                      >
+                    <div>
+                      <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
                         Cobrado
                       </span>
-                      <p className="text-[11px] text-muted-foreground">
-                        {i.medio_pago ? MEDIO_PAGO_LABEL[i.medio_pago] : ''}
-                        {i.fecha_cobro && ` · ${fmt(i.fecha_cobro)}`}
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {fmt(i.fecha_cobro!)}
+                        {i.medio_pago && ` · ${MEDIO_PAGO_LABEL[i.medio_pago] ?? i.medio_pago}`}
+                        {cuentaNombre && (
+                          <span className="font-medium text-foreground"> · {cuentaNombre}</span>
+                        )}
                       </p>
                     </div>
                   ) : (
-                    <span
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
-                      style={{
-                        backgroundColor: 'hsl(var(--estado-senada) / 0.12)',
-                        color: 'hsl(var(--estado-senada))',
-                      }}
-                    >
-                      <Clock className="h-2.5 w-2.5" aria-hidden="true" />
-                      Pendiente
-                    </span>
+                    <div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        <Clock className="h-2.5 w-2.5" />
+                        Pendiente
+                      </span>
+                    </div>
                   )}
                 </td>
-                <td
-                  className="px-3 py-2 align-top text-right font-medium tabular-nums"
-                  style={{ color: 'hsl(var(--estado-pagada))' }}
-                >
-                  {currencyFmt.format(Number(i.monto))}
+                <td className="px-3 py-2 text-right align-top font-medium tabular-nums text-foreground">
+                  {currencyFmt.format(i.monto)}
                 </td>
                 {hasActions && (
-                  <td className="px-3 py-2 align-top text-right">
+                  <td className="px-3 py-2 text-right align-top">
                     <div className="flex items-center justify-end gap-1">
                       {onEditar && (
                         <button
                           type="button"
                           onClick={() => onEditar(i)}
+                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                           title="Editar ingreso"
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          <Pencil className="h-3 w-3" aria-hidden="true" />
-                          Editar
+                          <Pencil className="h-3.5 w-3.5" />
                         </button>
                       )}
                       {onAnular && (
                         <button
                           type="button"
                           onClick={() => onAnular(i)}
+                          className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           title="Anular ingreso"
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          <Ban className="h-3 w-3" aria-hidden="true" />
-                          Anular
+                          <Ban className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>

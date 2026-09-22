@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { MedioPago, OtroIngreso } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,9 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { MEDIOS_PAGO, MEDIO_PAGO_LABEL } from './finanzasSchemas';
 import { useUnidadesNegocio } from './hooks/useUnidadesNegocio';
 import { useActualizarOtroIngreso } from './hooks/useActualizarOtroIngreso';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import type { MedioPago, OtroIngreso } from '@/types/database';
+import { MEDIO_PAGO_LABEL, MEDIOS_PAGO } from './finanzasSchemas';
 
 interface EditarOtroIngresoDialogProps {
   open: boolean;
@@ -23,30 +24,17 @@ interface EditarOtroIngresoDialogProps {
   ingreso: OtroIngreso | null;
 }
 
-interface FormState {
+interface IngresoEditState {
   unidad_id: number | null;
   concepto: string;
   monto: string;
   fecha: string;
   cobrado: boolean;
-  medio_pago: MedioPago | null;
   fecha_cobro: string;
+  medio_pago: MedioPago | null;
+  cuenta_id: number | null;
   observaciones: string;
 }
-
-type FieldErrors = Partial<
-  Record<
-    | 'unidad_id'
-    | 'concepto'
-    | 'monto'
-    | 'fecha'
-    | 'medio_pago'
-    | 'fecha_cobro'
-    | 'observaciones'
-    | 'form',
-    string
-  >
->;
 
 export function EditarOtroIngresoDialog({
   open,
@@ -54,65 +42,72 @@ export function EditarOtroIngresoDialog({
   ingreso,
 }: EditarOtroIngresoDialogProps) {
   const unidadesQuery = useUnidadesNegocio();
-  const actualizar = useActualizarOtroIngreso();
+  const cuentasQuery = useCuentas();
+  const actualizarMutation = useActualizarOtroIngreso();
 
-  const [state, setState] = useState<FormState>({
+  const [state, setState] = useState<IngresoEditState>({
     unidad_id: null,
     concepto: '',
     monto: '',
     fecha: '',
     cobrado: false,
-    medio_pago: null,
     fecha_cobro: '',
+    medio_pago: null,
+    cuenta_id: null,
     observaciones: '',
   });
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
 
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const cuentas = (cuentasQuery.data ?? []).filter((c) => c.activa || c.id === ingreso?.cuenta_id);
 
   useEffect(() => {
     if (ingreso && open) {
       setState({
         unidad_id: ingreso.unidad_id,
-        concepto: ingreso.concepto ?? '',
-        monto: ingreso.monto ? String(ingreso.monto) : '',
-        fecha: ingreso.fecha ?? '',
+        concepto: ingreso.concepto,
+        monto: String(ingreso.monto),
+        fecha: ingreso.fecha,
         cobrado: ingreso.fecha_cobro !== null,
+        fecha_cobro: ingreso.fecha_cobro ?? '',
         medio_pago: ingreso.medio_pago,
-        fecha_cobro: ingreso.fecha_cobro ?? ingreso.fecha ?? '',
+        cuenta_id: ingreso.cuenta_id ?? null,
         observaciones: ingreso.observaciones ?? '',
       });
       setErrors({});
     }
   }, [ingreso, open]);
 
-  const unidades = (unidadesQuery.data ?? []).filter((u) => u.activa || u.id === ingreso?.unidad_id);
+  if (!open && !ingreso) return null;
 
   function validate(): boolean {
-    const nextErrors: FieldErrors = {};
+    const nextErrors: { [k: string]: string } = {};
 
     if (!state.unidad_id) {
       nextErrors.unidad_id = 'Elegí una unidad de negocio.';
     }
 
-    if (!state.concepto.trim()) {
+    const c = state.concepto.trim();
+    if (!c) {
       nextErrors.concepto = 'El concepto es obligatorio.';
+    } else if (c.length > 200) {
+      nextErrors.concepto = 'El concepto puede tener hasta 200 caracteres.';
     }
 
-    const montoNum = parseFloat(state.monto);
-    if (Number.isNaN(montoNum) || montoNum <= 0) {
+    const m = parseFloat(state.monto);
+    if (Number.isNaN(m) || m <= 0) {
       nextErrors.monto = 'El monto debe ser mayor a 0.';
     }
 
     if (!state.fecha) {
-      nextErrors.fecha = 'La fecha del ingreso es obligatoria.';
+      nextErrors.fecha = 'Ingresá la fecha del ingreso.';
     }
 
     if (state.cobrado) {
-      if (!state.medio_pago) {
-        nextErrors.medio_pago = 'Elegí un medio de pago.';
-      }
       if (!state.fecha_cobro) {
-        nextErrors.fecha_cobro = 'Elegí la fecha de cobro.';
+        nextErrors.fecha_cobro = 'Ingresá la fecha de cobro.';
+      }
+      if (!state.medio_pago) {
+        nextErrors.medio_pago = 'Elegí el medio de pago.';
       }
     }
 
@@ -120,12 +115,12 @@ export function EditarOtroIngresoDialog({
     return Object.keys(nextErrors).length === 0;
   }
 
-  async function handleSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault();
-    if (!ingreso || !validate()) return;
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!validate() || !ingreso) return;
 
     try {
-      await actualizar.mutateAsync({
+      await actualizarMutation.mutateAsync({
         ingreso_id: ingreso.id,
         unidad_id: state.unidad_id!,
         concepto: state.concepto.trim(),
@@ -134,17 +129,22 @@ export function EditarOtroIngresoDialog({
         fecha_cobro: state.cobrado ? state.fecha_cobro : null,
         medio_pago: state.cobrado ? state.medio_pago : null,
         observaciones: state.observaciones.trim() || null,
+        cuenta_id: state.cobrado ? state.cuenta_id : null,
       });
 
       onOpenChange(false);
     } catch (err) {
       setErrors({
-        form: err instanceof Error ? err.message : 'No pudimos actualizar el ingreso.',
+        form:
+          err instanceof Error
+            ? err.message
+            : 'No pudimos actualizar el ingreso. Probá de nuevo.',
       });
     }
   }
 
-  const pending = actualizar.isPending;
+  const unidades = (unidadesQuery.data ?? []).filter((u) => u.activa || u.id === ingreso?.unidad_id);
+  const pending = actualizarMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -152,7 +152,7 @@ export function EditarOtroIngresoDialog({
         <DialogHeader>
           <DialogTitle>Editar ingreso</DialogTitle>
           <DialogDescription>
-            Modificá el monto, fechas, concepto, unidad o medio de cobro del ingreso.
+            Modificá el monto, fechas, concepto, unidad, cuenta o medio de cobro del ingreso.
           </DialogDescription>
         </DialogHeader>
 
@@ -289,6 +289,30 @@ export function EditarOtroIngresoDialog({
                 {errors.medio_pago && (
                   <p role="alert" className="text-xs text-destructive">{errors.medio_pago}</p>
                 )}
+              </div>
+
+              {/* Selector de cuenta */}
+              <div className="space-y-1">
+                <Label htmlFor="edit-ingreso-cuenta">Cuenta de acreditación (opcional)</Label>
+                <select
+                  id="edit-ingreso-cuenta"
+                  value={state.cuenta_id ?? ''}
+                  onChange={(e) =>
+                    setState({
+                      ...state,
+                      cuenta_id: e.target.value === '' ? null : Number(e.target.value),
+                    })
+                  }
+                  disabled={pending}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">— Seleccionar cuenta —</option>
+                  {cuentas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre} {c.detalle ? `(${c.detalle})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">

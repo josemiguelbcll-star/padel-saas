@@ -1,3 +1,4 @@
+import { CUENTAS_QUERY_KEY } from '@/features/configuracion/hooks/useCuentas';
 import {
   useMutation,
   useQueryClient,
@@ -34,6 +35,7 @@ export interface RegistrarGastoInput {
   gasto_recurrente_id?: number | null;
   /** Para invalidar el resumen/movimientos de la caja si el pago fue
    *  en efectivo. Opcional: se pasa solo si hay caja abierta. */
+  cuenta_id?: number | null;
   turnoCajaIdParaInvalidate?: number | null;
 }
 
@@ -86,6 +88,7 @@ export function useRegistrarGasto(): UseMutationResult<
       void queryClient.invalidateQueries({ queryKey: GASTOS_QUERY_KEY });
       // 0045: la RPC genera 1 cuota si nace pendiente — refrescar CxP.
       void queryClient.invalidateQueries({ queryKey: CXP_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CUENTAS_QUERY_KEY });
       // 0046: el panel de Recurrentes detecta "cargado este mes" via
       // los gastos vinculados. Si el alta tuvo gasto_recurrente_id,
       // hay que refrescar el panel para que la tarjeta pase a "Cargada".

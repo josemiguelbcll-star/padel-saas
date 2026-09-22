@@ -268,6 +268,7 @@ export interface Gasto {
    *  Setearlo NO afecta EERR ni CxP — es metadata del panel de
    *  Recurrentes y del histórico mes-a-mes futuro. */
   gasto_recurrente_id: number | null;
+  cuenta_id: number | null;
 }
 
 /**
@@ -318,6 +319,7 @@ export interface OtroIngreso {
   usuario_id: string;
   fecha_alta: string;
   ingreso_recurrente_id: number | null;
+  cuenta_id: number | null;
 }
 
 export interface IngresoRecurrente {
@@ -1405,6 +1407,7 @@ export interface GastoCuota {
   turno_caja_id: number | null;
   usuario_id: string;
   fecha_alta: string;
+  cuenta_id: number | null;
 }
 
 /**
