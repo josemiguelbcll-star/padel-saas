@@ -17,6 +17,7 @@ export interface PagarCuotaInput {
   fecha_pago: string;       // YYYY-MM-DD
   medio_pago: MedioPago;
   /** Para invalidar resumen/movimientos de la caja si efectivo. */
+  cuenta_id?: number | null;
   turnoCajaIdParaInvalidate?: number | null;
 }
 

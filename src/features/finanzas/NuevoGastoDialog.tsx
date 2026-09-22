@@ -24,9 +24,12 @@ export interface NuevoGastoPrefill {
   categoria_id?: number;
   monto?: number;
   proveedor?: string;
+  proveedor_id?: number | null;
+  proveedor_nombre?: string | null;
+  concepto?: string;
   fecha_vencimiento?: string;
   gasto_recurrente_id?: number;
-  observaciones?: string;
+  observaciones?: string | null;
 }
 
 interface NuevoGastoDialogProps {
@@ -206,7 +209,7 @@ export function NuevoGastoDialog({
               <option value="">— Elegí una categoría —</option>
               {categorias.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre} ({c.unidad_nombre})
+                  {c.nombre}
                 </option>
               ))}
             </select>

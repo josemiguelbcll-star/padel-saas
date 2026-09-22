@@ -110,14 +110,14 @@ export function GastosList({
                   {g.proveedor ?? '—'}
                 </td>
                 <td className="px-3 py-2 align-top">
-                  {pago.estado === 'pagado' && (
+                  {pago.estado === 'pagada' && (
                     <div>
                       <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
                         Pagado
                       </span>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {pago.fecha_pago && fmt(pago.fecha_pago)}
-                        {pago.medio_pago && ` · ${medioPagoLabel(pago.medio_pago)}`}
+                        {fmt(g.fecha_gasto)}
+                        {pago.medio && ` · ${medioPagoLabel(pago.medio)}`}
                         {cuentaNombre && (
                           <span className="font-medium text-foreground"> · {cuentaNombre}</span>
                         )}
@@ -128,7 +128,7 @@ export function GastosList({
                     <div>
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
                         <Clock className="h-2.5 w-2.5" />
-                        Pago parcial ({currencyFmt.format(pago.monto_pagado)})
+                        Pago parcial ({pago.pagadas}/{pago.total})
                       </span>
                     </div>
                   )}

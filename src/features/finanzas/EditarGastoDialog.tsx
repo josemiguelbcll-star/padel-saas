@@ -167,7 +167,7 @@ export function EditarGastoDialog({
               <option value="">— Elegí una categoría —</option>
               {categorias.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre} ({c.unidad_nombre})
+                  {c.nombre}
                 </option>
               ))}
             </select>

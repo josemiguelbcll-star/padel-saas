@@ -35,6 +35,7 @@ export interface RegistrarGastoInput {
   gasto_recurrente_id?: number | null;
   /** Para invalidar el resumen/movimientos de la caja si el pago fue
    *  en efectivo. Opcional: se pasa solo si hay caja abierta. */
+  cuenta_id?: number | null;
   turnoCajaIdParaInvalidate?: number | null;
 }
 

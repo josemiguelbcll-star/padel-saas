@@ -23,6 +23,7 @@ export interface NuevoOtroIngresoPrefill {
   unidad_id?: number;
   concepto?: string;
   monto?: number;
+  fecha?: string;
   ingreso_recurrente_id?: number;
   observaciones?: string;
 }
@@ -92,6 +93,7 @@ export function NuevoOtroIngresoDialog({
         if (prefill.concepto) base.concepto = prefill.concepto;
         if (prefill.monto !== undefined) base.monto = String(prefill.monto);
         if (prefill.observaciones) base.observaciones = prefill.observaciones;
+        if (prefill.fecha) base.fecha = prefill.fecha;
       }
       setState(base);
       setErrors({});

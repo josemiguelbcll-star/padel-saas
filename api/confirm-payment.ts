@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendBookingEmail } from './_lib/resend';
+import { sendBookingEmail } from './_lib/resend.js';
 
 // Vercel serverless function (Node.js runtime)
 export default async function handler(req: any, res: any) {
