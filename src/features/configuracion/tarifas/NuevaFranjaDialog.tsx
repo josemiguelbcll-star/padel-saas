@@ -187,7 +187,7 @@ export function NuevaFranjaDialog({
         nombre: parsed.data.nombre,
         monto: parsed.data.monto,
         desde_hora: parsed.data.desde_hora === '' ? null : parsed.data.desde_hora,
-        hasta_hora: parsed.data.hasta_hora === '' ? null : parsed.data.hasta_hora,
+        hasta_hora: parsed.data.hasta_hora === '' ? null : (parsed.data.hasta_hora === '00:00' || parsed.data.hasta_hora === '00:00:00' ? '24:00' : parsed.data.hasta_hora),
         dias_semana:
           parsed.data.dias_semana.length === 0 ? null : parsed.data.dias_semana,
         prioridad: parsed.data.prioridad,

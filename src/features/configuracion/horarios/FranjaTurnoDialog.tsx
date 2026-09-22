@@ -67,7 +67,7 @@ function initialState(editing: FranjaTurno | null): FormState {
   return {
     nombre: editing.nombre,
     desde_hora: editing.desde_hora ? editing.desde_hora.slice(0, 5) : '',
-    hasta_hora: editing.hasta_hora ? editing.hasta_hora.slice(0, 5) : '',
+    hasta_hora: editing.hasta_hora ? (editing.hasta_hora.slice(0, 5) === '24:00' ? '00:00' : editing.hasta_hora.slice(0, 5)) : '',
     // dias_semana NULL en DB = todos los días.
     dias: editing.dias_semana ?? [...TODOS_LOS_DIAS],
     duraciones: [...editing.duraciones_min]
@@ -209,7 +209,7 @@ export function FranjaTurnoDialog({
       cancha_id: parsed.data.cancha_id,
       nombre: parsed.data.nombre,
       desde_hora: parsed.data.desde_hora,
-      hasta_hora: parsed.data.hasta_hora,
+      hasta_hora: parsed.data.hasta_hora === null ? null : (parsed.data.hasta_hora === '00:00' || parsed.data.hasta_hora === '00:00:00' ? '24:00' : parsed.data.hasta_hora),
       dias_semana,
       duraciones_min: parsed.data.duraciones_min,
       prioridad: parsed.data.prioridad,
