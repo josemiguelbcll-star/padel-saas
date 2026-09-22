@@ -130,7 +130,7 @@ export function EditarMetadataDialog({
       setState({
         nombre: linaje.nombre,
         desde_hora: linaje.desde_hora ? linaje.desde_hora.slice(0, 5) : '',
-        hasta_hora: linaje.hasta_hora ? linaje.hasta_hora.slice(0, 5) : '',
+        hasta_hora: linaje.hasta_hora ? (linaje.hasta_hora.slice(0, 5) === '24:00' ? '00:00' : linaje.hasta_hora.slice(0, 5)) : '',
         dias_semana: linaje.dias_semana ?? [],
         prioridad: linaje.prioridad.toString(),
         activa: linaje.activa,
@@ -192,7 +192,7 @@ export function EditarMetadataDialog({
         lineage_id: linaje.lineage_id,
         nombre: parsed.data.nombre,
         desde_hora: tieneFranja ? parsed.data.desde_hora : undefined,
-        hasta_hora: tieneFranja ? parsed.data.hasta_hora : undefined,
+        hasta_hora: tieneFranja ? (parsed.data.hasta_hora === '00:00' || parsed.data.hasta_hora === '00:00:00' ? '24:00' : parsed.data.hasta_hora) : undefined,
         dias_semana: tieneDias ? parsed.data.dias_semana : undefined,
         prioridad: parsed.data.prioridad,
         activa: parsed.data.activa,
