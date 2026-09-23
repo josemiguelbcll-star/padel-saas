@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -32,6 +32,7 @@ import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useReservaPagos } from './hooks/useReservaPagos';
 import { useCobrarPersonaTurno } from './hooks/useCobrarPersonaTurno';
 import { useEliminarPagoReserva } from './hooks/useEliminarPagoReserva';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import {
   calcularDesgloseCuenta,
   calcularSaldosPersonas,
@@ -53,6 +54,13 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 
 function fmtMoney(n: number): string {
   return currencyFmt.format(n);
+}
+
+function mapCuentaToMedioPago(tipo: string): MedioPago {
+  if (tipo === 'efectivo') return 'efectivo';
+  if (tipo === 'billetera') return 'mp';
+  if (tipo === 'banco') return 'transferencia';
+  return 'otro';
 }
 
 const MEDIOS_PAGO_LIST: readonly MedioPago[] = [
@@ -1641,6 +1649,7 @@ function CobrarPersonaInline({
     monto: number,
     nombreInvitado: string | null,
     darPorSaldado?: boolean,
+    cuentaId?: number | null,
   ) => Promise<void>;
   disabled: boolean;
 }) {
@@ -1654,7 +1663,42 @@ function CobrarPersonaInline({
   const [nombreInvitado, setNombreInvitado] = useState<string>(
     nombreLibreActual ?? '',
   );
-  const [medio, setMedio] = useState<MedioPago | null>('efectivo');
+
+  const cuentasQuery = useCuentas();
+  const cuentasActivas = useMemo(() => {
+    return (cuentasQuery.data ?? []).filter((c) => c.activa);
+  }, [cuentasQuery.data]);
+
+  const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(() => {
+    if (cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      return def ? def.id : null;
+    }
+    return null;
+  });
+
+  const [medio, setMedio] = useState<MedioPago | null>(() => {
+    if (cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) return mapCuentaToMedioPago(def.tipo);
+    }
+    return 'efectivo';
+  });
+
+  const cuentaElegida = useMemo(() => {
+    return cuentasActivas.find((c) => c.id === selectedCuentaId) ?? null;
+  }, [cuentasActivas, selectedCuentaId]);
+
+  useEffect(() => {
+    if (selectedCuentaId === null && cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) {
+        setSelectedCuentaId(def.id);
+        setMedio(mapCuentaToMedioPago(def.tipo));
+      }
+    }
+  }, [cuentasActivas, selectedCuentaId]);
+
   const [obs, setObs] = useState('');
   const [darPorSaldado, setDarPorSaldado] = useState(false);
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
@@ -1668,8 +1712,8 @@ function CobrarPersonaInline({
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setErrorLocal(null);
-    if (!medio) {
-      setErrorLocal('Elegí un medio de pago.');
+    if (!medio && selectedCuentaId === null) {
+      setErrorLocal('Elegí una cuenta o medio de pago.');
       return;
     }
     if (!Number.isInteger(montoNum) || montoNum < 1) {
@@ -1682,11 +1726,12 @@ function CobrarPersonaInline({
     }
     await onConfirmar(
       saldo,
-      medio,
+      medio ?? 'otro',
       obs.trim() === '' ? null : obs.trim(),
       montoNum,
       nombreInvitado.trim() === '' ? null : nombreInvitado.trim(),
       esParcial && darPorSaldado,
+      selectedCuentaId,
     );
   }
 
@@ -1777,39 +1822,106 @@ function CobrarPersonaInline({
         )}
       </div>
 
-      <div className="space-y-1">
-        <Label className="text-xs">Medio de pago</Label>
-        <div className="flex flex-wrap gap-1">
-          {MEDIOS_PAGO_LIST.map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMedio(m)}
-              disabled={disabled}
-              aria-pressed={medio === m}
-              className={cn(
-                'rounded-md border px-2 py-1 text-[11px] font-medium transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                medio === m
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-foreground hover:bg-muted',
-              )}
-            >
-              {MEDIO_PAGO_LABEL[m]}
-            </button>
-          ))}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold">Cuenta / Medio de cobro</Label>
+          {cuentaElegida && (
+            <span className="text-[10px] text-muted-foreground">
+              Destino: <strong className="text-foreground">{cuentaElegida.nombre}</strong>
+            </span>
+          )}
         </div>
+
+        {cuentasActivas.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {cuentasActivas.map((c) => {
+              const isSelected = selectedCuentaId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCuentaId(c.id);
+                    setMedio(mapCuentaToMedioPago(c.tipo));
+                  }}
+                  disabled={disabled}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all flex items-center gap-1.5',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'disabled:cursor-not-allowed disabled:opacity-50',
+                    isSelected
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                      : 'border-border bg-background text-foreground hover:bg-muted/80',
+                  )}
+                >
+                  <span>{c.nombre}</span>
+                  {c.tipo !== 'efectivo' && (
+                    <span
+                      className={cn(
+                        'text-[9px] px-1 py-0.5 rounded font-normal uppercase tracking-wider',
+                        isSelected
+                          ? 'bg-primary-foreground/20 text-primary-foreground'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {c.tipo === 'billetera' ? 'MP' : c.tipo === 'banco' ? 'Banco' : 'Otro'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            {!cuentasActivas.some((c) => c.nombre.toLowerCase().includes('tarjeta')) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCuentaId(null);
+                  setMedio('tarjeta');
+                }}
+                disabled={disabled}
+                aria-pressed={selectedCuentaId === null && medio === 'tarjeta'}
+                className={cn(
+                  'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  selectedCuentaId === null && medio === 'tarjeta'
+                    ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                    : 'border-border bg-background text-foreground hover:bg-muted',
+                )}
+              >
+                Tarjeta
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {MEDIOS_PAGO_LIST.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setSelectedCuentaId(null);
+                  setMedio(m);
+                }}
+                disabled={disabled}
+                aria-pressed={medio === m}
+                className={cn(
+                  'rounded-md border px-2 py-1 text-[11px] font-medium transition-colors',
+                  medio === m
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground hover:bg-muted',
+                )}
+              >
+                {MEDIO_PAGO_LABEL[m]}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Observación contextual: con transferencia se vuelve "¿Quién
-          transfirió?" (el dato que la reconciliación de transferencias lee
-          desde reserva_pagos.observaciones). Mismo estado `obs`, misma cadena
-          aguas abajo — solo cambia la presentación. */}
       <div className="space-y-1">
         <Label className="text-xs">
-          {medio === 'transferencia'
-            ? '¿Quién transfirió? (opcional)'
+          {medio === 'transferencia' || cuentaElegida?.tipo === 'banco' || cuentaElegida?.tipo === 'billetera'
+            ? '¿Quién transfirió o comprobante? (opcional)'
             : 'Observación (opcional)'}
         </Label>
         <Input
@@ -1819,8 +1931,8 @@ function CobrarPersonaInline({
           disabled={disabled}
           maxLength={medio === 'transferencia' ? 120 : 500}
           placeholder={
-            medio === 'transferencia'
-              ? 'Nombre o alias del titular'
+            medio === 'transferencia' || cuentaElegida?.tipo === 'banco' || cuentaElegida?.tipo === 'billetera'
+              ? 'Nombre del titular, alias o nro. comprobante'
               : 'Notas internas…'
           }
           className="h-7 text-xs"

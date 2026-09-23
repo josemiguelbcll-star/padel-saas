@@ -24,6 +24,7 @@ const BuffetPage = lazy(() => import('@/features/buffet/BuffetPage').then((m) =>
 const CajaLayout = lazy(() => import('@/features/caja/CajaLayout').then((m) => ({ default: m.CajaLayout })));
 const CajaPage = lazy(() => import('@/features/caja/CajaPage').then((m) => ({ default: m.CajaPage })));
 const TransferenciasPage = lazy(() => import('@/features/caja/TransferenciasPage').then((m) => ({ default: m.TransferenciasPage })));
+const MovimientosCuentasPage = lazy(() => import('@/features/caja/MovimientosCuentasPage').then((m) => ({ default: m.MovimientosCuentasPage })));
 const FinanzasPage = lazy(() => import('@/features/finanzas/FinanzasPage').then((m) => ({ default: m.FinanzasPage })));
 const FlujoCajaPage = lazy(() => import('@/features/finanzas/flujo/FlujoCajaPage').then((m) => ({ default: m.FlujoCajaPage })));
 const GastosPage = lazy(() => import('@/features/finanzas/GastosPage').then((m) => ({ default: m.GastosPage })));
@@ -202,6 +203,7 @@ export function App() {
             <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
             <Route path="efectivo" element={<CajaPage />} />
             <Route path="transferencias" element={<TransferenciasPage />} />
+            <Route path="movimientos-cuentas" element={<MovimientosCuentasPage />} />
           </Route>
 
           <Route path="finanzas" element={<ModuleRoute modulo="finanzas"><FinanzasPage /></ModuleRoute>} />
