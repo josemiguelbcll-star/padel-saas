@@ -12,19 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { getLogoClubUrl } from '@/lib/clubBrand';
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
 
-// Precios de referencia según club para visuales atractivas
-const PRECIOS_ESTIMADOS: Record<string, string> = {
-  'domo-padel': '$18.000',
-  'signo-d-padel': '$16.000',
-  'tucan-padel-center': '$20.000',
-  'verbum-camp': '$15.000',
-  'sporting-futbol-club': '$35.000',
-  'il-calcio': '$40.000',
-  'la-loma-padel': '$44.000',
-  'la-sirio-padel': '$52.000',
-  'club-raqueta': '$44.000',
-  'green-futbol-club': '$18.000',
-};
+
 
 // ── Helpers de fecha y hora ───────────────────────────────────────────────────
 
@@ -658,8 +646,6 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
             const pills = dataDisp?.pillsVisibles ?? [];
             const logoUrl = getLogoClubUrl(club.logo_path ?? null);
 
-            // Precio estimado
-            const precioTag = PRECIOS_ESTIMADOS[club.slug] ?? '$18.000';
 
             return (
               <div
@@ -796,20 +782,7 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
                     </div>
                   )}
 
-                  {/* Badge de precio en la esquina inferior derecha */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '10px',
-                    right: '10px',
-                    textAlign: 'right',
-                    color: '#FFFFFF',
-                    zIndex: 2,
-                  }}>
-                    <span style={{ fontSize: '10px', opacity: 0.85, display: 'block', lineHeight: 1 }}>desde</span>
-                    <span style={{ fontSize: '16px', fontWeight: 900, fontFamily: "'Poppins', sans-serif" }}>
-                      {precioTag}
-                    </span>
-                  </div>
+
                 </div>
 
                 {/* ── CUERPO DE LA CARD ── */}
