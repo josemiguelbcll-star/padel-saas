@@ -58,12 +58,19 @@ export function saldoAlquiler(r: {
 
 export interface InsumosOcupacion {
   /** Reservas del día (la función filtra las canceladas). */
-  reservas: ReadonlyArray<{ duracion_min: number; estado: EstadoReserva }>;
+  reservas: ReadonlyArray<{
+    duracion_min: number;
+    estado: EstadoReserva;
+    cancha_id?: number;
+    hora_inicio?: string;
+  }>;
   /** Catálogo de clases (la función filtra activas + del día de la semana). */
   clases: ReadonlyArray<{
     duracion_min: number;
     dias_semana: number[];
     activa: boolean;
+    cancha_id?: number;
+    hora_inicio?: string;
   }>;
   /** 1 = lunes … 7 = domingo. */
   diaSemana: number;
@@ -83,6 +90,9 @@ export interface ResultadoOcupacion {
   porcentaje: number | null;
   minutosOcupados: number;
   minutosDisponibles: number;
+  canchasActivas: number;
+  canchasOcupadasAhora: number;
+  turnosTotalesHoy: number;
 }
 
 /**
@@ -93,6 +103,23 @@ export interface ResultadoOcupacion {
  * para reservas (trigger trg_clases_no_overlap_reservas) y la materialización
  * de turnos fijos saltea las clases → nunca comparten franja.
  */
+function ahoraMinutosAR(): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date());
+    const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+    const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+    return h * 60 + m;
+  } catch {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  }
+}
+
 export function calcularOcupacion(insumos: InsumosOcupacion): ResultadoOcupacion {
   const {
     reservas,
@@ -103,16 +130,48 @@ export function calcularOcupacion(insumos: InsumosOcupacion): ResultadoOcupacion
     canchasActivas,
   } = insumos;
 
-  const minReservas = reservas
-    .filter((r) => esReservaFirme(r.estado))
-    .reduce((acc, r) => acc + r.duracion_min, 0);
-  const minClases = clases
-    .filter((c) => c.activa && c.dias_semana.includes(diaSemana))
-    .reduce((acc, c) => acc + c.duracion_min, 0);
+  const ahoraMin = ahoraMinutosAR();
+  const canchasOcupadasAhoraSet = new Set<number>();
+
+  const reservasFirmes = reservas.filter((r) => esReservaFirme(r.estado));
+  const minReservas = reservasFirmes.reduce((acc, r) => acc + r.duracion_min, 0);
+
+  for (const r of reservasFirmes) {
+    if (r.cancha_id && r.hora_inicio) {
+      const ini = horaAMinutos(r.hora_inicio);
+      const fin = ini + r.duracion_min;
+      if (ini <= ahoraMin && ahoraMin < fin) {
+        canchasOcupadasAhoraSet.add(r.cancha_id);
+      }
+    }
+  }
+
+  const clasesHoy = clases.filter((c) => c.activa && c.dias_semana.includes(diaSemana));
+  const minClases = clasesHoy.reduce((acc, c) => acc + c.duracion_min, 0);
+
+  for (const c of clasesHoy) {
+    if (c.cancha_id && c.hora_inicio) {
+      const ini = horaAMinutos(c.hora_inicio);
+      const fin = ini + c.duracion_min;
+      if (ini <= ahoraMin && ahoraMin < fin) {
+        canchasOcupadasAhoraSet.add(c.cancha_id);
+      }
+    }
+  }
+
   const minutosOcupados = minReservas + minClases;
+  const turnosTotalesHoy = reservasFirmes.length + clasesHoy.length;
+  const canchasOcupadasAhora = canchasOcupadasAhoraSet.size;
 
   if (horaApertura === null || horaCierre === null || canchasActivas <= 0) {
-    return { porcentaje: null, minutosOcupados, minutosDisponibles: 0 };
+    return {
+      porcentaje: null,
+      minutosOcupados,
+      minutosDisponibles: 0,
+      canchasActivas,
+      canchasOcupadasAhora,
+      turnosTotalesHoy,
+    };
   }
 
   const aperturaMin = horaAMinutos(horaApertura);
@@ -122,7 +181,14 @@ export function calcularOcupacion(insumos: InsumosOcupacion): ResultadoOcupacion
   }
   const ventana = cierreMin - aperturaMin;
   if (ventana <= 0) {
-    return { porcentaje: null, minutosOcupados, minutosDisponibles: 0 };
+    return {
+      porcentaje: null,
+      minutosOcupados,
+      minutosDisponibles: 0,
+      canchasActivas,
+      canchasOcupadasAhora,
+      turnosTotalesHoy,
+    };
   }
 
   const minutosDisponibles = ventana * canchasActivas;
@@ -130,6 +196,9 @@ export function calcularOcupacion(insumos: InsumosOcupacion): ResultadoOcupacion
     porcentaje: (minutosOcupados / minutosDisponibles) * 100,
     minutosOcupados,
     minutosDisponibles,
+    canchasActivas,
+    canchasOcupadasAhora,
+    turnosTotalesHoy,
   };
 }
 

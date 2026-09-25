@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Plus, X } from 'lucide-react';
+import { GraduationCap, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -49,6 +49,7 @@ interface NuevaReservaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slot: NuevoReservaSlot | null;
+  onCrearClase?: (slot: NuevoReservaSlot) => void;
 }
 
 /**
@@ -63,17 +64,17 @@ export function NuevaReservaDialog({
   open,
   onOpenChange,
   slot,
+  onCrearClase,
 }: NuevaReservaDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         {slot && (
           <NuevaReservaBody
-            // Remount al cambiar de slot: state interno arranca limpio
-            // y el useMemo de tarifa recalcula.
             key={`${slot.cancha.id}-${slot.fecha}-${slot.hora}`}
             slot={slot}
             onDone={() => onOpenChange(false)}
+            onCrearClase={onCrearClase}
           />
         )}
       </DialogContent>
@@ -104,6 +105,7 @@ const ESTADO_LABEL: Record<EstadoInicial, string> = {
 interface NuevaReservaBodyProps {
   slot: NuevoReservaSlot;
   onDone: () => void;
+  onCrearClase?: (slot: NuevoReservaSlot) => void;
 }
 
 type FieldErrors = Partial<
@@ -118,7 +120,7 @@ type FieldErrors = Partial<
   >
 >;
 
-function NuevaReservaBody({ slot, onDone }: NuevaReservaBodyProps) {
+function NuevaReservaBody({ slot, onDone, onCrearClase }: NuevaReservaBodyProps) {
   const tarifasQuery = useTarifas();
   const crearMutation = useCrearReserva();
 
@@ -150,6 +152,7 @@ function NuevaReservaBody({ slot, onDone }: NuevaReservaBodyProps) {
       onDone={onDone}
       tarifas={tarifasQuery.data ?? []}
       crearMutation={crearMutation}
+      onCrearClase={onCrearClase}
     />
   );
 }
@@ -159,6 +162,7 @@ interface NuevaReservaBodyReadyProps {
   onDone: () => void;
   tarifas: Tarifa[];
   crearMutation: ReturnType<typeof useCrearReserva>;
+  onCrearClase?: (slot: NuevoReservaSlot) => void;
 }
 
 function NuevaReservaBodyReady({
@@ -166,6 +170,7 @@ function NuevaReservaBodyReady({
   onDone,
   tarifas,
   crearMutation,
+  onCrearClase,
 }: NuevaReservaBodyReadyProps) {
   const allowedDurations = useMemo(() => {
     const filtered = slot.duracionesPermitidas.filter(d => d === 90 || d === 120);
@@ -377,6 +382,33 @@ function NuevaReservaBodyReady({
           {formatearHora(slot.hora)} ({duracion} min)
         </DialogDescription>
       </DialogHeader>
+
+      {onCrearClase && (
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-1.5">
+          <span className="text-xs font-medium text-muted-foreground pl-1">
+            ¿Qué deseás agendar en este horario?
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="rounded-md border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground shadow-xs"
+            >
+              🎾 Reserva / Turno
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onDone();
+                onCrearClase(slot);
+              }}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground hover:shadow-xs"
+            >
+              <GraduationCap className="h-3.5 w-3.5 text-primary" />
+              <span>Clase</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         {/* Duración (si la franja ofrece >1, el usuario elige; si ofrece
