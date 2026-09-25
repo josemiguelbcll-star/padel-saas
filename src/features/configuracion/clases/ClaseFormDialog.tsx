@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Info, ShieldAlert } from 'lucide-react';
+import { GraduationCap, Info, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -24,24 +24,46 @@ import { resolverTarifa } from '@/features/reservas/utils/resolverTarifa';
 import type { Clase } from '@/types/database';
 import { claseSchema } from './claseSchema';
 
-interface ClaseFormDialogProps {
+export interface ClaseInitialDefaults {
+  profesor_id?: number | null;
+  cancha_id?: number | null;
+  nombre?: string;
+  dias_semana?: number[];
+  hora_inicio?: string;
+  duracion_min?: number;
+  activa?: boolean;
+  es_recurrente?: boolean;
+  fecha_clase?: string;
+}
+
+export interface ClaseFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialValue: Clase | null;
+  initialValue?: Clase | null;
+  initialDefaults?: ClaseInitialDefaults | null;
+  onVolverReserva?: () => void;
 }
 
 export function ClaseFormDialog({
   open,
   onOpenChange,
-  initialValue,
+  initialValue = null,
+  initialDefaults = null,
+  onVolverReserva,
 }: ClaseFormDialogProps) {
+  const key =
+    initialValue?.id ??
+    `new-${initialDefaults?.cancha_id ?? ''}-${initialDefaults?.hora_inicio ?? ''}-${initialDefaults?.fecha_clase ?? ''}`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <ClaseFormBody
-          key={initialValue?.id ?? 'new'}
+          key={key}
           initialValue={initialValue}
+          initialDefaults={initialDefaults}
           onDone={() => onOpenChange(false)}
+          onVolverReserva={onVolverReserva}
         />
       </DialogContent>
     </Dialog>
@@ -86,17 +108,17 @@ const DIAS_SEMANA = [
 
 const DEFAULT_DURACION_CLASE = 60;
 
-function defaultState(): FormState {
+function defaultState(defaults?: ClaseInitialDefaults | null): FormState {
   return {
-    profesor_id: null,
-    cancha_id: null,
-    nombre: '',
-    dias_semana: [],
-    hora_inicio: '',
-    duracion_min: DEFAULT_DURACION_CLASE,
-    activa: true,
-    es_recurrente: true,
-    fecha_clase: '',
+    profesor_id: defaults?.profesor_id ?? null,
+    cancha_id: defaults?.cancha_id ?? null,
+    nombre: defaults?.nombre ?? '',
+    dias_semana: defaults?.dias_semana ?? [],
+    hora_inicio: defaults?.hora_inicio ?? '',
+    duracion_min: defaults?.duracion_min ?? DEFAULT_DURACION_CLASE,
+    activa: defaults?.activa ?? true,
+    es_recurrente: defaults?.es_recurrente ?? true,
+    fecha_clase: defaults?.fecha_clase ?? '',
   };
 }
 
@@ -144,10 +166,17 @@ function proxFechaConDiaIso(diaIso: number): string {
 
 interface ClaseFormBodyProps {
   initialValue: Clase | null;
+  initialDefaults?: ClaseInitialDefaults | null;
   onDone: () => void;
+  onVolverReserva?: () => void;
 }
 
-function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
+function ClaseFormBody({
+  initialValue,
+  initialDefaults,
+  onDone,
+  onVolverReserva,
+}: ClaseFormBodyProps) {
   const isEdit = initialValue !== null;
   const profesoresQuery = useProfesores();
   const canchasQuery = useCanchas();
@@ -155,8 +184,10 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
   const createMutation = useCreateClase();
   const updateMutation = useUpdateClase();
 
-  const [state, setState] = useState<FormState>(
-    initialValue ? claseToFormState(initialValue) : defaultState(),
+  const [state, setState] = useState<FormState>(() =>
+    initialValue
+      ? claseToFormState(initialValue)
+      : defaultState(initialDefaults),
   );
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -301,6 +332,30 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
             : 'Las clases son bloques rígidos que se repiten cada semana en los días que elijas.'}
         </DialogDescription>
       </DialogHeader>
+
+      {onVolverReserva && !isEdit && (
+        <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-1.5">
+          <span className="text-xs font-medium text-muted-foreground pl-1">
+            ¿Qué deseás agendar en este horario?
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onVolverReserva}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground hover:shadow-xs cursor-pointer"
+            >
+              🎾 Reserva / Turno
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground shadow-xs"
+            >
+              <GraduationCap className="h-3.5 w-3.5 text-primary" />
+              Clase
+            </button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -599,22 +654,35 @@ function ClaseFormBody({ initialValue, onDone }: ClaseFormBodyProps) {
           </div>
         )}
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onDone}
-            disabled={isPending}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending
-              ? 'Guardando…'
-              : isEdit
-                ? 'Guardar cambios'
-                : 'Crear clase'}
-          </Button>
+        <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+          {onVolverReserva && !isEdit ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onVolverReserva}
+              disabled={isPending}
+              className="text-xs text-muted-foreground hover:text-foreground px-2"
+            >
+              ← Volver a Reserva
+            </Button>
+          ) : <div />}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onDone}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending
+                ? 'Guardando…'
+                : isEdit
+                  ? 'Guardar cambios'
+                  : 'Crear clase'}
+            </Button>
+          </div>
         </DialogFooter>
       </form>
     </>

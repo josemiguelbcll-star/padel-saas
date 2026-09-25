@@ -190,10 +190,16 @@ function KpiOcupacion() {
         </>
       ) : (
         <>
-          <p className="mt-3 text-2xl font-bold tabular-nums leading-none text-foreground">
-            {Math.round(resultado.porcentaje)}%
-          </p>
-          <div className="mt-3 flex h-4 items-center">
+          <div className="mt-2.5 flex items-baseline justify-between gap-2">
+            <p className="text-2xl font-bold tabular-nums leading-none text-foreground">
+              {Math.round(resultado.porcentaje)}%
+            </p>
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              {resultado.canchasOcupadasAhora} de {resultado.canchasActivas} ocupadas ahora
+            </span>
+          </div>
+
+          <div className="mt-2.5 flex h-1.5 items-center">
             <div
               className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
               role="progressbar"
@@ -206,6 +212,15 @@ function KpiOcupacion() {
                 style={{ width: `${Math.min(100, resultado.porcentaje)}%` }}
               />
             </div>
+          </div>
+
+          <div className="mt-2 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+            <span>
+              {resultado.turnosTotalesHoy} {resultado.turnosTotalesHoy === 1 ? 'turno' : 'turnos'} hoy
+            </span>
+            <span>
+              {Math.round((resultado.minutosOcupados / 60) * 10) / 10}h de {Math.round((resultado.minutosDisponibles / 60) * 10) / 10}h
+            </span>
           </div>
         </>
       )}

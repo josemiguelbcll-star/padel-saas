@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { AlertTriangle, Clock, LayoutGrid, Sparkles } from 'lucide-react';
+import { AlertTriangle, Clock, GraduationCap, LayoutGrid, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModoTorneoDialog } from './ModoTorneoDialog';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -31,6 +31,10 @@ import {
   NuevaReservaDialog,
   type NuevoReservaSlot,
 } from './NuevaReservaDialog';
+import {
+  ClaseFormDialog,
+  type ClaseInitialDefaults,
+} from '@/features/configuracion/clases/ClaseFormDialog';
 import { useCobrosDelDia } from './hooks/useCobrosDelDia';
 import {
   useReservasDelDia,
@@ -208,6 +212,54 @@ export function ReservasPage() {
 
   // Estado del modal de nueva reserva.
   const [nuevoSlot, setNuevoSlot] = useState<NuevoReservaSlot | null>(null);
+  const [nuevaClaseOpen, setNuevaClaseOpen] = useState(false);
+  const [claseSlotDefaults, setClaseSlotDefaults] = useState<ClaseInitialDefaults | null>(null);
+
+  const [slotParaVolver, setSlotParaVolver] = useState<NuevoReservaSlot | null>(null);
+
+  function handleAbrirNuevaClase(slot?: NuevoReservaSlot | null): void {
+    if (!canEdit) {
+      // sin permisos
+      return;
+    }
+    if (slot) {
+      setSlotParaVolver(slot);
+      setClaseSlotDefaults({
+        cancha_id: slot.cancha.id,
+        hora_inicio: slot.hora.slice(0, 5),
+        duracion_min: slot.duracionesPermitidas[0] ?? 60,
+        fecha_clase: slot.fecha,
+        dias_semana: [diaSemanaDe(slot.fecha)],
+        es_recurrente: true,
+      });
+    } else {
+      setSlotParaVolver(null);
+      setClaseSlotDefaults({
+        fecha_clase: fecha,
+        dias_semana: [diaSemanaDe(fecha)],
+        cancha_id: canchasActivas[0]?.id ?? null,
+        es_recurrente: true,
+      });
+    }
+    setNuevaClaseOpen(true);
+  }
+
+  function handleVolverReserva(): void {
+    setNuevaClaseOpen(false);
+    if (slotParaVolver) {
+      setNuevoSlot(slotParaVolver);
+    } else {
+      const cancha = canchasActivas[0];
+      if (cancha) {
+        setNuevoSlot({
+          cancha,
+          fecha,
+          hora: '12:00',
+          duracionesPermitidas: [60, 90],
+        });
+      }
+    }
+  }
 
   // Estado del modal de modo torneo.
   const [modoTorneoOpen, setModoTorneoOpen] = useState(false);
@@ -279,16 +331,28 @@ export function ReservasPage() {
           <div className="flex items-center gap-2">
             <ContadorDiaOperativo conteo={conteo} />
             {canEdit && (
-              <Button
-                type="button"
-                onClick={() => setModoTorneoOpen(true)}
-                variant="outline"
-                size="sm"
-                className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400 font-semibold"
-              >
-                <Sparkles className="mr-1.5 h-4 w-4 text-amber-500 animate-pulse" />
-                Modo Torneo
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  onClick={() => handleAbrirNuevaClase(null)}
+                  variant="outline"
+                  size="sm"
+                  className="font-medium text-foreground hover:bg-muted"
+                >
+                  <GraduationCap className="mr-1.5 h-4 w-4 text-primary" />
+                  Nueva Clase
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setModoTorneoOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400 font-semibold"
+                >
+                  <Sparkles className="mr-1.5 h-4 w-4 text-amber-500 animate-pulse" />
+                  Modo Torneo
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -335,6 +399,19 @@ export function ReservasPage() {
           if (!open) setNuevoSlot(null);
         }}
         slot={nuevoSlot}
+        onCrearClase={handleAbrirNuevaClase}
+      />
+
+      <ClaseFormDialog
+        open={nuevaClaseOpen}
+        onOpenChange={(open) => {
+          setNuevaClaseOpen(open);
+          if (!open) {
+            setSlotParaVolver(null);
+          }
+        }}
+        initialDefaults={claseSlotDefaults}
+        onVolverReserva={handleVolverReserva}
       />
 
       <DetalleReservaDialog
