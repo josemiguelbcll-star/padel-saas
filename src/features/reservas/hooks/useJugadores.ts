@@ -8,7 +8,11 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
-import type { Jugador } from '@/types/database';
+import type {
+  EstadisticasJugador,
+  Jugador,
+  JugadorConEstadisticas,
+} from '@/types/database';
 
 export const JUGADORES_QUERY_KEY_BASE = 'jugadores';
 
@@ -20,11 +24,6 @@ function jugadoresSearchKey(query: string) {
  * Búsqueda de jugadores para autocomplete. Usa ILIKE — el índice GIN
  * pg_trgm sobre `nombre` (migración 0004) lo acelera incluso para
  * patrones con `%algo%`.
- *
- * - Si la query está vacía o muy corta (<2 caracteres) devolvemos []
- *   sin tocar la red: el autocomplete no muestra nada hasta que el
- *   usuario escriba algo.
- * - Sólo trae jugadores activos. Limit 10 (suficiente para el dropdown).
  */
 export function useJugadoresSearch(
   query: string,
@@ -46,17 +45,10 @@ export function useJugadoresSearch(
       return (data ?? []) as Jugador[];
     },
     enabled: minQuery,
-    // Tiempo de cache corto: mientras el usuario escribe disparamos
-    // muchas búsquedas y queremos resultados frescos tras crear nuevos.
     staleTime: 5_000,
   });
 }
 
-/**
- * Campos que el frontend envía al crear un jugador desde el modal de
- * reserva. Sólo nombre es obligatorio en la DB; el resto se enriquece
- * después desde una eventual pantalla de Jugadores (no en sprint 3a).
- */
 export type JugadorInput = Omit<Jugador, 'id' | 'club_id' | 'fecha_alta'>;
 
 export function useCreateJugador(): UseMutationResult<
@@ -83,56 +75,90 @@ export function useCreateJugador(): UseMutationResult<
       return data as Jugador;
     },
     onSuccess: () => {
-      // Invalida todas las búsquedas para que el jugador nuevo aparezca
-      // inmediatamente en cualquier autocomplete abierto.
       void queryClient.invalidateQueries({ queryKey: [JUGADORES_QUERY_KEY_BASE] });
     },
   });
 }
 
-/**
- * Lista completa de jugadores del club (activos e inactivos), ordenada
- * por nombre. La pantalla de Jugadores filtra client-side por el
- * término del buscador (dataset esperado: decenas a cientos por club —
- * server-side se vuelve necesario sólo si crece a miles).
- *
- * El autocomplete sigue usando `useJugadoresSearch` (server-side ILIKE
- * con índice trgm) porque ahí sí se dispara con cada keystroke y
- * queremos cortar la red ASAP.
- */
 export const JUGADORES_LIST_QUERY_KEY = [
   JUGADORES_QUERY_KEY_BASE,
   'list',
 ] as const;
 
-export function useJugadores(): UseQueryResult<Jugador[], Error> {
+/**
+ * Lista completa de jugadores enriquecida con métricas de actividad:
+ * cantidad de veces que vino (visitas), gasto en turnos, gasto en buffet
+ * y ranking dentro del club.
+ */
+export function useJugadores(): UseQueryResult<JugadorConEstadisticas[], Error> {
   const { club } = useSession();
 
-  return useQuery<Jugador[], Error>({
+  return useQuery<JugadorConEstadisticas[], Error>({
     queryKey: [...JUGADORES_LIST_QUERY_KEY, club?.id],
     queryFn: async () => {
       let query = supabase
         .from('jugadores')
-        .select(`
-          *,
-          movimientos:jugador_movimientos_cuenta(monto)
-        `)
+        .select('*')
         .order('nombre', { ascending: true });
 
       if (club?.id) {
         query = query.eq('club_id', club.id);
       }
 
-      const { data, error } = await query;
-      if (error) throw new Error(mapPostgrestError(error));
-      
-      const mapped = (data ?? []).map((j: any) => ({
-        ...j,
-        saldo: (j.movimientos ?? []).reduce((sum: number, m: any) => sum + Number(m.monto), 0),
-      }));
+      const [jugadoresRes, statsRes] = await Promise.all([
+        query,
+        supabase.rpc('fn_estadisticas_jugadores'),
+      ]);
 
-      return mapped as unknown as Jugador[];
+      if (jugadoresRes.error) {
+        throw new Error(mapPostgrestError(jugadoresRes.error));
+      }
+
+      const statsMap = new Map<number, EstadisticasJugador>();
+      if (statsRes.data && Array.isArray(statsRes.data)) {
+        for (const s of statsRes.data) {
+          statsMap.set(Number(s.jugador_id), {
+            jugador_id: Number(s.jugador_id),
+            visitas: Number(s.visitas) || 0,
+            gasto_turnos: Number(s.gasto_turnos) || 0,
+            gasto_buffet: Number(s.gasto_buffet) || 0,
+            gasto_total: Number(s.gasto_total) || 0,
+            ultimo_partido: s.ultimo_partido ?? null,
+          });
+        }
+      }
+
+      const list: JugadorConEstadisticas[] = (jugadoresRes.data ?? []).map((j) => {
+        const st = statsMap.get(j.id) ?? {
+          jugador_id: j.id,
+          visitas: 0,
+          gasto_turnos: 0,
+          gasto_buffet: 0,
+          gasto_total: 0,
+          ultimo_partido: null,
+        };
+        return {
+          ...j,
+          visitas: st.visitas,
+          gasto_turnos: st.gasto_turnos,
+          gasto_buffet: st.gasto_buffet,
+          gasto_total: st.gasto_total,
+          ultimo_partido: st.ultimo_partido,
+          ranking: 0,
+        };
+      });
+
+      // Ordenar por gasto_total DESC (y desempate por visitas) para asignar posición de ranking
+      const ordenadosParaRank = [...list].sort(
+        (a, b) => b.gasto_total - a.gasto_total || b.visitas - a.visitas,
+      );
+      ordenadosParaRank.forEach((item, index) => {
+        item.ranking = index + 1;
+      });
+
+      return list;
     },
+    staleTime: 10_000,
   });
 }
 
@@ -160,27 +186,11 @@ export function useUpdateJugador(): UseMutationResult<
       return data as Jugador;
     },
     onSuccess: () => {
-      // Invalida el base key: pega tanto en la lista de la pantalla
-      // como en cualquier autocomplete abierto (que cachea por término).
       void queryClient.invalidateQueries({ queryKey: [JUGADORES_QUERY_KEY_BASE] });
     },
   });
 }
 
-/**
- * Borrar un jugador.
- *
- * Dos defensas:
- *   - RLS `jugadores_delete` (migración 0011): rechaza si el caller no
- *     es admin del club (SQLSTATE 42501 → "No tenés permisos…").
- *   - Trigger `trg_jugadores_no_borrar_con_referencias` (0011): rechaza
- *     con P0001 + mensaje accionable si el jugador tiene reservas,
- *     acompañantes o pagos asociados ("Desactivalo en su lugar…").
- *
- * `dbErrors` traduce ambos; los mensajes llegan al usuario tal cual.
- * El frontend gatea el botón "Eliminar" con `useSession()` para no
- * mostrarlo al vendedor, pero la seguridad real es la RLS.
- */
 export function useDeleteJugador(): UseMutationResult<void, Error, number> {
   const queryClient = useQueryClient();
 
@@ -222,4 +232,3 @@ export function usePagarCuentaCorriente(): UseMutationResult<
     },
   });
 }
-

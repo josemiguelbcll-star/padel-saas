@@ -871,6 +871,82 @@ export interface ClaseCobro {
   usuario_id: string;
   /** TIMESTAMPTZ del momento del cobro. */
   fecha_hora: string;
+  clase_alumno_id?: number | null;
+  jugador_id?: number | null;
+  monto_clase?: number;
+  monto_consumo?: number;
+  cuenta_id?: number | null;
+  turno_caja_id?: number | null;
+}
+
+export interface ClaseAlumnoFijo {
+  id: number;
+  club_id: number;
+  clase_id: number;
+  jugador_id: number | null;
+  nombre_libre: string | null;
+  monto_cuota: number | null;
+  creado_en: string;
+  jugador?: {
+    id: number;
+    nombre: string;
+    telefono: string | null;
+    email: string | null;
+  } | null;
+}
+
+export interface ClaseOcurrenciaAlumno {
+  id: number;
+  club_id: number;
+  clase_id: number;
+  fecha: string;
+  jugador_id: number | null;
+  nombre_libre: string | null;
+  monto_clase: number;
+  cuota_fija: number | null;
+  creado_en: string;
+  jugador?: {
+    id: number;
+    nombre: string;
+    telefono: string | null;
+    email: string | null;
+  } | null;
+}
+
+
+export interface EstadisticasJugador {
+  jugador_id: number;
+  visitas: number;
+  gasto_turnos: number;
+  gasto_buffet: number;
+  gasto_total: number;
+  ultimo_partido: string | null;
+}
+
+export interface JugadorConEstadisticas extends Jugador {
+  visitas: number;
+  gasto_turnos: number;
+  gasto_buffet: number;
+  gasto_total: number;
+  ultimo_partido: string | null;
+  ranking: number;
+}
+
+export interface ClaseConsumo {
+  id: number;
+  club_id: number;
+  clase_id: number;
+  fecha: string;
+  clase_alumno_id: number | null;
+  producto_id: number;
+  producto_nombre: string;
+  precio_unitario: number;
+  costo_unitario: number | null;
+  cantidad: number;
+  subtotal: number;
+  linea: Linea;
+  usuario_id: string;
+  fecha_hora: string;
 }
 
 // ============================================================================
@@ -1008,7 +1084,7 @@ export interface MovimientoStock {
  * cambia la atribución contable: todo el consumo sigue siendo línea
  * "Buffet" en el EERR (reserva_pagos.monto_consumo es el agregado).
  */
-export type TipoRepartoConsumo = 'partido' | 'general';
+export type TipoRepartoConsumo = 'partido' | 'general' | 'individual';
 
 /**
  * Consumo de buffet cargado a la cuenta del turno (paso 2 del módulo
@@ -1052,6 +1128,8 @@ export interface ReservaConsumo {
   linea: Linea;
   usuario_id: string;
   fecha_hora: string;
+  reserva_jugador_id?: number | null;
+  jugador_id?: number | null;
 }
 
 export interface Venta {

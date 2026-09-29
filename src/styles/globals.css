@@ -63,8 +63,8 @@
        sin tener que tocar nada más. */
     --ring: var(--primary);
 
-    /* Estados de reserva (gris, amarillo, verde, azul, rojo) */
-    --estado-pendiente: 0 0% 60%;
+    /* Estados de reserva (ámbar cálido para reservado/pendiente, amarillo para seña, verde, azul, rojo) */
+    --estado-pendiente: 32 95% 44%;
     --estado-pendiente-foreground: 0 0% 100%;
 
     --estado-senada: 38 92% 50%;
@@ -82,7 +82,7 @@
     /* Estados OPERATIVOS del turno (0054). Tonos mid-dark saturados:
        los bloques de la grilla van de color SÓLIDO con texto BLANCO, así
        que cada tono tiene contraste suficiente (~4.5:1) con el blanco. */
-    --estado-op-reservado: 215 20% 43%;
+    --estado-op-reservado: 32 95% 44%;
     --estado-op-reservado-foreground: 0 0% 100%;
     --estado-op-abierto: 142 62% 29%;
     --estado-op-abierto-foreground: 0 0% 100%;
@@ -128,7 +128,7 @@
     --primary-foreground: 0 0% 100%;
     --ring: var(--primary);
 
-    --estado-pendiente: 0 0% 35%;
+    --estado-pendiente: 32 90% 48%;
     --estado-pendiente-foreground: 0 0% 100%;
 
     --estado-senada: 38 92% 50%;
@@ -145,7 +145,7 @@
 
     /* Estados OPERATIVOS del turno (0054) — dark. Mismos tonos mid-dark:
        el bloque sólido lleva texto blanco en ambos temas. */
-    --estado-op-reservado: 215 18% 45%;
+    --estado-op-reservado: 32 90% 48%;
     --estado-op-reservado-foreground: 0 0% 100%;
     --estado-op-abierto: 142 58% 32%;
     --estado-op-abierto-foreground: 0 0% 100%;
