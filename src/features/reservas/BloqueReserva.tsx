@@ -44,8 +44,25 @@ export function BloqueReserva({
   const horaInicio = formatearHora(reserva.hora_inicio);
   const horaFin = formatearHora(reserva.hora_fin);
   const esBloqueadoPorTorneo = reserva.observaciones?.includes('[Bloqueado por Torneo:');
-  const bg = esBloqueadoPorTorneo ? 'hsl(var(--destructive) / 0.15)' : estadoOperativoColorVar(info.estado);
-  const fg = esBloqueadoPorTorneo ? 'hsl(var(--destructive))' : estadoOperativoColorFgVar(info.estado);
+  const esTurnoFijo = Boolean(reserva.turno_fijo_id);
+
+  // Colores diferenciados:
+  // - Torneo: Rojo destructivo
+  // - Cerrado: Azul marino/slate de cerrado
+  // - Turno Fijo: Cobalto / Azul Zafiro (--turno-fijo)
+  // - Turno al momento / suelto: Ámbar cálido / Terracota (--turno-suelto)
+  const colorTipo = esTurnoFijo ? 'hsl(var(--turno-fijo))' : 'hsl(var(--turno-suelto))';
+  let bg = colorTipo;
+  let fg = '#ffffff';
+
+  if (esBloqueadoPorTorneo) {
+    bg = 'hsl(var(--destructive) / 0.15)';
+    fg = 'hsl(var(--destructive))';
+  } else if (info.estado === 'cerrado') {
+    bg = 'hsl(var(--estado-op-cerrado))';
+    fg = 'hsl(var(--estado-op-cerrado-foreground))';
+  }
+
   // Bloques cortos (clamp en bordes / 60' apretado): solo una línea.
   const compacto = height < 46;
 
@@ -56,24 +73,23 @@ export function BloqueReserva({
   const buttonStyle: React.CSSProperties = {
     top,
     height: Math.max(12, height - 2),
+    backgroundColor: bg,
     color: fg,
   };
 
-  if (esBloqueadoPorTorneo) {
-    buttonStyle.backgroundColor = bg;
-  } else if (info.estado === 'abierto' && pct < 100) {
-    buttonStyle.background = `linear-gradient(to right, hsl(var(--estado-op-abierto)) ${pct}%, hsl(var(--estado-op-reservado)) ${pct}%)`;
-  } else {
-    buttonStyle.backgroundColor = bg;
+  if (!esBloqueadoPorTorneo && info.estado !== 'cerrado') {
+    if (info.estado === 'abierto' && pct < 100) {
+      buttonStyle.background = `linear-gradient(to right, hsl(var(--estado-op-abierto)) ${pct}%, ${colorTipo} ${pct}%)`;
+    } else {
+      buttonStyle.backgroundColor = colorTipo;
+    }
   }
-
-  console.log(`[BloqueReserva] ID: ${reserva.id}, Total: ${reserva.monto_total}, Pagado: ${reserva.monto_pagado}, Pct: ${pct}, Background: ${buttonStyle.background || buttonStyle.backgroundColor}`);
 
   return (
     <button
       type="button"
       onClick={() => onClick(reserva)}
-      aria-label={`Ver detalle: reserva de ${titular} ${horaInicio} a ${horaFin}`}
+      aria-label={`Ver detalle: ${esTurnoFijo ? 'Turno fijo' : 'Turno'} de ${titular} ${horaInicio} a ${horaFin}`}
       className={cn(
         'group absolute left-1 right-1 overflow-hidden rounded-md text-left',
         'shadow-sm ring-1 ring-black/10 transition-all duration-150',
@@ -90,23 +106,40 @@ export function BloqueReserva({
         )}
       >
         <div className="flex items-start justify-between gap-1">
-          <span className="truncate text-xs font-semibold leading-tight flex items-center gap-1">
+          <span className="truncate text-xs font-semibold leading-tight flex items-center gap-1.5 min-w-0">
             {esBloqueadoPorTorneo && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
-            {titular}
+            {!esBloqueadoPorTorneo && (
+              <span
+                className={cn(
+                  'shrink-0 rounded px-1 py-0.2 text-[9px] font-bold uppercase tracking-wider text-white shadow-xs',
+                  esTurnoFijo
+                    ? 'bg-black/25 ring-1 ring-white/20'
+                    : 'bg-black/25 ring-1 ring-white/20'
+                )}
+              >
+                {esTurnoFijo ? 'Fijo' : 'Turno'}
+              </span>
+            )}
+            <span className="truncate">{titular}</span>
           </span>
-          {(info.tienePago || info.tieneConsumo) && (
-            <span className="flex shrink-0 items-center gap-0.5 opacity-90">
-              {info.tienePago && (
-                <DollarSign className="h-3 w-3" aria-hidden="true" />
-              )}
-              {info.tieneConsumo && (
-                <CupSoda className="h-3 w-3" aria-hidden="true" />
-              )}
-            </span>
-          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {info.estado === 'abierto' && (
+              <span className="h-2 w-2 rounded-full bg-emerald-400 ring-1 ring-white/50 animate-pulse" title="En juego" />
+            )}
+            {(info.tienePago || info.tieneConsumo) && (
+              <span className="flex shrink-0 items-center gap-0.5 opacity-90">
+                {info.tienePago && (
+                  <DollarSign className="h-3 w-3" aria-hidden="true" />
+                )}
+                {info.tieneConsumo && (
+                  <CupSoda className="h-3 w-3" aria-hidden="true" />
+                )}
+              </span>
+            )}
+          </div>
         </div>
         {!compacto && (
-          <span className="truncate text-[11px] leading-tight opacity-80">
+          <span className="truncate text-[11px] leading-tight opacity-85">
             {horaInicio}–{horaFin} · {reserva.duracion_min} min
             {esBloqueadoPorTorneo && <span className="block text-[9px] font-semibold text-destructive mt-0.5">BLOQUEADO POR TORNEO</span>}
           </span>

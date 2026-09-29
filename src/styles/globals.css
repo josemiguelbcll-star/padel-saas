@@ -97,6 +97,12 @@
        reservas: el color refleja esa diferencia conceptual. */
     --clase: 270 65% 55%;
     --clase-foreground: 0 0% 100%;
+
+    /* Diferenciación en la grilla: Turno Fijo vs Turno al momento / suelto */
+    --turno-fijo: 217 88% 45%;
+    --turno-fijo-foreground: 0 0% 100%;
+    --turno-suelto: 28 95% 45%;
+    --turno-suelto-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -156,6 +162,11 @@
 
     --clase: 270 60% 60%;
     --clase-foreground: 0 0% 100%;
+
+    --turno-fijo: 217 85% 52%;
+    --turno-fijo-foreground: 0 0% 100%;
+    --turno-suelto: 28 92% 48%;
+    --turno-suelto-foreground: 0 0% 100%;
   }
 }
 
