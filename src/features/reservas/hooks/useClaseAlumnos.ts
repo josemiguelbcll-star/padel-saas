@@ -35,7 +35,6 @@ export function useClaseAlumnos(
   fecha: string | null,
 ): UseQueryResult<ClaseOcurrenciaAlumno[], Error> {
   const { club } = useSession();
-  const queryClient = useQueryClient();
 
   return useQuery<ClaseOcurrenciaAlumno[], Error>({
     queryKey: claseId !== null && fecha !== null

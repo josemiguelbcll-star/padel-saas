@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  Award,
   Coffee,
   DollarSign,
   Medal,
@@ -32,7 +31,6 @@ import type { Jugador, JugadorConEstadisticas } from '@/types/database';
 import { JugadorFormDialog } from './JugadorFormDialog';
 import {
   CATEGORIA_LABEL,
-  GENERO_LABEL,
   POSICION_LABEL,
 } from './jugadorSchema';
 

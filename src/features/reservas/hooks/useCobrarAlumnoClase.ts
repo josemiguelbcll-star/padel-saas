@@ -43,7 +43,7 @@ export function useCobrarAlumnoClase(): UseMutationResult<
       if (error) throw new Error(mapPostgrestError(error));
       return data as ClaseCobro;
     },
-    onSuccess: (data, input) => {
+    onSuccess: (_, input) => {
       void queryClient.invalidateQueries({
         queryKey: [CLASE_COBROS_QUERY_KEY_BASE, input.fecha],
       });

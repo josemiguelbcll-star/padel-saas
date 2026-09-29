@@ -130,7 +130,7 @@ export function ConsumosTurnoSection({
   async function handleAgregar(
     productoId: number,
     tipoReparto: TipoRepartoConsumo,
-    reservaJugadorId?: number,
+    reservaJugadorId?: number | null,
   ): Promise<void> {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
@@ -141,7 +141,7 @@ export function ConsumosTurnoSection({
         producto_id: productoId,
         cantidad: 1,
         tipo_reparto: tipoReparto,
-        reserva_jugador_id: reservaJugadorId,
+        reserva_jugador_id: reservaJugadorId ?? undefined,
       });
     } catch (err) {
       setError(

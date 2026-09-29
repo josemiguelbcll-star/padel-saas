@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, useEffect } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import {
   AlertTriangle,
   BookmarkCheck,
@@ -8,10 +8,7 @@ import {
   Divide,
   Plus,
   Receipt,
-  RotateCcw,
-  ShieldAlert,
   ShoppingBag,
-  Sparkles,
   Trash2,
   User,
   Users,
@@ -35,29 +32,26 @@ import { useQuery } from '@tanstack/react-query';
 import type {
   Cancha,
   ClaseCobro,
-  ClaseConsumo,
   ClaseOcurrenciaAlumno,
   MedioPago,
+  TipoRepartoConsumo,
 } from '@/types/database';
 import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases';
 import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
 import { useCobrarClase } from './hooks/useCobrarClase';
 import { useClaseOcurrencia } from './hooks/useClaseOcurrencia';
-import { useCrearClaseOcurrencia } from './hooks/useCrearClaseOcurrencia';
 import {
   useClaseAlumnos,
   useAgregarAlumnoClase,
   useActualizarAlumnoClase,
   useQuitarAlumnoClase,
   useGuardarComoAlumnosFijos,
-  claseAlumnosQueryKey,
 } from './hooks/useClaseAlumnos';
 import {
   useClaseConsumos,
   useCargarConsumoClase,
   useQuitarConsumoClase,
-  claseConsumosQueryKey,
 } from './hooks/useClaseConsumos';
 import { useCobrarAlumnoClase } from './hooks/useCobrarAlumnoClase';
 import { CLASE_COBROS_QUERY_KEY_BASE } from './hooks/useCobrosDelDia';
@@ -188,7 +182,6 @@ function DetalleClaseBody({
 
   // Hooks de datos
   const ocurrenciaQuery = useClaseOcurrencia(clase.id, fecha);
-  const crearOcurrenciaMutation = useCrearClaseOcurrencia();
   const ocurrencia = ocurrenciaQuery.data;
 
   const alumnosQuery = useClaseAlumnos(clase.id, fecha);
@@ -486,8 +479,8 @@ function DetalleClaseBody({
 
   async function handleAgregarConsumo(
     productoId: number,
-    tipoReparto: string,
-    personaId?: number,
+    _tipoReparto: TipoRepartoConsumo,
+    personaId?: number | null,
   ) {
     setCobroError(null);
     try {
