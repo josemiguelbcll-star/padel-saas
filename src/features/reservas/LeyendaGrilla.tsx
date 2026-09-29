@@ -9,8 +9,9 @@
 export function LeyendaGrilla() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-      <Item label="Reservado" colorVar="--estado-op-reservado" />
-      <Item label="Abierto" colorVar="--estado-op-abierto" />
+      <Item label="Turno al momento" colorVar="--turno-suelto" />
+      <Item label="Turno fijo" colorVar="--turno-fijo" />
+      <Item label="En juego" colorVar="--estado-op-abierto" />
       <Item label="Cerrado" colorVar="--estado-op-cerrado" />
       <Item label="Clase" colorVar="--clase" />
       <DashedItem label="Disponible" />

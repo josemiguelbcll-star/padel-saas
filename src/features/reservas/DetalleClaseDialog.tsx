@@ -54,6 +54,7 @@ import {
   useQuitarConsumoClase,
 } from './hooks/useClaseConsumos';
 import { useCobrarAlumnoClase } from './hooks/useCobrarAlumnoClase';
+import { useLiberarClase } from './hooks/useLiberarClase';
 import { CLASE_COBROS_QUERY_KEY_BASE } from './hooks/useCobrosDelDia';
 import { JugadorAutocomplete, type JugadorSeleccionado } from './JugadorAutocomplete';
 import { ConsumosCatalogo, type PersonaDestinoConsumo } from './ConsumosCatalogo';
@@ -248,6 +249,10 @@ function DetalleClaseBody({
   const [montoCobroGeneral, setMontoCobroGeneral] = useState<string>('');
   const [medioCobroGeneral, setMedioCobroGeneral] = useState<MedioPago>('efectivo');
   const [obsCobroGeneral, setObsCobroGeneral] = useState<string>('');
+
+  // Liberar clase solo por hoy
+  const liberarClaseMutation = useLiberarClase();
+  const [confirmingLiberar, setConfirmingLiberar] = useState(false);
 
   // Borrar cobro
   const [borrandoCobroId, setBorrandoCobroId] = useState<number | null>(null);
@@ -516,6 +521,29 @@ function DetalleClaseBody({
       setBorrandoCobroId(null);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'No pudimos eliminar el pago.');
+    }
+  }
+
+  const puedeLiberar = pagos.length === 0 && consumos.length === 0;
+  const motivoNoLiberable =
+    pagos.length > 0
+      ? 'La clase tiene cobros registrados. Anulá los cobros antes de liberar.'
+      : consumos.length > 0
+      ? 'La clase tiene consumiciones registradas. Eliminalas antes de liberar.'
+      : null;
+
+  async function handleConfirmLiberar(): Promise<void> {
+    setCobroError(null);
+    try {
+      await liberarClaseMutation.mutateAsync({
+        claseId: clase.id,
+        fecha,
+      });
+      onClose();
+    } catch (err) {
+      setCobroError(
+        err instanceof Error ? err.message : 'No pudimos liberar la clase.'
+      );
     }
   }
 
@@ -1427,14 +1455,82 @@ function DetalleClaseBody({
       </div>
 
       {/* ── FOOTER STICKY ────────────────────────────────────────── */}
-      <div className="flex items-center justify-between border-t border-border bg-card px-6 py-3">
-        <div className="text-xs text-muted-foreground">
-          {alumnos.length} {alumnos.length === 1 ? 'alumno' : 'alumnos'} · {consumos.length}{' '}
-          {consumos.length === 1 ? 'consumición' : 'consumiciones'}
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>
-          Cerrar
-        </Button>
+      <div className="flex flex-col gap-3 border-t border-border bg-card px-6 py-3">
+        {confirmingLiberar ? (
+          <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
+                aria-hidden="true"
+              />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  ¿Liberar esta clase solo por hoy?
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  La cancha quedará libre para que cualquiera pueda alquilar un turno en esta fecha y horario ({formatearFechaAmigable(fecha)}). La clase semanal recurrente seguirá activa normalmente las próximas semanas.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmingLiberar(false)}
+                disabled={liberarClaseMutation.isPending}
+              >
+                No, mantener
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  void handleConfirmLiberar();
+                }}
+                disabled={liberarClaseMutation.isPending}
+              >
+                {liberarClaseMutation.isPending ? 'Liberando…' : 'Sí, liberar clase'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="text-xs text-muted-foreground">
+                {alumnos.length} {alumnos.length === 1 ? 'alumno' : 'alumnos'} · {consumos.length}{' '}
+                {consumos.length === 1 ? 'consumición' : 'consumiciones'}
+              </div>
+              {!readOnly && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCobroError(null);
+                      setConfirmingLiberar(true);
+                    }}
+                    disabled={!puedeLiberar || liberarClaseMutation.isPending}
+                    title={motivoNoLiberable ?? undefined}
+                    className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground disabled:hover:bg-transparent"
+                  >
+                    Liberar clase (solo por hoy)
+                  </Button>
+                  {!puedeLiberar && motivoNoLiberable && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {motivoNoLiberable}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              Cerrar
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );

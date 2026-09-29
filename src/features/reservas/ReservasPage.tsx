@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { AlertTriangle, Clock, GraduationCap, LayoutGrid, Sparkles } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Clock, GraduationCap, LayoutGrid, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModoTorneoDialog } from './ModoTorneoDialog';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -36,6 +36,9 @@ import {
   type ClaseInitialDefaults,
 } from '@/features/configuracion/clases/ClaseFormDialog';
 import { useCobrosDelDia } from './hooks/useCobrosDelDia';
+import { useClaseOcurrenciasDelDia } from './hooks/useClaseOcurrenciasDelDia';
+import { useReactivarClase } from './hooks/useReactivarClase';
+import type { ClaseOcurrencia } from './hooks/useClaseOcurrencia';
 import {
   useReservasDelDia,
   type ReservaConTitular,
@@ -54,7 +57,7 @@ import {
   fechaHoy,
   formatearFechaAmigable,
 } from './utils/fechaUtils';
-import { formatearHora, normalizarHora } from './utils/horaUtils';
+import { formatearHora, normalizarHora, sumarMinutos } from './utils/horaUtils';
 
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -99,6 +102,8 @@ export function ReservasPage() {
   const reservasQuery = useReservasDelDia(fecha);
   const clasesQuery = useClases();
   const cobrosQuery = useCobrosDelDia(fecha);
+  const ocurrenciasQuery = useClaseOcurrenciasDelDia(fecha);
+  const reactivarClaseMutation = useReactivarClase();
   // Franjas de duración. Si falla/está vacío, la grilla cae al fallback
   // (duracion_turno_default) — no bloqueamos el render por ellas.
   const franjasQuery = useFranjasTurno();
@@ -148,19 +153,48 @@ export function ReservasPage() {
     return canchasActivas.filter((c) => detectarDeporte(c) === deporteSeleccionado);
   }, [canchasActivas, deporteSeleccionado]);
 
+  // Indexamos las ocurrencias de clase por clase_id para la fecha actual
+  const ocurrenciasPorClase = useMemo(() => {
+    const m = new Map<number, ClaseOcurrencia>();
+    for (const oc of ocurrenciasQuery.data ?? []) {
+      m.set(oc.clase_id, oc);
+    }
+    return m;
+  }, [ocurrenciasQuery.data]);
+
   // Filtramos clases activas que aplican al día de la fecha mostrada.
-  // Esto es el equivalente del "filter by weekday" de la grilla — lo
-  // hacemos acá para que GrillaDia reciba ya el set listo para render.
+  // Excluimos las clases que fueron liberadas / canceladas específicamente para esta fecha.
   const clasesDelDia = useMemo(() => {
     const weekday = diaSemanaDe(fecha);
     return (clasesQuery.data ?? []).filter((c) => {
       if (!c.activa) return false;
       if (c.es_recurrente === false) {
-        return c.fecha_clase === fecha;
+        if (c.fecha_clase !== fecha) return false;
+      } else if (!c.dias_semana.includes(weekday)) {
+        return false;
       }
-      return c.dias_semana.includes(weekday);
+      const oc = ocurrenciasPorClase.get(c.id);
+      if (oc && (oc.estado === 'cancelada' || oc.estado === 'liberada')) {
+        return false;
+      }
+      return true;
     });
-  }, [clasesQuery.data, fecha]);
+  }, [clasesQuery.data, fecha, ocurrenciasPorClase]);
+
+  // Clases liberadas solo por hoy para esta fecha
+  const clasesLiberadasDelDia = useMemo(() => {
+    const weekday = diaSemanaDe(fecha);
+    return (clasesQuery.data ?? []).filter((c) => {
+      if (!c.activa) return false;
+      if (c.es_recurrente === false) {
+        if (c.fecha_clase !== fecha) return false;
+      } else if (!c.dias_semana.includes(weekday)) {
+        return false;
+      }
+      const oc = ocurrenciasPorClase.get(c.id);
+      return oc && (oc.estado === 'cancelada' || oc.estado === 'liberada');
+    });
+  }, [clasesQuery.data, fecha, ocurrenciasPorClase]);
 
   // Indexamos los cobros por clase_id. La fecha es implícita (= la del
   // día mostrado, que es el filtro de la query). Una ocurrencia puede
@@ -370,6 +404,52 @@ export function ReservasPage() {
         deporteSeleccionado={deporteSeleccionado}
         onSelectDeporte={setDeporteSeleccionado}
       />
+
+      {clasesLiberadasDelDia.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-800 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>
+              <strong>{clasesLiberadasDelDia.length} {clasesLiberadasDelDia.length === 1 ? 'clase liberada' : 'clases liberadas'}</strong> para esta fecha ({formatearFechaAmigable(fecha)}). Los horarios están disponibles para alquilar.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {clasesLiberadasDelDia.map((c) => {
+              const cancha = canchasQuery.data?.find((ca) => ca.id === c.cancha_id);
+              const horaInicio = formatearHora(c.hora_inicio);
+              const horaFin = formatearHora(sumarMinutos(c.hora_inicio, c.duracion_min));
+              return (
+                <div key={c.id} className="flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-background/80 px-2 py-1 shadow-xs">
+                  <span className="font-medium text-foreground">
+                    {c.nombre || `Clase ${c.profesor?.nombre ?? ''}`} ({cancha?.nombre ?? 'Cancha'} · {horaInicio}–{horaFin})
+                  </span>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-1.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+                      onClick={async () => {
+                        try {
+                          await reactivarClaseMutation.mutateAsync({
+                            claseId: c.id,
+                            fecha,
+                          });
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : 'No se pudo reactivar la clase.');
+                        }
+                      }}
+                      disabled={reactivarClaseMutation.isPending}
+                    >
+                      {reactivarClaseMutation.isPending ? 'Restaurando…' : 'Restaurar'}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <ReservasBody
         loadingHorarios={horariosQuery.isLoading}
