@@ -1,14 +1,15 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, ShoppingCart, X } from 'lucide-react';
+import { Plus, ShoppingCart, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { ConsumosCatalogo } from './ConsumosCatalogo';
+import { ConsumosCatalogo, type PersonaDestinoConsumo } from './ConsumosCatalogo';
 import {
   useCargarConsumoTurno,
   useQuitarConsumoTurno,
   useReservaConsumos,
 } from './hooks/useReservaConsumos';
+import { useReservaJugadores } from './hooks/useReservaJugadores';
 import type { ReservaConsumo, TipoRepartoConsumo } from '@/types/database';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
@@ -29,27 +30,13 @@ interface ConsumosTurnoSectionProps {
   readOnly?: boolean;
 }
 
-/**
- * Sección "Consumos" del DetalleReservaDialog (paso 2 del módulo cuenta
- * del turno). Lista los consumos cargados al turno + botón para agregar
- * via mini-catálogo embebido.
- *
- * La lista en DB son filas individuales (1 fila = 1 carga, preserva
- * cronología). La UI las CONSOLIDA por producto_id ("3× Coca") para
- * lectura más limpia. El × quita el último consumo del grupo (id más
- * alto): la cantidad del grupo baja, la fila desaparece de DB, el stock
- * se repone via fn_quitar_consumo_turno (Modelo B de la 0013).
- *
- * NO toca la lógica de pagos del alquiler ni la "Cuenta" del dialog. El
- * chip "Total del turno" abajo es informativo (alquiler + consumos)
- * pero NO unifica el saldo cobrable — eso es paso 4.
- */
 export function ConsumosTurnoSection({
   reservaId,
   montoAlquiler,
   readOnly,
 }: ConsumosTurnoSectionProps) {
   const consumosQuery = useReservaConsumos(reservaId);
+  const personasQuery = useReservaJugadores(reservaId);
   const cargar = useCargarConsumoTurno();
   const quitar = useQuitarConsumoTurno();
 
@@ -64,25 +51,63 @@ export function ConsumosTurnoSection({
     [consumosQuery.data],
   );
 
-  // Consolidación por (producto_id, tipo_reparto). Desde la 0015 el
-  // mismo producto puede aparecer en dos grupos separados si se cargó
-  // como 'partido' y como 'general' — son consumos con reparto distinto
-  // y no se mezclan en la UI. La lista entra ordenada por fecha_hora
-  // ASC, así que el último id del array de cada grupo es el más
-  // reciente — ese es el que × quita (del combo específico).
+  const personasDestino = useMemo<PersonaDestinoConsumo[]>(() => {
+    if (!personasQuery.data) return [];
+    let numJugador = 0;
+    let numInvitado = 0;
+    return personasQuery.data.map((p) => {
+      let nombre = '';
+      if (p.jugador?.nombre) {
+        nombre = p.jugador.nombre;
+      } else if (p.nombre_libre) {
+        nombre = p.nombre_libre;
+      } else if (p.tipo === 'jugador') {
+        numJugador++;
+        nombre = `Jugador ${numJugador}`;
+      } else {
+        numInvitado++;
+        nombre = `Invitado ${numInvitado}`;
+      }
+      const subtitulo = p.es_titular
+        ? 'Titular'
+        : p.tipo === 'invitado'
+        ? 'Invitado'
+        : undefined;
+      return {
+        id: p.id,
+        nombre,
+        subtitulo,
+      };
+    });
+  }, [personasQuery.data]);
+
+  const personasMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of personasDestino) {
+      map.set(p.id, p.nombre);
+    }
+    return map;
+  }, [personasDestino]);
+
+  // Consolidación por (producto_id, tipo_reparto, reserva_jugador_id).
   const grupos = useMemo<ConsumoGrupo[]>(() => {
     const map = new Map<string, ConsumoGrupo>();
     for (const c of consumos) {
-      const key = `${c.producto_id}|${c.tipo_reparto}`;
+      const key = `${c.producto_id}|${c.tipo_reparto}|${c.reserva_jugador_id ?? 'grupo'}`;
       const existing = map.get(key);
       if (existing) {
         existing.cantidad_total += c.cantidad;
         existing.subtotal_total += c.subtotal;
         existing.consumos.push(c);
       } else {
+        const personaNombre = c.reserva_jugador_id
+          ? personasMap.get(c.reserva_jugador_id) ?? 'Jugador'
+          : undefined;
         map.set(key, {
           producto_id: c.producto_id,
           tipo_reparto: c.tipo_reparto,
+          reserva_jugador_id: c.reserva_jugador_id,
+          persona_nombre: personaNombre,
           producto_nombre: c.producto_nombre,
           precio_unitario: c.precio_unitario,
           cantidad_total: c.cantidad,
@@ -92,7 +117,7 @@ export function ConsumosTurnoSection({
       }
     }
     return Array.from(map.values());
-  }, [consumos]);
+  }, [consumos, personasMap]);
 
   const totalConsumos = useMemo(
     () => consumos.reduce((sum, c) => sum + c.subtotal, 0),
@@ -105,14 +130,8 @@ export function ConsumosTurnoSection({
   async function handleAgregar(
     productoId: number,
     tipoReparto: TipoRepartoConsumo,
+    reservaJugadorId?: number | null,
   ): Promise<void> {
-    // Guard síncrono anti-doble-submit. El `disabled={isPending}` del
-    // catálogo depende de un render de React y deja una ventana de
-    // carrera de ~1 frame por la que se cuela el doble-tap / ghost-click
-    // táctil (causa de la duplicación de consumos — ver migración 0053).
-    // Un ref se actualiza al instante, así que el segundo disparo de la
-    // ráfaga ve `true` y aborta ANTES del await. Es la 1ª capa; la RPC
-    // (debounce 2s, 0053) es la garantía autoritativa server-side.
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setError(null);
@@ -122,6 +141,7 @@ export function ConsumosTurnoSection({
         producto_id: productoId,
         cantidad: 1,
         tipo_reparto: tipoReparto,
+        reserva_jugador_id: reservaJugadorId ?? undefined,
       });
     } catch (err) {
       setError(
@@ -231,7 +251,11 @@ export function ConsumosTurnoSection({
                 Cerrar
               </Button>
             </div>
-            <ConsumosCatalogo onAdd={handleAgregar} disabled={cargar.isPending} />
+            <ConsumosCatalogo
+              onAdd={handleAgregar}
+              disabled={cargar.isPending}
+              personas={personasDestino}
+            />
           </div>
         ) : !readOnly ? (
           <Button
@@ -283,8 +307,9 @@ export function ConsumosTurnoSection({
 
 interface ConsumoGrupo {
   producto_id: number;
-  /** Combo (producto_id, tipo_reparto) — los grupos no mezclan tipos. */
   tipo_reparto: TipoRepartoConsumo;
+  reserva_jugador_id?: number | null;
+  persona_nombre?: string;
   producto_nombre: string;
   precio_unitario: number;
   cantidad_total: number;
@@ -317,6 +342,15 @@ function ConsumoGrupoRow({
       <span className="min-w-0 flex-1 truncate text-foreground">
         {grupo.producto_nombre}
       </span>
+      {grupo.persona_nombre && (
+        <span
+          className="shrink-0 inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+          title={`Consumo individual asignado a ${grupo.persona_nombre}`}
+        >
+          <User className="h-2.5 w-2.5" />
+          {grupo.persona_nombre}
+        </span>
+      )}
       {esPartido && (
         <span
           className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"

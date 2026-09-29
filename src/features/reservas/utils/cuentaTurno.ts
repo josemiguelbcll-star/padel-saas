@@ -230,6 +230,7 @@ export interface CalcularSaldosPersonasInput {
     subtotal: number;
     tipo_reparto: string;
     creado_en: string;
+    reserva_jugador_id?: number | null;
   }>;
   /** reserva.monto_total (alquiler). */
   montoAlquiler: number;
@@ -351,6 +352,15 @@ export function calcularSaldosPersonas(
     } else {
       const c = event.data;
       const subtotal = Number(c.subtotal);
+
+      // Si el consumo está asignado a un jugador o persona específica
+      if (c.reserva_jugador_id != null) {
+        const pState = stateMap.get(c.reserva_jugador_id);
+        if (pState) {
+          pState.partConsumo += subtotal;
+        }
+        continue;
+      }
       
       // Personas saldadas justo antes de este consumo (o con cuota fija ya cubierta)
       const saldadas = new Set<number>();

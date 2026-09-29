@@ -583,19 +583,66 @@ function ResetClubSection({
 }) {
   const resetearMutation = useResetearClub();
   const [confirming, setConfirming] = useState(false);
-  const [limpiarCatalogo, setLimpiarCatalogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Módulos seleccionables
+  const [resetReservas, setResetReservas] = useState(true);
+  const [resetBuffet, setResetBuffet] = useState(true);
+  const [resetProductos, setResetProductos] = useState(false);
+  const [resetClases, setResetClases] = useState(true);
+  const [resetFinanzas, setResetFinanzas] = useState(true);
+  const [resetJugadores, setResetJugadores] = useState(false);
+  const [resetCanchas, setResetCanchas] = useState(false);
+
+  const hayAlgunoSeleccionado =
+    resetReservas ||
+    resetBuffet ||
+    resetProductos ||
+    resetClases ||
+    resetFinanzas ||
+    resetJugadores ||
+    resetCanchas;
+
+  function seleccionarTransaccionales() {
+    setResetReservas(true);
+    setResetBuffet(true);
+    setResetProductos(false);
+    setResetClases(true);
+    setResetFinanzas(true);
+    setResetJugadores(false);
+    setResetCanchas(false);
+  }
+
+  function seleccionarTodo() {
+    setResetReservas(true);
+    setResetBuffet(true);
+    setResetProductos(true);
+    setResetClases(true);
+    setResetFinanzas(true);
+    setResetJugadores(true);
+    setResetCanchas(true);
+  }
+
+  function deseleccionarTodo() {
+    setResetReservas(false);
+    setResetBuffet(false);
+    setResetProductos(false);
+    setResetClases(false);
+    setResetFinanzas(false);
+    setResetJugadores(false);
+    setResetCanchas(false);
+  }
 
   return (
     <section className="space-y-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-destructive uppercase tracking-wider">
-            Borrado Masivo / Resetear Datos de Prueba
+            Borrado Masivo / Resetear Datos
           </h3>
           <p className="text-xs text-muted-foreground">
-            Limpia todas las reservas, cobros, ventas, gastos y cajas de prueba para arrancar tu club desde $0 en producción.
+            Limpia datos de prueba de forma modular. Podés elegir qué módulos resetear (buffet, reservas, clases, finanzas, jugadores o canchas).
           </p>
         </div>
         <Button
@@ -603,40 +650,175 @@ function ResetClubSection({
           variant="outline"
           size="sm"
           className="border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0 gap-1.5 self-start sm:self-center"
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            setConfirming(true);
+            setSuccess(null);
+            setError(null);
+          }}
           disabled={resetearMutation.isPending}
         >
           <RotateCcw className="h-4 w-4" />
-          Resetear Cuenta
+          Resetear Módulos
         </Button>
       </div>
 
       {confirming && (
-        <div className="space-y-3 rounded-md border border-destructive/30 bg-background p-3">
-          <div className="flex items-start gap-2">
+        <div className="space-y-4 rounded-md border border-destructive/30 bg-background p-4 shadow-sm">
+          <div className="flex items-start gap-2.5">
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div className="space-y-2 text-xs">
-              <p className="font-semibold text-foreground">
-                ¿Confirmás el borrado masivo de datos de prueba para "{clubNombre}"?
+            <div className="space-y-1 text-xs">
+              <p className="font-semibold text-foreground text-sm">
+                Seleccioná qué datos querés resetear en "{clubNombre}":
               </p>
               <p className="text-muted-foreground">
-                Esta acción eliminará todas las reservas de prueba, cobros, cajas, gastos y ventas históricas. Los usuarios administradores y vendedores se conservarán.
+                Tildá los módulos que querés reiniciar. Los usuarios administradores se conservarán siempre.
               </p>
-              <label className="flex items-center gap-2 cursor-pointer pt-1 font-medium text-foreground">
-                <input
-                  type="checkbox"
-                  checked={limpiarCatalogo}
-                  onChange={(e) => setLimpiarCatalogo(e.target.checked)}
-                  className="rounded border-border"
-                />
-                <span>Borrar también el catálogo (productos, proveedores, tarifas y canchas de prueba)</span>
-              </label>
             </div>
+          </div>
+
+          {/* Atajos de selección */}
+          <div className="flex flex-wrap items-center gap-2 border-y border-border/60 py-2 text-xs">
+            <span className="text-muted-foreground font-medium">Selección rápida:</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={seleccionarTransaccionales}
+              className="h-6 px-2 text-[11px]"
+            >
+              Datos de prueba (Turnos, Buffet, Clases, Finanzas)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={seleccionarTodo}
+              className="h-6 px-2 text-[11px]"
+            >
+              Seleccionar todo
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={deseleccionarTodo}
+              className="h-6 px-2 text-[11px]"
+            >
+              Deseleccionar todo
+            </Button>
+          </div>
+
+          {/* Checkboxes modulares */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetReservas}
+                onChange={(e) => setResetReservas(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Turnos y Reservas</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra reservas del día, histórico de turnos, pagos de alquiler y turnos fijos.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetBuffet}
+                onChange={(e) => setResetBuffet(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Buffet (Ventas y Stock)</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra ventas del bar, consumiciones y reinicia el stock a 0.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetClases}
+                onChange={(e) => setResetClases(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Clases de Pádel</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra clases programadas, asistencias de alumnos y cobros de clases.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetFinanzas}
+                onChange={(e) => setResetFinanzas(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Finanzas y Cajas</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra gastos, otros ingresos, cierres y turnos de caja para reiniciar balance en $0.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetJugadores}
+                onChange={(e) => setResetJugadores(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Fichas de Jugadores</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra el listado de jugadores/clientes registrados en el club.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetProductos}
+                onChange={(e) => setResetProductos(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Catálogo de Productos</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra los productos y proveedores creados en el catálogo.
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2 rounded-md border border-border bg-card hover:bg-muted/20 cursor-pointer sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={resetCanchas}
+                onChange={(e) => setResetCanchas(e.target.checked)}
+                className="mt-0.5 rounded border-border"
+              />
+              <div>
+                <span className="font-semibold text-foreground block">Canchas y Tarifas</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Borra las canchas creadas y la configuración de tarifas y franjas horarias.
+                </span>
+              </div>
+            </label>
           </div>
 
           {error && <p className="text-xs text-destructive">{error}</p>}
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 border-t border-border/60 pt-3">
             <Button
               type="button"
               variant="outline"
@@ -650,22 +832,28 @@ function ResetClubSection({
               type="button"
               variant="destructive"
               size="sm"
+              disabled={resetearMutation.isPending || !hayAlgunoSeleccionado}
               onClick={async () => {
                 setError(null);
                 try {
                   await resetearMutation.mutateAsync({
                     clubId,
-                    limpiarCatalogo,
+                    reservas: resetReservas,
+                    buffet: resetBuffet,
+                    clases: resetClases,
+                    jugadores: resetJugadores,
+                    finanzas: resetFinanzas,
+                    productos: resetProductos,
+                    canchas: resetCanchas,
                   });
                   setConfirming(false);
-                  setSuccess(true);
+                  setSuccess('Módulos reseteados correctamente.');
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Error al resetear datos.');
                 }
               }}
-              disabled={resetearMutation.isPending}
             >
-              {resetearMutation.isPending ? 'Reseteando…' : 'Sí, Resetear Todo'}
+              {resetearMutation.isPending ? 'Reseteando…' : 'Sí, Resetear Seleccionados'}
             </Button>
           </div>
         </div>
@@ -673,7 +861,7 @@ function ResetClubSection({
 
       {success && (
         <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-          ✓ Datos reseteados correctamente. Tu club está listo para empezar desde $0.
+          ✓ {success} Tu club está listo para operar.
         </p>
       )}
     </section>

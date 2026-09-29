@@ -64,8 +64,11 @@ export interface CargarConsumoTurnoInput {
    *   - 'partido': sólo entre jugadores (ej. tarro de pelotas).
    *   - 'general': entre todos (default operativo del catálogo —
    *     bebidas, snacks).
+   *   - 'individual': asignado a un jugador o persona específica.
    */
   tipo_reparto: TipoRepartoConsumo;
+  /** Si se imputa a una persona puntual del turno. */
+  reserva_jugador_id?: number | null;
 }
 
 /**
@@ -107,6 +110,7 @@ export function useCargarConsumoTurno(): UseMutationResult<
         p_producto_id: input.producto_id,
         p_cantidad: input.cantidad,
         p_tipo_reparto: input.tipo_reparto,
+        p_reserva_jugador_id: input.reserva_jugador_id ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
