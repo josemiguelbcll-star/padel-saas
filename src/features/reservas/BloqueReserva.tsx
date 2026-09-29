@@ -1,11 +1,7 @@
 import { AlertTriangle, CupSoda, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ReservaConTitular } from './hooks/useReservasDelDia';
-import {
-  estadoOperativoColorFgVar,
-  estadoOperativoColorVar,
-  type InfoReservaVisual,
-} from './utils/derivarEstadoOperativo';
+import type { InfoReservaVisual } from './utils/derivarEstadoOperativo';
 import { formatearHora } from './utils/horaUtils';
 
 interface BloqueReservaProps {
