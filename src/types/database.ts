@@ -539,7 +539,8 @@ export type MedioPago =
   | 'mp'
   | 'tarjeta'
   | 'otro'
-  | 'cuenta_corriente';
+  | 'cuenta_corriente'
+  | 'mixto';
 
 /** Tipos de movimiento en reserva_pagos (CHECK en reserva_pagos.tipo). */
 export type TipoPago = 'sena' | 'pago' | 'reembolso';

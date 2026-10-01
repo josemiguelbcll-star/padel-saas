@@ -53,7 +53,7 @@ export function useCrearVendedor(): UseMutationResult<
     mutationFn: async (input) => {
       const { data, error } = await supabase.functions.invoke(
         'crear-vendedor',
-        { body: input },
+        { body: { ...input, club_id: club?.id } },
       );
 
       if (error) {

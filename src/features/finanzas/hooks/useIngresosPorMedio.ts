@@ -55,7 +55,7 @@ export function useIngresosPorMedio(
       const desdeISO = `${desde}T00:00:00`;
       const hastaISO = `${hasta}T23:59:59`;
 
-      const [pagosRes, clasesRes, ventasRes, otrosIngRes] = await Promise.all([
+      const [pagosRes, clasesRes, otrosIngRes] = await Promise.all([
         supabase
           .from('reserva_pagos')
           .select('monto, medio_pago, tipo')
@@ -67,11 +67,6 @@ export function useIngresosPorMedio(
           .gte('fecha_hora', desdeISO)
           .lte('fecha_hora', hastaISO),
         supabase
-          .from('ventas')
-          .select('monto_total, medio_pago')
-          .gte('fecha_hora', desdeISO)
-          .lte('fecha_hora', hastaISO),
-        supabase
           .from('otros_ingresos')
           .select('monto, medio_pago')
           .eq('activo', true)
@@ -80,8 +75,34 @@ export function useIngresosPorMedio(
           .lte('fecha', hasta),
       ]);
 
-      for (const r of [pagosRes, clasesRes, ventasRes, otrosIngRes]) {
+      for (const r of [pagosRes, clasesRes, otrosIngRes]) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
+      }
+
+      // Ventas buffet: consultamos venta_pagos para reflejar con precisión pagos
+      // divididos / mixtos (ej. 75k transferencia y 25k efectivo). Fallback a ventas.
+      const vpRes = await supabase
+        .from('venta_pagos')
+        .select('monto, medio_pago')
+        .gte('fecha_hora', desdeISO)
+        .lte('fecha_hora', hastaISO);
+
+      let ventasItems: Array<{ medio_pago: string; monto: number }> = [];
+      if (!vpRes.error && vpRes.data) {
+        ventasItems = vpRes.data.map((vp) => ({
+          medio_pago: vp.medio_pago,
+          monto: Number(vp.monto),
+        }));
+      } else {
+        const vRes = await supabase
+          .from('ventas')
+          .select('monto_total, medio_pago')
+          .gte('fecha_hora', desdeISO)
+          .lte('fecha_hora', hastaISO);
+        ventasItems = (vRes.data ?? []).map((v) => ({
+          medio_pago: v.medio_pago,
+          monto: Number(v.monto_total),
+        }));
       }
 
       const acumulado = new Map<MedioPagoIngreso, { monto: number; count: number }>();
@@ -109,8 +130,8 @@ export function useIngresosPorMedio(
       for (const c of clasesRes.data ?? []) {
         sumar(String(c.medio_pago), Number(c.monto));
       }
-      for (const v of ventasRes.data ?? []) {
-        sumar(String(v.medio_pago), Number(v.monto_total));
+      for (const v of ventasItems) {
+        sumar(v.medio_pago, v.monto);
       }
       for (const i of otrosIngRes.data ?? []) {
         sumar(String(i.medio_pago), Number(i.monto));

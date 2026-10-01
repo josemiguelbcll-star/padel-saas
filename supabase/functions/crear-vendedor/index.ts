@@ -209,35 +209,56 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 5. Verificar admin + activo + DERIVAR club_id del caller.
-    //    NUNCA tomamos el club_id del input — invariante de seguridad.
-    const { data: callerProfile, error: profileError } = await callerClient
-      .from('usuarios')
-      .select('club_id, rol, activo')
+    // 5. Verificar identidad: ¿Es Superadmin de plataforma o Admin del club?
+    let clubId: number;
+
+    const { data: plataformaAdmin } = await callerClient
+      .from('plataforma_admins')
+      .select('id, activo, impersonated_club_id')
       .eq('id', caller.id)
       .maybeSingle();
 
-    if (profileError) {
-      console.error('[crear-vendedor] profileError:', profileError);
-      return json({ error: 'No pudimos verificar tu perfil.' }, 500);
-    }
-    if (!callerProfile) {
-      return json(
-        { error: 'No tenés un perfil de usuario asociado a un club.' },
-        403,
-      );
-    }
-    if (callerProfile.activo === false) {
-      return json({ error: 'Tu usuario está desactivado.' }, 403);
-    }
-    if (callerProfile.rol !== 'admin') {
-      return json(
-        { error: 'Solo el admin del club puede crear usuarios.' },
-        403,
-      );
-    }
+    if (plataformaAdmin) {
+      if (plataformaAdmin.activo === false) {
+        return json({ error: 'Tu usuario superadmin está desactivado.' }, 403);
+      }
+      const targetClubId = (body as any).club_id || plataformaAdmin.impersonated_club_id;
+      if (!targetClubId) {
+        return json(
+          { error: 'Debes indicar el club o estar impersonando uno para crear usuarios.' },
+          400,
+        );
+      }
+      clubId = Number(targetClubId);
+    } else {
+      const { data: callerProfile, error: profileError } = await callerClient
+        .from('usuarios')
+        .select('club_id, rol, activo')
+        .eq('id', caller.id)
+        .maybeSingle();
 
-    const clubId: number = callerProfile.club_id;
+      if (profileError) {
+        console.error('[crear-vendedor] profileError:', profileError);
+        return json({ error: 'No pudimos verificar tu perfil.' }, 500);
+      }
+      if (!callerProfile) {
+        return json(
+          { error: 'No tenés un perfil de usuario asociado a un club.' },
+          403,
+        );
+      }
+      if (callerProfile.activo === false) {
+        return json({ error: 'Tu usuario está desactivado.' }, 403);
+      }
+      if (callerProfile.rol !== 'admin') {
+        return json(
+          { error: 'Solo el admin del club puede crear usuarios.' },
+          403,
+        );
+      }
+
+      clubId = callerProfile.club_id;
+    }
 
     // 6. Cliente service_role para crear en auth.users. Sólo en este
     //    contexto (Edge Function) accedemos al service_role — NUNCA

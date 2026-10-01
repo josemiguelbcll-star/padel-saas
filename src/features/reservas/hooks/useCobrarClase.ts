@@ -15,6 +15,7 @@ export interface CobrarClaseInput {
   monto: number;
   medio_pago: MedioPago;
   observaciones: string | null;
+  cuenta_id?: number | null;
 }
 
 /**
@@ -35,6 +36,7 @@ export function useCobrarClase(): UseMutationResult<
         p_monto: input.monto,
         p_medio_pago: input.medio_pago,
         p_observaciones: input.observaciones,
+        p_cuenta_id: input.cuenta_id ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {

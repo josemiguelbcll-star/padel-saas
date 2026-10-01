@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   AlertTriangle,
   BookmarkCheck,
@@ -38,6 +38,7 @@ import type {
 } from '@/types/database';
 import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases';
 import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
 import { useCobrarClase } from './hooks/useCobrarClase';
 import { useClaseOcurrencia } from './hooks/useClaseOcurrencia';
@@ -82,6 +83,13 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   otro: 'Otro',
   cuenta_corriente: 'Cuenta Corriente',
 };
+
+function mapCuentaToMedioPago(tipo: string): MedioPago {
+  if (tipo === 'efectivo') return 'efectivo';
+  if (tipo === 'billetera') return 'mp';
+  if (tipo === 'banco') return 'transferencia';
+  return 'otro';
+}
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -235,20 +243,81 @@ function DetalleClaseBody({
     [fecha, clase.hora_inicio, tarifasClasesQuery.data, cantidadAlumnosCalc],
   );
 
+  // Cuentas del club (tesorería)
+  const cuentasQuery = useCuentas();
+  const cuentasActivas = useMemo(
+    () => (cuentasQuery.data ?? []).filter((c) => c.activa),
+    [cuentasQuery.data],
+  );
+
   // Estados locales UI
   const [showAgregarAlumno, setShowAgregarAlumno] = useState(false);
   const [montoNuevoAlumno, setMontoNuevoAlumno] = useState<string>('');
   const [alumnoCobrandoId, setAlumnoCobrandoId] = useState<number | null>(null);
   const [montoCobroAlumno, setMontoCobroAlumno] = useState<string>('');
-  const [medioCobroAlumno, setMedioCobroAlumno] = useState<MedioPago>('efectivo');
+  const [selectedCuentaIdAlumno, setSelectedCuentaIdAlumno] = useState<number | null>(() => {
+    if (cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      return def ? def.id : null;
+    }
+    return null;
+  });
+  const [medioCobroAlumno, setMedioCobroAlumno] = useState<MedioPago>(() => {
+    if (cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) return mapCuentaToMedioPago(def.tipo);
+    }
+    return 'efectivo';
+  });
   const [obsCobroAlumno, setObsCobroAlumno] = useState<string>('');
   const [cobroError, setCobroError] = useState<string | null>(null);
 
   // Estado para cobro general
   const [showCobroGeneral, setShowCobroGeneral] = useState(false);
   const [montoCobroGeneral, setMontoCobroGeneral] = useState<string>('');
-  const [medioCobroGeneral, setMedioCobroGeneral] = useState<MedioPago>('efectivo');
+  const [selectedCuentaIdGeneral, setSelectedCuentaIdGeneral] = useState<number | null>(() => {
+    if (cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      return def ? def.id : null;
+    }
+    return null;
+  });
+  const [medioCobroGeneral, setMedioCobroGeneral] = useState<MedioPago>(() => {
+    if (cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) return mapCuentaToMedioPago(def.tipo);
+    }
+    return 'efectivo';
+  });
   const [obsCobroGeneral, setObsCobroGeneral] = useState<string>('');
+
+  const cuentaAlumnoElegida = useMemo(() => {
+    return cuentasActivas.find((c) => c.id === selectedCuentaIdAlumno) ?? null;
+  }, [cuentasActivas, selectedCuentaIdAlumno]);
+
+  const cuentaGeneralElegida = useMemo(() => {
+    return cuentasActivas.find((c) => c.id === selectedCuentaIdGeneral) ?? null;
+  }, [cuentasActivas, selectedCuentaIdGeneral]);
+
+  useEffect(() => {
+    if (selectedCuentaIdAlumno === null && cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) {
+        setSelectedCuentaIdAlumno(def.id);
+        setMedioCobroAlumno(mapCuentaToMedioPago(def.tipo));
+      }
+    }
+  }, [cuentasActivas, selectedCuentaIdAlumno]);
+
+  useEffect(() => {
+    if (selectedCuentaIdGeneral === null && cuentasActivas.length > 0) {
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) {
+        setSelectedCuentaIdGeneral(def.id);
+        setMedioCobroGeneral(mapCuentaToMedioPago(def.tipo));
+      }
+    }
+  }, [cuentasActivas, selectedCuentaIdGeneral]);
 
   // Liberar clase solo por hoy
   const liberarClaseMutation = useLiberarClase();
@@ -490,6 +559,7 @@ function DetalleClaseBody({
         monto_consumo: montoConsumoParte,
         medio_pago: medioCobroAlumno,
         observaciones: obsCobroAlumno.trim() || null,
+        cuenta_id: selectedCuentaIdAlumno,
       });
       setAlumnoCobrandoId(null);
       setMontoCobroAlumno('');
@@ -514,6 +584,7 @@ function DetalleClaseBody({
         monto,
         medio_pago: medioCobroGeneral,
         observaciones: obsCobroGeneral.trim() || null,
+        cuenta_id: selectedCuentaIdGeneral,
       });
       setShowCobroGeneral(false);
       setMontoCobroGeneral('');
@@ -1007,6 +1078,16 @@ function DetalleClaseBody({
                                     setAlumnoCobrandoId(item.alumno.id);
                                     setMontoCobroAlumno(item.saldo.toString());
                                     setObsCobroAlumno('');
+                                    const def =
+                                      cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ??
+                                      cuentasActivas[0];
+                                    if (def) {
+                                      setSelectedCuentaIdAlumno(def.id);
+                                      setMedioCobroAlumno(mapCuentaToMedioPago(def.tipo));
+                                    } else {
+                                      setSelectedCuentaIdAlumno(null);
+                                      setMedioCobroAlumno('efectivo');
+                                    }
                                   }}
                                   className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                                 >
@@ -1057,7 +1138,7 @@ function DetalleClaseBody({
                             </Button>
                           </div>
 
-                          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                          <div className="space-y-3">
                             <div className="space-y-1">
                               <Label className="text-xs">Monto a cobrar ($)</Label>
                               <Input
@@ -1070,37 +1151,104 @@ function DetalleClaseBody({
                                 required
                               />
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Medio de pago</Label>
-                              <div className="flex flex-wrap gap-1">
-                                {MEDIOS_PAGO_LIST.map((m) => (
-                                  <button
-                                    key={m}
-                                    type="button"
-                                    onClick={() => setMedioCobroAlumno(m)}
-                                    className={cn(
-                                      'rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
-                                      medioCobroAlumno === m
-                                        ? 'border-emerald-600 bg-emerald-600 text-white'
-                                        : 'border-border bg-background text-foreground hover:bg-muted',
-                                    )}
-                                  >
-                                    {MEDIO_PAGO_LABEL[m]}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
 
-                          <div className="space-y-1">
-                            <Label className="text-xs">Observaciones (opcional)</Label>
-                            <Input
-                              type="text"
-                              value={obsCobroAlumno}
-                              onChange={(e) => setObsCobroAlumno(e.target.value)}
-                              placeholder="Ej: Pago clase + bebidas"
-                              className="h-8 text-xs"
-                            />
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold">Cuenta / Medio de cobro</Label>
+                                {cuentaAlumnoElegida && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    Destino: <strong className="text-foreground">{cuentaAlumnoElegida.nombre}</strong>
+                                  </span>
+                                )}
+                              </div>
+
+                              {cuentasActivas.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {cuentasActivas.map((c) => {
+                                    const isSelected = selectedCuentaIdAlumno === c.id;
+                                    return (
+                                      <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedCuentaIdAlumno(c.id);
+                                          setMedioCobroAlumno(mapCuentaToMedioPago(c.tipo));
+                                        }}
+                                        aria-pressed={isSelected}
+                                        className={cn(
+                                          'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all flex items-center gap-1.5',
+                                          isSelected
+                                            ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm font-semibold'
+                                            : 'border-border bg-background text-foreground hover:bg-muted/80',
+                                        )}
+                                      >
+                                        <span>{c.nombre}</span>
+                                        {c.tipo !== 'efectivo' && (
+                                          <span
+                                            className={cn(
+                                              'text-[9px] px-1 py-0.5 rounded font-normal uppercase tracking-wider',
+                                              isSelected
+                                                ? 'bg-white/20 text-white'
+                                                : 'bg-muted text-muted-foreground',
+                                            )}
+                                          >
+                                            {c.tipo === 'billetera' ? 'MP' : c.tipo === 'banco' ? 'Banco' : 'Otro'}
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+
+                                  {!cuentasActivas.some((c) => c.nombre.toLowerCase().includes('tarjeta')) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedCuentaIdAlumno(null);
+                                        setMedioCobroAlumno('tarjeta');
+                                      }}
+                                      aria-pressed={selectedCuentaIdAlumno === null && medioCobroAlumno === 'tarjeta'}
+                                      className={cn(
+                                        'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                                        selectedCuentaIdAlumno === null && medioCobroAlumno === 'tarjeta'
+                                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm font-semibold'
+                                          : 'border-border bg-background text-foreground hover:bg-muted',
+                                      )}
+                                    >
+                                      Tarjeta
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {MEDIOS_PAGO_LIST.map((m) => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => setMedioCobroAlumno(m)}
+                                      className={cn(
+                                        'rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                                        medioCobroAlumno === m
+                                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                                          : 'border-border bg-background text-foreground hover:bg-muted',
+                                      )}
+                                    >
+                                      {MEDIO_PAGO_LABEL[m]}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Observaciones (opcional)</Label>
+                              <Input
+                                type="text"
+                                value={obsCobroAlumno}
+                                onChange={(e) => setObsCobroAlumno(e.target.value)}
+                                placeholder="Ej: Pago clase + bebidas"
+                                className="h-8 text-xs"
+                              />
+                            </div>
                           </div>
 
                           <div className="flex justify-end gap-2 pt-1">
@@ -1287,6 +1435,17 @@ function DetalleClaseBody({
                   onClick={() => {
                     setShowCobroGeneral(true);
                     setMontoCobroGeneral(saldoPendienteGeneral.toString());
+                    setObsCobroGeneral('');
+                    const def =
+                      cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ??
+                      cuentasActivas[0];
+                    if (def) {
+                      setSelectedCuentaIdGeneral(def.id);
+                      setMedioCobroGeneral(mapCuentaToMedioPago(def.tipo));
+                    } else {
+                      setSelectedCuentaIdGeneral(null);
+                      setMedioCobroGeneral('efectivo');
+                    }
                   }}
                   className="h-7 text-xs"
                 >
@@ -1316,7 +1475,7 @@ function DetalleClaseBody({
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="space-y-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Monto ($)</Label>
                     <Input
@@ -1329,36 +1488,104 @@ function DetalleClaseBody({
                       required
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Medio de pago</Label>
-                    <div className="flex flex-wrap gap-1">
-                      {MEDIOS_PAGO_LIST.map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setMedioCobroGeneral(m)}
-                          className={cn(
-                            'rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
-                            medioCobroGeneral === m
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-border bg-background text-foreground hover:bg-muted',
-                          )}
-                        >
-                          {MEDIO_PAGO_LABEL[m]}
-                        </button>
-                      ))}
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">Cuenta / Medio de cobro</Label>
+                      {cuentaGeneralElegida && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Destino: <strong className="text-foreground">{cuentaGeneralElegida.nombre}</strong>
+                        </span>
+                      )}
                     </div>
+
+                    {cuentasActivas.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {cuentasActivas.map((c) => {
+                          const isSelected = selectedCuentaIdGeneral === c.id;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCuentaIdGeneral(c.id);
+                                setMedioCobroGeneral(mapCuentaToMedioPago(c.tipo));
+                              }}
+                              aria-pressed={isSelected}
+                              className={cn(
+                                'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all flex items-center gap-1.5',
+                                isSelected
+                                  ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                                  : 'border-border bg-background text-foreground hover:bg-muted/80',
+                              )}
+                            >
+                              <span>{c.nombre}</span>
+                              {c.tipo !== 'efectivo' && (
+                                <span
+                                  className={cn(
+                                    'text-[9px] px-1 py-0.5 rounded font-normal uppercase tracking-wider',
+                                    isSelected
+                                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                                      : 'bg-muted text-muted-foreground',
+                                  )}
+                                >
+                                  {c.tipo === 'billetera' ? 'MP' : c.tipo === 'banco' ? 'Banco' : 'Otro'}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+
+                        {!cuentasActivas.some((c) => c.nombre.toLowerCase().includes('tarjeta')) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCuentaIdGeneral(null);
+                              setMedioCobroGeneral('tarjeta');
+                            }}
+                            aria-pressed={selectedCuentaIdGeneral === null && medioCobroGeneral === 'tarjeta'}
+                            className={cn(
+                              'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                              selectedCuentaIdGeneral === null && medioCobroGeneral === 'tarjeta'
+                                ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                                : 'border-border bg-background text-foreground hover:bg-muted',
+                            )}
+                          >
+                            Tarjeta
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {MEDIOS_PAGO_LIST.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setMedioCobroGeneral(m)}
+                            className={cn(
+                              'rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                              medioCobroGeneral === m
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-border bg-background text-foreground hover:bg-muted',
+                            )}
+                          >
+                            {MEDIO_PAGO_LABEL[m]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Observaciones</Label>
-                  <Input
-                    type="text"
-                    value={obsCobroGeneral}
-                    onChange={(e) => setObsCobroGeneral(e.target.value)}
-                    placeholder="Ej: Pago total del grupo por profesor / sponsor"
-                    className="h-8 text-xs"
-                  />
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Observaciones</Label>
+                    <Input
+                      type="text"
+                      value={obsCobroGeneral}
+                      onChange={(e) => setObsCobroGeneral(e.target.value)}
+                      placeholder="Ej: Pago total del grupo por profesor / sponsor"
+                      className="h-8 text-xs"
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button
@@ -1450,7 +1677,10 @@ function DetalleClaseBody({
                         </span>
                         <span className="text-muted-foreground">·</span>
                         <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">
-                          {MEDIO_PAGO_LABEL[p.medio_pago]}
+                          {(() => {
+                            const c = p.cuenta_id ? cuentasActivas.find((acc) => acc.id === p.cuenta_id) : null;
+                            return c ? c.nombre : MEDIO_PAGO_LABEL[p.medio_pago];
+                          })()}
                         </span>
                         {alumno && (
                           <>
