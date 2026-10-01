@@ -21,7 +21,7 @@ import { useInventarioProductos } from './hooks/useInventarioProductos';
 import { AjustarStockDialog } from './AjustarStockDialog';
 import { TopVendidosSection } from './TopVendidosSection';
 import { RotacionSection } from './RotacionSection';
-import { useSession } from '@/context/SessionContext';
+import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {

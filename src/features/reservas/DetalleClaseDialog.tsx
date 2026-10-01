@@ -82,6 +82,7 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   tarjeta: 'Tarjeta',
   otro: 'Otro',
   cuenta_corriente: 'Cuenta Corriente',
+  mixto: 'Mixto',
 };
 
 function mapCuentaToMedioPago(tipo: string): MedioPago {

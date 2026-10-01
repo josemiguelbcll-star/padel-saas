@@ -149,19 +149,23 @@ function CerrarVentaBody({
 
       setPartes((prev) => {
         // Si las partes aún no tienen cuenta asignada, vincularlas a las cuentas del club
-        if (cuentasActivas.length >= 2 && prev.length === 2 && !prev[0].cuenta_id && !prev[1].cuenta_id) {
+        const c0 = cuentasActivas[0];
+        const c1 = cuentasActivas[1];
+        const p0 = prev[0];
+        const p1 = prev[1];
+        if (c0 && c1 && p0 && p1 && !p0.cuenta_id && !p1.cuenta_id) {
           return [
             {
               id: '1',
-              medio_pago: mapCuentaTipoToMedio(cuentasActivas[0].tipo),
-              cuenta_id: cuentasActivas[0].id,
-              monto: prev[0].monto,
+              medio_pago: mapCuentaTipoToMedio(c0.tipo),
+              cuenta_id: c0.id,
+              monto: p0.monto,
             },
             {
               id: '2',
-              medio_pago: mapCuentaTipoToMedio(cuentasActivas[1].tipo),
-              cuenta_id: cuentasActivas[1].id,
-              monto: prev[1].monto,
+              medio_pago: mapCuentaTipoToMedio(c1.tipo),
+              cuenta_id: c1.id,
+              monto: p1.monto,
             },
           ];
         }
@@ -268,6 +272,7 @@ function CerrarVentaBody({
 
       for (let i = 0; i < partes.length; i++) {
         const p = partes[i];
+        if (!p) continue;
         const montoNum = parseFloat(p.monto.replace(',', '.'));
         if (isNaN(montoNum) || montoNum <= 0) {
           const label = p.cuenta_id
