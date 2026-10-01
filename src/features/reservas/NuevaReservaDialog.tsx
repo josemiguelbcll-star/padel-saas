@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useTarifas } from '@/features/configuracion/hooks/useTarifas';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import type { Cancha, Tarifa } from '@/types/database';
 import {
   JugadorAutocomplete,
@@ -222,6 +223,13 @@ function NuevaReservaBodyReady({
   const [observaciones, setObservaciones] = useState<string>('');
   const [errors, setErrors] = useState<FieldErrors>({});
 
+  const cuentasQuery = useCuentas();
+  const cuentasActivas = useMemo(() => {
+    return (cuentasQuery.data ?? []).filter((c) => c.activa);
+  }, [cuentasQuery.data]);
+
+  const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
+
   // Re-seed del monto sugerido cuando cambia la tarifa resuelta (p.ej. al
   // cambiar la duración en el selector) — salvo que el usuario lo haya
   // editado a mano. Mantiene el monto pagado en sync si está "pagada".
@@ -241,16 +249,45 @@ function NuevaReservaBodyReady({
     if (nuevo === 'pendiente') {
       setMontoPagado('0');
       setMedioPago(null);
+      setSelectedCuentaId(null);
     } else if (nuevo === 'senada') {
       setMontoPagado('');
-      setMedioPago((m) =>
-        m ?? (depositoObligatorio ? 'transferencia' : 'efectivo'),
-      );
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) {
+        setSelectedCuentaId(def.id);
+        setMedioPago(
+          def.tipo === 'efectivo'
+            ? 'efectivo'
+            : def.tipo === 'billetera'
+              ? 'mp'
+              : def.tipo === 'banco'
+                ? 'transferencia'
+                : 'otro',
+        );
+      } else {
+        setMedioPago((m) =>
+          m ?? (depositoObligatorio ? 'transferencia' : 'efectivo'),
+        );
+      }
     } else if (nuevo === 'pagada') {
       setMontoPagado(montoTotal);
-      setMedioPago((m) =>
-        m ?? (depositoObligatorio ? 'transferencia' : 'efectivo'),
-      );
+      const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
+      if (def) {
+        setSelectedCuentaId(def.id);
+        setMedioPago(
+          def.tipo === 'efectivo'
+            ? 'efectivo'
+            : def.tipo === 'billetera'
+              ? 'mp'
+              : def.tipo === 'banco'
+                ? 'transferencia'
+                : 'otro',
+        );
+      } else {
+        setMedioPago((m) =>
+          m ?? (depositoObligatorio ? 'transferencia' : 'efectivo'),
+        );
+      }
     }
   }
 
@@ -355,6 +392,7 @@ function NuevaReservaBodyReady({
       medio_pago: parsed.data.medio_pago,
       estado: parsed.data.estado,
       observaciones: parsed.data.observaciones,
+      cuenta_id: parsed.data.monto_pagado > 0 ? selectedCuentaId : null,
     };
 
     try {
@@ -587,28 +625,89 @@ function NuevaReservaBodyReady({
             </div>
 
             <div className="space-y-2">
-              <Label>Medio de pago</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {mediosPagoDisponibles.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMedioPago(m)}
-                    disabled={isPending}
-                    aria-pressed={medioPago === m}
-                    className={cn(
-                      'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                      'disabled:cursor-not-allowed disabled:opacity-50',
-                      medioPago === m
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-background text-foreground hover:bg-muted',
-                    )}
-                  >
-                    {MEDIO_PAGO_LABEL[m]}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between">
+                <Label>Cuenta / Medio de cobro</Label>
+                {selectedCuentaId && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Destino:{' '}
+                    <strong className="text-foreground">
+                      {cuentasActivas.find((c) => c.id === selectedCuentaId)?.nombre}
+                    </strong>
+                  </span>
+                )}
               </div>
+
+              {cuentasActivas.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {cuentasActivas.map((c) => {
+                    const isSelected = selectedCuentaId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCuentaId(c.id);
+                          setMedioPago(
+                            c.tipo === 'efectivo'
+                              ? 'efectivo'
+                              : c.tipo === 'billetera'
+                                ? 'mp'
+                                : c.tipo === 'banco'
+                                  ? 'transferencia'
+                                  : 'otro',
+                          );
+                        }}
+                        disabled={isPending}
+                        aria-pressed={isSelected}
+                        className={cn(
+                          'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all flex items-center gap-1.5',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                          'disabled:cursor-not-allowed disabled:opacity-50',
+                          isSelected
+                            ? 'border-primary bg-primary text-primary-foreground font-semibold shadow-xs'
+                            : 'border-border bg-background text-foreground hover:bg-muted',
+                        )}
+                      >
+                        <span>{c.nombre}</span>
+                        {c.tipo !== 'efectivo' && (
+                          <span
+                            className={cn(
+                              'text-[9px] px-1 py-0.5 rounded font-normal uppercase tracking-wider',
+                              isSelected
+                                ? 'bg-primary-foreground/20 text-primary-foreground'
+                                : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {c.tipo === 'billetera' ? 'MP' : c.tipo === 'banco' ? 'Banco' : 'Otro'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {mediosPagoDisponibles.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMedioPago(m)}
+                      disabled={isPending}
+                      aria-pressed={medioPago === m}
+                      className={cn(
+                        'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                        'disabled:cursor-not-allowed disabled:opacity-50',
+                        medioPago === m
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-muted',
+                      )}
+                    >
+                      {MEDIO_PAGO_LABEL[m]}
+                    </button>
+                  ))}
+                </div>
+              )}
               {errors.medio_pago && (
                 <p className="text-xs text-destructive">{errors.medio_pago}</p>
               )}

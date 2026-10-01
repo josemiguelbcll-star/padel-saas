@@ -38,6 +38,7 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   tarjeta: 'Tarjeta',
   cuenta_corriente: 'Cuenta Corriente',
   otro: 'Otro',
+  mixto: 'Mixto',
 };
 
 interface CerrarMesaDialogProps {

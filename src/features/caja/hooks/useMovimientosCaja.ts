@@ -81,7 +81,7 @@ export function useMovimientosCaja(
     queryFn: async () => {
       if (!turnoCajaId) return [];
 
-      const [pagosRes, ventasRes, clasesRes, manualesRes] = await Promise.all([
+      const [pagosRes, clasesRes, manualesRes] = await Promise.all([
         supabase
           .from('reserva_pagos')
           .select(
@@ -90,11 +90,6 @@ export function useMovimientosCaja(
             reservas (fecha, hora_inicio, canchas (nombre))
             `,
           )
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo'),
-        supabase
-          .from('ventas')
-          .select('id, monto_total, fecha_hora, observaciones')
           .eq('turno_caja_id', turnoCajaId)
           .eq('medio_pago', 'efectivo'),
         supabase
@@ -113,7 +108,7 @@ export function useMovimientosCaja(
           .eq('turno_caja_id', turnoCajaId),
       ]);
 
-      for (const r of [pagosRes, ventasRes, clasesRes, manualesRes]) {
+      for (const r of [pagosRes, clasesRes, manualesRes]) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
       }
 
@@ -173,24 +168,52 @@ export function useMovimientosCaja(
         });
       }
 
-      // ── Ventas de buffet ────────────────────────────────────────────
-      type VentaRow = {
+      // ── Ventas de buffet (efectivo desde venta_pagos con fallback) ──
+      type VentaPagoRow = {
         id: number;
-        monto_total: number;
+        venta_id: number;
+        monto: number;
         fecha_hora: string;
-        observaciones: string | null;
+        ventas: { observaciones: string | null } | null;
       };
-      for (const v of (ventasRes.data ?? []) as VentaRow[]) {
-        unificados.push({
-          id: `v-${v.id}`,
-          categoria: 'cobro_venta',
-          fecha_hora: v.fecha_hora,
-          monto: Number(v.monto_total),
-          signo: '+',
-          descripcion: `Venta buffet #${v.id}`,
-          detalle: v.observaciones ?? null,
-          origen_id: v.id,
-        });
+
+      const vpRes = await supabase
+        .from('venta_pagos')
+        .select('id, venta_id, monto, fecha_hora, ventas(observaciones)')
+        .eq('turno_caja_id', turnoCajaId)
+        .eq('medio_pago', 'efectivo');
+
+      if (!vpRes.error && vpRes.data) {
+        for (const vp of vpRes.data as unknown as VentaPagoRow[]) {
+          unificados.push({
+            id: `vp-${vp.id}`,
+            categoria: 'cobro_venta',
+            fecha_hora: vp.fecha_hora,
+            monto: Number(vp.monto),
+            signo: '+',
+            descripcion: `Venta buffet #${vp.venta_id}`,
+            detalle: vp.ventas?.observaciones ?? null,
+            origen_id: vp.venta_id,
+          });
+        }
+      } else {
+        const vRes = await supabase
+          .from('ventas')
+          .select('id, monto_total, fecha_hora, observaciones')
+          .eq('turno_caja_id', turnoCajaId)
+          .eq('medio_pago', 'efectivo');
+        for (const v of (vRes.data ?? []) as Array<{ id: number; monto_total: number; fecha_hora: string; observaciones: string | null }>) {
+          unificados.push({
+            id: `v-${v.id}`,
+            categoria: 'cobro_venta',
+            fecha_hora: v.fecha_hora,
+            monto: Number(v.monto_total),
+            signo: '+',
+            descripcion: `Venta buffet #${v.id}`,
+            detalle: v.observaciones ?? null,
+            origen_id: v.id,
+          });
+        }
       }
 
       // ── Cobros de clases ────────────────────────────────────────────

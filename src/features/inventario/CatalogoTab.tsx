@@ -21,6 +21,8 @@ import { useInventarioProductos } from './hooks/useInventarioProductos';
 import { AjustarStockDialog } from './AjustarStockDialog';
 import { TopVendidosSection } from './TopVendidosSection';
 import { RotacionSection } from './RotacionSection';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -75,6 +77,9 @@ const INITIAL_FILTROS: CatalogoFiltros = {
 // ─────────────────────────────────────────────────────────────────────
 
 export function CatalogoTab() {
+  const { user } = useSession();
+  const canEdit = getPermiso(user, 'inventario', 'editar');
+
   const query = useInventarioProductos();
 
   const ahora = new Date();
@@ -308,6 +313,7 @@ export function CatalogoTab() {
           productos={productos}
           totalSinFiltros={todos.length}
           onAjustar={(p) => setAjustando(p)}
+          canEdit={canEdit}
         />
       )}
 
@@ -668,10 +674,12 @@ function ProductosTable({
   productos,
   totalSinFiltros,
   onAjustar,
+  canEdit,
 }: {
   productos: ProductoConStock[];
   totalSinFiltros: number;
   onAjustar: (p: ProductoConStock) => void;
+  canEdit: boolean;
 }) {
   if (productos.length === 0) {
     return (
@@ -719,7 +727,12 @@ function ProductosTable({
           </thead>
           <tbody>
             {productos.map((p) => (
-              <ProductoRow key={p.id} p={p} onAjustar={() => onAjustar(p)} />
+              <ProductoRow
+                key={p.id}
+                p={p}
+                onAjustar={() => onAjustar(p)}
+                canEdit={canEdit}
+              />
             ))}
           </tbody>
         </table>
@@ -728,7 +741,15 @@ function ProductosTable({
   );
 }
 
-function ProductoRow({ p, onAjustar }: { p: ProductoConStock; onAjustar: () => void }) {
+function ProductoRow({
+  p,
+  onAjustar,
+  canEdit,
+}: {
+  p: ProductoConStock;
+  onAjustar: () => void;
+  canEdit: boolean;
+}) {
   const estado = estadoDe(p);
   return (
     <tr
@@ -782,16 +803,18 @@ function ProductoRow({ p, onAjustar }: { p: ProductoConStock; onAjustar: () => v
         <EstadoChip estado={estado} />
       </td>
       <td className="px-4 py-2.5 text-right">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onAjustar}
-          aria-label={`Ajustar stock de ${p.nombre}`}
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          Ajustar
-        </Button>
+        {canEdit && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onAjustar}
+            aria-label={`Ajustar stock de ${p.nombre}`}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Ajustar
+          </Button>
+        )}
       </td>
     </tr>
   );

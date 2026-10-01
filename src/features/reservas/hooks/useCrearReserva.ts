@@ -36,6 +36,7 @@ export interface CrearReservaInput {
   medio_pago: MedioPago | null;
   estado: EstadoReserva;
   observaciones: string | null;
+  cuenta_id?: number | null;
 }
 
 /**
@@ -77,6 +78,7 @@ export function useCrearReserva(): UseMutationResult<
         p_medio_pago: input.medio_pago,
         p_estado: input.estado,
         p_observaciones: input.observaciones,
+        p_cuenta_id: input.cuenta_id ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
@@ -88,6 +90,15 @@ export function useCrearReserva(): UseMutationResult<
     onSuccess: (reserva) => {
       void queryClient.invalidateQueries({
         queryKey: [RESERVAS_QUERY_KEY_BASE, reserva.fecha],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['caja'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['cuentas'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['movimientos-cuenta'],
       });
       // Disparar el envío de correo de confirmación de forma asíncrona
       void fetch('/api/send-booking-email', {

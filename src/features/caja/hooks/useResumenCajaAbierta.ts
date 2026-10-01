@@ -50,7 +50,7 @@ export function useResumenCajaAbierta(
     queryFn: async () => {
       if (!turnoCajaId) return null;
 
-      const [cajaRes, pagosRes, ventasRes, clasesRes, movRes] = await Promise.all([
+      const [cajaRes, pagosRes, clasesRes, movRes] = await Promise.all([
         supabase
           .from('turnos_caja')
           .select('monto_apertura')
@@ -59,11 +59,6 @@ export function useResumenCajaAbierta(
         supabase
           .from('reserva_pagos')
           .select('monto, tipo')
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo'),
-        supabase
-          .from('ventas')
-          .select('monto_total')
           .eq('turno_caja_id', turnoCajaId)
           .eq('medio_pago', 'efectivo'),
         supabase
@@ -77,9 +72,36 @@ export function useResumenCajaAbierta(
           .eq('turno_caja_id', turnoCajaId),
       ]);
 
-      const results = [cajaRes, pagosRes, ventasRes, clasesRes, movRes];
+      const results = [cajaRes, pagosRes, clasesRes, movRes];
       for (const r of results) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
+      }
+
+      // Cobros de ventas buffet en efectivo: consultamos venta_pagos para soportar
+      // pagos divididos/mixtos (ej. 75k transferencia + 25k efectivo solo suma los 25k).
+      // Fallback transparente a ventas si la tabla venta_pagos aún no existe.
+      let cobros_ventas = 0;
+      let count_ventas = 0;
+
+      const vpRes = await supabase
+        .from('venta_pagos')
+        .select('monto')
+        .eq('turno_caja_id', turnoCajaId)
+        .eq('medio_pago', 'efectivo');
+
+      if (!vpRes.error && vpRes.data) {
+        cobros_ventas = vpRes.data.reduce((acc, v) => acc + Number(v.monto), 0);
+        count_ventas = vpRes.data.length;
+      } else {
+        const vRes = await supabase
+          .from('ventas')
+          .select('monto_total')
+          .eq('turno_caja_id', turnoCajaId)
+          .eq('medio_pago', 'efectivo');
+        if (vRes.data) {
+          cobros_ventas = vRes.data.reduce((acc, v) => acc + Number(v.monto_total), 0);
+          count_ventas = vRes.data.length;
+        }
       }
 
       const apertura = Number(
@@ -92,13 +114,6 @@ export function useResumenCajaAbierta(
       const cobros_reservas = pagos.reduce(
         (acc, p) =>
           acc + (p.tipo === 'reembolso' ? -Number(p.monto) : Number(p.monto)),
-        0,
-      );
-
-      const ventas =
-        (ventasRes.data ?? []) as Array<{ monto_total: number }>;
-      const cobros_ventas = ventas.reduce(
-        (acc, v) => acc + Number(v.monto_total),
         0,
       );
 
@@ -135,7 +150,7 @@ export function useResumenCajaAbierta(
         ajustes_positivos,
         salidas,
         esperado,
-        count_cobros_efectivo: pagos.length + ventas.length + clases.length,
+        count_cobros_efectivo: pagos.length + count_ventas + clases.length,
         count_salidas: movs.length,
       };
     },

@@ -13,36 +13,24 @@ export interface CerrarVentaItem {
   cantidad: number;
 }
 
+export interface CerrarVentaPagoItem {
+  medio_pago: MedioPago;
+  monto: number;
+  cuenta_id?: number | null;
+}
+
 export interface CerrarVentaInput {
   items: CerrarVentaItem[];
   medio_pago: MedioPago;
   observaciones: string | null;
   cuenta_id?: number | null;
   jugador_id?: number | null;
+  pagos?: CerrarVentaPagoItem[] | null;
 }
 
 /**
- * Llama a la RPC `fn_cerrar_venta` (migración 0009, actualizada en 0010
- * para snapshotear costo, y en 0090 para cuenta corriente/bloqueos). En una sola transacción inserta la cabecera
- * de venta, sus items (con snapshots de nombre/precio/costo) y los
- * movimientos de stock de salida.
- *
- * Errores que el usuario puede ver (todos mapeados por dbErrors):
- *   - "La venta tiene que tener al menos un producto."
- *   - "El medio de pago es obligatorio." / "Medio de pago inválido."
- *   - "La cantidad debe ser mayor a 0."
- *   - "El producto seleccionado no existe o no pertenece a tu club."
- *   - "El producto «X» está desactivado, no se puede vender."
- *   - "Stock insuficiente de «X»: hay Y unidades, querés vender Z."
- *   - Plus los genéricos de RLS y network.
- *
- * Al éxito invalida la vista de productos con stock para que el
- * catálogo refresque el stock disponible (puede haber cambiado por
- * otra venta concurrente además de la nuestra).
- *
- * No invalida nada del lado de Configuración → Productos (catálogo
- * puro): la misma `PRODUCTOS_CON_STOCK_QUERY_KEY` cubre las dos
- * pantallas porque ambas consumen `vw_productos_con_stock`.
+ * Llama a la RPC `fn_cerrar_venta` (0058/0130).
+ * Soporta cobro único o cobro mixto/dividido a través de p_pagos.
  */
 export function useCerrarVenta(): UseMutationResult<
   Venta,
@@ -59,6 +47,7 @@ export function useCerrarVenta(): UseMutationResult<
         p_observaciones: input.observaciones,
         p_cuenta_id: input.cuenta_id ?? null,
         p_jugador_id: input.jugador_id ?? null,
+        p_pagos: input.pagos && input.pagos.length > 0 ? input.pagos : null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
@@ -71,6 +60,27 @@ export function useCerrarVenta(): UseMutationResult<
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['caja'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['caja-abierta-resumen'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['caja-movimientos'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['movimientos-cuenta'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['flujo-caja'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['ingresos_por_medio'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['jugadores'],
       });
     },
   });
