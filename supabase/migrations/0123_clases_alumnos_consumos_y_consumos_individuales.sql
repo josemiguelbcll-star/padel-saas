@@ -51,6 +51,7 @@ DECLARE
   v_consumo reserva_consumos;
   v_jugador_id BIGINT := NULL;
   v_tipo_reparto_final VARCHAR;
+  v_stock INT;
 BEGIN
   v_club_id := current_club_id();
   v_usuario_id := auth.uid();
@@ -59,7 +60,7 @@ BEGIN
     RAISE EXCEPTION 'No hay sesión activa.';
   END IF;
 
-  IF p_cantidad <= 0 THEN
+  IF p_cantidad IS NULL OR p_cantidad <= 0 THEN
     RAISE EXCEPTION 'La cantidad debe ser mayor a 0.';
   END IF;
 
@@ -75,18 +76,53 @@ BEGIN
     RAISE EXCEPTION 'No se pueden cargar consumos a una reserva cancelada.';
   END IF;
 
-  -- Resolver producto y verificar stock
+  IF v_reserva.cerrado_en IS NOT NULL THEN
+    RAISE EXCEPTION 'No se pueden cargar consumos a un turno cerrado.';
+  END IF;
+
+  -- Resolver producto bajo lock
   SELECT * INTO v_producto
   FROM productos
-  WHERE id = p_producto_id AND club_id = v_club_id AND activo = TRUE;
+  WHERE id = p_producto_id AND club_id = v_club_id
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'El producto no existe o está inactivo.';
   END IF;
 
-  IF v_producto.stock_actual < p_cantidad THEN
+  IF NOT v_producto.activo THEN
+    RAISE EXCEPTION 'El producto "%" está desactivado, no se puede vender.', v_producto.nombre;
+  END IF;
+
+  -- Debounce anti-doble-submit (2 segundos)
+  SELECT * INTO v_consumo
+  FROM reserva_consumos
+  WHERE club_id      = v_club_id
+    AND reserva_id   = p_reserva_id
+    AND producto_id  = v_producto.id
+    AND cantidad     = p_cantidad
+    AND tipo_reparto = COALESCE(p_tipo_reparto, 'general')
+    AND (
+      (p_reserva_jugador_id IS NULL AND reserva_jugador_id IS NULL)
+      OR reserva_jugador_id = p_reserva_jugador_id
+    )
+    AND usuario_id   = v_usuario_id
+    AND fecha_hora  >= NOW() - INTERVAL '2 seconds'
+  ORDER BY fecha_hora DESC, id DESC
+  LIMIT 1;
+
+  IF FOUND THEN
+    RETURN v_consumo;
+  END IF;
+
+  -- Calcular stock bajo el lock desde movimientos_stock
+  SELECT COALESCE(SUM(cantidad), 0)::INT INTO v_stock
+  FROM movimientos_stock
+  WHERE producto_id = v_producto.id;
+
+  IF v_stock < p_cantidad THEN
     RAISE EXCEPTION 'Stock insuficiente para % (disponible: %, solicitado: %).',
-      v_producto.nombre, v_producto.stock_actual, p_cantidad;
+      v_producto.nombre, v_stock, p_cantidad;
   END IF;
 
   -- Si se asigna a una persona puntual
@@ -105,11 +141,6 @@ BEGIN
       v_tipo_reparto_final := 'general';
     END IF;
   END IF;
-
-  -- Descontar stock
-  UPDATE productos
-  SET stock_actual = stock_actual - p_cantidad
-  WHERE id = v_producto.id AND club_id = v_club_id;
 
   -- Insertar consumo
   INSERT INTO reserva_consumos (
@@ -278,6 +309,7 @@ DECLARE
   v_usuario_id UUID;
   v_producto productos;
   v_consumo clase_consumos;
+  v_stock INT;
 BEGIN
   v_club_id := current_club_id();
   v_usuario_id := auth.uid();
@@ -286,7 +318,7 @@ BEGIN
     RAISE EXCEPTION 'No hay sesión activa.';
   END IF;
 
-  IF p_cantidad <= 0 THEN
+  IF p_cantidad IS NULL OR p_cantidad <= 0 THEN
     RAISE EXCEPTION 'La cantidad debe ser mayor a 0.';
   END IF;
 
@@ -294,33 +326,29 @@ BEGIN
     RAISE EXCEPTION 'La clase no existe.';
   END IF;
 
-  -- Resolver producto y verificar stock
+  -- Lock exclusivo del producto
   SELECT * INTO v_producto
   FROM productos
-  WHERE id = p_producto_id AND club_id = v_club_id AND activo = TRUE;
+  WHERE id = p_producto_id AND club_id = v_club_id
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'El producto no existe o está inactivo.';
   END IF;
 
-  IF v_producto.stock_actual < p_cantidad THEN
+  IF NOT v_producto.activo THEN
+    RAISE EXCEPTION 'El producto "%" está desactivado, no se puede vender.', v_producto.nombre;
+  END IF;
+
+  -- Calcular stock bajo el lock desde movimientos_stock
+  SELECT COALESCE(SUM(cantidad), 0)::INT INTO v_stock
+  FROM movimientos_stock
+  WHERE producto_id = v_producto.id;
+
+  IF v_stock < p_cantidad THEN
     RAISE EXCEPTION 'Stock insuficiente para % (disponible: %, solicitado: %).',
-      v_producto.nombre, v_producto.stock_actual, p_cantidad;
+      v_producto.nombre, v_stock, p_cantidad;
   END IF;
-
-  IF p_clase_alumno_id IS NOT NULL THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM clase_ocurrencia_alumnos
-      WHERE id = p_clase_alumno_id AND clase_id = p_clase_id AND fecha = p_fecha AND club_id = v_club_id
-    ) THEN
-      RAISE EXCEPTION 'El alumno especificado no pertenece a esta clase en esta fecha.';
-    END IF;
-  END IF;
-
-  -- Descontar stock
-  UPDATE productos
-  SET stock_actual = stock_actual - p_cantidad
-  WHERE id = v_producto.id AND club_id = v_club_id;
 
   -- Insertar consumo
   INSERT INTO clase_consumos (
@@ -380,11 +408,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'El consumo no existe.';
   END IF;
-
-  -- Reponer stock
-  UPDATE productos
-  SET stock_actual = stock_actual + v_consumo.cantidad
-  WHERE id = v_consumo.producto_id AND club_id = v_club_id;
 
   -- Registrar movimiento de reposición
   INSERT INTO movimientos_stock (

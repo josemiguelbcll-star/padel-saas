@@ -202,9 +202,9 @@ function DetalleClaseBody({
 
   const tarifasClasesQuery = useTarifasClases();
 
-  // Query sincronizada de pagos
+  // Query sincronizada de pagos (aislada por clase_id para evitar solapamientos entre clases del mismo día)
   const { data: pagos = pagosIniciales } = useQuery<ClaseCobro[]>({
-    queryKey: [CLASE_COBROS_QUERY_KEY_BASE, fecha],
+    queryKey: [CLASE_COBROS_QUERY_KEY_BASE, fecha, 'clase', clase.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('clase_cobros')
@@ -362,15 +362,48 @@ function DetalleClaseBody({
 
   async function handleAgregarAlumno(val: JugadorSeleccionado | null) {
     if (!val) return;
-    const monto = parseFloat(montoNuevoAlumno) || (tarifaResuelta.monto ? Math.ceil(tarifaResuelta.monto / (alumnos.length + 1)) : 0);
+    const manualMonto = parseFloat(montoNuevoAlumno);
+    const esManual = !isNaN(manualMonto) && montoNuevoAlumno.trim() !== '';
+
+    // Si no es manual, dividimos la tarifa equitativamente entre todos los alumnos (existentes + nuevo)
+    const nuevoTotalAlumnos = alumnos.length + 1;
+    const tarifaParaN = resolverTarifa({
+      fecha,
+      hora: clase.hora_inicio,
+      tarifas: tarifasClasesQuery.data ?? [],
+      cantidad_alumnos: nuevoTotalAlumnos,
+    });
+
+    const totalTarifa =
+      ocurrencia?.monto_total ??
+      (tarifaParaN.monto || tarifaResuelta.monto || (clase as any).precio || (alumnos.length > 0 ? alumnos.reduce((s, a) => s + (Number(a.monto_clase) || 0), 0) : 0));
+
+    const cuotaEquitativa = nuevoTotalAlumnos > 0 ? Math.ceil(totalTarifa / nuevoTotalAlumnos) : 0;
+    const montoNuevo = esManual ? manualMonto : cuotaEquitativa;
+
     try {
       await agregarAlumno.mutateAsync({
         clase_id: clase.id,
         fecha,
         jugador_id: val.kind === 'jugador' ? val.jugadorId : null,
         nombre_libre: val.kind === 'libre' ? val.nombre : null,
-        monto_clase: monto,
+        monto_clase: montoNuevo,
       });
+
+      // Si no fue manual y ya había alumnos, rebalanceamos a los existentes para que paguen la misma cuota
+      if (!esManual && alumnos.length > 0) {
+        await Promise.all(
+          alumnos.map((a) =>
+            actualizarAlumno.mutateAsync({
+              id: a.id,
+              clase_id: clase.id,
+              fecha,
+              monto_clase: cuotaEquitativa,
+            }),
+          ),
+        );
+      }
+
       setShowAgregarAlumno(false);
       setMontoNuevoAlumno('');
     } catch (err) {
@@ -396,7 +429,15 @@ function DetalleClaseBody({
 
   async function handleRepartirTarifaEquitativa() {
     if (alumnos.length === 0) return;
-    const total = ocurrencia?.monto_total ?? (tarifaResuelta.monto || totalClaseBase);
+    const tarifaActual = resolverTarifa({
+      fecha,
+      hora: clase.hora_inicio,
+      tarifas: tarifasClasesQuery.data ?? [],
+      cantidad_alumnos: alumnos.length,
+    });
+    const total =
+      ocurrencia?.monto_total ??
+      (tarifaActual.monto || tarifaResuelta.monto || (clase as any).precio || totalClaseBase);
     const cuotaPorAlumno = Math.ceil(total / alumnos.length);
     try {
       await Promise.all(

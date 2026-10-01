@@ -1,7 +1,9 @@
 -- ============================================================================
--- 0124_estadisticas_jugadores.sql
--- Métricas consolidadas de jugadores: visitas, gasto en turnos, gasto en buffet y ranking
--- Calculado EXCLUSIVAMENTE sobre turnos cerrados (cerrado_en IS NOT NULL) y clases pasadas.
+-- 0128_estadisticas_jugadores_turnos_cerrados.sql
+-- Actualiza fn_estadisticas_jugadores para calcular métricas (visitas, gasto turnos,
+-- gasto buffet, último partido y ranking) ÚNICAMENTE en base a turnos ya cerrados
+-- (cerrado_en IS NOT NULL) y clases pasadas (fecha <= CURRENT_DATE), excluyendo
+-- turnos futuros, turnos abiertos o cancelados.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION fn_estadisticas_jugadores()

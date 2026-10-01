@@ -81,9 +81,6 @@ BEGIN
       DELETE FROM productos WHERE club_id = p_club_id;
       DELETE FROM proveedores WHERE club_id = p_club_id;
       v_resumen := jsonb_set(v_resumen, '{productos}', 'true'::jsonb);
-    ELSE
-      -- Si no se borran los productos, reiniciar stock a 0
-      UPDATE productos SET stock_actual = 0 WHERE club_id = p_club_id;
     END IF;
 
     v_resumen := jsonb_set(v_resumen, '{buffet}', 'true'::jsonb);
