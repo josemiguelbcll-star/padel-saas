@@ -10,6 +10,8 @@ interface BloqueClaseProps {
    * pago registrado. Sin distinguir cuántos: un pago = tilde.
    */
   pagado: boolean;
+  /** True si el costo total esperado de la clase está 100% cobrado. */
+  totalmenteSaldada?: boolean;
   /** Posición absoluta dentro de la columna de la cancha (px). */
   top: number;
   /** Alto del bloque (px). Ya viene clamp-ado al alto visible de la grilla. */
@@ -21,14 +23,13 @@ interface BloqueClaseProps {
 /**
  * Bloque visual de una clase dentro de la grilla del día.
  *
- * Diseño cohesivo con el rediseño "color sólido": tarjeta entera en VIOLETA
- * (token --clase) con texto blanco + birrete, distinta de los estados de
- * reserva. Si la ocurrencia ya está cobrada, un tilde a la derecha. Hover:
- * leve elevación + brillo. El click abre el DetalleClaseDialog.
+ * Diseño: tarjeta entera en VIOLETA (token --clase) o AMARILLO DORADO
+ * (--turno-saldado) si está totalmente saldada.
  */
 export function BloqueClase({
   clase,
   pagado,
+  totalmenteSaldada = false,
   top,
   height,
   onClick,
@@ -41,22 +42,26 @@ export function BloqueClase({
   );
   const compacto = height < 46;
 
+  const bg = totalmenteSaldada ? 'hsl(var(--turno-saldado))' : 'hsl(var(--clase))';
+  const fg = totalmenteSaldada ? 'hsl(var(--turno-saldado-foreground))' : 'hsl(var(--clase-foreground))';
+
   return (
     <button
       type="button"
       onClick={() => onClick(clase)}
-      aria-label={`Ver detalle: ${titulo}, ${horaInicio} a ${horaFin}${pagado ? ', pagada' : ', impaga'}`}
+      aria-label={`Ver detalle: ${titulo}, ${horaInicio} a ${horaFin}${totalmenteSaldada ? ' (Totalmente saldada)' : pagado ? ' (Con pagos)' : ' (Impaga)'}`}
       className={cn(
         'group absolute left-1 right-1 overflow-hidden rounded-md text-left',
-        'shadow-sm ring-1 ring-black/10 transition-all duration-150',
-        'hover:-translate-y-px hover:shadow-md hover:brightness-110',
+        'shadow-sm ring-1 transition-all duration-150',
+        totalmenteSaldada ? 'ring-amber-600/40' : 'ring-black/10',
+        'hover:-translate-y-px hover:shadow-md hover:brightness-105',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
       style={{
         top,
         height: Math.max(12, height - 2),
-        backgroundColor: 'hsl(var(--clase))',
-        color: 'hsl(var(--clase-foreground))',
+        backgroundColor: bg,
+        color: fg,
       }}
     >
       <div
@@ -67,17 +72,17 @@ export function BloqueClase({
       >
         <div className="flex items-start justify-between gap-1">
           <span className="flex min-w-0 items-center gap-1.5">
-            <GraduationCap className="h-3 w-3 shrink-0" aria-hidden="true" />
-            <span className="truncate text-xs font-semibold leading-tight">
+            <GraduationCap className={cn("h-3 w-3 shrink-0", totalmenteSaldada && "text-black")} aria-hidden="true" />
+            <span className={cn("truncate text-xs font-semibold leading-tight", totalmenteSaldada && "text-black font-bold")}>
               {titulo}
             </span>
           </span>
-          {pagado && (
-            <Check className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden="true" />
+          {(totalmenteSaldada || pagado) && (
+            <Check className={cn("h-3.5 w-3.5 shrink-0", totalmenteSaldada ? "text-black font-bold opacity-100" : "opacity-90")} aria-hidden="true" />
           )}
         </div>
         {!compacto && (
-          <span className="truncate text-[11px] leading-tight opacity-80">
+          <span className={cn("truncate text-[11px] leading-tight", totalmenteSaldada ? "text-black/85 font-medium" : "opacity-80")}>
             {horaInicio}–{horaFin}
           </span>
         )}

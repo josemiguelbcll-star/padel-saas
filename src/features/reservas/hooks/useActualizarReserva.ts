@@ -21,7 +21,7 @@ import { RESERVAS_QUERY_KEY_BASE } from './useReservasDelDia';
  *   romper trazabilidad.
  */
 export type ActualizarReservaChanges = Partial<
-  Pick<Reserva, 'estado' | 'observaciones'>
+  Pick<Reserva, 'estado' | 'observaciones' | 'monto_total' | 'tarifa_id'>
 >;
 
 export interface ActualizarReservaInput {

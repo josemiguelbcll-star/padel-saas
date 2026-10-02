@@ -37,6 +37,7 @@ import {
 } from '@/features/configuracion/clases/ClaseFormDialog';
 import { useCobrosDelDia } from './hooks/useCobrosDelDia';
 import { useClaseOcurrenciasDelDia } from './hooks/useClaseOcurrenciasDelDia';
+import { useClaseDatosFinancierosDelDia } from './hooks/useClaseDatosFinancierosDelDia';
 import { useReactivarClase } from './hooks/useReactivarClase';
 import type { ClaseOcurrencia } from './hooks/useClaseOcurrencia';
 import {
@@ -103,6 +104,7 @@ export function ReservasPage() {
   const clasesQuery = useClases();
   const cobrosQuery = useCobrosDelDia(fecha);
   const ocurrenciasQuery = useClaseOcurrenciasDelDia(fecha);
+  const claseFinancierosQuery = useClaseDatosFinancierosDelDia(fecha);
   const reactivarClaseMutation = useReactivarClase();
   // Franjas de duración. Si falla/está vacío, la grilla cae al fallback
   // (duracion_turno_default) — no bloqueamos el render por ellas.
@@ -211,7 +213,7 @@ export function ReservasPage() {
     return m;
   }, [cobrosQuery.data]);
 
-  // Info visual por reserva del día (estado operativo + flags de actividad).
+  // Info visual por reserva del día (estado operativo + flags de actividad + totalmente saldada).
   // Espejo de v_reservas_operativas; se recalcula con `now` en cada render.
   const infoReservas = useMemo(() => {
     const now = new Date();
@@ -232,10 +234,53 @@ export function ReservasPage() {
         },
         now,
       );
-      m.set(r.id, { estado, tieneConsumo, tienePago });
+
+      const consumos = actividadQuery.data?.totalConsumosPorReserva.get(r.id) ?? 0;
+      const pagos = actividadQuery.data?.totalPagosPorReserva.get(r.id) ?? r.monto_pagado;
+      const totalACobrar = r.monto_total + consumos;
+      // Solo cuando esté completamente saldada (100% de la cuenta del turno pagada)
+      const totalmenteSaldada =
+        (totalACobrar > 0 && pagos >= totalACobrar) ||
+        (r.estado === 'pagada' && pagos >= totalACobrar);
+
+      m.set(r.id, { estado, tieneConsumo, tienePago, totalmenteSaldada });
     }
     return m;
   }, [reservasQuery.data, actividadQuery.data]);
+
+  // Clases totalmente saldadas en esta fecha
+  const clasesSaldadas = useMemo(() => {
+    const s = new Set<number>();
+    const datosFinancieros = claseFinancierosQuery.data ?? { alumnos: [], consumos: [] };
+    for (const c of clasesDelDia) {
+      const cobros = cobrosPorClase.get(c.id) ?? [];
+      const totalCobrado = cobros.reduce((sum, p) => sum + p.monto, 0);
+      const alumnosDeClase = datosFinancieros.alumnos.filter((a) => a.clase_id === c.id);
+      const consumosDeClase = datosFinancieros.consumos
+        .filter((x) => x.clase_id === c.id)
+        .reduce((sum, x) => sum + (Number(x.subtotal) || 0), 0);
+      const oc = ocurrenciasPorClase.get(c.id);
+
+      let totalEsperado = 0;
+      if (alumnosDeClase.length > 0) {
+        totalEsperado = alumnosDeClase.reduce((sum, a) => sum + (Number(a.monto_clase) || 0), 0) + consumosDeClase;
+      } else if (oc && oc.monto_total > 0) {
+        totalEsperado = oc.monto_total + consumosDeClase;
+      } else if ((c as any).precio > 0) {
+        totalEsperado = (c as any).precio + consumosDeClase;
+      }
+
+      // Completamente saldada si el total cobrado cubre el total esperado, o si hubo cobro general y no hay montos en contra
+      const estaSaldada = totalEsperado > 0
+        ? totalCobrado >= totalEsperado
+        : (cobros.length > 0 && totalCobrado > 0);
+
+      if (estaSaldada) {
+        s.add(c.id);
+      }
+    }
+    return s;
+  }, [clasesDelDia, cobrosPorClase, claseFinancierosQuery.data, ocurrenciasPorClase]);
 
   // Conteo del día por estado operativo (header).
   const conteo = useMemo(() => {
@@ -467,6 +512,7 @@ export function ReservasPage() {
         reservas={reservasQuery.data ?? []}
         clases={clasesDelDia}
         cobrosPorClase={cobrosPorClase}
+        clasesSaldadas={clasesSaldadas}
         fecha={fecha}
         onSlotClick={handleSlotClick}
         onReservaClick={handleReservaClick}
@@ -541,6 +587,7 @@ interface ReservasBodyProps {
   reservas: ReservaConTitular[];
   clases: ClaseConProfesor[];
   cobrosPorClase: Map<number, ClaseCobro[]>;
+  clasesSaldadas?: Set<number>;
   fecha: string;
   onSlotClick: (canchaId: number, hora: string, duracionesPermitidas: number[]) => void;
   onReservaClick: (reserva: ReservaConTitular) => void;
@@ -563,6 +610,7 @@ function ReservasBody({
   reservas,
   clases,
   cobrosPorClase,
+  clasesSaldadas,
   fecha,
   onSlotClick,
   onReservaClick,
@@ -619,6 +667,7 @@ function ReservasBody({
       reservas={reservas}
       clases={clases}
       cobrosPorClase={cobrosPorClase}
+      clasesSaldadas={clasesSaldadas}
       horaApertura={horaApertura}
       horaCierre={horaCierre}
       fecha={fecha}

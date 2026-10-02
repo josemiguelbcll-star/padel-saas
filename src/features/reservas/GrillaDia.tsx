@@ -29,6 +29,8 @@ interface GrillaDiaProps {
   franjas: FranjaTurno[];
   /** Duración por defecto del club (fallback sin franja). */
   duracionDefault: number;
+  /** Set de clase_ids totalmente saldadas en esta fecha. */
+  clasesSaldadas?: Set<number>;
   /** Info visual por reserva id (estado operativo + flags de actividad). */
   infoReservas: Map<number, InfoReservaVisual>;
   loading?: boolean;
@@ -63,6 +65,7 @@ export function GrillaDia({
   reservas,
   clases,
   cobrosPorClase,
+  clasesSaldadas,
   horaApertura,
   horaCierre,
   fecha,
@@ -242,6 +245,7 @@ export function GrillaDia({
               reservas={reservasPorCancha.get(c.id) ?? []}
               clases={clasesPorCancha.get(c.id) ?? []}
               cobrosPorClase={cobrosPorClase}
+              clasesSaldadas={clasesSaldadas}
               horaApertura={horaApertura}
               horaCierre={horaCierre}
               fecha={fecha}

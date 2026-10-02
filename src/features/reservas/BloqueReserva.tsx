@@ -42,8 +42,15 @@ export function BloqueReserva({
   const esBloqueadoPorTorneo = reserva.observaciones?.includes('[Bloqueado por Torneo:');
   const esTurnoFijo = Boolean(reserva.turno_fijo_id);
 
+  // Totalmente saldada: viene en info.totalmenteSaldada (calculado en ReservasPage comparando total alquiler + consumos vs pagos)
+  // Fallback si no viene: si tiene precio > 0, lo pagado cubre el total y no hay consumo pendiente.
+  const esTotalmenteSaldada = !esBloqueadoPorTorneo && Boolean(
+    info.totalmenteSaldada ?? (reserva.monto_total > 0 && reserva.monto_pagado >= reserva.monto_total && !info.tieneConsumo),
+  );
+
   // Colores diferenciados:
   // - Torneo: Rojo destructivo
+  // - Totalmente saldada: Amarillo dorado vibrante (--turno-saldado)
   // - Cerrado: Azul marino/slate de cerrado
   // - Turno Fijo: Cobalto / Azul Zafiro (--turno-fijo)
   // - Turno al momento / suelto: Ámbar cálido / Terracota (--turno-suelto)
@@ -54,6 +61,9 @@ export function BloqueReserva({
   if (esBloqueadoPorTorneo) {
     bg = 'hsl(var(--destructive) / 0.15)';
     fg = 'hsl(var(--destructive))';
+  } else if (esTotalmenteSaldada) {
+    bg = 'hsl(var(--turno-saldado))';
+    fg = 'hsl(var(--turno-saldado-foreground))';
   } else if (info.estado === 'cerrado') {
     bg = 'hsl(var(--estado-op-cerrado))';
     fg = 'hsl(var(--estado-op-cerrado-foreground))';
@@ -73,7 +83,7 @@ export function BloqueReserva({
     color: fg,
   };
 
-  if (!esBloqueadoPorTorneo && info.estado !== 'cerrado') {
+  if (!esBloqueadoPorTorneo && !esTotalmenteSaldada && info.estado !== 'cerrado') {
     if (info.estado === 'abierto' && pct < 100) {
       buttonStyle.background = `linear-gradient(to right, hsl(var(--estado-op-abierto)) ${pct}%, ${colorTipo} ${pct}%)`;
     } else {
@@ -85,12 +95,13 @@ export function BloqueReserva({
     <button
       type="button"
       onClick={() => onClick(reserva)}
-      aria-label={`Ver detalle: ${esTurnoFijo ? 'Turno fijo' : 'Turno'} de ${titular} ${horaInicio} a ${horaFin}`}
+      aria-label={`Ver detalle: ${esTurnoFijo ? 'Turno fijo' : 'Turno'} de ${titular} ${horaInicio} a ${horaFin}${esTotalmenteSaldada ? ' (Totalmente saldado)' : ''}`}
       className={cn(
         'group absolute left-1 right-1 overflow-hidden rounded-md text-left',
-        'shadow-sm ring-1 ring-black/10 transition-all duration-150',
+        'shadow-sm ring-1 transition-all duration-150',
+        esTotalmenteSaldada ? 'ring-amber-600/40' : 'ring-black/10',
         esBloqueadoPorTorneo && 'border border-destructive',
-        'hover:-translate-y-px hover:shadow-md hover:brightness-110',
+        'hover:-translate-y-px hover:shadow-md hover:brightness-105',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
       style={buttonStyle}
@@ -107,23 +118,31 @@ export function BloqueReserva({
             {!esBloqueadoPorTorneo && (
               <span
                 className={cn(
-                  'shrink-0 rounded px-1 py-0.2 text-[9px] font-bold uppercase tracking-wider text-white shadow-xs',
-                  esTurnoFijo
-                    ? 'bg-black/25 ring-1 ring-white/20'
-                    : 'bg-black/25 ring-1 ring-white/20'
+                  'shrink-0 rounded px-1 py-0.2 text-[9px] font-bold uppercase tracking-wider shadow-xs',
+                  esTotalmenteSaldada
+                    ? 'bg-black/15 text-black ring-1 ring-black/25'
+                    : 'bg-black/25 text-white ring-1 ring-white/20'
                 )}
               >
                 {esTurnoFijo ? 'Fijo' : 'Turno'}
               </span>
             )}
-            <span className="truncate">{titular}</span>
+            <span className={cn('truncate', esTotalmenteSaldada && 'font-bold text-black')}>{titular}</span>
           </span>
           <div className="flex shrink-0 items-center gap-1">
             {info.estado === 'abierto' && (
-              <span className="h-2 w-2 rounded-full bg-emerald-400 ring-1 ring-white/50 animate-pulse" title="En juego" />
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full animate-pulse',
+                  esTotalmenteSaldada
+                    ? 'bg-emerald-600 ring-1 ring-black/40'
+                    : 'bg-emerald-400 ring-1 ring-white/50'
+                )}
+                title="En juego"
+              />
             )}
             {(info.tienePago || info.tieneConsumo) && (
-              <span className="flex shrink-0 items-center gap-0.5 opacity-90">
+              <span className={cn('flex shrink-0 items-center gap-0.5', esTotalmenteSaldada ? 'text-black opacity-95' : 'opacity-90')}>
                 {info.tienePago && (
                   <DollarSign className="h-3 w-3" aria-hidden="true" />
                 )}
@@ -135,7 +154,7 @@ export function BloqueReserva({
           </div>
         </div>
         {!compacto && (
-          <span className="truncate text-[11px] leading-tight opacity-85">
+          <span className={cn('truncate text-[11px] leading-tight', esTotalmenteSaldada ? 'text-black/85 font-medium' : 'opacity-85')}>
             {horaInicio}–{horaFin} · {reserva.duracion_min} min
             {esBloqueadoPorTorneo && <span className="block text-[9px] font-semibold text-destructive mt-0.5">BLOQUEADO POR TORNEO</span>}
           </span>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { GraduationCap, Plus, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ExternalLink, GraduationCap, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -102,6 +103,28 @@ const ESTADO_LABEL: Record<EstadoInicial, string> = {
   senada: 'Señado',
   pagada: 'Pagado',
 };
+
+const currencyFmt = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function fmtMoney(n: number): string {
+  return currencyFmt.format(n);
+}
+
+function calcularMontoParaDuracion(tarifa: Tarifa, duracion: number): number {
+  if (
+    tarifa.duracion_min !== null &&
+    tarifa.duracion_min !== duracion &&
+    tarifa.duracion_min > 0
+  ) {
+    return Math.round((tarifa.monto / tarifa.duracion_min) * duracion);
+  }
+  return tarifa.monto;
+}
 
 interface NuevaReservaBodyProps {
   slot: NuevoReservaSlot;
@@ -230,17 +253,27 @@ function NuevaReservaBodyReady({
 
   const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
 
+  const tarifasActivas = useMemo(() => {
+    return (tarifas ?? []).filter((t) => t.activa);
+  }, [tarifas]);
+
+  const [selectedTarifaId, setSelectedTarifaId] = useState<number | null>(() => {
+    return tarifaResuelta.tarifa?.id ?? null;
+  });
+  const [esMontoPersonalizado, setEsMontoPersonalizado] = useState(false);
+
   // Re-seed del monto sugerido cuando cambia la tarifa resuelta (p.ej. al
   // cambiar la duración en el selector) — salvo que el usuario lo haya
-  // editado a mano. Mantiene el monto pagado en sync si está "pagada".
+  // editado a mano o seleccionado una franja específica. Mantiene el monto pagado en sync si está "pagada".
   useEffect(() => {
-    if (montoTotalTouched) return;
+    if (montoTotalTouched || esMontoPersonalizado) return;
     const sugerido = tarifaResuelta.monto.toString();
     setMontoTotal(sugerido);
+    setSelectedTarifaId(tarifaResuelta.tarifa?.id ?? null);
     if (estado === 'pagada' && !montoPagadoTouched) {
       setMontoPagado(sugerido);
     }
-  }, [tarifaResuelta.monto, montoTotalTouched, estado, montoPagadoTouched]);
+  }, [tarifaResuelta, montoTotalTouched, esMontoPersonalizado, estado, montoPagadoTouched]);
 
   function cambiarEstado(nuevo: EstadoInicial): void {
     setEstado(nuevo);
@@ -386,7 +419,7 @@ function NuevaReservaBodyReady({
       jugador_titular_id: titular.jugadorId,
       jugadores_ids: jugadoresIds,
       nombres_libres: nombresLibres,
-      tarifa_id: tarifaResuelta.tarifa?.id ?? null,
+      tarifa_id: selectedTarifaId,
       monto_total: parsed.data.monto_total,
       monto_pagado: parsed.data.monto_pagado,
       medio_pago: parsed.data.medio_pago,
@@ -543,34 +576,105 @@ function NuevaReservaBodyReady({
           </Button>
         )}
 
-        {/* Monto */}
-        <div className="space-y-2">
-          <Label htmlFor="reserva-monto">Monto (pesos)</Label>
-          <Input
-            id="reserva-monto"
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            value={montoTotal}
-            onChange={(e) => cambiarMontoTotal(e.target.value)}
-            disabled={isPending}
-            aria-invalid={errors.monto_total ? true : undefined}
-            placeholder="0.00"
-          />
-          {errors.monto_total && (
-            <p className="text-xs text-destructive">{errors.monto_total}</p>
-          )}
-          {!tarifaResuelta.tarifa && (
+        {/* Franja horaria y Monto */}
+        <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold text-foreground">Franja horaria / Tarifa</Label>
+            <Link
+              to="/configuracion/tarifas?tipo=turnos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-primary hover:underline inline-flex items-center gap-1 font-medium"
+            >
+              Configurar franjas <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+
+          {/* Opciones de franjas activas del club */}
+          {tarifasActivas.length > 0 ? (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-1.5">
+                {tarifasActivas.map((t) => {
+                  const montoCalc = calcularMontoParaDuracion(t, duracion);
+                  const isSugerida = tarifaResuelta.tarifa?.id === t.id;
+                  const isSelected = selectedTarifaId === t.id && !esMontoPersonalizado;
+
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTarifaId(t.id);
+                        setEsMontoPersonalizado(false);
+                        setMontoTotal(montoCalc.toString());
+                        setMontoTotalTouched(true);
+                      }}
+                      className={cn(
+                        'rounded-md border px-2.5 py-1 text-xs font-medium transition-all flex items-center gap-1.5',
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                          : 'border-border bg-background text-foreground hover:bg-muted',
+                      )}
+                    >
+                      <span>{t.nombre}</span>
+                      <span className={cn('text-[11px] font-semibold tabular-nums', isSelected ? 'text-primary-foreground' : 'text-primary')}>
+                        {fmtMoney(montoCalc)}
+                      </span>
+                      {isSugerida && (
+                        <span className={cn('rounded px-1 py-0.2 text-[9px] uppercase font-semibold tracking-wider', isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-primary/10 text-primary')}>
+                          Sugerida
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEsMontoPersonalizado(true);
+                  }}
+                  className={cn(
+                    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                    esMontoPersonalizado
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                      : 'border-border bg-background text-foreground hover:bg-muted',
+                  )}
+                >
+                  Personalizado
+                </button>
+              </div>
+            </div>
+          ) : (
             <p className="text-xs text-muted-foreground">
-              Sin tarifa configurada para este horario. Ingresá el monto a mano.
+              Sin tarifas configuradas para este horario. Podés ingresar el monto manualmente.
             </p>
           )}
-          {tarifaResuelta.tarifa && (
-            <p className="text-xs text-muted-foreground">
-              Tarifa sugerida: <span className="font-medium text-foreground">{tarifaResuelta.tarifa.nombre}</span>
-            </p>
-          )}
+
+          <div className="pt-1 space-y-1">
+            <Label htmlFor="reserva-monto" className="text-xs text-muted-foreground">
+              Monto a cobrar por el turno ($)
+            </Label>
+            <Input
+              id="reserva-monto"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              value={montoTotal}
+              onChange={(e) => {
+                cambiarMontoTotal(e.target.value);
+                setEsMontoPersonalizado(true);
+              }}
+              disabled={isPending}
+              aria-invalid={errors.monto_total ? true : undefined}
+              placeholder="0.00"
+              className="h-8 text-sm font-semibold tabular-nums"
+            />
+            {errors.monto_total && (
+              <p className="text-xs text-destructive">{errors.monto_total}</p>
+            )}
+          </div>
         </div>
 
         {/* Estado */}

@@ -65,6 +65,7 @@ export interface InfoReservaVisual {
   estado: EstadoOperativo;
   tieneConsumo: boolean;
   tienePago: boolean;
+  totalmenteSaldada?: boolean;
 }
 
 /** Etiqueta legible de cada estado operativo. */
