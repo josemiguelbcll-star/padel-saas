@@ -103,6 +103,10 @@
     --turno-fijo-foreground: 0 0% 100%;
     --turno-suelto: 28 95% 45%;
     --turno-suelto-foreground: 0 0% 100%;
+
+    /* Turno o clase totalmente saldada (amarillo vibrante con texto de alto contraste) */
+    --turno-saldado: 48 96% 48%;
+    --turno-saldado-foreground: 0 0% 10%;
   }
 
   .dark {
@@ -167,6 +171,10 @@
     --turno-fijo-foreground: 0 0% 100%;
     --turno-suelto: 28 92% 48%;
     --turno-suelto-foreground: 0 0% 100%;
+
+    /* Turno o clase totalmente saldada (amarillo vibrante con texto de alto contraste) */
+    --turno-saldado: 48 96% 48%;
+    --turno-saldado-foreground: 0 0% 10%;
   }
 }
 

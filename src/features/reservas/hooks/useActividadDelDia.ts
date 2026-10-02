@@ -28,6 +28,10 @@ export interface ActividadDelDia {
   idsConConsumo: Set<number>;
   /** reserva_ids del día que tienen al menos un pago. */
   idsConPago: Set<number>;
+  /** Suma de subtotal de consumos por reserva_id. */
+  totalConsumosPorReserva: Map<number, number>;
+  /** Suma de monto de pagos por reserva_id. */
+  totalPagosPorReserva: Map<number, number>;
 }
 
 export function useActividadDelDia(
@@ -39,27 +43,38 @@ export function useActividadDelDia(
       const [consumosRes, pagosRes] = await Promise.all([
         supabase
           .from('reserva_consumos')
-          .select('reserva_id, reservas!inner(fecha)')
+          .select('reserva_id, subtotal, reservas!inner(fecha)')
           .eq('reservas.fecha', fecha),
         supabase
           .from('reserva_pagos')
-          .select('reserva_id, reservas!inner(fecha)')
+          .select('reserva_id, monto, reservas!inner(fecha)')
           .eq('reservas.fecha', fecha),
       ]);
       if (consumosRes.error) throw new Error(mapPostgrestError(consumosRes.error));
       if (pagosRes.error) throw new Error(mapPostgrestError(pagosRes.error));
 
-      const idsConConsumo = new Set<number>(
-        ((consumosRes.data ?? []) as unknown as Array<{ reserva_id: number }>).map(
-          (r) => r.reserva_id,
-        ),
-      );
-      const idsConPago = new Set<number>(
-        ((pagosRes.data ?? []) as unknown as Array<{ reserva_id: number }>).map(
-          (r) => r.reserva_id,
-        ),
-      );
-      return { idsConConsumo, idsConPago };
+      const idsConConsumo = new Set<number>();
+      const totalConsumosPorReserva = new Map<number, number>();
+      for (const c of (consumosRes.data ?? []) as any[]) {
+        idsConConsumo.add(c.reserva_id);
+        const sub = Number(c.subtotal) || 0;
+        totalConsumosPorReserva.set(c.reserva_id, (totalConsumosPorReserva.get(c.reserva_id) ?? 0) + sub);
+      }
+
+      const idsConPago = new Set<number>();
+      const totalPagosPorReserva = new Map<number, number>();
+      for (const p of (pagosRes.data ?? []) as any[]) {
+        idsConPago.add(p.reserva_id);
+        const m = Number(p.monto) || 0;
+        totalPagosPorReserva.set(p.reserva_id, (totalPagosPorReserva.get(p.reserva_id) ?? 0) + m);
+      }
+
+      return {
+        idsConConsumo,
+        idsConPago,
+        totalConsumosPorReserva,
+        totalPagosPorReserva,
+      };
     },
   });
 }

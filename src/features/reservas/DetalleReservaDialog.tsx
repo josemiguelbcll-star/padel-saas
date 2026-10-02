@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { useSession } from '@/features/auth';
-import { AlertTriangle, Pencil, Trophy, Trash2, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, Clock4, ExternalLink, Pencil, Repeat, Trophy, Trash2, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
 import {
@@ -10,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
@@ -21,7 +25,10 @@ import {
 import type {
   Cancha,
   Reserva,
+  Tarifa,
 } from '@/types/database';
+import { useTarifas } from '@/features/configuracion/hooks/useTarifas';
+import { resolverTarifa } from './utils/resolverTarifa';
 import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
@@ -55,6 +62,17 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 
 function fmtMoney(n: number): string {
   return currencyFmt.format(n);
+}
+
+function calcularMontoParaDuracion(tarifa: Tarifa, duracion: number): number {
+  if (
+    tarifa.duracion_min !== null &&
+    tarifa.duracion_min !== duracion &&
+    tarifa.duracion_min > 0
+  ) {
+    return Math.round((tarifa.monto / tarifa.duracion_min) * duracion);
+  }
+  return tarifa.monto;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -138,6 +156,108 @@ function DetalleReservaBody({
   // los returns de las mutations para reflejar cambios sin esperar a
   // que se cierre y re-abra el dialog.
   const [reserva, setReserva] = useState<ReservaConTitular>(initialReserva);
+
+  const tarifasQuery = useTarifas();
+  const tarifas = useMemo(() => tarifasQuery.data ?? [], [tarifasQuery.data]);
+  const tarifasActivas = useMemo(() => tarifas.filter((t) => t.activa), [tarifas]);
+
+  const tarifaAplicada = useMemo(() => {
+    if (reserva.tarifa_id) {
+      return tarifas.find((t) => t.id === reserva.tarifa_id) ?? null;
+    }
+    const r = resolverTarifa({
+      fecha: reserva.fecha,
+      hora: reserva.hora_inicio,
+      duracion: reserva.duracion_min,
+      tarifas,
+      tarifaId: cancha.tarifa_id,
+    });
+    return r.tarifa;
+  }, [reserva.tarifa_id, reserva.fecha, reserva.hora_inicio, reserva.duracion_min, tarifas, cancha.tarifa_id]);
+
+  const queryClient = useQueryClient();
+  const [editandoFranja, setEditandoFranja] = useState(false);
+  const [nuevoMontoStr, setNuevoMontoStr] = useState<string>(() => reserva.monto_total.toString());
+  const [nuevaTarifaId, setNuevaTarifaId] = useState<number | null>(() => reserva.tarifa_id ?? null);
+  const [aplicarATodosFijos, setAplicarATodosFijos] = useState(true);
+  const [guardandoFranja, setGuardandoFranja] = useState(false);
+  const [errorEdicionFranja, setErrorEdicionFranja] = useState<string | null>(null);
+
+  function handleAbrirEdicionFranja() {
+    setNuevoMontoStr(reserva.monto_total.toString());
+    setNuevaTarifaId(reserva.tarifa_id ?? tarifaAplicada?.id ?? null);
+    setAplicarATodosFijos(true);
+    setErrorEdicionFranja(null);
+    setEditandoFranja(true);
+  }
+
+  function handleSeleccionarFranja(t: Tarifa) {
+    setNuevaTarifaId(t.id);
+    const montoCalculado = calcularMontoParaDuracion(t, reserva.duracion_min);
+    setNuevoMontoStr(montoCalculado.toString());
+  }
+
+  async function handleGuardarFranja(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorEdicionFranja(null);
+    const montoNum = parseFloat(nuevoMontoStr.replace(',', '.'));
+    if (isNaN(montoNum) || montoNum < 0) {
+      setErrorEdicionFranja('Ingresá un monto válido mayor o igual a 0.');
+      return;
+    }
+    if (montoNum < reserva.monto_pagado) {
+      setErrorEdicionFranja(
+        `El nuevo monto (${fmtMoney(montoNum)}) no puede ser menor a lo que ya fue pagado (${fmtMoney(reserva.monto_pagado)}).`,
+      );
+      return;
+    }
+
+    setGuardandoFranja(true);
+    try {
+      const updated = await actualizarMutation.mutateAsync({
+        id: reserva.id,
+        fecha: reserva.fecha,
+        changes: {
+          monto_total: montoNum,
+          tarifa_id: nuevaTarifaId,
+        },
+      });
+
+      // Si es un turno fijo y el usuario eligió aplicar a todos los futuros pendientes sin cobros:
+      if (reserva.turno_fijo_id && aplicarATodosFijos) {
+        const { error: errFijos } = await supabase
+          .from('reservas')
+          .update({
+            monto_total: montoNum,
+            tarifa_id: nuevaTarifaId,
+          })
+          .eq('turno_fijo_id', reserva.turno_fijo_id)
+          .gte('fecha', reserva.fecha)
+          .eq('estado', 'pendiente')
+          .eq('monto_pagado', 0);
+
+        if (errFijos) {
+          console.error('Error al actualizar turnos futuros del turno fijo:', errFijos);
+        } else {
+          void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+          void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
+        }
+      }
+
+      setReserva((prev) => ({
+        ...prev,
+        monto_total: updated.monto_total ?? montoNum,
+        tarifa_id: updated.tarifa_id ?? nuevaTarifaId,
+      }));
+      setEditandoFranja(false);
+    } catch (err) {
+      setErrorEdicionFranja(
+        err instanceof Error ? err.message : 'No se pudo actualizar la franja / precio.',
+      );
+    } finally {
+      setGuardandoFranja(false);
+    }
+  }
 
   const pagosQuery = useReservaPagos(reserva.id);
   const consumosQuery = useReservaConsumos(reserva.id);
@@ -554,6 +674,205 @@ function DetalleReservaBody({
             {ESTADO_OPERATIVO_LABEL[estadoOperativo]}
           </span>
         </div>
+
+        {/* Franja horaria y precio del turno */}
+        {editandoFranja ? (
+          <form
+            onSubmit={handleGuardarFranja}
+            className="space-y-3 rounded-lg border border-primary/40 bg-primary/[0.03] p-3.5 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Clock4 className="h-4 w-4 text-primary" />
+                <h5 className="text-xs font-bold uppercase tracking-wider text-primary">
+                  Cambiar franja o ajustar precio
+                </h5>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditandoFranja(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {errorEdicionFranja && (
+              <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
+                {errorEdicionFranja}
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Seleccionar franja disponible para este turno:</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {tarifasActivas.map((t) => {
+                  const montoCalculado = calcularMontoParaDuracion(t, reserva.duracion_min);
+                  const isSelected = nuevaTarifaId === t.id && nuevoMontoStr === montoCalculado.toString();
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleSeleccionarFranja(t)}
+                      className={cn(
+                        'rounded-md border px-2.5 py-1 text-xs font-medium transition-all flex items-center gap-1.5',
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                          : 'border-border bg-background text-foreground hover:bg-muted',
+                      )}
+                    >
+                      <span>{t.nombre}</span>
+                      <span className={cn('text-[11px] font-semibold tabular-nums', isSelected ? 'text-primary-foreground' : 'text-primary')}>
+                        {fmtMoney(montoCalculado)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="edicion-monto-reserva" className="text-xs">
+                Monto del turno ($)
+              </Label>
+              <Input
+                id="edicion-monto-reserva"
+                type="number"
+                step="0.01"
+                min={reserva.monto_pagado}
+                value={nuevoMontoStr}
+                onChange={(e) => setNuevoMontoStr(e.target.value)}
+                className="h-8 text-xs font-semibold tabular-nums"
+                required
+              />
+              {reserva.monto_pagado > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Mínimo: {fmtMoney(reserva.monto_pagado)} (ya cobrado a los jugadores).
+                </p>
+              )}
+            </div>
+
+            {Boolean(reserva.turno_fijo_id) && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-1.5 text-xs">
+                <p className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <Repeat className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
+                  Turno Fijo recurrente
+                </p>
+                <div className="space-y-1.5 pt-0.5">
+                  <label className="flex items-start gap-2 cursor-pointer text-foreground">
+                    <input
+                      type="radio"
+                      name="alcance_edicion_fijo"
+                      checked={aplicarATodosFijos}
+                      onChange={() => setAplicarATodosFijos(true)}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <span>
+                      <strong>Aplicar a este y todos los turnos futuros pendientes</strong> de este turno fijo (no tener que cambiar uno por uno)
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer text-muted-foreground">
+                    <input
+                      type="radio"
+                      name="alcance_edicion_fijo"
+                      checked={!aplicarATodosFijos}
+                      onChange={() => setAplicarATodosFijos(false)}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <span>Cambiar únicamente el precio de este turno ({formatearFechaAmigable(reserva.fecha)})</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditandoFranja(false)}
+                className="h-7 text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={guardandoFranja}
+                className="h-7 text-xs bg-primary text-primary-foreground"
+              >
+                {guardandoFranja ? 'Guardando…' : 'Confirmar nuevo precio'}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Clock4 className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-semibold text-foreground">
+                    {tarifaAplicada?.nombre ?? (reserva.turno_fijo_id ? 'Tarifa Turno Fijo' : 'Tarifa General')}
+                  </span>
+                  {reserva.turno_fijo_id && (
+                    <span className="rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.2 text-[10px] font-medium border border-amber-500/20">
+                      Turno Fijo
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <span className="text-xs font-semibold tabular-nums text-foreground">
+                    {fmtMoney(reserva.monto_total)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {tarifaAplicada ? (
+                    <>
+                      Franja:{' '}
+                      {tarifaAplicada.desde_hora
+                        ? `${tarifaAplicada.desde_hora.slice(0, 5)}–${tarifaAplicada.hasta_hora?.slice(0, 5)}`
+                        : 'Todo horario'}
+                      {tarifaAplicada.duracion_min ? ` (${tarifaAplicada.duracion_min} min)` : ''}
+                    </>
+                  ) : (
+                    'Sin franja horaria específica asociada'
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {!readOnly && !estaCerrado && !estaCancelado && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAbrirEdicionFranja}
+                  className="h-7 text-xs"
+                >
+                  <Pencil className="mr-1 h-3 w-3" />
+                  Cambiar franja / precio
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                asChild
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                title="Ir a configurar franjas horarias"
+              >
+                <Link to="/configuracion/tarifas?tipo=turnos" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-1 h-3 w-3" />
+                  Ver franjas
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Personas del turno: gestión de personas (paso 1b) + división
             de la cuenta (paso 3) + COBRO por persona (paso 4). Cada

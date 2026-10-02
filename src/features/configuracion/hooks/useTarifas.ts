@@ -139,6 +139,8 @@ export function useCambiarPrecioTarifa(): UseMutationResult<
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: TARIFAS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+      void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
     },
   });
 }

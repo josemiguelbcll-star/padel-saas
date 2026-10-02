@@ -42,6 +42,8 @@ interface CanchaColumnaProps {
   duracionDefault: number;
   /** Info visual por reserva id (estado operativo + flags de actividad). */
   infoReservas: Map<number, InfoReservaVisual>;
+  /** Set de clase_ids que están totalmente saldadas en esta fecha. */
+  clasesSaldadas?: Set<number>;
   /** Callback al clickear un Disponible (con las duraciones que la franja permite ahí). */
   onSlotClick: (canchaId: number, hora: string, duracionesPermitidas: number[]) => void;
   /** Callback al clickear un bloque de reserva existente. */
@@ -76,6 +78,7 @@ export function CanchaColumna({
   reservas,
   clases,
   cobrosPorClase,
+  clasesSaldadas,
   width,
   horaApertura,
   horaCierre,
@@ -190,6 +193,7 @@ export function CanchaColumna({
             key={c.id}
             clase={c}
             pagado={(cobrosPorClase.get(c.id) ?? []).length > 0}
+            totalmenteSaldada={clasesSaldadas?.has(c.id) ?? false}
             top={pos.top}
             height={pos.height}
             onClick={onClaseClick}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Clock,
   List,
@@ -7,6 +8,7 @@ import {
   Pencil,
   Plus,
   Power,
+  RefreshCw,
   Repeat,
   Search,
   Trash2,
@@ -29,7 +31,7 @@ import { useClases } from '@/features/configuracion/hooks/useClases';
 import { useFranjasTurno } from '@/features/configuracion/hooks/useFranjasTurno';
 import { useHorariosClub } from '@/features/configuracion/hooks/useHorariosClub';
 import { useJugadores } from '@/features/reservas/hooks/useJugadores';
-import { useTurnosFijos } from './hooks/useTurnosFijos';
+import { useTurnosFijos, useMaterializarTurnosFijos } from './hooks/useTurnosFijos';
 import { CalendarioSemanalTurnosFijos } from './CalendarioSemanalTurnosFijos';
 import { NuevoTurnoFijoDialog, type TurnoFijoPrefill } from './NuevoTurnoFijoDialog';
 import { EditarTurnoFijoDialog } from './EditarTurnoFijoDialog';
@@ -133,6 +135,45 @@ export function TurnosFijosPage() {
     });
   }, [turnos, busqueda, jugadoresById]);
 
+  const queryClient = useQueryClient();
+  const materializarMutation = useMaterializarTurnosFijos();
+  const [sincronizando, setSincronizando] = useState(false);
+  const [mensajeSincronizacion, setMensajeSincronizacion] = useState<{
+    tipo: 'ok' | 'error';
+    texto: string;
+  } | null>(null);
+
+  async function handleSincronizarPrecios(): Promise<void> {
+    setSincronizando(true);
+    setMensajeSincronizacion(null);
+    try {
+      const d = new Date();
+      const hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dHasta = new Date();
+      dHasta.setDate(dHasta.getDate() + 180);
+      const hasta = `${dHasta.getFullYear()}-${String(dHasta.getMonth() + 1).padStart(2, '0')}-${String(dHasta.getDate()).padStart(2, '0')}`;
+      const res = await materializarMutation.mutateAsync({
+        fecha_desde: hoy,
+        fecha_hasta: hasta,
+      });
+      const act = (res as any).actualizadas ?? 0;
+      const creadas = res.reservas_creadas ?? (res as any).creadas ?? 0;
+      setMensajeSincronizacion({
+        tipo: 'ok',
+        texto: `Sincronización completada: ${act} ${act === 1 ? 'reserva actualizada' : 'reservas actualizadas'} con los precios de las tarifas vigentes (${creadas} nuevas generadas).`,
+      });
+      void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+      void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
+    } catch (err) {
+      setMensajeSincronizacion({
+        tipo: 'error',
+        texto: err instanceof Error ? err.message : 'Error al sincronizar precios de turnos fijos.',
+      });
+    } finally {
+      setSincronizando(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -145,7 +186,7 @@ export function TurnosFijosPage() {
             Reservas recurrentes con clientes habituales en la grilla de reservas.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-md border border-input p-0.5 bg-muted/50">
             <Button
               type="button"
@@ -169,20 +210,54 @@ export function TurnosFijosPage() {
             </Button>
           </div>
           {canEdit && (
-            <Button
-              type="button"
-              onClick={() => {
-                setPrefillNuevo(null);
-                setNuevoOpen(true);
-              }}
-              className="shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo turno fijo
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSincronizarPrecios}
+                disabled={sincronizando}
+                className="shrink-0 text-xs h-8"
+                title="Sincroniza todas las reservas futuras pendientes de turnos fijos con los precios de las franjas horarias actuales sin tener que modificarlas una por una."
+              >
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
+                {sincronizando ? 'Sincronizando...' : 'Sincronizar precios'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setPrefillNuevo(null);
+                  setNuevoOpen(true);
+                }}
+                className="shrink-0 text-xs h-8"
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                Nuevo turno fijo
+              </Button>
+            </>
           )}
         </div>
       </header>
+
+      {mensajeSincronizacion && (
+        <div
+          role="alert"
+          className={`flex items-center justify-between rounded-lg border p-3 text-xs ${
+            mensajeSincronizacion.tipo === 'ok'
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+              : 'border-destructive/30 bg-destructive/10 text-destructive'
+          }`}
+        >
+          <span>{mensajeSincronizacion.texto}</span>
+          <button
+            type="button"
+            onClick={() => setMensajeSincronizacion(null)}
+            className="ml-2 rounded p-1 hover:bg-black/10 dark:hover:bg-white/10"
+            aria-label="Cerrar mensaje"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Barra de búsqueda y KPI */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

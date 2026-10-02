@@ -152,8 +152,7 @@ export function CambiarPrecioDialog({
           <DialogTitle>Cambiar precio · {linaje.nombre}</DialogTitle>
           <DialogDescription>
             El precio actual queda cerrado y se crea una nueva versión.
-            El histórico de lo cobrado no se altera (las reservas tienen
-            su monto snapshot).
+            Las reservas pendientes futuras sin cobros (incluyendo turnos fijos) se sincronizarán automáticamente con este nuevo precio.
           </DialogDescription>
         </DialogHeader>
 
