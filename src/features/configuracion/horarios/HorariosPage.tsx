@@ -36,9 +36,11 @@ function horariosToForm(h: HorariosClub): FormState {
   };
 }
 
+import { getPermiso } from '@/lib/permisos';
+
 export function HorariosPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
   const horariosQuery = useHorariosClub();
 
   if (horariosQuery.isLoading) {
@@ -92,7 +94,7 @@ export function HorariosPage() {
         </div>
       )}
 
-      {isAdmin ? (
+      {canEdit ? (
         <>
           <HorariosForm initial={horariosQuery.data} />
           <FranjasTurnoSection

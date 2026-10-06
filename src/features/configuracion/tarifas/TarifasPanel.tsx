@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { CambiarPrecioDialog } from './CambiarPrecioDialog';
 import { EditarMetadataDialog } from './EditarMetadataDialog';
 import { HistorialPrecioDialog } from './HistorialPrecioDialog';
@@ -93,7 +94,7 @@ interface TarifasPanelProps {
  */
 export function TarifasPanel({ config }: TarifasPanelProps) {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
 
   const query = config.useList();
   // Tarifa 2D (0051): solo el módulo de turnos tiene dimensión duración.
@@ -138,7 +139,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
             guardado y las reservas cobradas no se alteran.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={() => setNuevaOpen(true)} className="shrink-0">
             <Plus className="h-4 w-4" />
             Nueva franja
@@ -166,7 +167,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
       {query.data && linajes.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            {isAdmin
+            {canEdit
               ? 'Todavía no tenés franjas configuradas. Agregá la primera — podés tener una única que aplique a todo, o varias por horario.'
               : 'El administrador todavía no configuró tarifas para el club.'}
           </p>
@@ -179,7 +180,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
             <LinajeCard
               key={l.lineage_id}
               linaje={l}
-              isAdmin={isAdmin}
+              canEdit={canEdit}
               soportaDuracion={soportaDuracion}
               onCambiarPrecio={() => openCambiarPrecio(l)}
               onEditarMetadata={() => openEditarMetadata(l)}
@@ -223,7 +224,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
 
 interface LinajeCardProps {
   linaje: TarifaLinaje;
-  isAdmin: boolean;
+  canEdit: boolean;
   soportaDuracion: boolean;
   onCambiarPrecio: () => void;
   onEditarMetadata: () => void;
@@ -232,7 +233,7 @@ interface LinajeCardProps {
 
 function LinajeCard({
   linaje,
-  isAdmin,
+  canEdit,
   soportaDuracion,
   onCambiarPrecio,
   onEditarMetadata,
@@ -324,7 +325,7 @@ function LinajeCard({
         )}
 
         {/* Acciones */}
-        {isAdmin && (
+        {canEdit && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             <Button
               type="button"

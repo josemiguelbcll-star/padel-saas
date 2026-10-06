@@ -44,13 +44,16 @@ const tabs: ConfigTab[] = [
  * cada página hija, no acá: la sección entera es legible por cualquier
  * authenticated del club.
  */
+import { getPermiso } from '@/lib/permisos';
+
 export function ConfiguracionLayout() {
   const { user } = useSession();
   const isAdmin = user?.rol === 'admin';
+  const canEdit = isAdmin || getPermiso(user, 'configuracion', 'editar');
 
   const visibleTabs = tabs.filter((tab) => {
     if (tab.to === '/app/configuracion/perfil-publico') {
-      return isAdmin;
+      return canEdit;
     }
     return true;
   });

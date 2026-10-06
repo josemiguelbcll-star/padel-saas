@@ -78,7 +78,9 @@ const INITIAL_FILTROS: CatalogoFiltros = {
 
 export function CatalogoTab() {
   const { user } = useSession();
-  const canEdit = getPermiso(user, 'inventario', 'editar');
+  const canEdit =
+    getPermiso(user, 'inventario', 'editar') ||
+    getPermiso(user, 'configuracion', 'editar');
 
   const query = useInventarioProductos();
 

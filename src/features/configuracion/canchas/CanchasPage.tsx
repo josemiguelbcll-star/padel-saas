@@ -18,10 +18,11 @@ import {
 import type { Cancha } from '@/types/database';
 import { CanchaFormDialog } from './CanchaFormDialog';
 import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
+import { getPermiso } from '@/lib/permisos';
 
 export function CanchasPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
 
   const canchasQuery = useCanchas();
   const deleteMutation = useDeleteCancha();
@@ -72,7 +73,7 @@ export function CanchasPage() {
             Definí las canchas del club, sus tarifas asignadas y características.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Agregar cancha
@@ -82,7 +83,7 @@ export function CanchasPage() {
 
       <CanchasTable
         query={canchasQuery}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         onEdit={openEdit}
         onDelete={requestDelete}
       />
@@ -147,12 +148,12 @@ export function CanchasPage() {
 
 interface CanchasTableProps {
   query: ReturnType<typeof useCanchas>;
-  isAdmin: boolean;
+  canEdit: boolean;
   onEdit: (c: Cancha) => void;
   onDelete: (c: Cancha) => void;
 }
 
-function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
+function CanchasTable({ query, canEdit, onEdit, onDelete }: CanchasTableProps) {
   if (query.isLoading) {
     return (
       <div className="space-y-2" aria-busy="true">
@@ -183,7 +184,7 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          {isAdmin
+          {canEdit
             ? 'Todavía no tenés canchas configuradas. Agregá la primera para empezar.'
             : 'El administrador todavía no configuró canchas para el club.'}
         </p>
@@ -202,7 +203,7 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
             <th className="px-3 py-2 font-medium">Cubierta</th>
             <th className="px-3 py-2 font-medium">Estado</th>
             <th className="px-3 py-2 font-medium">Tarifa / Precio</th>
-            {isAdmin && (
+            {canEdit && (
               <th className="w-1 px-3 py-2 text-right font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
@@ -265,7 +266,7 @@ function CanchasTable({ query, isAdmin, onEdit, onDelete }: CanchasTableProps) {
                     </span>
                   )}
                 </td>
-                {isAdmin && (
+                {canEdit && (
                   <td className="px-3 py-3">
                     <div className="flex justify-end gap-1">
                       <Button

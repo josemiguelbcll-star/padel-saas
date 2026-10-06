@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useDeleteProducto } from '@/features/configuracion/hooks/useProductos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
 import type { Linea, Producto, ProductoConStock } from '@/types/database';
@@ -35,7 +36,9 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 
 export function ProductosPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit =
+    getPermiso(user, 'configuracion', 'editar') ||
+    getPermiso(user, 'inventario', 'editar');
 
   const productosQuery = useProductosConStock();
   const deleteMutation = useDeleteProducto();
@@ -118,7 +121,7 @@ export function ProductosPage() {
             registrada como movimiento de inventario.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <div className="flex items-center gap-2 shrink-0">
             <Button type="button" variant="outline" onClick={() => setImportarOpen(true)}>
               <FileSpreadsheet className="h-4 w-4" />
@@ -164,7 +167,7 @@ export function ProductosPage() {
       <ProductosTable
         query={productosQuery}
         lineaFiltro={tabActivo}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         onEdit={openEdit}
         onCargarStock={openCargar}
         onDelete={requestDelete}
@@ -249,7 +252,7 @@ export function ProductosPage() {
 interface ProductosTableProps {
   query: ReturnType<typeof useProductosConStock>;
   lineaFiltro: Linea;
-  isAdmin: boolean;
+  canEdit: boolean;
   onEdit: (p: ProductoConStock) => void;
   onCargarStock: (p: ProductoConStock) => void;
   onDelete: (p: ProductoConStock) => void;
@@ -258,7 +261,7 @@ interface ProductosTableProps {
 function ProductosTable({
   query,
   lineaFiltro,
-  isAdmin,
+  canEdit,
   onEdit,
   onCargarStock,
   onDelete,
@@ -297,7 +300,7 @@ function ProductosTable({
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          {isAdmin
+          {canEdit
             ? `Todavía no agregaste productos de ${lineaLabel}. Cargá el primero para empezar a venderlo en el mostrador.`
             : `El administrador todavía no agregó productos de ${lineaLabel}.`}
         </p>
@@ -320,7 +323,7 @@ function ProductosTable({
               <th className="px-3 py-2 text-right font-medium">Stock</th>
               <th className="px-3 py-2 text-right font-medium">Mínimo</th>
               <th className="px-3 py-2 font-medium">Estado</th>
-              {isAdmin && (
+              {canEdit && (
                 <th className="w-1 px-3 py-2 text-right font-medium">
                   <span className="sr-only">Acciones</span>
                 </th>
@@ -369,7 +372,7 @@ function ProductosTable({
                     <span className="text-muted-foreground">Inactivo</span>
                   )}
                 </td>
-                {isAdmin && (
+                {canEdit && (
                   <td className="px-3 py-3">
                     <div className="flex justify-end gap-1">
                       <Button
@@ -483,7 +486,7 @@ function ProductosTable({
               </div>
 
               {/* Acciones */}
-              {isAdmin && (
+              {canEdit && (
                 <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
                   <Button
                     type="button"

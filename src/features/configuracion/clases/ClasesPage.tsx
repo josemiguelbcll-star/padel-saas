@@ -60,9 +60,13 @@ function formatHorarioRango(horaInicio: string, duracionMin: number): string {
   return `${formatHora(horaInicio)}–${horaFin}`;
 }
 
+import { getPermiso } from '@/lib/permisos';
+
 export function ClasesPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit =
+    getPermiso(user, 'configuracion', 'editar') ||
+    getPermiso(user, 'reservas', 'editar');
 
   const clasesQuery = useClases();
   const canchasQuery = useCanchas();
@@ -121,7 +125,7 @@ export function ClasesPage() {
             la grilla del día y no son reservables como turno normal.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Agregar clase
@@ -132,7 +136,7 @@ export function ClasesPage() {
       <ClasesTable
         query={clasesQuery}
         canchasMap={canchasMap}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         onEdit={openEdit}
         onDelete={requestDelete}
       />
@@ -198,7 +202,7 @@ export function ClasesPage() {
 interface ClasesTableProps {
   query: ReturnType<typeof useClases>;
   canchasMap: Map<number, Cancha>;
-  isAdmin: boolean;
+  canEdit: boolean;
   onEdit: (c: ClaseConProfesor) => void;
   onDelete: (c: ClaseConProfesor) => void;
 }
@@ -206,7 +210,7 @@ interface ClasesTableProps {
 function ClasesTable({
   query,
   canchasMap,
-  isAdmin,
+  canEdit,
   onEdit,
   onDelete,
 }: ClasesTableProps) {
@@ -240,7 +244,7 @@ function ClasesTable({
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          {isAdmin
+          {canEdit
             ? 'Todavía no configuraste clases. Agregá una para reservar slots fijos en la grilla.'
             : 'El administrador todavía no configuró clases.'}
         </p>
@@ -260,7 +264,7 @@ function ClasesTable({
             <th className="px-3 py-2 font-medium">Duración</th>
             <th className="px-3 py-2 font-medium">Precio</th>
             <th className="px-3 py-2 font-medium">Estado</th>
-            {isAdmin && (
+            {canEdit && (
               <th className="w-1 px-3 py-2 text-right font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
@@ -314,7 +318,7 @@ function ClasesTable({
                     <span className="text-muted-foreground">Inactiva</span>
                   )}
                 </td>
-                {isAdmin && (
+                {canEdit && (
                   <td className="px-3 py-3">
                     <div className="flex justify-end gap-1">
                       <Button
