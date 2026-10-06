@@ -17,10 +17,11 @@ import {
 } from '@/features/configuracion/hooks/useProfesores';
 import type { Profesor } from '@/types/database';
 import { ProfesorFormDialog } from './ProfesorFormDialog';
+import { getPermiso } from '@/lib/permisos';
 
 export function ProfesoresPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
 
   const profesoresQuery = useProfesores();
   const deleteMutation = useDeleteProfesor();
@@ -72,7 +73,7 @@ export function ProfesoresPage() {
             la grilla.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Agregar profesor
@@ -82,7 +83,7 @@ export function ProfesoresPage() {
 
       <ProfesoresTable
         query={profesoresQuery}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         onEdit={openEdit}
         onDelete={requestDelete}
       />
@@ -148,14 +149,14 @@ export function ProfesoresPage() {
 
 interface ProfesoresTableProps {
   query: ReturnType<typeof useProfesores>;
-  isAdmin: boolean;
+  canEdit: boolean;
   onEdit: (p: Profesor) => void;
   onDelete: (p: Profesor) => void;
 }
 
 function ProfesoresTable({
   query,
-  isAdmin,
+  canEdit,
   onEdit,
   onDelete,
 }: ProfesoresTableProps) {
@@ -189,7 +190,7 @@ function ProfesoresTable({
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          {isAdmin
+          {canEdit
             ? 'Todavía no agregaste profesores. Cargá el primero para empezar a definir clases.'
             : 'El administrador todavía no agregó profesores.'}
         </p>
@@ -207,7 +208,7 @@ function ProfesoresTable({
             <th className="px-3 py-2 font-medium">Email</th>
             <th className="px-3 py-2 font-medium">Notas</th>
             <th className="px-3 py-2 font-medium">Estado</th>
-            {isAdmin && (
+            {canEdit && (
               <th className="w-1 px-3 py-2 text-right font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
@@ -249,7 +250,7 @@ function ProfesoresTable({
                   <span className="text-muted-foreground">Inactivo</span>
                 )}
               </td>
-              {isAdmin && (
+              {canEdit && (
                 <td className="px-3 py-3">
                   <div className="flex justify-end gap-1">
                     <Button

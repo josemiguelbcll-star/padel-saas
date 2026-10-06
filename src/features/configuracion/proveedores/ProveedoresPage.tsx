@@ -21,9 +21,13 @@ import {
 import type { Proveedor } from '@/types/database';
 import { ProveedorFormDialog } from './ProveedorFormDialog';
 
+import { getPermiso } from '@/lib/permisos';
+
 export function ProveedoresPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit =
+    getPermiso(user, 'configuracion', 'editar') ||
+    getPermiso(user, 'inventario', 'editar');
 
   const proveedoresQuery = useProveedores();
   const updateMutation = useUpdateProveedor();
@@ -94,7 +98,7 @@ export function ProveedoresPage() {
             módulo de compras.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Nuevo proveedor
@@ -163,7 +167,7 @@ export function ProveedoresPage() {
         query={proveedoresQuery}
         proveedores={visibles}
         totalSinFiltros={todos.length}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         toggling={updateMutation.isPending}
         onEdit={openEdit}
         onToggle={(p) => {
@@ -184,7 +188,7 @@ interface ProveedoresTableProps {
   query: ReturnType<typeof useProveedores>;
   proveedores: Proveedor[];
   totalSinFiltros: number;
-  isAdmin: boolean;
+  canEdit: boolean;
   toggling: boolean;
   onEdit: (p: Proveedor) => void;
   onToggle: (p: Proveedor) => void;
@@ -194,7 +198,7 @@ function ProveedoresTable({
   query,
   proveedores,
   totalSinFiltros,
-  isAdmin,
+  canEdit,
   toggling,
   onEdit,
   onToggle,
@@ -229,7 +233,7 @@ function ProveedoresTable({
         <Truck className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
         <p className="mt-2 text-sm text-muted-foreground">
           {totalSinFiltros === 0
-            ? isAdmin
+            ? canEdit
               ? 'Todavía no agregaste proveedores. Cargá el primero con "Nuevo proveedor" — solo el nombre es obligatorio.'
               : 'El administrador todavía no agregó proveedores.'
             : 'Ningún proveedor cumple los filtros actuales.'}
@@ -263,7 +267,7 @@ function ProveedoresTable({
               <th className="px-3 py-2 font-semibold">Contacto</th>
               <th className="px-3 py-2 font-semibold">Condiciones de pago</th>
               <th className="px-3 py-2 font-semibold">Estado</th>
-              {isAdmin && (
+              {canEdit && (
                 <th className="w-1 px-4 py-2 text-right">
                   <span className="sr-only">Acciones</span>
                 </th>
@@ -275,7 +279,7 @@ function ProveedoresTable({
               <ProveedorRow
                 key={p.id}
                 p={p}
-                isAdmin={isAdmin}
+                canEdit={canEdit}
                 toggling={toggling}
                 onEdit={() => onEdit(p)}
                 onToggle={() => onToggle(p)}
@@ -290,13 +294,13 @@ function ProveedoresTable({
 
 interface ProveedorRowProps {
   p: Proveedor;
-  isAdmin: boolean;
+  canEdit: boolean;
   toggling: boolean;
   onEdit: () => void;
   onToggle: () => void;
 }
 
-function ProveedorRow({ p, isAdmin, toggling, onEdit, onToggle }: ProveedorRowProps) {
+function ProveedorRow({ p, canEdit, toggling, onEdit, onToggle }: ProveedorRowProps) {
   return (
     <tr
       className={cn(
@@ -361,7 +365,7 @@ function ProveedorRow({ p, isAdmin, toggling, onEdit, onToggle }: ProveedorRowPr
           </span>
         )}
       </td>
-      {isAdmin && (
+      {canEdit && (
         <td className="px-4 py-3 align-top">
           <div className="flex justify-end gap-1">
             <Button

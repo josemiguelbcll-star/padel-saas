@@ -14,9 +14,13 @@ interface CategoriasAgrupadasItem {
   categorias: CategoriaGasto[];
 }
 
+import { getPermiso } from '@/lib/permisos';
+
 export function CategoriasGastoPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit =
+    getPermiso(user, 'configuracion', 'editar') ||
+    getPermiso(user, 'finanzas', 'editar');
 
   const unidadesQuery = useUnidadesNegocio();
   const catQuery = useCategoriasGasto();
@@ -60,7 +64,7 @@ export function CategoriasGastoPage() {
             cargar gastos — sin categoría, el form no permite registrar.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Nueva categoría
@@ -135,7 +139,7 @@ export function CategoriasGastoPage() {
                         </span>
                       )}
                     </div>
-                    {isAdmin && (
+                    {canEdit && (
                       <Button
                         type="button"
                         variant="ghost"

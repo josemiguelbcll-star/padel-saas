@@ -40,9 +40,12 @@ const nombreClubSchema = z
  *
  * Etapa 2 (futura): upload de logo via Storage.
  */
+import { getPermiso } from '@/lib/permisos';
+
 export function MarcaPage() {
   const { club, user } = useSession();
   const isAdmin = user?.rol === 'admin';
+  const canEdit = isAdmin || getPermiso(user, 'configuracion', 'editar');
   const mutation = useActualizarMarcaClub();
 
   const [nombre, setNombre] = useState<string>(club?.nombre ?? '');
@@ -133,14 +136,14 @@ export function MarcaPage() {
         </p>
       </header>
 
-      {!isAdmin && (
+      {!canEdit && (
         <div
           role="status"
           className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
         >
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
-            Solo el administrador del club puede editar la marca. Podés
+            Solo los usuarios con permiso de configuración pueden editar la marca. Podés
             verla pero no cambiarla.
           </span>
         </div>
@@ -160,7 +163,7 @@ export function MarcaPage() {
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              disabled={!isAdmin || cualquierMutacionEnCurso}
+              disabled={!canEdit || cualquierMutacionEnCurso}
               maxLength={120}
               placeholder="Padel Center"
               aria-invalid={nombreError !== null}
@@ -179,7 +182,7 @@ export function MarcaPage() {
           <Button
             type="submit"
             disabled={
-              !isAdmin || !nombreCambio || cualquierMutacionEnCurso
+              !canEdit || !nombreCambio || cualquierMutacionEnCurso
             }
           >
             {cualquierMutacionEnCurso && nombreCambio
@@ -205,7 +208,7 @@ export function MarcaPage() {
                 nombre={opcion.nombre}
                 hsl={opcion.hsl}
                 activo={activo}
-                disabled={!isAdmin || cualquierMutacionEnCurso}
+                disabled={!canEdit || cualquierMutacionEnCurso}
                 onClick={() => {
                   void handleElegirColor(opcion.hsl);
                 }}
@@ -238,7 +241,7 @@ export function MarcaPage() {
               e.target.value as CondicionFiscalClub,
             );
           }}
-          disabled={!isAdmin || cualquierMutacionEnCurso}
+          disabled={!canEdit || cualquierMutacionEnCurso}
           className={cn(
             'flex h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -264,7 +267,7 @@ export function MarcaPage() {
           clubId={club.id}
           logoPath={club.logo_path}
           nombreClub={club.nombre}
-          isAdmin={isAdmin}
+          canEdit={canEdit}
         />
       </section>
 
@@ -355,14 +358,14 @@ function LogoSection({
   clubId: _clubId,
   logoPath,
   nombreClub,
-  isAdmin,
+  canEdit,
 }: {
   // Recibido por simetría con futuras extensiones (ej. crop/resize).
   // No se usa directamente acá — el hook lee el clubId del SessionProvider.
   clubId: number;
   logoPath: string | null;
   nombreClub: string;
-  isAdmin: boolean;
+  canEdit: boolean;
 }) {
   const subirMutation = useSubirLogoClub();
   const quitarMutation = useQuitarLogoClub();
@@ -444,7 +447,7 @@ function LogoSection({
                 : 'Sin logo subido. Por ahora se muestra solo el nombre del club.'}
           </p>
 
-          {isAdmin && !confirmingQuitar && (
+          {canEdit && !confirmingQuitar && (
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"

@@ -25,9 +25,13 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 });
 
+import { getPermiso } from '@/lib/permisos';
+
 export function TesoreriaPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit =
+    getPermiso(user, 'configuracion', 'editar') ||
+    getPermiso(user, 'finanzas', 'editar');
 
   const cuentasQuery = useCuentas();
   const actualizarMutation = useActualizarCuenta();
@@ -78,7 +82,7 @@ export function TesoreriaPage() {
             quedó.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Nueva cuenta
@@ -110,7 +114,7 @@ export function TesoreriaPage() {
       <CuentasTable
         query={cuentasQuery}
         cuentas={cuentas}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         toggling={actualizarMutation.isPending}
         onEdit={openEdit}
         onToggle={(c) => {
@@ -118,7 +122,7 @@ export function TesoreriaPage() {
         }}
       />
 
-      <MediosCuentaSection cuentas={cuentas} isAdmin={isAdmin} />
+      <MediosCuentaSection cuentas={cuentas} isAdmin={canEdit} />
 
       <CuentaFormDialog
         open={formOpen}
@@ -132,7 +136,7 @@ export function TesoreriaPage() {
 interface CuentasTableProps {
   query: ReturnType<typeof useCuentas>;
   cuentas: CuentaConSaldo[];
-  isAdmin: boolean;
+  canEdit: boolean;
   toggling: boolean;
   onEdit: (c: CuentaConSaldo) => void;
   onToggle: (c: CuentaConSaldo) => void;
@@ -141,7 +145,7 @@ interface CuentasTableProps {
 function CuentasTable({
   query,
   cuentas,
-  isAdmin,
+  canEdit,
   toggling,
   onEdit,
   onToggle,
@@ -175,7 +179,7 @@ function CuentasTable({
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <Wallet className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
         <p className="mt-2 text-sm text-muted-foreground">
-          {isAdmin
+          {canEdit
             ? 'Agregá las cuentas del club con "Nueva cuenta" (Efectivo ya debería estar; sumá tus bancos y billeteras).'
             : 'El administrador todavía no configuró las cuentas del club.'}
         </p>
@@ -193,7 +197,7 @@ function CuentasTable({
               <th className="px-3 py-2 font-semibold">Tipo</th>
               <th className="px-3 py-2 text-right font-semibold">Saldo inicial</th>
               <th className="px-3 py-2 font-semibold">Estado</th>
-              {isAdmin && (
+              {canEdit && (
                 <th className="w-1 px-4 py-2 text-right">
                   <span className="sr-only">Acciones</span>
                 </th>
@@ -205,7 +209,7 @@ function CuentasTable({
               <CuentaRow
                 key={c.id}
                 c={c}
-                isAdmin={isAdmin}
+                canEdit={canEdit}
                 toggling={toggling}
                 onEdit={() => onEdit(c)}
                 onToggle={() => onToggle(c)}
@@ -220,13 +224,13 @@ function CuentasTable({
 
 interface CuentaRowProps {
   c: CuentaConSaldo;
-  isAdmin: boolean;
+  canEdit: boolean;
   toggling: boolean;
   onEdit: () => void;
   onToggle: () => void;
 }
 
-function CuentaRow({ c, isAdmin, toggling, onEdit, onToggle }: CuentaRowProps) {
+function CuentaRow({ c, canEdit, toggling, onEdit, onToggle }: CuentaRowProps) {
   return (
     <tr
       className={cn(
@@ -276,7 +280,7 @@ function CuentaRow({ c, isAdmin, toggling, onEdit, onToggle }: CuentaRowProps) {
           </span>
         )}
       </td>
-      {isAdmin && (
+      {canEdit && (
         <td className="px-4 py-3 align-top">
           <div className="flex justify-end gap-1">
             <Button

@@ -37,10 +37,13 @@ function useFotosClub(clubId: number | undefined) {
 
 // ── Página ──────────────────────────────────────────────────────────────────
 
+import { getPermiso } from '@/lib/permisos';
+
 export function PerfilPublicoPage() {
   const { club, user, updateClub } = useSession();
   const queryClient = useQueryClient();
   const isAdmin = user?.rol === 'admin';
+  const canEdit = isAdmin || getPermiso(user, 'configuracion', 'editar');
 
   // Form local state (inicializado del club actual)
   const [descripcion, setDescripcion] = useState(club?.descripcion ?? '');
@@ -404,7 +407,7 @@ export function PerfilPublicoPage() {
             type="button"
             variant={perfilActivo ? 'default' : 'outline'}
             size="sm"
-            disabled={!isAdmin || togglePublico.isPending}
+            disabled={!canEdit || togglePublico.isPending}
             onClick={() => togglePublico.mutate(!perfilActivo)}
           >
             {togglePublico.isPending
@@ -442,7 +445,7 @@ export function PerfilPublicoPage() {
                 placeholder="Contanos quiénes son, qué ofrecen, qué hace especial a tu club…"
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                disabled={!isAdmin}
+                disabled={!canEdit}
               />
             </div>
 
@@ -454,7 +457,7 @@ export function PerfilPublicoPage() {
                   placeholder="clubpadelnorte"
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
-                  disabled={!isAdmin}
+                  disabled={!canEdit}
                 />
               </div>
               <div className="space-y-2">
@@ -465,7 +468,7 @@ export function PerfilPublicoPage() {
                   placeholder="https://mipagina.com.ar"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
-                  disabled={!isAdmin}
+                  disabled={!canEdit}
                 />
               </div>
             </div>
@@ -493,7 +496,7 @@ export function PerfilPublicoPage() {
                   setCoordsRaw(e.target.value);
                   setCoordsError(null);
                 }}
-                disabled={!isAdmin}
+                disabled={!canEdit}
                 className={coordsError ? 'border-destructive' : ''}
               />
               {coordsError && (
@@ -519,7 +522,7 @@ export function PerfilPublicoPage() {
                 type="checkbox"
                 checked={depositoObligatorio}
                 onChange={(e) => setDepositoObligatorio(e.target.checked)}
-                disabled={!isAdmin}
+                disabled={!canEdit}
                 className="h-4 w-4"
               />
               <Label htmlFor="deposito-obligatorio">Obligar pago de seña al reservar</Label>
@@ -537,7 +540,7 @@ export function PerfilPublicoPage() {
                         value="porcentaje"
                         checked={depositoTipo === 'porcentaje'}
                         onChange={() => setDepositoTipo('porcentaje')}
-                        disabled={!isAdmin}
+                        disabled={!canEdit}
                         className="h-4 w-4"
                       />
                       Porcentaje del total (%)
@@ -549,7 +552,7 @@ export function PerfilPublicoPage() {
                         value="fijo"
                         checked={depositoTipo === 'fijo'}
                         onChange={() => setDepositoTipo('fijo')}
-                        disabled={!isAdmin}
+                        disabled={!canEdit}
                         className="h-4 w-4"
                       />
                       Monto fijo ($)
@@ -568,7 +571,7 @@ export function PerfilPublicoPage() {
                     max={depositoTipo === 'porcentaje' ? 100 : undefined}
                     value={depositoValor}
                     onChange={(e) => setDepositoValor(e.target.value)}
-                    disabled={!isAdmin}
+                    disabled={!canEdit}
                     placeholder={depositoTipo === 'porcentaje' ? '50' : '3000'}
                   />
                 </div>
@@ -581,7 +584,7 @@ export function PerfilPublicoPage() {
                 id="transferencia-alias"
                 value={transferenciaAlias}
                 onChange={(e) => setTransferenciaAlias(e.target.value)}
-                disabled={!isAdmin}
+                disabled={!canEdit}
                 placeholder="Alias o CBU del club (p.ej. alias@banco)"
               />
             </div>
@@ -605,7 +608,7 @@ export function PerfilPublicoPage() {
                       <span className="flex h-2 w-2 rounded-full bg-green-500" />
                       <p className="text-sm font-semibold text-green-800">Conectado a Mercado Pago</p>
                     </div>
-                    {isAdmin && (
+                    {canEdit && (
                       <Button
                         type="button"
                         variant="destructive"
@@ -636,7 +639,7 @@ export function PerfilPublicoPage() {
                     </p>
                   </div>
 
-                  {isAdmin && (
+                  {canEdit && (
                     <Button
                       type="button"
                       disabled={connectingMP}
@@ -663,7 +666,7 @@ export function PerfilPublicoPage() {
           <p className="text-sm text-destructive">{saveError}</p>
         )}
 
-        {isAdmin && (
+        {canEdit && (
           <div className="flex justify-end">
             <Button type="submit" disabled={guardarInfo.isPending}>
               {guardarInfo.isPending ? 'Guardando…' : 'Guardar información'}
@@ -673,7 +676,7 @@ export function PerfilPublicoPage() {
       </form>
 
       {/* ── Fotos ── */}
-      {isAdmin && (
+      {canEdit && (
         <section className="space-y-4 rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between">
             <div>
