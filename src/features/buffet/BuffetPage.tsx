@@ -12,7 +12,6 @@ import {
   useCargarConsumoMesa,
   useQuitarConsumoMesa,
 } from './hooks/useMesasBuffet';
-import { CerrarMesaDialog } from './CerrarMesaDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -467,14 +466,19 @@ export function BuffetPage() {
       />
 
       {/* Table billing dialog */}
-      <CerrarMesaDialog
+      <CerrarVentaDialog
         open={cerrarMesaOpen}
         onOpenChange={setCerrarMesaOpen}
         mesa={selectedMesa}
+        items={itemsMesa}
+        total={totalMesa}
         onSuccess={(venta) => {
           setCerrarMesaOpen(false);
           setSelectedMesaId(null);
-          setLastSale({ total: venta.monto_total, msg: `${selectedMesa?.nombre} cobrada con éxito por` });
+          setLastSale({
+            total: venta.monto_total,
+            msg: `${selectedMesa?.nombre ?? 'Mesa'} cobrada con éxito por`,
+          });
         }}
       />
 

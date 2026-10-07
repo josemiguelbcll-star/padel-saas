@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type FormEvent } from 'react';
+import { useState, useMemo, useEffect, useRef, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,23 +11,31 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import type { MedioPago, Venta } from '@/types/database';
+import type { Jugador, MedioPago, Venta } from '@/types/database';
 import { useJugadores } from '@/features/reservas/hooks/useJugadores';
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import {
   useCerrarVenta,
   type CerrarVentaItem,
   type CerrarVentaPagoItem,
 } from './hooks/useCerrarVenta';
+import type { BuffetMesa } from './hooks/useMesasBuffet';
 import type { VentaItemEnriquecido } from './VentaActual';
 import {
   CheckCircle2,
   AlertCircle,
-  Plus,
   Trash2,
   Split,
   CreditCard,
   Sparkles,
+  User,
+  Ticket,
+  UtensilsCrossed,
+  Equal,
+  Search,
+  X,
 } from 'lucide-react';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
@@ -63,14 +71,170 @@ function mapCuentaTipoToMedio(tipo: string): MedioPago {
   return 'otro';
 }
 
-interface CerrarVentaDialogProps {
+function calcularPartesIguales(total: number, count: number): number[] {
+  if (count <= 0) return [];
+  const base = Math.floor((total / count) * 100) / 100;
+  const resto = Number((total - base * count).toFixed(2));
+  const centavosRestantes = Math.round(resto * 100);
+
+  return Array.from({ length: count }, (_, i) => {
+    const extra = i < centavosRestantes ? 0.01 : 0;
+    return Number((base + extra).toFixed(2));
+  });
+}
+
+export type TipoPersonaPago = 'general' | 'jugador' | 'invitado';
+export type ModalidadPagoPersona = 'productos' | 'monto';
+
+export interface PersonaCobro {
+  id: string;
+  tipo: TipoPersonaPago;
+  jugador: Jugador | null;
+  nombreInvitado: string;
+  modalidad: ModalidadPagoPersona;
+  productosAsignados: Record<number, number>; // productoId -> cantidad asignada
+  montoManual: string;
+  medioPago: MedioPago;
+  cuentaId: number | null;
+}
+
+export interface CerrarVentaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: VentaItemEnriquecido[];
   total: number;
-  /** Se llama tras un cierre exitoso con la venta creada. El padre limpia
-   *  el carrito y muestra el mensaje de "venta registrada". */
+  mesa?: BuffetMesa | null;
   onSuccess: (venta: Venta) => void;
+}
+
+/**
+ * Componente interactivo para buscar y escribir el nombre de un jugador
+ * en tiempo real sin usar un selector estático HTML.
+ */
+function JugadorSearchInput({
+  jugador,
+  onSelect,
+  jugadores,
+  disabled,
+}: {
+  jugador: Jugador | null;
+  onSelect: (j: Jugador | null) => void;
+  jugadores: Jugador[];
+  disabled?: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return jugadores
+      .filter((j) => {
+        const nom = j.nombre.toLowerCase();
+        const tel = j.telefono?.toLowerCase() ?? '';
+        return nom.includes(q) || tel.includes(q);
+      })
+      .slice(0, 8);
+  }, [query, jugadores]);
+
+  if (jugador) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
+        <div className="flex items-center gap-1.5 truncate">
+          <User className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="font-semibold text-foreground truncate">{jugador.nombre}</span>
+          {jugador.telefono && (
+            <span className="text-muted-foreground text-[11px] shrink-0">({jugador.telefono})</span>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            onSelect(null);
+            setQuery('');
+            setIsOpen(true);
+          }}
+          disabled={disabled}
+          className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          Cambiar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          placeholder="Escribí para buscar jugador por nombre o tel…"
+          className="h-8 pl-8 pr-7 text-xs"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery('');
+              setIsOpen(false);
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      {isOpen && query.trim().length > 0 && (
+        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+          {matches.length > 0 ? (
+            matches.map((j) => (
+              <button
+                key={j.id}
+                type="button"
+                onClick={() => {
+                  onSelect(j);
+                  setQuery('');
+                  setIsOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus:bg-muted focus:outline-none transition-colors"
+              >
+                <span className="font-medium truncate">{j.nombre}</span>
+                {j.telefono && (
+                  <span className="text-[10px] text-muted-foreground shrink-0">{j.telefono}</span>
+                )}
+              </button>
+            ))
+          ) : (
+            <div className="p-2 text-center text-[11px] text-muted-foreground">
+              No se encontraron jugadores con "{query}"
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function CerrarVentaDialog({
@@ -78,16 +242,17 @@ export function CerrarVentaDialog({
   onOpenChange,
   items,
   total,
+  mesa,
   onSuccess,
 }: CerrarVentaDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <CerrarVentaBody
-          // Remount cada vez que se abre: medio/observaciones/error arrancan limpios.
-          key={open ? 'open' : 'closed'}
+          key={open ? (mesa ? `mesa-${mesa.id}` : 'venta-open') : 'closed'}
           items={items}
           total={total}
+          mesa={mesa}
           onSuccess={onSuccess}
           onCancel={() => onOpenChange(false)}
         />
@@ -99,162 +264,272 @@ export function CerrarVentaDialog({
 interface CerrarVentaBodyProps {
   items: VentaItemEnriquecido[];
   total: number;
+  mesa?: BuffetMesa | null;
   onSuccess: (venta: Venta) => void;
   onCancel: () => void;
-}
-
-interface PartePagoForm {
-  id: string;
-  medio_pago: MedioPago;
-  cuenta_id?: number | null;
-  monto: string;
-  jugador_id?: number | null;
 }
 
 function CerrarVentaBody({
   items,
   total,
+  mesa,
   onSuccess,
   onCancel,
 }: CerrarVentaBodyProps) {
-  const [esPagoMixto, setEsPagoMixto] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Siempre se puede dividir entre personas (1 o más) o usar pago único
+  const [esPagoMixto, setEsPagoMixto] = useState<boolean>(() => {
+    return !!mesa || items.length > 1;
+  });
+
   const [medio, setMedio] = useState<MedioPago>('efectivo');
   const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
   const [obs, setObs] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [jugadorId, setJugadorId] = useState<number | null>(null);
+
+  // Estado para asignación de persona en Pago Único
+  const [singlePersonaTipo, setSinglePersonaTipo] = useState<TipoPersonaPago>('general');
+  const [singleJugador, setSingleJugador] = useState<Jugador | null>(null);
+  const [singleNombreInvitado, setSingleNombreInvitado] = useState('');
 
   const cuentasQuery = useCuentas();
+  // Ordenar cuentas priorizando Caja Física / Efectivo al tope
   const cuentasActivas = useMemo(() => {
-    return (cuentasQuery.data ?? []).filter((c) => c.activa);
+    const list = (cuentasQuery.data ?? []).filter((c) => c.activa);
+    return [...list].sort((a, b) => {
+      if (a.es_caja_fisica || a.tipo === 'efectivo') return -1;
+      if (b.es_caja_fisica || b.tipo === 'efectivo') return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
   }, [cuentasQuery.data]);
 
-  // Estado para pagos divididos (inicializado con cuentas del club si existen)
-  const [partes, setPartes] = useState<PartePagoForm[]>([
-    { id: '1', medio_pago: 'transferencia', cuenta_id: null, monto: '' },
-    { id: '2', medio_pago: 'efectivo', cuenta_id: null, monto: '' },
-  ]);
-
-  useEffect(() => {
-    if (cuentasActivas.length > 0) {
-      if (selectedCuentaId === null) {
-        const def =
-          cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ??
-          cuentasActivas[0];
-        if (def) {
-          setSelectedCuentaId(def.id);
-          setMedio(mapCuentaTipoToMedio(def.tipo));
-        }
-      }
-
-      setPartes((prev) => {
-        // Si las partes aún no tienen cuenta asignada, vincularlas a las cuentas del club
-        const c0 = cuentasActivas[0];
-        const c1 = cuentasActivas[1];
-        const p0 = prev[0];
-        const p1 = prev[1];
-        if (c0 && c1 && p0 && p1 && !p0.cuenta_id && !p1.cuenta_id) {
-          return [
-            {
-              id: '1',
-              medio_pago: mapCuentaTipoToMedio(c0.tipo),
-              cuenta_id: c0.id,
-              monto: p0.monto,
-            },
-            {
-              id: '2',
-              medio_pago: mapCuentaTipoToMedio(c1.tipo),
-              cuenta_id: c1.id,
-              monto: p1.monto,
-            },
-          ];
-        }
-        return prev;
-      });
-    }
-  }, [cuentasActivas, selectedCuentaId]);
+  const cuentaEfectivo = useMemo(() => {
+    return (
+      cuentasActivas.find((c) => c.es_caja_fisica || c.tipo === 'efectivo') ??
+      cuentasActivas[0] ??
+      null
+    );
+  }, [cuentasActivas]);
 
   const jugadoresQuery = useJugadores();
   const jugadores = jugadoresQuery.data ?? [];
 
+  // Pre-vincular el nombre de la mesa si coincide con un jugador registrado
+  const mesaJugadorMatch = useMemo(() => {
+    if (!mesa?.nombre) return null;
+    const clean = mesa.nombre.trim().toLowerCase();
+    return jugadores.find((j) => j.nombre.trim().toLowerCase() === clean) ?? null;
+  }, [mesa?.nombre, jugadores]);
+
+  // Lista de Personas / Pagadores en modo dividido (arranca en Efectivo)
+  const [personas, setPersonas] = useState<PersonaCobro[]>(() => {
+    const halves = calcularPartesIguales(total, 2);
+
+    const p1Jugador = mesaJugadorMatch;
+    const p1Tipo: TipoPersonaPago = p1Jugador ? 'jugador' : mesa?.nombre ? 'invitado' : 'general';
+    const p1NombreInvitado = p1Jugador ? '' : mesa?.nombre ? mesa.nombre : 'Invitado 1';
+
+    return [
+      {
+        id: '1',
+        tipo: p1Tipo,
+        jugador: p1Jugador,
+        nombreInvitado: p1NombreInvitado,
+        modalidad: items.length > 1 ? 'productos' : 'monto',
+        productosAsignados: {},
+        montoManual: (halves[0] ?? 0) > 0 ? String(halves[0]) : '',
+        medioPago: 'efectivo',
+        cuentaId: null,
+      },
+      {
+        id: '2',
+        tipo: 'invitado',
+        jugador: null,
+        nombreInvitado: 'Invitado 2',
+        modalidad: items.length > 1 ? 'productos' : 'monto',
+        productosAsignados: {},
+        montoManual: (halves[1] ?? 0) > 0 ? String(halves[1]) : '',
+        medioPago: 'efectivo',
+        cuentaId: null,
+      },
+    ];
+  });
+
+  // Vincular con cuentas activas cuando carguen, asegurando que el default sea EFECTIVO
+  useEffect(() => {
+    if (cuentasActivas.length > 0) {
+      const defCaja = cuentaEfectivo ?? cuentasActivas[0];
+      if (selectedCuentaId === null && defCaja) {
+        setSelectedCuentaId(defCaja.id);
+        setMedio(mapCuentaTipoToMedio(defCaja.tipo));
+      }
+
+      setPersonas((prev) => {
+        return prev.map((p) => {
+          if (p.cuentaId) return p;
+          return {
+            ...p,
+            medioPago: defCaja ? mapCuentaTipoToMedio(defCaja.tipo) : 'efectivo',
+            cuentaId: defCaja ? defCaja.id : null,
+          };
+        });
+      });
+    }
+  }, [cuentasActivas, cuentaEfectivo, selectedCuentaId]);
+
+  // Si mesaJugadorMatch aparece luego de cargar jugadores, actualizar Persona 1 si estaba vacía
+  useEffect(() => {
+    if (mesaJugadorMatch) {
+      setPersonas((prev) => {
+        const p0 = prev[0];
+        if (p0 && p0.tipo !== 'jugador' && !p0.jugador) {
+          return prev.map((p, i) => (i === 0 ? { ...p, tipo: 'jugador', jugador: mesaJugadorMatch } : p));
+        }
+        return prev;
+      });
+    }
+  }, [mesaJugadorMatch]);
+
   const cerrarMutation = useCerrarVenta();
   const isPending = cerrarMutation.isPending;
 
-  // Cálculos para pago dividido
-  const sumaPartes = partes.reduce((acc, p) => {
-    const val = parseFloat(p.monto.replace(',', '.'));
-    return acc + (isNaN(val) ? 0 : val);
-  }, 0);
+  // ── Cálculo del monto de cada persona según su modalidad ────────────
+  function getMontoPersona(p: PersonaCobro): number {
+    if (p.modalidad === 'productos') {
+      return items.reduce((sum, item) => {
+        const cant = p.productosAsignados[item.producto.id] || 0;
+        return sum + cant * item.producto.precio;
+      }, 0);
+    }
+    const val = parseFloat(p.montoManual.replace(',', '.'));
+    return isNaN(val) ? 0 : val;
+  }
+
+  const sumaPartes = useMemo(() => {
+    return personas.reduce((acc, p) => acc + getMontoPersona(p), 0);
+  }, [personas, items]);
 
   const diferencia = Number((total - sumaPartes).toFixed(2));
   const totalExacto = Math.abs(diferencia) < 0.01;
 
-  function handleAutoCompletarResto(parteId: string) {
-    // Calcula cuánto falta sumar sin contar la parte actual
-    const sumaOtras = partes
-      .filter((p) => p.id !== parteId)
-      .reduce((acc, p) => {
-        const val = parseFloat(p.monto.replace(',', '.'));
-        return acc + (isNaN(val) ? 0 : val);
-      }, 0);
+  // Conteo de productos asignados entre todos
+  const productosAsignadosTotal = useMemo(() => {
+    const mapa: Record<number, number> = {};
+    for (const p of personas) {
+      if (p.modalidad === 'productos') {
+        for (const [prodIdStr, cant] of Object.entries(p.productosAsignados)) {
+          const id = Number(prodIdStr);
+          mapa[id] = (mapa[id] || 0) + cant;
+        }
+      }
+    }
+    return mapa;
+  }, [personas]);
+
+  // ── Handlers de división y autocompletar ─────────────────────────────
+
+  function handleAutoCompletarResto(personaId: string) {
+    const sumaOtras = personas
+      .filter((p) => p.id !== personaId)
+      .reduce((acc, p) => acc + getMontoPersona(p), 0);
 
     const restante = Math.max(0, Number((total - sumaOtras).toFixed(2)));
-    setPartes((prev) =>
-      prev.map((p) => (p.id === parteId ? { ...p, monto: restante.toString() } : p)),
+    setPersonas((prev) =>
+      prev.map((p) =>
+        p.id === personaId
+          ? { ...p, modalidad: 'monto', montoManual: restante.toString() }
+          : p,
+      ),
     );
   }
 
-  function handleAgregarParte() {
-    // Buscar si hay cuentas del club no usadas aún
-    const cuentasUsadas = new Set(partes.map((p) => p.cuenta_id).filter(Boolean));
-    const siguienteCuenta = cuentasActivas.find((c) => !cuentasUsadas.has(c.id));
+  function handleDividirEnPartes(n: number) {
+    if (n < 1) return;
+    const montos = calcularPartesIguales(total, n);
+    const defCaja = cuentaEfectivo ?? cuentasActivas[0];
 
+    setPersonas((prev) => {
+      const nuevas: PersonaCobro[] = [];
+      for (let i = 0; i < n; i++) {
+        const existente = prev[i];
+        if (existente) {
+          nuevas.push({
+            ...existente,
+            modalidad: 'monto',
+            montoManual: montos[i]?.toString() ?? '0',
+          });
+        } else {
+          nuevas.push({
+            id: String(Date.now() + i),
+            tipo: 'invitado',
+            jugador: null,
+            nombreInvitado: `Invitado ${i + 1}`,
+            modalidad: 'monto',
+            productosAsignados: {},
+            montoManual: montos[i]?.toString() ?? '0',
+            medioPago: defCaja ? mapCuentaTipoToMedio(defCaja.tipo) : 'efectivo',
+            cuentaId: defCaja ? defCaja.id : null,
+          });
+        }
+      }
+      return nuevas;
+    });
+  }
+
+  function handleDividirPartesIguales() {
+    if (personas.length === 0) return;
+    const montos = calcularPartesIguales(total, personas.length);
+    setPersonas((prev) =>
+      prev.map((p, idx) => ({
+        ...p,
+        modalidad: 'monto',
+        montoManual: montos[idx]?.toString() ?? '0',
+      })),
+    );
+  }
+
+  function handleAgregarPersona(tipo: TipoPersonaPago) {
+    const defCaja = cuentaEfectivo ?? cuentasActivas[0];
     const restante = Math.max(0, diferencia);
+    const countInvitados = personas.filter((p) => p.tipo === 'invitado').length;
 
-    if (siguienteCuenta) {
-      setPartes((prev) => [
-        ...prev,
-        {
-          id: String(Date.now()),
-          medio_pago: mapCuentaTipoToMedio(siguienteCuenta.tipo),
-          cuenta_id: siguienteCuenta.id,
-          monto: restante > 0 ? restante.toString() : '',
-        },
-      ]);
-    } else {
-      const usados = new Set(partes.map((p) => p.medio_pago));
-      const proximoMedio =
-        MEDIOS_PAGO_LIST.find((m) => !usados.has(m) && m !== 'cuenta_corriente') ?? 'otro';
-
-      setPartes((prev) => [
-        ...prev,
-        {
-          id: String(Date.now()),
-          medio_pago: proximoMedio,
-          cuenta_id: null,
-          monto: restante > 0 ? restante.toString() : '',
-        },
-      ]);
-    }
+    setPersonas((prev) => [
+      ...prev,
+      {
+        id: String(Date.now()),
+        tipo,
+        jugador: null,
+        nombreInvitado: tipo === 'invitado' ? `Invitado ${countInvitados + 1}` : '',
+        modalidad: items.length > 1 ? 'productos' : 'monto',
+        productosAsignados: {},
+        montoManual: restante > 0 ? restante.toString() : '',
+        medioPago: defCaja ? mapCuentaTipoToMedio(defCaja.tipo) : 'efectivo',
+        cuentaId: defCaja ? defCaja.id : null,
+      },
+    ]);
   }
 
-  function handleEliminarParte(id: string) {
-    if (partes.length <= 2) return;
-    setPartes((prev) => prev.filter((p) => p.id !== id));
+  function handleEliminarPersona(id: string) {
+    // Permitir eliminar hasta que quede 1 persona (no limitar a 2)
+    if (personas.length <= 1) return;
+    setPersonas((prev) => prev.filter((p) => p.id !== id));
   }
 
-  function handleUpdateParte(id: string, updates: Partial<PartePagoForm>) {
-    setPartes((prev) =>
+  function handleUpdatePersona(id: string, updates: Partial<PersonaCobro>) {
+    setPersonas((prev) =>
       prev.map((p) => (p.id === id ? { ...p, ...updates } : p)),
     );
   }
+
+  // ── Envío del formulario ────────────────────────────────────────────
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setError(null);
 
     if (items.length === 0) {
-      setError('La venta está vacía.');
+      setError('No hay productos cargados para cobrar.');
       return;
     }
 
@@ -264,52 +539,116 @@ function CerrarVentaBody({
     }));
 
     if (esPagoMixto) {
-      // Validaciones pago mixto
-      if (partes.length < 2) {
-        setError('Debes ingresar al menos 2 medios de pago.');
+      // Permitir 1 o más personas sin forzar a mínimo 2
+      if (personas.length === 0) {
+        setError('Debes ingresar al menos 1 persona o pago para registrar la venta.');
         return;
       }
 
-      for (let i = 0; i < partes.length; i++) {
-        const p = partes[i];
+      for (let i = 0; i < personas.length; i++) {
+        const p = personas[i];
         if (!p) continue;
-        const montoNum = parseFloat(p.monto.replace(',', '.'));
-        if (isNaN(montoNum) || montoNum <= 0) {
-          const label = p.cuenta_id
-            ? cuentasActivas.find((c) => c.id === p.cuenta_id)?.nombre ?? MEDIO_PAGO_LABEL[p.medio_pago]
-            : MEDIO_PAGO_LABEL[p.medio_pago];
-          setError(`El importe del pago #${i + 1} (${label}) debe ser mayor a 0.`);
+        const montoNum = getMontoPersona(p);
+
+        if (montoNum <= 0) {
+          const nombreLabel =
+            p.tipo === 'jugador'
+              ? p.jugador?.nombre ?? `Jugador #${i + 1}`
+              : p.tipo === 'invitado'
+                ? p.nombreInvitado.trim() || `Invitado #${i + 1}`
+                : `Persona #${i + 1}`;
+          setError(`El importe de ${nombreLabel} debe ser mayor a 0. Elegí productos o ingresá un monto.`);
           return;
         }
-        if (p.medio_pago === 'cuenta_corriente' && !p.jugador_id && !jugadorId) {
-          setError(`Seleccioná un cliente para el pago con Cuenta Corriente (#${i + 1}).`);
-          return;
+
+        if (p.medioPago === 'cuenta_corriente') {
+          if (p.tipo !== 'jugador' || !p.jugador) {
+            setError(`El cobro #${i + 1} con Cuenta Corriente requiere seleccionar un jugador registrado.`);
+            return;
+          }
         }
       }
 
       if (!totalExacto) {
         if (diferencia > 0) {
-          setError(`Faltan asignar ${currencyFmt.format(diferencia)} para cubrir el total.`);
+          setError(`Faltan asignar ${currencyFmt.format(diferencia)} para cubrir el total de la mesa.`);
         } else {
-          setError(`La suma de los pagos supera el total por ${currencyFmt.format(Math.abs(diferencia))}.`);
+          setError(`La suma de los cobros supera el total por ${currencyFmt.format(Math.abs(diferencia))}.`);
         }
         return;
       }
 
-      const rpcPagos: CerrarVentaPagoItem[] = partes.map((p) => ({
-        medio_pago: p.medio_pago,
-        monto: Number(parseFloat(p.monto.replace(',', '.')).toFixed(2)),
-        cuenta_id: p.cuenta_id ?? null,
+      const rpcPagos: CerrarVentaPagoItem[] = personas.map((p) => ({
+        medio_pago: p.medioPago,
+        monto: Number(getMontoPersona(p).toFixed(2)),
+        cuenta_id: p.cuentaId ?? null,
+        jugador_id: p.tipo === 'jugador' ? p.jugador?.id ?? null : null,
       }));
+
+      // Resumen descriptivo de los pagadores en las observaciones para comprobantes/auditoría
+      const desglosePersonas = personas
+        .map((p, idx) => {
+          let nombre = 'General';
+          if (p.tipo === 'jugador') {
+            nombre = p.jugador?.nombre ?? 'Jugador';
+          } else if (p.tipo === 'invitado') {
+            nombre = p.nombreInvitado?.trim() || `Invitado ${idx + 1}`;
+          }
+
+          let detalle = '';
+          if (p.modalidad === 'productos') {
+            const prods = items
+              .filter((it) => (p.productosAsignados[it.producto.id] || 0) > 0)
+              .map((it) => `${p.productosAsignados[it.producto.id]}× ${it.producto.nombre}`)
+              .join(', ');
+            detalle = prods ? ` [${prods}]` : '';
+          }
+
+          const mLabel = p.cuentaId
+            ? cuentasActivas.find((c) => c.id === p.cuentaId)?.nombre ?? MEDIO_PAGO_LABEL[p.medioPago]
+            : MEDIO_PAGO_LABEL[p.medioPago];
+
+          return `${nombre}${detalle}: $${getMontoPersona(p)} (${mLabel})`;
+        })
+        .join(' | ');
+
+      const obsFinal = [
+        obs.trim() || null,
+        `[Desglose: ${desglosePersonas}]`,
+      ].filter(Boolean).join('\n');
+
+      const primerJugadorId = personas.find((p) => p.tipo === 'jugador')?.jugador?.id ?? null;
 
       try {
         const venta = await cerrarMutation.mutateAsync({
           items: rpcItems,
           medio_pago: 'mixto',
-          observaciones: obs.trim() === '' ? null : obs.trim(),
-          jugador_id: jugadorId,
+          observaciones: obsFinal,
+          jugador_id: primerJugadorId,
           pagos: rpcPagos,
         });
+
+        if (mesa) {
+          const { error: mesaErr } = await supabase
+            .from('buffet_mesas')
+            .update({
+              abierta: false,
+              cerrada_at: new Date().toISOString(),
+              venta_id: venta.id,
+            })
+            .eq('id', mesa.id);
+
+          if (mesaErr) {
+            console.error('Error cerrando mesa:', mesaErr);
+          }
+          void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
+        }
+
+        // Invalidar inmediatamente consultas de caja para reflejar los cobros
+        void queryClient.invalidateQueries({ queryKey: ['caja'] });
+        void queryClient.invalidateQueries({ queryKey: ['caja-movimientos'] });
+        void queryClient.invalidateQueries({ queryKey: ['caja-abierta-resumen'] });
+
         onSuccess(venta);
       } catch (err) {
         setError(
@@ -319,25 +658,56 @@ function CerrarVentaBody({
         );
       }
     } else {
-      // Validación pago único estándar
+      // Modo pago único (1 persona paga el total)
       if (!medio) {
         setError('Elegí un medio de pago.');
         return;
       }
-      if (medio === 'cuenta_corriente' && !jugadorId) {
-        setError('Elegí un cliente para la cuenta corriente.');
+      if (medio === 'cuenta_corriente' && !singleJugador) {
+        setError('Elegí un jugador registrado para debitar de su Cuenta Corriente.');
         return;
       }
+
+      let personaNota: string | null = null;
+      if (singlePersonaTipo === 'invitado' && singleNombreInvitado.trim()) {
+        personaNota = `[Cliente: Invitado (${singleNombreInvitado.trim()})]`;
+      } else if (singlePersonaTipo === 'jugador' && singleJugador) {
+        personaNota = `[Cliente: ${singleJugador.nombre}]`;
+      }
+
+      const obsFinal = [obs.trim() || null, personaNota].filter(Boolean).join('\n');
 
       try {
         const venta = await cerrarMutation.mutateAsync({
           items: rpcItems,
           medio_pago: medio,
           cuenta_id: selectedCuentaId ?? null,
-          observaciones: obs.trim() === '' ? null : obs.trim(),
-          jugador_id: medio === 'cuenta_corriente' ? jugadorId : null,
+          observaciones: obsFinal.trim() === '' ? null : obsFinal,
+          jugador_id: singlePersonaTipo === 'jugador' ? singleJugador?.id ?? null : null,
           pagos: null,
         });
+
+        if (mesa) {
+          const { error: mesaErr } = await supabase
+            .from('buffet_mesas')
+            .update({
+              abierta: false,
+              cerrada_at: new Date().toISOString(),
+              venta_id: venta.id,
+            })
+            .eq('id', mesa.id);
+
+          if (mesaErr) {
+            console.error('Error cerrando mesa:', mesaErr);
+          }
+          void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
+        }
+
+        // Invalidar inmediatamente consultas de caja para reflejar los cobros
+        void queryClient.invalidateQueries({ queryKey: ['caja'] });
+        void queryClient.invalidateQueries({ queryKey: ['caja-movimientos'] });
+        void queryClient.invalidateQueries({ queryKey: ['caja-abierta-resumen'] });
+
         onSuccess(venta);
       } catch (err) {
         setError(
@@ -353,19 +723,33 @@ function CerrarVentaBody({
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center justify-between">
-          <span>Cerrar venta</span>
+          <span className="flex items-center gap-2">
+            {mesa ? (
+              <>
+                <UtensilsCrossed className="h-5 w-5 text-primary shrink-0" />
+                <span>Cerrar mesa: {mesa.nombre}</span>
+              </>
+            ) : (
+              <span>Cerrar venta</span>
+            )}
+          </span>
           <span className="text-xl font-bold text-primary tabular-nums">
             {currencyFmt.format(total)}
           </span>
         </DialogTitle>
         <DialogDescription>
-          Elegí la modalidad de cobro para confirmar la transacción.
+          {mesa
+            ? 'Asigná productos o montos entre jugadores e invitados para cerrar la mesa.'
+            : 'Elegí la modalidad de cobro para confirmar la transacción.'}
         </DialogDescription>
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {/* Resumen de items del carrito */}
-        <div className="space-y-1 rounded-md border border-border bg-muted/20 p-2.5 text-xs max-h-32 overflow-y-auto">
+        {/* Resumen de items de la mesa / venta */}
+        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-2.5 text-xs max-h-32 overflow-y-auto">
+          <span className="text-[11px] font-semibold text-muted-foreground block">
+            Productos cargados ({items.length}):
+          </span>
           {items.map((item) => (
             <div
               key={item.producto.id}
@@ -381,8 +765,22 @@ function CerrarVentaBody({
           ))}
         </div>
 
-        {/* Selector de modo: Pago Único vs Dividir Pago */}
+        {/* Selector de modo principal */}
         <div className="flex rounded-lg bg-muted p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setEsPagoMixto(true)}
+            disabled={isPending}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 py-1.5 rounded-md font-medium transition-all',
+              esPagoMixto
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Split className="h-3.5 w-3.5 text-primary" />
+            Por personas (Productos o Montos)
+          </button>
           <button
             type="button"
             onClick={() => setEsPagoMixto(false)}
@@ -395,25 +793,482 @@ function CerrarVentaBody({
             )}
           >
             <CreditCard className="h-3.5 w-3.5" />
-            Pago único
-          </button>
-          <button
-            type="button"
-            onClick={() => setEsPagoMixto(true)}
-            disabled={isPending}
-            className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 py-1.5 rounded-md font-medium transition-all',
-              esPagoMixto
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Split className="h-3.5 w-3.5" />
-            Dividir pago (Mixto)
+            Cobro rápido (1 medio para todo)
           </button>
         </div>
 
-        {/* ── MODO PAGO ÚNICO ────────────────────────────────────────── */}
+        {/* ── MODO DIVIDIDO POR PERSONAS / PRODUCTOS ─────────────────── */}
+        {esPagoMixto && (
+          <div className="space-y-3">
+            {/* Barra de atajos para división rápida */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-border/50">
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-muted-foreground mr-1">
+                  Atajos:
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDividirEnPartes(1)}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px]"
+                  title="Una sola persona paga el total"
+                >
+                  1 persona
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDividirEnPartes(2)}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px]"
+                >
+                  2 personas
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDividirEnPartes(3)}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px]"
+                >
+                  3 personas
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDividirEnPartes(4)}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px]"
+                >
+                  4 personas
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDividirPartesIguales}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                  title="Repartir el total en partes iguales entre las filas actuales"
+                >
+                  <Equal className="h-3 w-3" />
+                  Iguales
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAgregarPersona('jugador')}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px] text-primary hover:bg-primary/10 gap-1"
+                >
+                  <User className="h-3 w-3" />
+                  + Jugador
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAgregarPersona('invitado')}
+                  disabled={isPending}
+                  className="h-6 px-2 text-[11px] text-primary hover:bg-primary/10 gap-1"
+                >
+                  <Ticket className="h-3 w-3" />
+                  + Invitado
+                </Button>
+              </div>
+            </div>
+
+            {/* Listado de tarjetas de personas */}
+            <div className="space-y-3">
+              {personas.map((p, index) => {
+                const montoPersona = getMontoPersona(p);
+                const subtotalProds = items.reduce((sum, item) => {
+                  const cant = p.productosAsignados[item.producto.id] || 0;
+                  return sum + cant * item.producto.precio;
+                }, 0);
+
+                const selectValue =
+                  p.medioPago === 'cuenta_corriente'
+                    ? 'cc'
+                    : p.cuentaId
+                      ? `cuenta_${p.cuentaId}`
+                      : `medio_${p.medioPago}`;
+
+                const sumaOtras = personas
+                  .filter((x) => x.id !== p.id)
+                  .reduce((acc, x) => acc + getMontoPersona(x), 0);
+                const faltaParaEsta = Math.max(0, Number((total - sumaOtras).toFixed(2)));
+                const puedeCompletar =
+                  p.modalidad === 'monto' &&
+                  faltaParaEsta > 0 &&
+                  Math.abs(montoPersona - faltaParaEsta) > 0.01;
+
+                return (
+                  <div
+                    key={p.id}
+                    className="p-3 rounded-xl border border-border bg-card/70 space-y-2.5 shadow-xs transition-all"
+                  >
+                    {/* Encabezado: Número, Tipo de persona y Botón Eliminar */}
+                    <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                          #{index + 1}
+                        </span>
+
+                        <div className="flex rounded-md bg-muted p-0.5 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdatePersona(p.id, {
+                                tipo: 'general',
+                                jugador: null,
+                                ...(p.medioPago === 'cuenta_corriente'
+                                  ? { medioPago: 'efectivo', cuentaId: cuentaEfectivo?.id ?? null }
+                                  : {}),
+                              })
+                            }
+                            className={cn(
+                              'px-2 py-0.5 rounded font-medium transition-all',
+                              p.tipo === 'general'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            General
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePersona(p.id, { tipo: 'jugador' })}
+                            className={cn(
+                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              p.tipo === 'jugador'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            <User className="h-3 w-3" />
+                            Jugador
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const defName = p.nombreInvitado || `Invitado ${index + 1}`;
+                              handleUpdatePersona(p.id, {
+                                tipo: 'invitado',
+                                nombreInvitado: defName,
+                                jugador: null,
+                                ...(p.medioPago === 'cuenta_corriente'
+                                  ? { medioPago: 'efectivo', cuentaId: cuentaEfectivo?.id ?? null }
+                                  : {}),
+                              });
+                            }}
+                            className={cn(
+                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              p.tipo === 'invitado'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            <Ticket className="h-3 w-3" />
+                            Invitado
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold tabular-nums text-primary">
+                          {currencyFmt.format(montoPersona)}
+                        </span>
+                        {personas.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEliminarPersona(p.id)}
+                            disabled={isPending}
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                            title="Eliminar este pagador"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Identificación de la Persona (Input de texto / Búsqueda en vivo) */}
+                    {p.tipo === 'jugador' && (
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground font-medium">
+                          Jugador (escribí el nombre):
+                        </Label>
+                        <JugadorSearchInput
+                          jugador={p.jugador}
+                          onSelect={(j) => handleUpdatePersona(p.id, { jugador: j })}
+                          jugadores={jugadores}
+                          disabled={isPending}
+                        />
+                      </div>
+                    )}
+
+                    {p.tipo === 'invitado' && (
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground font-medium">
+                          Nombre del invitado:
+                        </Label>
+                        <Input
+                          type="text"
+                          value={p.nombreInvitado}
+                          onChange={(e) => handleUpdatePersona(p.id, { nombreInvitado: e.target.value })}
+                          disabled={isPending}
+                          placeholder={`Invitado ${index + 1} (ej. Carlos, Amigo de Juan)`}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    )}
+
+                    {/* Selector de Modalidad: ¿Paga por productos o por monto? */}
+                    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/15 p-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          ¿Qué paga esta persona?
+                        </span>
+                        <div className="flex rounded-md bg-muted p-0.5 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePersona(p.id, { modalidad: 'productos' })}
+                            className={cn(
+                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              p.modalidad === 'productos'
+                                ? 'bg-background text-foreground shadow-xs font-semibold'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            <UtensilsCrossed className="h-3 w-3" />
+                            Por productos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdatePersona(p.id, {
+                                modalidad: 'monto',
+                                montoManual: subtotalProds > 0 ? subtotalProds.toString() : p.montoManual,
+                              });
+                            }}
+                            className={cn(
+                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              p.modalidad === 'monto'
+                                ? 'bg-background text-foreground shadow-xs font-semibold'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            <CreditCard className="h-3 w-3" />
+                            Por monto fijo
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Asignación de Productos */}
+                      {p.modalidad === 'productos' ? (
+                        <div className="space-y-1.5 pt-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {items.map((item) => {
+                              const cantAsignada = p.productosAsignados[item.producto.id] || 0;
+                              const isSelected = cantAsignada > 0;
+                              const asignadoOtros =
+                                (productosAsignadosTotal[item.producto.id] || 0) - cantAsignada;
+
+                              return (
+                                <button
+                                  key={item.producto.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const nuevaCant = isSelected ? 0 : item.cantidad;
+                                    const updated = {
+                                      ...p.productosAsignados,
+                                      [item.producto.id]: nuevaCant,
+                                    };
+                                    handleUpdatePersona(p.id, { productosAsignados: updated });
+                                  }}
+                                  disabled={isPending}
+                                  className={cn(
+                                    'flex items-center justify-between gap-1.5 rounded-md border p-2 text-xs text-left transition-all',
+                                    isSelected
+                                      ? 'border-primary bg-primary/10 text-foreground font-semibold shadow-2xs'
+                                      : 'border-border/60 bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                                  )}
+                                >
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <span
+                                      className={cn(
+                                        'h-4 w-4 rounded border flex items-center justify-center shrink-0 text-[10px]',
+                                        isSelected
+                                          ? 'border-primary bg-primary text-primary-foreground font-bold'
+                                          : 'border-muted-foreground/40 bg-background',
+                                      )}
+                                    >
+                                      {isSelected ? '✓' : ''}
+                                    </span>
+                                    <span className="truncate">
+                                      {item.cantidad}× {item.producto.nombre}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col items-end shrink-0">
+                                    <span className="tabular-nums font-semibold text-foreground text-[11px]">
+                                      {currencyFmt.format(item.subtotal)}
+                                    </span>
+                                    {asignadoOtros > 0 && !isSelected && (
+                                      <span className="text-[9px] text-amber-600 dark:text-amber-400">
+                                        (otro asignó)
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Asignación por Monto libre */
+                        <div className="flex items-center gap-2 pt-1">
+                          <div className="relative flex-1">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">
+                              $
+                            </span>
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={p.montoManual}
+                              onChange={(e) =>
+                                handleUpdatePersona(p.id, { montoManual: e.target.value })
+                              }
+                              disabled={isPending}
+                              placeholder="0.00"
+                              className="h-8 pl-6 pr-2 text-xs tabular-nums text-right font-semibold"
+                            />
+                          </div>
+                          {puedeCompletar && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAutoCompletarResto(p.id)}
+                              disabled={isPending}
+                              className="h-8 px-2 text-[11px] text-primary hover:bg-primary/10 gap-1 shrink-0"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Resto ({currencyFmt.format(faltaParaEsta)})
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Medio / Cuenta de cobro para esta persona */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">
+                        Cobrar con:
+                      </Label>
+                      <select
+                        value={selectValue}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'cc') {
+                            handleUpdatePersona(p.id, {
+                              medioPago: 'cuenta_corriente',
+                              cuentaId: null,
+                              tipo: 'jugador',
+                            });
+                          } else if (val.startsWith('cuenta_')) {
+                            const cid = Number(val.replace('cuenta_', ''));
+                            const c = cuentasActivas.find((acc) => acc.id === cid);
+                            handleUpdatePersona(p.id, {
+                              medioPago: c ? mapCuentaTipoToMedio(c.tipo) : 'otro',
+                              cuentaId: cid,
+                            });
+                          } else {
+                            const m = val.replace('medio_', '') as MedioPago;
+                            handleUpdatePersona(p.id, {
+                              medioPago: m,
+                              cuentaId: null,
+                            });
+                          }
+                        }}
+                        disabled={isPending}
+                        className="h-7.5 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
+                      >
+                        {cuentasActivas.length > 0 && (
+                          <optgroup label="Cuentas del club">
+                            {cuentasActivas.map((c) => (
+                              <option key={c.id} value={`cuenta_${c.id}`}>
+                                {c.tipo === 'efectivo' || c.es_caja_fisica ? '💵 ' : c.tipo === 'billetera' ? '📱 ' : '🏦 '}
+                                {c.nombre} ({c.tipo === 'billetera' ? 'MP / Digital' : c.tipo === 'banco' ? 'Banco' : c.tipo === 'efectivo' || c.es_caja_fisica ? 'Caja física' : 'Otro'})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Otros medios">
+                          <option value="cc">👤 Cuenta Corriente (Cliente)</option>
+                          {MEDIOS_PAGO_LIST.filter((m) => m !== 'cuenta_corriente').map((m) => (
+                            <option key={m} value={`medio_${m}`}>
+                              {MEDIO_PAGO_LABEL[m]} (General)
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    {p.medioPago === 'cuenta_corriente' && (!p.jugador || p.tipo !== 'jugador') && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        * Seleccioná un jugador registrado arriba para debitar en Cuenta Corriente.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Panel de balance / Estado de cobertura */}
+            <div className="rounded-lg border p-2.5 text-xs space-y-1.5 bg-muted/30">
+              <div className="flex justify-between items-center text-muted-foreground">
+                <span>Total asignado:</span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {currencyFmt.format(sumaPartes)} / {currencyFmt.format(total)}
+                </span>
+              </div>
+
+              {totalExacto ? (
+                <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>Total de la mesa cubierto exactamente</span>
+                </div>
+              ) : diferencia > 0 ? (
+                <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Falta asignar: <strong>{currencyFmt.format(diferencia)}</strong></span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-destructive bg-destructive/10 border border-destructive/20 px-2 py-1 rounded">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>La suma supera el total por {currencyFmt.format(Math.abs(diferencia))}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── MODO PAGO ÚNICO (1 PERSONA PAGA TODO) ──────────────────── */}
         {!esPagoMixto && (
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -461,18 +1316,18 @@ function CerrarVentaBody({
                               : 'bg-muted text-muted-foreground',
                           )}
                         >
-                          {c.tipo === 'billetera' ? 'MP / Digital' : c.tipo === 'banco' ? 'Banco' : c.tipo === 'efectivo' ? 'Efectivo' : 'Otro'}
+                          {c.tipo === 'billetera' ? 'MP / Digital' : c.tipo === 'banco' ? 'Banco' : c.tipo === 'efectivo' || c.es_caja_fisica ? 'Caja física' : 'Otro'}
                         </span>
                       </button>
                     );
                   })}
 
-                  {/* Botón Cuenta Corriente */}
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedCuentaId(null);
                       setMedio('cuenta_corriente');
+                      setSinglePersonaTipo('jugador');
                     }}
                     disabled={isPending}
                     aria-pressed={medio === 'cuenta_corriente'}
@@ -504,7 +1359,10 @@ function CerrarVentaBody({
                     <button
                       key={m}
                       type="button"
-                      onClick={() => setMedio(m)}
+                      onClick={() => {
+                        setMedio(m);
+                        if (m === 'cuenta_corriente') setSinglePersonaTipo('jugador');
+                      }}
                       disabled={isPending}
                       aria-pressed={medio === m}
                       className={cn(
@@ -523,233 +1381,93 @@ function CerrarVentaBody({
               )}
             </div>
 
-            {medio === 'cuenta_corriente' && (
-              <div className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5">
-                <Label htmlFor="venta-jugador" className="text-xs font-semibold text-amber-900 dark:text-amber-200">
-                  Seleccionar Cliente para Cuenta Corriente
-                </Label>
-                <select
-                  id="venta-jugador"
-                  value={jugadorId ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setJugadorId(val ? Number(val) : null);
-                  }}
-                  disabled={isPending}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">-- Seleccionar Jugador --</option>
-                  {jugadores.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.nombre} {j.telefono ? `(${j.telefono})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── MODO PAGO MIXTO / DIVIDIDO ────────────────────────────── */}
-        {esPagoMixto && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold">Desglose de pagos</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleAgregarParte}
-                disabled={isPending}
-                className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Agregar cuenta / medio
-              </Button>
-            </div>
-
-            <div className="space-y-2.5">
-              {partes.map((p, index) => {
-                const montoNum = parseFloat(p.monto.replace(',', '.')) || 0;
-                const otrasSuma = sumaPartes - montoNum;
-                const faltaParaEsta = Math.max(0, Number((total - otrasSuma).toFixed(2)));
-                const puedeCompletar = faltaParaEsta > 0 && Math.abs(montoNum - faltaParaEsta) > 0.01;
-
-                // Identificador para el select
-                const selectValue =
-                  p.medio_pago === 'cuenta_corriente'
-                    ? 'cc'
-                    : p.cuenta_id
-                      ? `cuenta_${p.cuenta_id}`
-                      : `medio_${p.medio_pago}`;
-
-                return (
-                  <div
-                    key={p.id}
-                    className="p-2.5 rounded-lg border border-border bg-card/60 space-y-2 shadow-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-muted-foreground w-4 shrink-0">
-                        #{index + 1}
-                      </span>
-
-                      {/* Selector de cuenta o medio del club */}
-                      <select
-                        value={selectValue}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === 'cc') {
-                            handleUpdateParte(p.id, {
-                              medio_pago: 'cuenta_corriente',
-                              cuenta_id: null,
-                            });
-                          } else if (val.startsWith('cuenta_')) {
-                            const cid = Number(val.replace('cuenta_', ''));
-                            const c = cuentasActivas.find((acc) => acc.id === cid);
-                            handleUpdateParte(p.id, {
-                              medio_pago: c ? mapCuentaTipoToMedio(c.tipo) : 'otro',
-                              cuenta_id: cid,
-                            });
-                          } else {
-                            const m = val.replace('medio_', '') as MedioPago;
-                            handleUpdateParte(p.id, {
-                              medio_pago: m,
-                              cuenta_id: null,
-                            });
-                          }
-                        }}
-                        disabled={isPending}
-                        className="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1 shrink-0"
-                      >
-                        {cuentasActivas.length > 0 && (
-                          <optgroup label="Cuentas del club">
-                            {cuentasActivas.map((c) => (
-                              <option key={c.id} value={`cuenta_${c.id}`}>
-                                {c.nombre} ({c.tipo === 'billetera' ? 'MP' : c.tipo === 'banco' ? 'Banco' : c.tipo === 'efectivo' ? 'Efectivo' : 'Otro'})
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        <optgroup label="Otros medios">
-                          <option value="cc">Cuenta Corriente (Cliente)</option>
-                          {MEDIOS_PAGO_LIST.filter((m) => m !== 'cuenta_corriente').map((m) => (
-                            <option key={m} value={`medio_${m}`}>
-                              {MEDIO_PAGO_LABEL[m]} (General)
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-
-                      {/* Input de monto */}
-                      <div className="relative w-32 shrink-0">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">
-                          $
-                        </span>
-                        <Input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={p.monto}
-                          onChange={(e) =>
-                            handleUpdateParte(p.id, { monto: e.target.value })
-                          }
-                          disabled={isPending}
-                          placeholder="0.00"
-                          className="h-8 pl-6 pr-2 text-xs tabular-nums text-right font-semibold"
-                        />
-                      </div>
-
-                      {/* Botón eliminar */}
-                      {partes.length > 2 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEliminarParte(p.id)}
-                          disabled={isPending}
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                          title="Eliminar este pago"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Botón de completar resto y opciones secundarias */}
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pl-6">
-                      {puedeCompletar ? (
-                        <button
-                          type="button"
-                          onClick={() => handleAutoCompletarResto(p.id)}
-                          disabled={isPending}
-                          className="text-primary hover:underline font-medium flex items-center gap-1"
-                        >
-                          <Sparkles className="h-3 w-3" />
-                          Completar resto ({currencyFmt.format(faltaParaEsta)})
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-
-                      {p.monto && Number(p.monto) > 0 && (
-                        <span className="font-medium text-foreground">
-                          {currencyFmt.format(Number(p.monto))}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Si este medio es cuenta corriente, pedir jugador */}
-                    {p.medio_pago === 'cuenta_corriente' && (
-                      <div className="pl-6 pt-1">
-                        <select
-                          value={p.jugador_id ?? jugadorId ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : null;
-                            handleUpdateParte(p.id, { jugador_id: val });
-                            if (!jugadorId) setJugadorId(val);
-                          }}
-                          disabled={isPending}
-                          className="h-7 w-full rounded border border-amber-500/40 bg-amber-500/5 px-2 text-xs"
-                        >
-                          <option value="">-- Asignar Cliente para Cuenta Corriente --</option>
-                          {jugadores.map((j) => (
-                            <option key={j.id} value={j.id}>
-                              {j.nombre} {j.telefono ? `(${j.telefono})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+            {/* Asignación de Cliente / Pagador para Pago Único */}
+            <div className="rounded-lg border border-border/70 bg-card/40 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Cliente / Pagador</Label>
+                <div className="flex rounded-md bg-muted p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (medio !== 'cuenta_corriente') {
+                        setSinglePersonaTipo('general');
+                        setSingleJugador(null);
+                      }
+                    }}
+                    disabled={isPending || medio === 'cuenta_corriente'}
+                    className={cn(
+                      'px-2 py-0.5 rounded font-medium transition-all',
+                      singlePersonaTipo === 'general'
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground',
+                      medio === 'cuenta_corriente' && 'opacity-50 cursor-not-allowed',
                     )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Panel de balance / Estado de cobertura */}
-            <div className="rounded-lg border p-2.5 text-xs space-y-1.5 bg-muted/30">
-              <div className="flex justify-between items-center text-muted-foreground">
-                <span>Total asignado:</span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {currencyFmt.format(sumaPartes)} / {currencyFmt.format(total)}
-                </span>
+                  >
+                    General
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSinglePersonaTipo('jugador')}
+                    disabled={isPending}
+                    className={cn(
+                      'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                      singlePersonaTipo === 'jugador'
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <User className="h-3 w-3" />
+                    Jugador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (medio !== 'cuenta_corriente') {
+                        setSinglePersonaTipo('invitado');
+                        setSingleJugador(null);
+                      }
+                    }}
+                    disabled={isPending || medio === 'cuenta_corriente'}
+                    className={cn(
+                      'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                      singlePersonaTipo === 'invitado'
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground',
+                      medio === 'cuenta_corriente' && 'opacity-50 cursor-not-allowed',
+                    )}
+                  >
+                    <Ticket className="h-3 w-3" />
+                    Invitado
+                  </button>
+                </div>
               </div>
 
-              {totalExacto ? (
-                <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Total cubierto exactamente</span>
+              {singlePersonaTipo === 'jugador' && (
+                <div className="space-y-1">
+                  <JugadorSearchInput
+                    jugador={singleJugador}
+                    onSelect={(j) => setSingleJugador(j)}
+                    jugadores={jugadores}
+                    disabled={isPending}
+                  />
+                  {medio === 'cuenta_corriente' && !singleJugador && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                      * Cuenta Corriente requiere buscar y seleccionar un jugador registrado.
+                    </p>
+                  )}
                 </div>
-              ) : diferencia > 0 ? (
-                <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
-                  <div className="flex items-center gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>Falta asignar: <strong>{currencyFmt.format(diferencia)}</strong></span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-destructive bg-destructive/10 border border-destructive/20 px-2 py-1 rounded">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>La suma supera el total por {currencyFmt.format(Math.abs(diferencia))}</span>
+              )}
+
+              {singlePersonaTipo === 'invitado' && (
+                <div className="space-y-1">
+                  <Input
+                    type="text"
+                    value={singleNombreInvitado}
+                    onChange={(e) => setSingleNombreInvitado(e.target.value)}
+                    disabled={isPending}
+                    placeholder="Nombre del invitado (ej: Carlos, Amigo de Juan)…"
+                    className="h-8 text-xs"
+                  />
                 </div>
               )}
             </div>
@@ -797,7 +1515,11 @@ function CerrarVentaBody({
             size="sm"
             className="gap-1.5"
           >
-            {isPending ? 'Registrando…' : `Cobrar ${currencyFmt.format(total)}`}
+            {isPending
+              ? 'Procesando…'
+              : mesa
+                ? `Cobrar y cerrar ${mesa.nombre}`
+                : `Cobrar ${currencyFmt.format(total)}`}
           </Button>
         </DialogFooter>
       </form>
