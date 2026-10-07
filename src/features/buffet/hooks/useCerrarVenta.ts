@@ -17,6 +17,7 @@ export interface CerrarVentaPagoItem {
   medio_pago: MedioPago;
   monto: number;
   cuenta_id?: number | null;
+  jugador_id?: number | null;
 }
 
 export interface CerrarVentaInput {
