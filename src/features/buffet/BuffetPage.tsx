@@ -12,7 +12,6 @@ import {
   useCargarConsumoMesa,
   useQuitarConsumoMesa,
 } from './hooks/useMesasBuffet';
-import { CerrarMesaDialog } from './CerrarMesaDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
