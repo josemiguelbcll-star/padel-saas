@@ -28,7 +28,10 @@ import type {
   Tarifa,
 } from '@/types/database';
 import { useTarifas } from '@/features/configuracion/hooks/useTarifas';
-import { resolverTarifa } from './utils/resolverTarifa';
+import {
+  resolverTarifa,
+  obtenerFranjasDisponibles,
+} from './utils/resolverTarifa';
 import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
 import { useActualizarReserva } from './hooks/useActualizarReserva';
@@ -62,17 +65,6 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 
 function fmtMoney(n: number): string {
   return currencyFmt.format(n);
-}
-
-function calcularMontoParaDuracion(tarifa: Tarifa, duracion: number): number {
-  if (
-    tarifa.duracion_min !== null &&
-    tarifa.duracion_min !== duracion &&
-    tarifa.duracion_min > 0
-  ) {
-    return Math.round((tarifa.monto / tarifa.duracion_min) * duracion);
-  }
-  return tarifa.monto;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -159,7 +151,14 @@ function DetalleReservaBody({
 
   const tarifasQuery = useTarifas();
   const tarifas = useMemo(() => tarifasQuery.data ?? [], [tarifasQuery.data]);
-  const tarifasActivas = useMemo(() => tarifas.filter((t) => t.activa), [tarifas]);
+  const franjasDisponibles = useMemo(() => {
+    return obtenerFranjasDisponibles({
+      tarifas,
+      fecha: reserva.fecha,
+      hora: reserva.hora_inicio,
+      duracion: reserva.duracion_min,
+    });
+  }, [tarifas, reserva.fecha, reserva.hora_inicio, reserva.duracion_min]);
 
   const tarifaAplicada = useMemo(() => {
     if (reserva.tarifa_id) {
@@ -193,8 +192,7 @@ function DetalleReservaBody({
 
   function handleSeleccionarFranja(t: Tarifa) {
     setNuevaTarifaId(t.id);
-    const montoCalculado = calcularMontoParaDuracion(t, reserva.duracion_min);
-    setNuevoMontoStr(montoCalculado.toString());
+    setNuevoMontoStr(t.monto.toString());
   }
 
   async function handleGuardarFranja(e: React.FormEvent) {
@@ -707,30 +705,35 @@ function DetalleReservaBody({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Seleccionar franja disponible para este turno:</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {tarifasActivas.map((t) => {
-                  const montoCalculado = calcularMontoParaDuracion(t, reserva.duracion_min);
-                  const isSelected = nuevaTarifaId === t.id && nuevoMontoStr === montoCalculado.toString();
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => handleSeleccionarFranja(t)}
-                      className={cn(
-                        'rounded-md border px-2.5 py-1 text-xs font-medium transition-all flex items-center gap-1.5',
-                        isSelected
-                          ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
-                          : 'border-border bg-background text-foreground hover:bg-muted',
-                      )}
-                    >
-                      <span>{t.nombre}</span>
-                      <span className={cn('text-[11px] font-semibold tabular-nums', isSelected ? 'text-primary-foreground' : 'text-primary')}>
-                        {fmtMoney(montoCalculado)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {franjasDisponibles.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {franjasDisponibles.map((t) => {
+                    const isSelected = nuevaTarifaId === t.id && nuevoMontoStr === t.monto.toString();
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleSeleccionarFranja(t)}
+                        className={cn(
+                          'rounded-md border px-2.5 py-1 text-xs font-medium transition-all flex items-center gap-1.5',
+                          isSelected
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm font-semibold'
+                            : 'border-border bg-background text-foreground hover:bg-muted',
+                        )}
+                      >
+                        <span>{t.nombre}</span>
+                        <span className={cn('text-[11px] font-semibold tabular-nums', isSelected ? 'text-primary-foreground' : 'text-primary')}>
+                          {fmtMoney(t.monto)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No hay franjas configuradas para esta duración/horario.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -865,7 +868,7 @@ function DetalleReservaBody({
                 className="h-7 text-xs text-muted-foreground hover:text-foreground"
                 title="Ir a configurar franjas horarias"
               >
-                <Link to="/configuracion/tarifas?tipo=turnos" target="_blank" rel="noopener noreferrer">
+                <Link to="/app/configuracion/tarifas" target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-1 h-3 w-3" />
                   Ver franjas
                 </Link>

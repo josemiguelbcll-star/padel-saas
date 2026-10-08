@@ -72,18 +72,7 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
       (t) => (t.id === tarifaId || t.lineage_id === tarifaId) && t.activa,
     );
     if (tarifaFija) {
-      let montoCalculado = tarifaFija.monto;
-      if (
-        duracion !== undefined &&
-        tarifaFija.duracion_min !== null &&
-        tarifaFija.duracion_min !== duracion &&
-        tarifaFija.duracion_min > 0
-      ) {
-        montoCalculado = Math.round(
-          (tarifaFija.monto / tarifaFija.duracion_min) * duracion,
-        );
-      }
-      return { tarifa: tarifaFija, monto: montoCalculado };
+      return { tarifa: tarifaFija, monto: tarifaFija.monto };
     }
   }
 
@@ -98,7 +87,8 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
     return { tarifa: null, monto: 0 };
   }
 
-  // 2. Intentar buscar coincidencia con filtro de duración (exacta o NULL)
+  // 2. Coincidencia con filtro de duración (exacta o NULL = cualquier duración)
+  // No inventar ni calcular proporcionales: solo tarifas que correspondan
   const aplicablesDuracion = activasEnFranja.filter(
     (t) =>
       duracion === undefined ||
@@ -106,10 +96,11 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
       t.duracion_min === duracion,
   );
 
-  const listaParaOrdenar =
-    aplicablesDuracion.length > 0 ? aplicablesDuracion : activasEnFranja;
+  if (aplicablesDuracion.length === 0) {
+    return { tarifa: null, monto: 0 };
+  }
 
-  const ordenadas = [...listaParaOrdenar].sort((a, b) => {
+  const ordenadas = [...aplicablesDuracion].sort((a, b) => {
     // Exact match de duración primero
     const aExact =
       duracion !== undefined && a.duracion_min === duracion ? 1 : 0;
@@ -128,24 +119,71 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
   });
 
   const elegida = ordenadas[0]!;
-  
-  // Si la tarifa tiene una duración fija diferente a la requerida, calculamos el proporcional
-  let montoCalculado = elegida.monto;
-  if (
-    duracion !== undefined &&
-    elegida.duracion_min !== null &&
-    elegida.duracion_min !== duracion &&
-    elegida.duracion_min > 0
-  ) {
-    montoCalculado = Math.round(
-      (elegida.monto / elegida.duracion_min) * duracion,
-    );
-  }
-
-  return { tarifa: elegida, monto: montoCalculado };
+  return { tarifa: elegida, monto: elegida.monto };
 }
 
-function tarifaAplicaFranja(
+export interface FranjasDisponiblesParams {
+  tarifas: Tarifa[];
+  fecha: string;
+  hora: string;
+  duracion?: number;
+}
+
+/**
+ * Devuelve las franjas horarias ACTIVAS y VIGENTES para un turno (fecha, hora, duración).
+ * - Excluye franjas inactivas.
+ * - Toma únicamente la versión vigente en `fecha` para cada linaje (evita duplicar historial).
+ * - No calcula proporcionales ficticios: solo toma tarifas que coincidan con la duración o apliquen a cualquier duración.
+ */
+export function obtenerFranjasDisponibles({
+  tarifas,
+  fecha,
+  hora,
+  duracion,
+}: FranjasDisponiblesParams): Tarifa[] {
+  // 1. Filtrar solo las vigentes y activas, deduplicando por linaje
+  const porLinaje = new Map<number, Tarifa>();
+  for (const t of (tarifas ?? [])) {
+    if (!t.activa) continue;
+    if (t.vigente_desde > fecha) continue;
+    if (t.vigente_hasta !== null && t.vigente_hasta < fecha) continue;
+
+    const existing = porLinaje.get(t.lineage_id);
+    if (!existing || t.vigente_desde > existing.vigente_desde) {
+      porLinaje.set(t.lineage_id, t);
+    }
+  }
+
+  const vigentesActivas = Array.from(porLinaje.values());
+  const diaSemana = diaSemanaDe(fecha);
+
+  // 2. Franjas que coinciden con horario, día y duración (o cualquier duración)
+  const queAplican = vigentesActivas.filter((t) => {
+    if (duracion !== undefined && t.duracion_min !== null && t.duracion_min !== duracion) {
+      return false;
+    }
+    return tarifaAplicaFranja(t, fecha, diaSemana, hora, undefined);
+  });
+
+  // Si hay franjas que aplican al horario/día/duración, mostramos esas.
+  // Si no hay ninguna específica para la hora, mostramos las franjas activas vigentes para esa duración.
+  const candidatas =
+    queAplican.length > 0
+      ? queAplican
+      : vigentesActivas.filter(
+          (t) => duracion === undefined || t.duracion_min === null || t.duracion_min === duracion,
+        );
+
+  return candidatas.sort((a, b) => {
+    const aExact = duracion !== undefined && a.duracion_min === duracion ? 1 : 0;
+    const bExact = duracion !== undefined && b.duracion_min === duracion ? 1 : 0;
+    if (aExact !== bExact) return bExact - aExact;
+    if (a.prioridad !== b.prioridad) return b.prioridad - a.prioridad;
+    return a.nombre.localeCompare(b.nombre);
+  });
+}
+
+export function tarifaAplicaFranja(
   tarifa: Tarifa,
   fechaISO: string,
   diaSemana: number,

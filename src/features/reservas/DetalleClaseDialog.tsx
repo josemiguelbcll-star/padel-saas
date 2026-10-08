@@ -25,7 +25,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { useSession } from '@/features/auth/useSession';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useQuery } from '@tanstack/react-query';
@@ -184,9 +183,6 @@ function DetalleClaseBody({
   onClose,
   readOnly,
 }: DetalleClaseBodyProps) {
-  const { user } = useSession();
-  const isAdmin = user?.rol === 'admin' && !readOnly;
-
   // Pestaña activa
   const [activeTab, setActiveTab] = useState<TabSeccion>('alumnos');
 
@@ -1118,6 +1114,52 @@ function DetalleClaseBody({
                         </div>
                       </div>
 
+                      {/* Pagos registrados del alumno con botón de anular */}
+                      {item.pagosAlumno.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 rounded border border-border/60 bg-muted/30 p-2 text-xs">
+                          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                            Pagos registrados:
+                          </span>
+                          <div className="space-y-1">
+                            {item.pagosAlumno.map((p) => {
+                              const c = p.cuenta_id ? cuentasActivas.find((acc) => acc.id === p.cuenta_id) : null;
+                              const medioLabel = c ? c.nombre : MEDIO_PAGO_LABEL[p.medio_pago];
+                              return (
+                                <div
+                                  key={p.id}
+                                  className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1 border border-border/40 text-[11px]"
+                                >
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                      {fmtMoney(p.monto)}
+                                    </span>
+                                    <span className="text-muted-foreground">·</span>
+                                    <span className="text-foreground truncate">{medioLabel}</span>
+                                    <span className="text-muted-foreground">·</span>
+                                    <span className="text-muted-foreground shrink-0">{fmtFechaHoraCorta(p.fecha_hora)}</span>
+                                  </div>
+                                  {!readOnly && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setActiveTab('pagos');
+                                        setBorrandoCobroId(p.id);
+                                      }}
+                                      className="h-6 w-6 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                      title="Anular este pago"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Mini-formulario de Cobro Inline */}
                       {isCobrando && (
                         <form
@@ -1705,7 +1747,7 @@ function DetalleClaseBody({
                         )}
                       </div>
 
-                      {isAdmin && (
+                      {!readOnly && (
                         <Button
                           type="button"
                           variant="ghost"

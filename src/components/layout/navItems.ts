@@ -74,6 +74,7 @@ export const navItems: NavItem[] = [
     children: [
       { label: 'Efectivo', to: '/app/caja/efectivo', icon: Wallet },
       { label: 'Transferencias', to: '/app/caja/transferencias', icon: ArrowLeftRight },
+      { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt },
     ],
   },
   {

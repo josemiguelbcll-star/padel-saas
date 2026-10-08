@@ -3,3 +3,4 @@ export { CajaLayout } from './CajaLayout';
 export { TransferenciasPage } from './TransferenciasPage';
 export { CajaEstadoBadge } from './CajaEstadoBadge';
 export { MovimientosCuentasPage } from './MovimientosCuentasPage';
+export { ArqueosCajaPage } from './ArqueosCajaPage';
