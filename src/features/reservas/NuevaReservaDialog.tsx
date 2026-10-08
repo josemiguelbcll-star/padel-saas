@@ -32,7 +32,10 @@ import {
   formatearFechaAmigable,
   formatearHora,
 } from './index';
-import { resolverTarifa } from './utils/resolverTarifa';
+import {
+  resolverTarifa,
+  obtenerFranjasDisponibles,
+} from './utils/resolverTarifa';
 
 export interface NuevoReservaSlot {
   cancha: Cancha;
@@ -113,17 +116,6 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 
 function fmtMoney(n: number): string {
   return currencyFmt.format(n);
-}
-
-function calcularMontoParaDuracion(tarifa: Tarifa, duracion: number): number {
-  if (
-    tarifa.duracion_min !== null &&
-    tarifa.duracion_min !== duracion &&
-    tarifa.duracion_min > 0
-  ) {
-    return Math.round((tarifa.monto / tarifa.duracion_min) * duracion);
-  }
-  return tarifa.monto;
 }
 
 interface NuevaReservaBodyProps {
@@ -253,9 +245,14 @@ function NuevaReservaBodyReady({
 
   const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
 
-  const tarifasActivas = useMemo(() => {
-    return (tarifas ?? []).filter((t) => t.activa);
-  }, [tarifas]);
+  const franjasDisponibles = useMemo(() => {
+    return obtenerFranjasDisponibles({
+      tarifas,
+      fecha: slot.fecha,
+      hora: slot.hora,
+      duracion,
+    });
+  }, [tarifas, slot.fecha, slot.hora, duracion]);
 
   const [selectedTarifaId, setSelectedTarifaId] = useState<number | null>(() => {
     return tarifaResuelta.tarifa?.id ?? null;
@@ -581,7 +578,7 @@ function NuevaReservaBodyReady({
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold text-foreground">Franja horaria / Tarifa</Label>
             <Link
-              to="/configuracion/tarifas?tipo=turnos"
+              to="/app/configuracion/tarifas"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[11px] text-primary hover:underline inline-flex items-center gap-1 font-medium"
@@ -590,12 +587,11 @@ function NuevaReservaBodyReady({
             </Link>
           </div>
 
-          {/* Opciones de franjas activas del club */}
-          {tarifasActivas.length > 0 ? (
+          {/* Opciones de franjas activas y vigentes del club */}
+          {franjasDisponibles.length > 0 ? (
             <div className="space-y-1.5">
               <div className="flex flex-wrap gap-1.5">
-                {tarifasActivas.map((t) => {
-                  const montoCalc = calcularMontoParaDuracion(t, duracion);
+                {franjasDisponibles.map((t) => {
                   const isSugerida = tarifaResuelta.tarifa?.id === t.id;
                   const isSelected = selectedTarifaId === t.id && !esMontoPersonalizado;
 
@@ -606,7 +602,7 @@ function NuevaReservaBodyReady({
                       onClick={() => {
                         setSelectedTarifaId(t.id);
                         setEsMontoPersonalizado(false);
-                        setMontoTotal(montoCalc.toString());
+                        setMontoTotal(t.monto.toString());
                         setMontoTotalTouched(true);
                       }}
                       className={cn(
@@ -618,7 +614,7 @@ function NuevaReservaBodyReady({
                     >
                       <span>{t.nombre}</span>
                       <span className={cn('text-[11px] font-semibold tabular-nums', isSelected ? 'text-primary-foreground' : 'text-primary')}>
-                        {fmtMoney(montoCalc)}
+                        {fmtMoney(t.monto)}
                       </span>
                       {isSugerida && (
                         <span className={cn('rounded px-1 py-0.2 text-[9px] uppercase font-semibold tracking-wider', isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-primary/10 text-primary')}>

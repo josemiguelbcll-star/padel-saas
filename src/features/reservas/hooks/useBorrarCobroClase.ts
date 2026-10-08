@@ -35,15 +35,34 @@ export function useBorrarCobroClase(): UseMutationResult<
 
   return useMutation<void, Error, BorrarCobroClaseInput>({
     mutationFn: async ({ cobroId }) => {
-      const { error } = await supabase
+      // 1. Intentar RPC con SECURITY DEFINER (soporta admin y vendedor)
+      const { error: rpcError } = await supabase.rpc('fn_borrar_cobro_clase', {
+        p_cobro_id: cobroId,
+      });
+
+      if (!rpcError) return;
+
+      // 2. Fallback a delete directo con .select() para verificar que realmente se borró
+      const { data, error: delError } = await supabase
         .from('clase_cobros')
         .delete()
-        .eq('id', cobroId);
-      if (error) throw new Error(mapPostgrestError(error));
+        .eq('id', cobroId)
+        .select();
+
+      if (delError) throw new Error(mapPostgrestError(delError));
+      if (data && data.length === 0) {
+        throw new Error('No se pudo eliminar el cobro. Verificá los permisos de tu usuario.');
+      }
     },
-    onSuccess: (_, { fecha }) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: [CLASE_COBROS_QUERY_KEY_BASE, fecha],
+        queryKey: [CLASE_COBROS_QUERY_KEY_BASE],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['caja-abierta-resumen'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['clase_alumnos'],
       });
     },
   });

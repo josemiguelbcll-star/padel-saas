@@ -24,6 +24,7 @@ const BuffetPage = lazy(() => import('@/features/buffet/BuffetPage').then((m) =>
 const CajaLayout = lazy(() => import('@/features/caja/CajaLayout').then((m) => ({ default: m.CajaLayout })));
 const CajaPage = lazy(() => import('@/features/caja/CajaPage').then((m) => ({ default: m.CajaPage })));
 const TransferenciasPage = lazy(() => import('@/features/caja/TransferenciasPage').then((m) => ({ default: m.TransferenciasPage })));
+const ArqueosCajaPage = lazy(() => import('@/features/caja/ArqueosCajaPage').then((m) => ({ default: m.ArqueosCajaPage })));
 const MovimientosCuentasPage = lazy(() => import('@/features/caja/MovimientosCuentasPage').then((m) => ({ default: m.MovimientosCuentasPage })));
 const FinanzasPage = lazy(() => import('@/features/finanzas/FinanzasPage').then((m) => ({ default: m.FinanzasPage })));
 const FlujoCajaPage = lazy(() => import('@/features/finanzas/flujo/FlujoCajaPage').then((m) => ({ default: m.FlujoCajaPage })));
@@ -203,6 +204,8 @@ export function App() {
             <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
             <Route path="efectivo" element={<CajaPage />} />
             <Route path="transferencias" element={<TransferenciasPage />} />
+            <Route path="arqueos" element={<ArqueosCajaPage />} />
+            <Route path="arqueo" element={<Navigate to="/app/caja/arqueos" replace />} />
             <Route path="movimientos-cuentas" element={<MovimientosCuentasPage />} />
           </Route>
 

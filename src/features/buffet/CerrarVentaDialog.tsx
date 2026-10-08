@@ -247,7 +247,7 @@ export function CerrarVentaDialog({
 }: CerrarVentaDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-md sm:max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-3.5 sm:p-6">
         <CerrarVentaBody
           key={open ? (mesa ? `mesa-${mesa.id}` : 'venta-open') : 'closed'}
           items={items}
@@ -721,23 +721,26 @@ function CerrarVentaBody({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
+      <DialogHeader className="pr-7 sm:pr-8">
+        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-4">
+          <DialogTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
             {mesa ? (
               <>
-                <UtensilsCrossed className="h-5 w-5 text-primary shrink-0" />
-                <span>Cerrar mesa: {mesa.nombre}</span>
+                <UtensilsCrossed className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-primary shrink-0" />
+                <span className="truncate">Cerrar mesa: {mesa.nombre}</span>
               </>
             ) : (
               <span>Cerrar venta</span>
             )}
-          </span>
-          <span className="text-xl font-bold text-primary tabular-nums">
-            {currencyFmt.format(total)}
-          </span>
-        </DialogTitle>
-        <DialogDescription>
+          </DialogTitle>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xs text-muted-foreground sm:hidden">Total:</span>
+            <span className="text-lg sm:text-xl font-bold text-primary tabular-nums">
+              {currencyFmt.format(total)}
+            </span>
+          </div>
+        </div>
+        <DialogDescription className="text-xs sm:text-sm">
           {mesa
             ? 'Asigná productos o montos entre jugadores e invitados para cerrar la mesa.'
             : 'Elegí la modalidad de cobro para confirmar la transacción.'}
@@ -746,16 +749,16 @@ function CerrarVentaBody({
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {/* Resumen de items de la mesa / venta */}
-        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-2.5 text-xs max-h-32 overflow-y-auto">
+        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-2 sm:p-2.5 text-xs max-h-32 overflow-y-auto">
           <span className="text-[11px] font-semibold text-muted-foreground block">
             Productos cargados ({items.length}):
           </span>
           {items.map((item) => (
             <div
               key={item.producto.id}
-              className="flex items-baseline justify-between gap-2"
+              className="flex items-baseline justify-between gap-2 min-w-0"
             >
-              <span className="truncate text-muted-foreground">
+              <span className="truncate text-muted-foreground min-w-0">
                 <span className="font-semibold text-foreground">{item.cantidad}×</span> {item.producto.nombre}
               </span>
               <span className="shrink-0 tabular-nums text-foreground font-medium">
@@ -766,34 +769,36 @@ function CerrarVentaBody({
         </div>
 
         {/* Selector de modo principal */}
-        <div className="flex rounded-lg bg-muted p-1 text-xs">
+        <div className="grid grid-cols-2 rounded-lg bg-muted p-1 text-xs gap-1">
           <button
             type="button"
             onClick={() => setEsPagoMixto(true)}
             disabled={isPending}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 py-1.5 rounded-md font-medium transition-all',
+              'flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-medium transition-all text-center min-w-0',
               esPagoMixto
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-sm font-semibold'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <Split className="h-3.5 w-3.5 text-primary" />
-            Por personas (Productos o Montos)
+            <Split className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="truncate sm:hidden">Por personas</span>
+            <span className="hidden sm:inline">Por personas (Productos o Montos)</span>
           </button>
           <button
             type="button"
             onClick={() => setEsPagoMixto(false)}
             disabled={isPending}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 py-1.5 rounded-md font-medium transition-all',
+              'flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-medium transition-all text-center min-w-0',
               !esPagoMixto
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-sm font-semibold'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <CreditCard className="h-3.5 w-3.5" />
-            Cobro rápido (1 medio para todo)
+            <CreditCard className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate sm:hidden">Cobro rápido</span>
+            <span className="hidden sm:inline">Cobro rápido (1 medio para todo)</span>
           </button>
         </div>
 
@@ -801,9 +806,9 @@ function CerrarVentaBody({
         {esPagoMixto && (
           <div className="space-y-3">
             {/* Barra de atajos para división rápida */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-border/50">
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] font-semibold text-muted-foreground mr-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-border/50">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[11px] font-semibold text-muted-foreground mr-0.5 shrink-0">
                   Atajos:
                 </span>
                 <Button
@@ -812,10 +817,10 @@ function CerrarVentaBody({
                   size="sm"
                   onClick={() => handleDividirEnPartes(1)}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-6 px-1.5 sm:px-2 text-[10px] sm:text-[11px]"
                   title="Una sola persona paga el total"
                 >
-                  1 persona
+                  1 pers.
                 </Button>
                 <Button
                   type="button"
@@ -823,9 +828,9 @@ function CerrarVentaBody({
                   size="sm"
                   onClick={() => handleDividirEnPartes(2)}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-6 px-1.5 sm:px-2 text-[10px] sm:text-[11px]"
                 >
-                  2 personas
+                  2 pers.
                 </Button>
                 <Button
                   type="button"
@@ -833,9 +838,9 @@ function CerrarVentaBody({
                   size="sm"
                   onClick={() => handleDividirEnPartes(3)}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-6 px-1.5 sm:px-2 text-[10px] sm:text-[11px]"
                 >
-                  3 personas
+                  3 pers.
                 </Button>
                 <Button
                   type="button"
@@ -843,9 +848,9 @@ function CerrarVentaBody({
                   size="sm"
                   onClick={() => handleDividirEnPartes(4)}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-6 px-1.5 sm:px-2 text-[10px] sm:text-[11px]"
                 >
-                  4 personas
+                  4 pers.
                 </Button>
                 <Button
                   type="button"
@@ -853,7 +858,7 @@ function CerrarVentaBody({
                   size="sm"
                   onClick={handleDividirPartesIguales}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                  className="h-6 px-1.5 sm:px-2 text-[10px] sm:text-[11px] text-muted-foreground hover:text-foreground gap-1"
                   title="Repartir el total en partes iguales entre las filas actuales"
                 >
                   <Equal className="h-3 w-3" />
@@ -861,14 +866,14 @@ function CerrarVentaBody({
                 </Button>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 self-start sm:self-auto shrink-0">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleAgregarPersona('jugador')}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px] text-primary hover:bg-primary/10 gap-1"
+                  className="h-6 px-1.5 sm:px-2 text-[11px] text-primary hover:bg-primary/10 gap-1"
                 >
                   <User className="h-3 w-3" />
                   + Jugador
@@ -879,7 +884,7 @@ function CerrarVentaBody({
                   size="sm"
                   onClick={() => handleAgregarPersona('invitado')}
                   disabled={isPending}
-                  className="h-6 px-2 text-[11px] text-primary hover:bg-primary/10 gap-1"
+                  className="h-6 px-1.5 sm:px-2 text-[11px] text-primary hover:bg-primary/10 gap-1"
                 >
                   <Ticket className="h-3 w-3" />
                   + Invitado
@@ -915,12 +920,12 @@ function CerrarVentaBody({
                 return (
                   <div
                     key={p.id}
-                    className="p-3 rounded-xl border border-border bg-card/70 space-y-2.5 shadow-xs transition-all"
+                    className="p-2.5 sm:p-3 rounded-xl border border-border bg-card/70 space-y-2.5 shadow-xs transition-all min-w-0"
                   >
                     {/* Encabezado: Número, Tipo de persona y Botón Eliminar */}
-                    <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-border/40 pb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary shrink-0">
                           #{index + 1}
                         </span>
 
@@ -937,9 +942,9 @@ function CerrarVentaBody({
                               })
                             }
                             className={cn(
-                              'px-2 py-0.5 rounded font-medium transition-all',
+                              'px-1.5 sm:px-2 py-0.5 rounded font-medium transition-all',
                               p.tipo === 'general'
-                                ? 'bg-background text-foreground shadow-xs'
+                                ? 'bg-background text-foreground shadow-xs font-semibold'
                                 : 'text-muted-foreground hover:text-foreground',
                             )}
                           >
@@ -949,13 +954,13 @@ function CerrarVentaBody({
                             type="button"
                             onClick={() => handleUpdatePersona(p.id, { tipo: 'jugador' })}
                             className={cn(
-                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              'flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded font-medium transition-all',
                               p.tipo === 'jugador'
-                                ? 'bg-background text-foreground shadow-xs'
+                                ? 'bg-background text-foreground shadow-xs font-semibold'
                                 : 'text-muted-foreground hover:text-foreground',
                             )}
                           >
-                            <User className="h-3 w-3" />
+                            <User className="h-3 w-3 shrink-0" />
                             Jugador
                           </button>
                           <button
@@ -972,20 +977,20 @@ function CerrarVentaBody({
                               });
                             }}
                             className={cn(
-                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              'flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded font-medium transition-all',
                               p.tipo === 'invitado'
-                                ? 'bg-background text-foreground shadow-xs'
+                                ? 'bg-background text-foreground shadow-xs font-semibold'
                                 : 'text-muted-foreground hover:text-foreground',
                             )}
                           >
-                            <Ticket className="h-3 w-3" />
+                            <Ticket className="h-3 w-3 shrink-0" />
                             Invitado
                           </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold tabular-nums text-primary">
+                      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                        <span className="text-xs sm:text-sm font-bold tabular-nums text-primary">
                           {currencyFmt.format(montoPersona)}
                         </span>
                         {personas.length > 1 && (
@@ -1036,24 +1041,24 @@ function CerrarVentaBody({
                     )}
 
                     {/* Selector de Modalidad: ¿Paga por productos o por monto? */}
-                    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/15 p-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-muted-foreground">
+                    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/15 p-2 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                        <span className="text-[11px] font-semibold text-muted-foreground shrink-0">
                           ¿Qué paga esta persona?
                         </span>
-                        <div className="flex rounded-md bg-muted p-0.5 text-[10px]">
+                        <div className="flex rounded-md bg-muted p-0.5 text-[10px] w-full sm:w-auto">
                           <button
                             type="button"
                             onClick={() => handleUpdatePersona(p.id, { modalidad: 'productos' })}
                             className={cn(
-                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              'flex flex-1 sm:flex-none items-center justify-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
                               p.modalidad === 'productos'
                                 ? 'bg-background text-foreground shadow-xs font-semibold'
                                 : 'text-muted-foreground hover:text-foreground',
                             )}
                           >
-                            <UtensilsCrossed className="h-3 w-3" />
-                            Por productos
+                            <UtensilsCrossed className="h-3 w-3 shrink-0" />
+                            <span>Por productos</span>
                           </button>
                           <button
                             type="button"
@@ -1064,21 +1069,21 @@ function CerrarVentaBody({
                               });
                             }}
                             className={cn(
-                              'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                              'flex flex-1 sm:flex-none items-center justify-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
                               p.modalidad === 'monto'
                                 ? 'bg-background text-foreground shadow-xs font-semibold'
                                 : 'text-muted-foreground hover:text-foreground',
                             )}
                           >
-                            <CreditCard className="h-3 w-3" />
-                            Por monto fijo
+                            <CreditCard className="h-3 w-3 shrink-0" />
+                            <span>Por monto fijo</span>
                           </button>
                         </div>
                       </div>
 
                       {/* Asignación de Productos */}
                       {p.modalidad === 'productos' ? (
-                        <div className="space-y-1.5 pt-1">
+                        <div className="space-y-1.5 pt-1 min-w-0">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                             {items.map((item) => {
                               const cantAsignada = p.productosAsignados[item.producto.id] || 0;
@@ -1100,13 +1105,13 @@ function CerrarVentaBody({
                                   }}
                                   disabled={isPending}
                                   className={cn(
-                                    'flex items-center justify-between gap-1.5 rounded-md border p-2 text-xs text-left transition-all',
+                                    'flex items-center justify-between gap-1.5 rounded-md border p-2 text-xs text-left transition-all min-w-0 w-full',
                                     isSelected
                                       ? 'border-primary bg-primary/10 text-foreground font-semibold shadow-2xs'
                                       : 'border-border/60 bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                                   )}
                                 >
-                                  <div className="flex items-center gap-1.5 truncate">
+                                  <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
                                     <span
                                       className={cn(
                                         'h-4 w-4 rounded border flex items-center justify-center shrink-0 text-[10px]',
@@ -1117,11 +1122,11 @@ function CerrarVentaBody({
                                     >
                                       {isSelected ? '✓' : ''}
                                     </span>
-                                    <span className="truncate">
+                                    <span className="truncate min-w-0">
                                       {item.cantidad}× {item.producto.nombre}
                                     </span>
                                   </div>
-                                  <div className="flex flex-col items-end shrink-0">
+                                  <div className="flex flex-col items-end shrink-0 pl-1">
                                     <span className="tabular-nums font-semibold text-foreground text-[11px]">
                                       {currencyFmt.format(item.subtotal)}
                                     </span>
@@ -1138,8 +1143,8 @@ function CerrarVentaBody({
                         </div>
                       ) : (
                         /* Asignación por Monto libre */
-                        <div className="flex items-center gap-2 pt-1">
-                          <div className="relative flex-1">
+                        <div className="flex items-center gap-2 pt-1 min-w-0">
+                          <div className="relative flex-1 min-w-0">
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">
                               $
                             </span>
@@ -1153,7 +1158,7 @@ function CerrarVentaBody({
                               }
                               disabled={isPending}
                               placeholder="0.00"
-                              className="h-8 pl-6 pr-2 text-xs tabular-nums text-right font-semibold"
+                              className="h-8 pl-6 pr-2 text-xs tabular-nums text-right font-semibold w-full"
                             />
                           </div>
                           {puedeCompletar && (
@@ -1163,10 +1168,10 @@ function CerrarVentaBody({
                               size="sm"
                               onClick={() => handleAutoCompletarResto(p.id)}
                               disabled={isPending}
-                              className="h-8 px-2 text-[11px] text-primary hover:bg-primary/10 gap-1 shrink-0"
+                              className="h-8 px-2 text-[10px] sm:text-[11px] text-primary hover:bg-primary/10 gap-1 shrink-0"
                             >
-                              <Sparkles className="h-3 w-3" />
-                              Resto ({currencyFmt.format(faltaParaEsta)})
+                              <Sparkles className="h-3 w-3 shrink-0" />
+                              <span className="truncate">Resto ({currencyFmt.format(faltaParaEsta)})</span>
                             </Button>
                           )}
                         </div>
@@ -1174,7 +1179,7 @@ function CerrarVentaBody({
                     </div>
 
                     {/* Medio / Cuenta de cobro para esta persona */}
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 pt-1 min-w-0">
                       <Label className="text-[11px] text-muted-foreground shrink-0">
                         Cobrar con:
                       </Label>
@@ -1204,7 +1209,7 @@ function CerrarVentaBody({
                           }
                         }}
                         disabled={isPending}
-                        className="h-7.5 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
+                        className="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-full sm:flex-1 min-w-0 truncate"
                       >
                         {cuentasActivas.length > 0 && (
                           <optgroup label="Cuentas del club">
@@ -1238,30 +1243,30 @@ function CerrarVentaBody({
             </div>
 
             {/* Panel de balance / Estado de cobertura */}
-            <div className="rounded-lg border p-2.5 text-xs space-y-1.5 bg-muted/30">
-              <div className="flex justify-between items-center text-muted-foreground">
+            <div className="rounded-lg border p-2.5 text-xs space-y-1.5 bg-muted/30 min-w-0">
+              <div className="flex justify-between items-center text-muted-foreground min-w-0">
                 <span>Total asignado:</span>
-                <span className="font-semibold text-foreground tabular-nums">
+                <span className="font-semibold text-foreground tabular-nums shrink-0">
                   {currencyFmt.format(sumaPartes)} / {currencyFmt.format(total)}
                 </span>
               </div>
 
               {totalExacto ? (
-                <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
+                <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded min-w-0">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Total de la mesa cubierto exactamente</span>
+                  <span className="truncate">Total de la mesa cubierto exactamente</span>
                 </div>
               ) : diferencia > 0 ? (
-                <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
-                  <div className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>Falta asignar: <strong>{currencyFmt.format(diferencia)}</strong></span>
+                    <span className="truncate">Falta asignar: <strong>{currencyFmt.format(diferencia)}</strong></span>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-destructive bg-destructive/10 border border-destructive/20 px-2 py-1 rounded">
+                <div className="flex items-center gap-1.5 text-destructive bg-destructive/10 border border-destructive/20 px-2 py-1 rounded min-w-0">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>La suma supera el total por {currencyFmt.format(Math.abs(diferencia))}</span>
+                  <span className="truncate">La suma supera el total por {currencyFmt.format(Math.abs(diferencia))}</span>
                 </div>
               )}
             </div>
@@ -1271,11 +1276,11 @@ function CerrarVentaBody({
         {/* ── MODO PAGO ÚNICO (1 PERSONA PAGA TODO) ──────────────────── */}
         {!esPagoMixto && (
           <div className="space-y-3">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold">Cuenta / Medio de cobro</Label>
                 {selectedCuentaId && (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground truncate ml-2">
                     Destino:{' '}
                     <strong className="text-foreground">
                       {cuentasActivas.find((c) => c.id === selectedCuentaId)?.nombre}
@@ -1299,7 +1304,7 @@ function CerrarVentaBody({
                         disabled={isPending}
                         aria-pressed={isSelected}
                         className={cn(
-                          'rounded-md border p-2 text-xs font-medium transition-all flex flex-col items-start gap-1 text-left',
+                          'rounded-md border p-2 text-xs font-medium transition-all flex flex-col items-start gap-1 text-left min-w-0',
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                           'disabled:cursor-not-allowed disabled:opacity-50',
                           isSelected
@@ -1332,7 +1337,7 @@ function CerrarVentaBody({
                     disabled={isPending}
                     aria-pressed={medio === 'cuenta_corriente'}
                     className={cn(
-                      'rounded-md border p-2 text-xs font-medium transition-all flex flex-col items-start gap-1 text-left',
+                      'rounded-md border p-2 text-xs font-medium transition-all flex flex-col items-start gap-1 text-left min-w-0',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                       'disabled:cursor-not-allowed disabled:opacity-50',
                       medio === 'cuenta_corriente'
@@ -1354,7 +1359,7 @@ function CerrarVentaBody({
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {MEDIOS_PAGO_LIST.map((m) => (
                     <button
                       key={m}
@@ -1366,7 +1371,7 @@ function CerrarVentaBody({
                       disabled={isPending}
                       aria-pressed={medio === m}
                       className={cn(
-                        'rounded-md border px-2.5 py-2 text-xs font-medium transition-colors text-center',
+                        'rounded-md border px-2.5 py-2 text-xs font-medium transition-colors text-center truncate min-w-0',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                         'disabled:cursor-not-allowed disabled:opacity-50',
                         medio === m
@@ -1382,10 +1387,10 @@ function CerrarVentaBody({
             </div>
 
             {/* Asignación de Cliente / Pagador para Pago Único */}
-            <div className="rounded-lg border border-border/70 bg-card/40 p-2.5 space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="rounded-lg border border-border/70 bg-card/40 p-2.5 space-y-2 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                 <Label className="text-xs font-semibold">Cliente / Pagador</Label>
-                <div className="flex rounded-md bg-muted p-0.5 text-[11px]">
+                <div className="flex rounded-md bg-muted p-0.5 text-[11px] w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => {
@@ -1396,9 +1401,9 @@ function CerrarVentaBody({
                     }}
                     disabled={isPending || medio === 'cuenta_corriente'}
                     className={cn(
-                      'px-2 py-0.5 rounded font-medium transition-all',
+                      'flex-1 sm:flex-none px-2 py-0.5 rounded font-medium transition-all text-center',
                       singlePersonaTipo === 'general'
-                        ? 'bg-background text-foreground shadow-xs'
+                        ? 'bg-background text-foreground shadow-xs font-semibold'
                         : 'text-muted-foreground hover:text-foreground',
                       medio === 'cuenta_corriente' && 'opacity-50 cursor-not-allowed',
                     )}
@@ -1410,13 +1415,13 @@ function CerrarVentaBody({
                     onClick={() => setSinglePersonaTipo('jugador')}
                     disabled={isPending}
                     className={cn(
-                      'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                      'flex-1 sm:flex-none flex items-center justify-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
                       singlePersonaTipo === 'jugador'
-                        ? 'bg-background text-foreground shadow-xs'
+                        ? 'bg-background text-foreground shadow-xs font-semibold'
                         : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
-                    <User className="h-3 w-3" />
+                    <User className="h-3 w-3 shrink-0" />
                     Jugador
                   </button>
                   <button
@@ -1429,14 +1434,14 @@ function CerrarVentaBody({
                     }}
                     disabled={isPending || medio === 'cuenta_corriente'}
                     className={cn(
-                      'flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
+                      'flex-1 sm:flex-none flex items-center justify-center gap-1 px-2 py-0.5 rounded font-medium transition-all',
                       singlePersonaTipo === 'invitado'
-                        ? 'bg-background text-foreground shadow-xs'
+                        ? 'bg-background text-foreground shadow-xs font-semibold'
                         : 'text-muted-foreground hover:text-foreground',
                       medio === 'cuenta_corriente' && 'opacity-50 cursor-not-allowed',
                     )}
                   >
-                    <Ticket className="h-3 w-3" />
+                    <Ticket className="h-3 w-3 shrink-0" />
                     Invitado
                   </button>
                 </div>
@@ -1499,13 +1504,14 @@ function CerrarVentaBody({
           </div>
         )}
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
           <Button
             type="button"
             variant="outline"
             onClick={onCancel}
             disabled={isPending}
             size="sm"
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -1513,7 +1519,7 @@ function CerrarVentaBody({
             type="submit"
             disabled={isPending || (esPagoMixto && !totalExacto)}
             size="sm"
-            className="gap-1.5"
+            className="w-full sm:w-auto gap-1.5"
           >
             {isPending
               ? 'Procesando…'

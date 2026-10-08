@@ -12,6 +12,8 @@ const tabs: CajaTab[] = [
   // Transferencias: reporte de cobros por transferencia por período.
   // Independiente del turno de caja (no requiere caja abierta).
   { label: 'Transferencias', to: '/app/caja/transferencias' },
+  // Arqueo de Caja: historial de aperturas, cierres, arqueos y control de continuidad
+  { label: 'Arqueo de Caja', to: '/app/caja/arqueos' },
   // Auditoría completa de movimientos bancarios y tesorería de cuentas
   { label: 'Movimientos de Cuentas', to: '/app/caja/movimientos-cuentas' },
 ];

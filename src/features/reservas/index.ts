@@ -65,4 +65,10 @@ export {
   compararHoras,
   generarSlots,
 } from './utils/horaUtils';
-export { resolverTarifa, type TarifaResuelta } from './utils/resolverTarifa';
+export {
+  resolverTarifa,
+  obtenerFranjasDisponibles,
+  tarifaAplicaFranja,
+  type TarifaResuelta,
+  type FranjasDisponiblesParams,
+} from './utils/resolverTarifa';
