@@ -189,12 +189,23 @@ function NuevaReservaBodyReady({
   onCrearClase,
 }: NuevaReservaBodyReadyProps) {
   const allowedDurations = useMemo(() => {
-    const filtered = slot.duracionesPermitidas.filter(d => d === 90 || d === 120);
-    return filtered.length > 0 ? filtered : [90, 120];
-  }, [slot.duracionesPermitidas]);
+    const fromSlot = slot.duracionesPermitidas.filter((d) => d > 0);
+    const fromTarifas = tarifas
+      .map((t) => t.duracion_min)
+      .filter((d): d is number => typeof d === 'number' && d > 0);
+    const pool = [...fromSlot, ...fromTarifas, 60, 90, 120];
+    const unique = Array.from(new Set(pool)).sort((a, b) => a - b);
+    return unique;
+  }, [slot.duracionesPermitidas, tarifas]);
 
   const [duracion, setDuracion] = useState<number>(() => {
-    return allowedDurations.includes(90) ? 90 : (allowedDurations[0] ?? 90);
+    const firstSlot = slot.duracionesPermitidas[0];
+    if (typeof firstSlot === 'number' && slot.duracionesPermitidas.length === 1 && allowedDurations.includes(firstSlot)) {
+      return firstSlot;
+    }
+    if (allowedDurations.includes(90)) return 90;
+    const firstAllowed = allowedDurations[0];
+    return typeof firstAllowed === 'number' ? firstAllowed : 90;
   });
 
   // Tarifa sugerida por (cancha tarifa_id o fecha, hora, DURACIÓN). Recalcula al cambiar la
@@ -222,7 +233,8 @@ function NuevaReservaBodyReady({
   // Si el usuario editó el monto a mano, no lo pisamos al recalcular la
   // tarifa por duración (espejo de montoPagadoTouched).
   const [montoTotalTouched, setMontoTotalTouched] = useState(false);
-  const { club } = useSession();
+  const { club, user } = useSession();
+  const isAdmin = user?.rol === 'admin';
   const depositoObligatorio = false; // Bypass downpayment requirement for admin panel bookings
   const [estado, setEstado] = useState<EstadoInicial>(
     depositoObligatorio ? 'senada' : 'pendiente',
@@ -577,14 +589,16 @@ function NuevaReservaBodyReady({
         <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold text-foreground">Franja horaria / Tarifa</Label>
-            <Link
-              to="/app/configuracion/tarifas"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11px] text-primary hover:underline inline-flex items-center gap-1 font-medium"
-            >
-              Configurar franjas <ExternalLink className="h-3 w-3" />
-            </Link>
+            {isAdmin && (
+              <Link
+                to="/app/configuracion/tarifas"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-primary hover:underline inline-flex items-center gap-1 font-medium"
+              >
+                Configurar franjas <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
           </div>
 
           {/* Opciones de franjas activas y vigentes del club */}

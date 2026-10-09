@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Package } from 'lucide-react';
+import { Package, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
+import { ProductoFormDialog } from '@/features/configuracion/productos/ProductoFormDialog';
 import { CatalogoTab } from './CatalogoTab';
 import { MovimientosTab } from './MovimientosTab';
 import { ComprasTab } from './ComprasTab';
@@ -29,6 +33,11 @@ function esTab(v: string | null): v is Tab {
  *     / período).
  */
 export function InventarioPage() {
+  const { user } = useSession();
+  const canEdit =
+    getPermiso(user, 'inventario', 'editar') ||
+    getPermiso(user, 'configuracion', 'editar');
+
   // Tab inicial desde la URL (?tab=reposicion) → deep-link desde la alarma del
   // dashboard. Solo inicializa; el cambio de tab posterior no toca la URL.
   const [searchParams] = useSearchParams();
@@ -36,17 +45,30 @@ export function InventarioPage() {
     const t = searchParams.get('tab');
     return esTab(t) ? t : 'catalogo';
   });
+  const [crearProductoOpen, setCrearProductoOpen] = useState(false);
 
   return (
     <div className="space-y-5">
-      <header className="space-y-1">
-        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Package className="h-3.5 w-3.5" aria-hidden="true" />
-          Inventario
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Buffet & Shop
-        </h1>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Package className="h-3.5 w-3.5" aria-hidden="true" />
+            Inventario
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Buffet & Shop
+          </h1>
+        </div>
+        {canEdit && (
+          <Button
+            type="button"
+            onClick={() => setCrearProductoOpen(true)}
+            className="gap-1.5 shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo producto
+          </Button>
+        )}
       </header>
 
       <TabsBar activa={tab} onChange={setTab} />
@@ -55,6 +77,13 @@ export function InventarioPage() {
       {tab === 'movimientos' && <MovimientosTab />}
       {tab === 'compras' && <ComprasTab />}
       {tab === 'reposicion' && <ReposicionTab />}
+
+      <ProductoFormDialog
+        open={crearProductoOpen}
+        onOpenChange={setCrearProductoOpen}
+        initialValue={null}
+        initialLinea="buffet"
+      />
     </div>
   );
 }

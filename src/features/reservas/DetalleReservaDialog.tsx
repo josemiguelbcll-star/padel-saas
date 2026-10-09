@@ -143,7 +143,8 @@ function DetalleReservaBody({
   onClose,
   readOnly,
 }: DetalleReservaBodyProps) {
-  const { club } = useSession();
+  const { club, user } = useSession();
+  const isAdmin = user?.rol === 'admin';
   // Estado local de la reserva: arranca con la prop, se actualiza con
   // los returns de las mutations para reflejar cambios sin esperar a
   // que se cierre y re-abra el dialog.
@@ -183,6 +184,7 @@ function DetalleReservaBody({
   const [errorEdicionFranja, setErrorEdicionFranja] = useState<string | null>(null);
 
   function handleAbrirEdicionFranja() {
+    if (!isAdmin) return;
     setNuevoMontoStr(reserva.monto_total.toString());
     setNuevaTarifaId(reserva.tarifa_id ?? tarifaAplicada?.id ?? null);
     setAplicarATodosFijos(true);
@@ -197,6 +199,7 @@ function DetalleReservaBody({
 
   async function handleGuardarFranja(e: React.FormEvent) {
     e.preventDefault();
+    if (!isAdmin) return;
     setErrorEdicionFranja(null);
     const montoNum = parseFloat(nuevoMontoStr.replace(',', '.'));
     if (isNaN(montoNum) || montoNum < 0) {
@@ -674,7 +677,7 @@ function DetalleReservaBody({
         </div>
 
         {/* Franja horaria y precio del turno */}
-        {editandoFranja ? (
+        {editandoFranja && isAdmin ? (
           <form
             onSubmit={handleGuardarFranja}
             className="space-y-3 rounded-lg border border-primary/40 bg-primary/[0.03] p-3.5 shadow-sm"
@@ -847,33 +850,35 @@ function DetalleReservaBody({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              {!readOnly && !estaCerrado && !estaCancelado && (
+            {isAdmin && (
+              <div className="flex items-center gap-1.5">
+                {!readOnly && !estaCerrado && !estaCancelado && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAbrirEdicionFranja}
+                    className="h-7 text-xs"
+                  >
+                    <Pencil className="mr-1 h-3 w-3" />
+                    Cambiar franja / precio
+                  </Button>
+                )}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  onClick={handleAbrirEdicionFranja}
-                  className="h-7 text-xs"
+                  asChild
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  title="Ir a configurar franjas horarias"
                 >
-                  <Pencil className="mr-1 h-3 w-3" />
-                  Cambiar franja / precio
+                  <Link to="/app/configuracion/tarifas" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-1 h-3 w-3" />
+                    Ver franjas
+                  </Link>
                 </Button>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                asChild
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                title="Ir a configurar franjas horarias"
-              >
-                <Link to="/app/configuracion/tarifas" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-1 h-3 w-3" />
-                  Ver franjas
-                </Link>
-              </Button>
-            </div>
+              </div>
+            )}
           </div>
         )}
 
