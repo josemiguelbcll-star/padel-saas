@@ -39,7 +39,7 @@ export function getPermiso(
     caja: { ver: true, editar: true },
     mostrador: { ver: true, editar: true },
     finanzas: { ver: true, editar: true },
-    inventario: { ver: false, editar: false },
+    inventario: { ver: true, editar: true },
     configuracion: { ver: true, editar: false },
   };
 

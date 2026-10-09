@@ -11,6 +11,7 @@ import { useSession } from '@/features/auth';
 import { CACHE_TIEMPO_ESTATICO, CACHE_GC_EXTENDIDO } from '@/lib/queryClient';
 import type { Producto } from '@/types/database';
 import { PRODUCTOS_CON_STOCK_QUERY_KEY } from './useProductosConStock';
+import { INVENTARIO_PRODUCTOS_QUERY_KEY } from '@/features/inventario/hooks/useInventarioProductos';
 
 export const PRODUCTOS_QUERY_KEY_BASE = 'productos';
 export const PRODUCTOS_QUERY_KEY = [PRODUCTOS_QUERY_KEY_BASE] as const;
@@ -87,6 +88,9 @@ export function useCreateProducto(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
       });
+      void queryClient.invalidateQueries({
+        queryKey: INVENTARIO_PRODUCTOS_QUERY_KEY,
+      });
     },
   });
 }
@@ -119,6 +123,9 @@ export function useUpdateProducto(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
       });
+      void queryClient.invalidateQueries({
+        queryKey: INVENTARIO_PRODUCTOS_QUERY_KEY,
+      });
     },
   });
 }
@@ -149,6 +156,9 @@ export function useDeleteProducto(): UseMutationResult<void, Error, number> {
       void queryClient.invalidateQueries({ queryKey: PRODUCTOS_QUERY_KEY });
       void queryClient.invalidateQueries({
         queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: INVENTARIO_PRODUCTOS_QUERY_KEY,
       });
     },
   });

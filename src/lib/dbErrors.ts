@@ -66,6 +66,9 @@ export function mapPostgrestError(error: PostgrestError): string {
     if (/duracion_min/i.test(message)) {
       return 'La duración del turno debe ser 60, 90, 120, 150, 180 o 240 minutos.';
     }
+    if (/mov_stock_coherencia_fuente|mov_stock_fuente_enum/i.test(message)) {
+      return 'El movimiento de stock no cumple con las reglas de consistencia de inventario.';
+    }
     if (/monto/i.test(message)) {
       return 'El monto debe ser mayor o igual a 0.';
     }

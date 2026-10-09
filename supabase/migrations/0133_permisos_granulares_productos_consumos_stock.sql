@@ -334,22 +334,22 @@ BEGIN
   INSERT INTO clase_consumos (
     club_id, clase_id, fecha, producto_id,
     producto_nombre, precio_unitario, costo_unitario,
-    cantidad, subtotal, usuario_id,
-    clase_ocurrencia_alumno_id
+    cantidad, subtotal, linea, usuario_id,
+    clase_alumno_id
   ) VALUES (
     v_club_id, p_clase_id, p_fecha, v_producto.id,
     v_producto.nombre, v_producto.precio, v_producto.costo,
-    p_cantidad, v_producto.precio * p_cantidad, v_usuario_id,
+    p_cantidad, v_producto.precio * p_cantidad, v_producto.linea, v_usuario_id,
     p_clase_alumno_id
   )
   RETURNING * INTO v_consumo;
 
   INSERT INTO movimientos_stock (
     club_id, producto_id, cantidad, fuente,
-    observaciones, usuario_id
+    clase_consumo_id, observaciones, usuario_id
   ) VALUES (
     v_club_id, v_producto.id, -p_cantidad, 'consumo_clase',
-    format('Consumo en clase #%s fecha %s', p_clase_id, p_fecha), v_usuario_id
+    v_consumo.id, format('Consumo en clase #%s fecha %s', p_clase_id, p_fecha), v_usuario_id
   );
 
   RETURN v_consumo;
@@ -392,10 +392,10 @@ BEGIN
 
   INSERT INTO movimientos_stock (
     club_id, producto_id, cantidad, fuente,
-    observaciones, usuario_id
+    clase_consumo_id, observaciones, usuario_id
   ) VALUES (
     v_club_id, v_consumo.producto_id, v_consumo.cantidad, 'reposicion_consumo_clase',
-    format('Reposición por eliminación de consumo de clase #%s', v_consumo.id),
+    v_consumo.id, format('Reposición por eliminación de consumo de clase #%s', v_consumo.id),
     v_usuario_id
   );
 
@@ -470,9 +470,9 @@ BEGIN
     venta_id, compra_id, reserva_consumo_id,
     observaciones, usuario_id
   ) VALUES (
-    v_club_id, p_producto_id, p_cantidad, 'ajuste_manual',
+    v_club_id, p_producto_id, p_cantidad, 'ajuste',
     NULL, NULL, NULL,
-    p_razon, v_usuario_id
+    TRIM(p_razon), v_usuario_id
   )
   RETURNING * INTO v_mov;
 

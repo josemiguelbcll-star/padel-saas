@@ -249,7 +249,6 @@ function DetalleClaseBody({
 
   // Estados locales UI
   const [showAgregarAlumno, setShowAgregarAlumno] = useState(false);
-  const [montoNuevoAlumno, setMontoNuevoAlumno] = useState<string>('');
   const [alumnoCobrandoId, setAlumnoCobrandoId] = useState<number | null>(null);
   const [montoCobroAlumno, setMontoCobroAlumno] = useState<string>('');
   const [selectedCuentaIdAlumno, setSelectedCuentaIdAlumno] = useState<number | null>(() => {
@@ -428,10 +427,8 @@ function DetalleClaseBody({
 
   async function handleAgregarAlumno(val: JugadorSeleccionado | null) {
     if (!val) return;
-    const manualMonto = parseFloat(montoNuevoAlumno);
-    const esManual = !isNaN(manualMonto) && montoNuevoAlumno.trim() !== '';
 
-    // Si no es manual, dividimos la tarifa equitativamente entre todos los alumnos (existentes + nuevo)
+    // Dividimos la tarifa equitativamente entre todos los alumnos (existentes + nuevo)
     const nuevoTotalAlumnos = alumnos.length + 1;
     const tarifaParaN = resolverTarifa({
       fecha,
@@ -445,7 +442,6 @@ function DetalleClaseBody({
       (tarifaParaN.monto || tarifaResuelta.monto || (clase as any).precio || (alumnos.length > 0 ? alumnos.reduce((s, a) => s + (Number(a.monto_clase) || 0), 0) : 0));
 
     const cuotaEquitativa = nuevoTotalAlumnos > 0 ? Math.ceil(totalTarifa / nuevoTotalAlumnos) : 0;
-    const montoNuevo = esManual ? manualMonto : cuotaEquitativa;
 
     try {
       await agregarAlumno.mutateAsync({
@@ -453,11 +449,11 @@ function DetalleClaseBody({
         fecha,
         jugador_id: val.kind === 'jugador' ? val.jugadorId : null,
         nombre_libre: val.kind === 'libre' ? val.nombre : null,
-        monto_clase: montoNuevo,
+        monto_clase: cuotaEquitativa,
       });
 
-      // Si no fue manual y ya había alumnos, rebalanceamos a los existentes para que paguen la misma cuota
-      if (!esManual && alumnos.length > 0) {
+      // Rebalanceamos a los existentes para que todos paguen exactamente la misma cuota
+      if (alumnos.length > 0) {
         await Promise.all(
           alumnos.map((a) =>
             actualizarAlumno.mutateAsync({
@@ -471,9 +467,45 @@ function DetalleClaseBody({
       }
 
       setShowAgregarAlumno(false);
-      setMontoNuevoAlumno('');
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'Error al agregar alumno.');
+    }
+  }
+
+  async function handleQuitarAlumno(alumnoId: number) {
+    try {
+      await quitarAlumno.mutateAsync({
+        id: alumnoId,
+        clase_id: clase.id,
+        fecha,
+      });
+
+      // Si quedan alumnos, rebalanceamos el total equitativamente entre los que quedan
+      const restantes = alumnos.filter((a) => a.id !== alumnoId);
+      if (restantes.length > 0) {
+        const tarifaParaN = resolverTarifa({
+          fecha,
+          hora: clase.hora_inicio,
+          tarifas: tarifasClasesQuery.data ?? [],
+          cantidad_alumnos: restantes.length,
+        });
+        const totalTarifa =
+          ocurrencia?.monto_total ??
+          (tarifaParaN.monto || tarifaResuelta.monto || (clase as any).precio || (alumnos.length > 0 ? alumnos.reduce((s, a) => s + (Number(a.monto_clase) || 0), 0) : 0));
+        const cuotaEquitativa = Math.ceil(totalTarifa / restantes.length);
+        await Promise.all(
+          restantes.map((a) =>
+            actualizarAlumno.mutateAsync({
+              id: a.id,
+              clase_id: clase.id,
+              fecha,
+              monto_clase: cuotaEquitativa,
+            }),
+          ),
+        );
+      }
+    } catch (err) {
+      setCobroError(err instanceof Error ? err.message : 'Error al quitar alumno.');
     }
   }
 
@@ -857,14 +889,7 @@ function DetalleClaseBody({
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={() => {
-                      setShowAgregarAlumno(true);
-                      setMontoNuevoAlumno(
-                        tarifaResuelta.monto
-                          ? Math.ceil(tarifaResuelta.monto / (alumnos.length + 1)).toString()
-                          : '',
-                      );
-                    }}
+                    onClick={() => setShowAgregarAlumno(true)}
                     className="h-7 text-xs"
                   >
                     <Plus className="mr-1 h-3 w-3" />
@@ -891,32 +916,18 @@ function DetalleClaseBody({
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="sm:col-span-2 space-y-1">
-                    <Label className="text-xs">Buscar jugador o escribir nombre</Label>
-                    <JugadorAutocomplete
-                      value={null}
-                      onChange={(v) => void handleAgregarAlumno(v)}
-                      permitirNombreLibre
-                      autoFocus
-                      placeholder="Buscar por nombre o teléfono…"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Monto clase ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={montoNuevoAlumno}
-                      onChange={(e) => setMontoNuevoAlumno(e.target.value)}
-                      placeholder="0.00"
-                      className="h-9"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Buscar jugador o escribir nombre</Label>
+                  <JugadorAutocomplete
+                    value={null}
+                    onChange={(v) => void handleAgregarAlumno(v)}
+                    permitirNombreLibre
+                    autoFocus
+                    placeholder="Buscar por nombre o teléfono…"
+                  />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Tip: Podés seleccionar un jugador registrado para llevar su historial o tipear un nombre libre de alumno ocasional.
+                  Tip: El costo total de la clase se divide en partes iguales automáticamente entre los alumnos que agregues.
                 </p>
               </div>
             )}
@@ -1096,13 +1107,7 @@ function DetalleClaseBody({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  void quitarAlumno.mutateAsync({
-                                    id: item.alumno.id,
-                                    clase_id: clase.id,
-                                    fecha,
-                                  });
-                                }}
+                                onClick={() => void handleQuitarAlumno(item.alumno.id)}
                                 disabled={quitarAlumno.isPending}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                 title="Quitar alumno de esta clase"

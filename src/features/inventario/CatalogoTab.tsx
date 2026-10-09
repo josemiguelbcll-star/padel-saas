@@ -6,7 +6,9 @@ import {
   Download,
   Layers,
   Package,
+  Pencil,
   Percent,
+  Plus,
   Search,
   Settings2,
   type LucideIcon,
@@ -15,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import type { ProductoConStock, Linea } from '@/types/database';
+import type { Producto, ProductoConStock, Linea } from '@/types/database';
 import { useResumenFinanciero } from '@/features/finanzas/hooks/useResumenFinanciero';
 import { useInventarioProductos } from './hooks/useInventarioProductos';
 import { AjustarStockDialog } from './AjustarStockDialog';
@@ -23,6 +25,7 @@ import { TopVendidosSection } from './TopVendidosSection';
 import { RotacionSection } from './RotacionSection';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
+import { ProductoFormDialog } from '@/features/configuracion/productos/ProductoFormDialog';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -92,6 +95,18 @@ export function CatalogoTab() {
 
   const [filtros, setFiltros] = useState<CatalogoFiltros>(INITIAL_FILTROS);
   const [ajustando, setAjustando] = useState<ProductoConStock | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Producto | null>(null);
+
+  function handleCrearProducto() {
+    setEditing(null);
+    setFormOpen(true);
+  }
+
+  function handleEditarProducto(p: ProductoConStock) {
+    setEditing(p);
+    setFormOpen(true);
+  }
 
   // Debounce de la búsqueda — evita re-renderizar la tabla en cada
   // keystroke. 200 ms es suficiente para que se sienta inmediato sin
@@ -301,6 +316,8 @@ export function CatalogoTab() {
         onExportValued={handleExportValuedPdf}
         onExportCount={handleExportCountPdf}
         hayDatos={productos.length > 0}
+        canEdit={canEdit}
+        onCrearProducto={handleCrearProducto}
       />
 
       {/* ── Tabla ────────────────────────────────────────────────── */}
@@ -315,6 +332,8 @@ export function CatalogoTab() {
           productos={productos}
           totalSinFiltros={todos.length}
           onAjustar={(p) => setAjustando(p)}
+          onEditar={(p) => handleEditarProducto(p)}
+          onCrearProducto={handleCrearProducto}
           canEdit={canEdit}
         />
       )}
@@ -329,6 +348,16 @@ export function CatalogoTab() {
           if (!o) setAjustando(null);
         }}
         producto={ajustando}
+      />
+
+      <ProductoFormDialog
+        open={formOpen}
+        onOpenChange={(o) => {
+          setFormOpen(o);
+          if (!o) setEditing(null);
+        }}
+        initialValue={editing}
+        initialLinea={filtros.linea !== 'todas' ? filtros.linea : 'buffet'}
       />
     </div>
   );
@@ -487,6 +516,8 @@ interface FiltrosBarProps {
   onExportValued: () => void;
   onExportCount: () => void;
   hayDatos: boolean;
+  canEdit: boolean;
+  onCrearProducto: () => void;
 }
 
 function FiltrosBar({
@@ -496,6 +527,8 @@ function FiltrosBar({
   onExportValued,
   onExportCount,
   hayDatos,
+  canEdit,
+  onCrearProducto,
 }: FiltrosBarProps) {
   function set<K extends keyof CatalogoFiltros>(key: K, value: CatalogoFiltros[K]) {
     onChange({ ...filtros, [key]: value });
@@ -631,6 +664,18 @@ function FiltrosBar({
               </Button>
             </>
           )}
+
+          {canEdit && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onCrearProducto}
+              className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Nuevo producto
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -676,22 +721,32 @@ function ProductosTable({
   productos,
   totalSinFiltros,
   onAjustar,
+  onEditar,
+  onCrearProducto,
   canEdit,
 }: {
   productos: ProductoConStock[];
   totalSinFiltros: number;
   onAjustar: (p: ProductoConStock) => void;
+  onEditar: (p: ProductoConStock) => void;
+  onCrearProducto: () => void;
   canEdit: boolean;
 }) {
   if (productos.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border p-8 text-center">
+      <div className="rounded-md border border-dashed border-border p-8 text-center space-y-3">
         <Layers className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {totalSinFiltros === 0
-            ? 'Todavía no hay productos cargados. Andá a Configuración → Productos.'
+            ? 'Todavía no hay productos cargados en el inventario.'
             : 'Ningún producto cumple los filtros actuales.'}
         </p>
+        {canEdit && totalSinFiltros === 0 && (
+          <Button type="button" onClick={onCrearProducto} size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Crear primer producto
+          </Button>
+        )}
       </div>
     );
   }
@@ -733,6 +788,7 @@ function ProductosTable({
                 key={p.id}
                 p={p}
                 onAjustar={() => onAjustar(p)}
+                onEditar={() => onEditar(p)}
                 canEdit={canEdit}
               />
             ))}
@@ -746,10 +802,12 @@ function ProductosTable({
 function ProductoRow({
   p,
   onAjustar,
+  onEditar,
   canEdit,
 }: {
   p: ProductoConStock;
   onAjustar: () => void;
+  onEditar: () => void;
   canEdit: boolean;
 }) {
   const estado = estadoDe(p);
@@ -806,16 +864,30 @@ function ProductoRow({
       </td>
       <td className="px-4 py-2.5 text-right">
         {canEdit && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onAjustar}
-            aria-label={`Ajustar stock de ${p.nombre}`}
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            Ajustar
-          </Button>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEditar}
+              aria-label={`Editar ${p.nombre}`}
+              title="Editar producto"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onAjustar}
+              aria-label={`Ajustar stock de ${p.nombre}`}
+              className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Ajustar
+            </Button>
+          </div>
         )}
       </td>
     </tr>

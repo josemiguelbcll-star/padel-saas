@@ -188,20 +188,20 @@ export function PersonasTurnoSection({
     [personas],
   );
 
-  // Dos bolsas de consumo, separadas por tipo_reparto (0015). Mismo
-  // criterio que fn_cobrar_persona_turno — ver tabla de sincronización
-  // en el header de la migración.
+  // Dos bolsas de consumo grupal, separadas por tipo_reparto (0015).
+  // Excluimos consumos individuales asignados a una persona puntual (reserva_jugador_id NOT NULL),
+  // que se suman únicamente al saldo de esa persona.
   const totalConsumosPartido = useMemo(
     () =>
       (consumosQuery.data ?? [])
-        .filter((c) => c.tipo_reparto === 'partido')
+        .filter((c) => c.tipo_reparto === 'partido' && c.reserva_jugador_id == null)
         .reduce((sum, c) => sum + c.subtotal, 0),
     [consumosQuery.data],
   );
   const totalConsumosGeneral = useMemo(
     () =>
       (consumosQuery.data ?? [])
-        .filter((c) => c.tipo_reparto === 'general')
+        .filter((c) => c.tipo_reparto === 'general' && c.reserva_jugador_id == null)
         .reduce((sum, c) => sum + c.subtotal, 0),
     [consumosQuery.data],
   );
@@ -260,6 +260,7 @@ export function PersonasTurnoSection({
         subtotal: Number(c.subtotal),
         tipo_reparto: c.tipo_reparto,
         creado_en: c.fecha_hora,
+        reserva_jugador_id: c.reserva_jugador_id,
       })),
       montoAlquiler,
     });
@@ -1432,6 +1433,19 @@ function ContextoLinea({
     return (
       <span className="text-[11px]" style={{ color: COLOR_OK }}>
         ya pagó {fmtMoney(saldo.yaPagadoTotal)}
+        {saldo.parteConsumo > 0 && saldo.parteAlquiler > 0 && (
+          <span className="text-muted-foreground ml-1">
+            ({fmtMoney(saldo.parteAlquiler)} cancha + {fmtMoney(saldo.parteConsumo)} consumo)
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  if (saldo && saldo.parteConsumo > 0 && saldo.parteAlquiler > 0) {
+    return (
+      <span className="text-[11px] text-muted-foreground">
+        {fmtMoney(saldo.parteAlquiler)} cancha + {fmtMoney(saldo.parteConsumo)} consumo
       </span>
     );
   }
