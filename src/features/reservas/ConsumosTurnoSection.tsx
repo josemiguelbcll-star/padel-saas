@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, ShoppingCart, User, X } from 'lucide-react';
+import { Plus, ShoppingCart, User, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -56,13 +56,13 @@ export function ConsumosTurnoSection({
     let numJugador = 0;
     let numInvitado = 0;
     return personasQuery.data.map((p) => {
+      if (p.tipo === 'jugador') numJugador++;
       let nombre = '';
       if (p.jugador?.nombre) {
         nombre = p.jugador.nombre;
       } else if (p.nombre_libre) {
         nombre = p.nombre_libre;
       } else if (p.tipo === 'jugador') {
-        numJugador++;
         nombre = `Jugador ${numJugador}`;
       } else {
         numInvitado++;
@@ -93,7 +93,8 @@ export function ConsumosTurnoSection({
   const grupos = useMemo<ConsumoGrupo[]>(() => {
     const map = new Map<string, ConsumoGrupo>();
     for (const c of consumos) {
-      const key = `${c.producto_id}|${c.tipo_reparto}|${c.reserva_jugador_id ?? 'grupo'}`;
+      const idsSeleccionados = c.reserva_jugadores_ids ?? [];
+      const key = `${c.producto_id}|${c.tipo_reparto}|${c.reserva_jugador_id ?? 'grupo'}|${idsSeleccionados.join(',')}`;
       const existing = map.get(key);
       if (existing) {
         existing.cantidad_total += c.cantidad;
@@ -102,11 +103,14 @@ export function ConsumosTurnoSection({
       } else {
         const personaNombre = c.reserva_jugador_id
           ? personasMap.get(c.reserva_jugador_id) ?? 'Jugador'
-          : undefined;
+          : idsSeleccionados.length > 0
+            ? idsSeleccionados.map((id) => personasMap.get(id) ?? 'Persona').join(', ')
+            : undefined;
         map.set(key, {
           producto_id: c.producto_id,
           tipo_reparto: c.tipo_reparto,
           reserva_jugador_id: c.reserva_jugador_id,
+          reserva_jugadores_ids: idsSeleccionados,
           persona_nombre: personaNombre,
           producto_nombre: c.producto_nombre,
           precio_unitario: c.precio_unitario,
@@ -131,6 +135,8 @@ export function ConsumosTurnoSection({
     productoId: number,
     tipoReparto: TipoRepartoConsumo,
     reservaJugadorId?: number | null,
+    reservaJugadoresIds?: number[],
+    solicitudId?: string,
   ): Promise<void> {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
@@ -142,6 +148,8 @@ export function ConsumosTurnoSection({
         cantidad: 1,
         tipo_reparto: tipoReparto,
         reserva_jugador_id: reservaJugadorId ?? undefined,
+        reserva_jugadores_ids: reservaJugadoresIds,
+        solicitud_id: solicitudId,
       });
     } catch (err) {
       setError(
@@ -227,6 +235,15 @@ export function ConsumosTurnoSection({
                 onQuitarUno={() => {
                   void handleQuitarUltimoDelGrupo(g);
                 }}
+                onAgregarUno={() => {
+                  void handleAgregar(
+                    g.producto_id,
+                    g.tipo_reparto,
+                    g.reserva_jugador_id,
+                    g.reserva_jugadores_ids,
+                    crypto.randomUUID(),
+                  );
+                }}
                 disabled={anyPending}
                 readOnly={readOnly}
               />
@@ -255,6 +272,7 @@ export function ConsumosTurnoSection({
               onAdd={handleAgregar}
               disabled={cargar.isPending}
               personas={personasDestino}
+              allowMultipleSelection
             />
           </div>
         ) : !readOnly ? (
@@ -309,6 +327,7 @@ interface ConsumoGrupo {
   producto_id: number;
   tipo_reparto: TipoRepartoConsumo;
   reserva_jugador_id?: number | null;
+  reserva_jugadores_ids: number[];
   persona_nombre?: string;
   producto_nombre: string;
   precio_unitario: number;
@@ -320,11 +339,13 @@ interface ConsumoGrupo {
 
 function ConsumoGrupoRow({
   grupo,
+  onAgregarUno,
   onQuitarUno,
   disabled,
   readOnly,
 }: {
   grupo: ConsumoGrupo;
+  onAgregarUno: () => void;
   onQuitarUno: () => void;
   disabled: boolean;
   readOnly?: boolean;
@@ -344,11 +365,17 @@ function ConsumoGrupoRow({
       </span>
       {grupo.persona_nombre && (
         <span
-          className="shrink-0 inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
-          title={`Consumo individual asignado a ${grupo.persona_nombre}`}
+          className="shrink-0 inline-flex max-w-[45%] items-center gap-1 truncate rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+          title={grupo.reserva_jugadores_ids.length > 1
+            ? `Consumo dividido entre ${grupo.persona_nombre}`
+            : `Consumo individual asignado a ${grupo.persona_nombre}`}
         >
-          <User className="h-2.5 w-2.5" />
-          {grupo.persona_nombre}
+          {grupo.reserva_jugadores_ids.length > 1
+            ? <Users className="h-2.5 w-2.5" />
+            : <User className="h-2.5 w-2.5" />}
+          {grupo.reserva_jugadores_ids.length > 1
+            ? `Compartido: ${grupo.persona_nombre}`
+            : grupo.persona_nombre}
         </span>
       )}
       {esPartido && (
@@ -366,21 +393,35 @@ function ConsumoGrupoRow({
         {currencyFmt.format(grupo.subtotal_total)}
       </span>
       {!readOnly && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onQuitarUno}
-          disabled={disabled}
-          aria-label={`Quitar 1 unidad de ${grupo.producto_nombre}`}
-          title={`Quitar 1 unidad (queda ${grupo.cantidad_total - 1})`}
-          className={cn(
-            'h-7 w-7 shrink-0 text-muted-foreground',
-            'hover:bg-destructive/10 hover:text-destructive',
-          )}
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex shrink-0 items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onAgregarUno}
+            disabled={disabled}
+            aria-label={`Agregar 1 unidad de ${grupo.producto_nombre} manteniendo el reparto actual`}
+            title="Agregar 1 unidad con el mismo reparto"
+            className="h-7 w-7 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onQuitarUno}
+            disabled={disabled}
+            aria-label={`Quitar 1 unidad de ${grupo.producto_nombre}`}
+            title={`Quitar 1 unidad (queda ${grupo.cantidad_total - 1})`}
+            className={cn(
+              'h-7 w-7 text-muted-foreground',
+              'hover:bg-destructive/10 hover:text-destructive',
+            )}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       )}
     </li>
   );

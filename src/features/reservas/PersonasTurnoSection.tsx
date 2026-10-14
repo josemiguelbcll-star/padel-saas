@@ -201,7 +201,18 @@ export function PersonasTurnoSection({
   const totalConsumosGeneral = useMemo(
     () =>
       (consumosQuery.data ?? [])
-        .filter((c) => c.tipo_reparto === 'general' && c.reserva_jugador_id == null)
+        .filter((c) =>
+          c.tipo_reparto === 'general' &&
+          c.reserva_jugador_id == null &&
+          (c.reserva_jugadores_ids?.length ?? 0) === 0,
+        )
+        .reduce((sum, c) => sum + c.subtotal, 0),
+    [consumosQuery.data],
+  );
+  const totalConsumosSeleccionados = useMemo(
+    () =>
+      (consumosQuery.data ?? [])
+        .filter((c) => (c.reserva_jugadores_ids?.length ?? 0) > 1)
         .reduce((sum, c) => sum + c.subtotal, 0),
     [consumosQuery.data],
   );
@@ -225,6 +236,7 @@ export function PersonasTurnoSection({
         cantidadJugadores: jugadores.length,
         totalConsumosPartido,
         totalConsumosGeneral,
+        totalConsumosSeleccionados,
         cantidadPersonas: personas.length,
         alquilerFijado: totalAlquilerFijado,
         cantidadJugadoresSinFija: jugadoresSinFija.length,
@@ -234,6 +246,7 @@ export function PersonasTurnoSection({
       jugadores.length,
       totalConsumosPartido,
       totalConsumosGeneral,
+      totalConsumosSeleccionados,
       personas.length,
       totalAlquilerFijado,
       jugadoresSinFija.length,
@@ -261,6 +274,7 @@ export function PersonasTurnoSection({
         tipo_reparto: c.tipo_reparto,
         creado_en: c.fecha_hora,
         reserva_jugador_id: c.reserva_jugador_id,
+        reserva_jugadores_ids: c.reserva_jugadores_ids,
       })),
       montoAlquiler,
     });
@@ -532,7 +546,8 @@ export function PersonasTurnoSection({
     !esLegacyPagada &&
     (desglose.parteAlquilerPorJugador > 0 ||
       desglose.parteConsumoPartidoPorJugador > 0 ||
-      desglose.parteConsumoGeneralPorPersona > 0);
+      desglose.parteConsumoGeneralPorPersona > 0 ||
+      desglose.totalConsumosSeleccionados > 0);
 
   return (
     <section className="space-y-3">
@@ -858,7 +873,8 @@ function DesgloseHint({ desglose }: { desglose: DesgloseCuenta }) {
   const muestraAlquiler = desglose.parteAlquilerPorJugador > 0;
   const muestraConsumosPartido = desglose.parteConsumoPartidoPorJugador > 0;
   const muestraConsumosGeneral = desglose.parteConsumoGeneralPorPersona > 0;
-  if (!muestraAlquiler && !muestraConsumosPartido && !muestraConsumosGeneral) {
+  const muestraConsumosSeleccionados = desglose.totalConsumosSeleccionados > 0;
+  if (!muestraAlquiler && !muestraConsumosPartido && !muestraConsumosGeneral && !muestraConsumosSeleccionados) {
     return null;
   }
 
@@ -911,6 +927,14 @@ function DesgloseHint({ desglose }: { desglose: DesgloseCuenta }) {
             {fmtMoney(desglose.parteConsumoGeneralPorPersona)}
           </span>{' '}
           por persona
+        </p>
+      )}
+      {muestraConsumosSeleccionados && (
+        <p>
+          Consumos divididos entre las personas seleccionadas:{' '}
+          <span className="font-medium tabular-nums text-foreground">
+            {fmtMoney(desglose.totalConsumosSeleccionados)}
+          </span>
         </p>
       )}
     </div>

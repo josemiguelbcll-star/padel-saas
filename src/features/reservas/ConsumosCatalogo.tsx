@@ -43,10 +43,12 @@ export interface ConsumosCatalogoProps {
     productoId: number,
     tipoReparto: TipoRepartoConsumo,
     personaId?: number | null,
+    personasIds?: number[],
   ) => void;
   disabled?: boolean;
   personas?: PersonaDestinoConsumo[];
   labelPersonas?: string;
+  allowMultipleSelection?: boolean;
 }
 
 export function ConsumosCatalogo({
@@ -54,6 +56,7 @@ export function ConsumosCatalogo({
   disabled,
   personas = [],
   labelPersonas = 'Asignar consumo a:',
+  allowMultipleSelection = false,
 }: ConsumosCatalogoProps) {
   const productosQuery = useProductosConStock();
   const productos = useMemo(
@@ -64,10 +67,11 @@ export function ConsumosCatalogo({
   const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>('todas');
   const [busqueda, setBusqueda] = useState('');
   const [tipoReparto, setTipoReparto] = useState<TipoRepartoConsumo>('general');
-  const [personaSeleccionadaId, setPersonaSeleccionadaId] = useState<number | null>(null);
+  const [personasSeleccionadasIds, setPersonasSeleccionadasIds] = useState<number[]>([]);
 
-  const isIndividual = personaSeleccionadaId !== null;
-  const isPartido = !isIndividual && tipoReparto === 'partido';
+  const isCustomSelection = personasSeleccionadasIds.length > 0;
+  const isIndividual = personasSeleccionadasIds.length === 1;
+  const isPartido = !isCustomSelection && tipoReparto === 'partido';
 
   const productosActivos = useMemo(
     () => productos.filter((p) => p.activo),
@@ -87,10 +91,10 @@ export function ConsumosCatalogo({
     });
   }, [productosActivos, filtroCategoria, busqueda]);
 
-  const personaSeleccionadaNombre = useMemo(() => {
-    if (!personaSeleccionadaId) return null;
-    return personas.find((p) => p.id === personaSeleccionadaId)?.nombre ?? null;
-  }, [personaSeleccionadaId, personas]);
+  const personasSeleccionadas = useMemo(
+    () => personasSeleccionadasIds.map((id) => personas.find((p) => p.id === id)?.nombre ?? 'Persona'),
+    [personasSeleccionadasIds, personas],
+  );
 
   if (productosQuery.isLoading) {
     return (
@@ -115,10 +119,22 @@ export function ConsumosCatalogo({
 
   function handleProductClick(productoId: number) {
     if (isIndividual) {
-      onAdd(productoId, 'individual', personaSeleccionadaId);
+      onAdd(productoId, 'individual', personasSeleccionadasIds[0]);
+    } else if (personasSeleccionadasIds.length > 1) {
+      onAdd(productoId, 'general', null, personasSeleccionadasIds);
     } else {
       onAdd(productoId, tipoReparto, null);
     }
+  }
+
+  function togglePersona(id: number) {
+    setPersonasSeleccionadasIds((actuales) => {
+      if (allowMultipleSelection && actuales.includes(id)) {
+        return actuales.filter((actual) => actual !== id);
+      }
+      if (allowMultipleSelection && actuales.length >= 4) return actuales;
+      return allowMultipleSelection ? [...actuales, id] : [id];
+    });
   }
 
   return (
@@ -147,11 +163,11 @@ export function ConsumosCatalogo({
           <div className="flex flex-wrap gap-1">
             <button
               type="button"
-              onClick={() => setPersonaSeleccionadaId(null)}
+              onClick={() => setPersonasSeleccionadasIds([])}
               disabled={disabled}
               className={cn(
                 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors border',
-                !isIndividual
+                !isCustomSelection
                   ? 'border-primary bg-primary text-primary-foreground shadow-xs'
                   : 'border-border bg-background text-muted-foreground hover:bg-muted',
               )}
@@ -160,13 +176,13 @@ export function ConsumosCatalogo({
               Todo el grupo (Dividido)
             </button>
             {personas.map((p) => {
-              const selected = personaSeleccionadaId === p.id;
+              const selected = personasSeleccionadasIds.includes(p.id);
               return (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setPersonaSeleccionadaId(p.id)}
-                  disabled={disabled}
+                  onClick={() => togglePersona(p.id)}
+                  disabled={disabled || (allowMultipleSelection && !selected && personasSeleccionadasIds.length >= 4)}
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors border',
                     selected
@@ -181,12 +197,18 @@ export function ConsumosCatalogo({
             })}
           </div>
 
-          {isIndividual && personaSeleccionadaNombre && (
+          {allowMultipleSelection && !isCustomSelection && (
+            <p className="text-[10px] text-muted-foreground">
+              Elegí una persona para cargarle el total, o de 2 a 4 para dividirlo en partes iguales.
+            </p>
+          )}
+
+          {isCustomSelection && (
             <div className="flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
-              <User className="h-3.5 w-3.5" />
+              {isIndividual ? <User className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
               <span>
-                Cargando 100% a la cuenta de:{' '}
-                <span className="underline">{personaSeleccionadaNombre}</span>
+                {isIndividual ? 'Cargando 100% a:' : `Dividiendo en partes iguales entre ${personasSeleccionadasIds.length}:`}{' '}
+                <span className="underline">{personasSeleccionadas.join(', ')}</span>
               </span>
             </div>
           )}
@@ -194,7 +216,7 @@ export function ConsumosCatalogo({
       )}
 
       {/* 2. Sub-opción grupal (si no es individual): Para todos vs Del partido */}
-      {!isIndividual && (
+      {!isCustomSelection && (
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-medium text-muted-foreground">
