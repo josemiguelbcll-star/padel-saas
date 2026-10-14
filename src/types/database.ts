@@ -1131,6 +1131,8 @@ export interface ReservaConsumo {
   fecha_hora: string;
   reserva_jugador_id?: number | null;
   jugador_id?: number | null;
+  /** IDs de las 2 a 4 personas seleccionadas para dividir este consumo. */
+  reserva_jugadores_ids?: number[];
 }
 
 export interface Venta {

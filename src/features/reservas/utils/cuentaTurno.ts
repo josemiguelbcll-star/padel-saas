@@ -40,6 +40,7 @@ export interface CalcularDesgloseInput {
    * invitados). Agregado en la 0015.
    */
   totalConsumosGeneral: number;
+  totalConsumosSeleccionados?: number;
   /** count total de personas (jugadores + invitados). >= 0. */
   cantidadPersonas: number;
   /** Total de cuotas fijas aplicadas a alquiler (0103). */
@@ -77,6 +78,7 @@ export interface DesgloseCuenta {
   montoAlquiler: number;
   totalConsumosPartido: number;
   totalConsumosGeneral: number;
+  totalConsumosSeleccionados: number;
   alquilerFijado?: number;
   cantidadJugadoresSinFija?: number;
 }
@@ -94,6 +96,7 @@ export function calcularDesgloseCuenta(
     cantidadJugadores,
     totalConsumosPartido,
     totalConsumosGeneral,
+    totalConsumosSeleccionados = 0,
     cantidadPersonas,
     alquilerFijado = 0,
     cantidadJugadoresSinFija,
@@ -131,6 +134,7 @@ export function calcularDesgloseCuenta(
     montoAlquiler,
     totalConsumosPartido,
     totalConsumosGeneral,
+    totalConsumosSeleccionados,
     alquilerFijado,
     cantidadJugadoresSinFija: cantJug,
   };
@@ -231,6 +235,7 @@ export interface CalcularSaldosPersonasInput {
     tipo_reparto: string;
     creado_en: string;
     reserva_jugador_id?: number | null;
+    reserva_jugadores_ids?: number[] | null;
   }>;
   /** reserva.monto_total (alquiler). */
   montoAlquiler: number;
@@ -359,6 +364,20 @@ export function calcularSaldosPersonas(
         if (pState) {
           pState.partConsumo += subtotal;
         }
+        continue;
+      }
+
+      const idsSeleccionados: number[] = c.reserva_jugadores_ids ?? [];
+      const personasSeleccionadas = idsSeleccionados
+        .map((id) => stateMap.get(id))
+        .filter((pState) => pState !== undefined);
+      if (personasSeleccionadas.length === idsSeleccionados.length && personasSeleccionadas.length >= 2) {
+        const totalCentavos = Math.round(subtotal * 100);
+        const centavosBase = Math.floor(totalCentavos / personasSeleccionadas.length);
+        const centavosRestantes = totalCentavos % personasSeleccionadas.length;
+        personasSeleccionadas.forEach((pState, index) => {
+          pState.partConsumo += (centavosBase + (index < centavosRestantes ? 1 : 0)) / 100;
+        });
         continue;
       }
       

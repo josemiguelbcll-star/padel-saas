@@ -69,6 +69,10 @@ export interface CargarConsumoTurnoInput {
   tipo_reparto: TipoRepartoConsumo;
   /** Si se imputa a una persona puntual del turno. */
   reserva_jugador_id?: number | null;
+  /** IDs de las 2 a 4 personas entre quienes se divide el consumo. */
+  reserva_jugadores_ids?: number[];
+  /** Clave estable para que un reintento no repita un incremento manual. */
+  solicitud_id?: string;
 }
 
 /**
@@ -111,6 +115,8 @@ export function useCargarConsumoTurno(): UseMutationResult<
         p_cantidad: input.cantidad,
         p_tipo_reparto: input.tipo_reparto,
         p_reserva_jugador_id: input.reserva_jugador_id ?? null,
+        p_reserva_jugadores_ids: input.reserva_jugadores_ids ?? null,
+        p_solicitud_id: input.solicitud_id ?? null,
       });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
