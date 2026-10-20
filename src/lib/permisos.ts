@@ -1,20 +1,10 @@
-import type { Usuario } from '@/types/database';
-
-export interface PermisoModulo {
-  ver: boolean;
-  editar: boolean;
-}
-
-export interface PermisosEstructura {
-  modulos?: {
-    [moduloKey: string]: PermisoModulo;
-  };
-}
+import type { PermisoModulo, PermisosEstructura, Usuario } from '@/types/database';
 
 export const SECCIONES_PERMISOS = [
   { key: 'reservas', label: 'Reservas y Jugadores', descripcion: 'Grilla de turnos, turnos fijos y ficha de jugadores.' },
   { key: 'noticias', label: 'Noticias', descripcion: 'Envío de notificaciones y publicación en la app del jugador.' },
   { key: 'caja', label: 'Caja', descripcion: 'Aperturas, cierres de caja, arqueo y ver movimientos de efectivo y transferencias.' },
+  { key: 'caja_arqueos', label: 'Arqueos de caja', descripcion: 'Consultar el historial de arqueos propios.' },
   { key: 'mostrador', label: 'Mostrador / Buffet', descripcion: 'Registrar ventas de mostrador y buffet.' },
   { key: 'finanzas', label: 'Finanzas', descripcion: 'Visualizar flujo de caja, cargar gastos y otros ingresos.' },
   { key: 'inventario', label: 'Inventario', descripcion: 'Gestión de stock, proveedores y órdenes de compra.' },
@@ -37,6 +27,7 @@ export function getPermiso(
     reservas: { ver: true, editar: true },
     noticias: { ver: true, editar: true },
     caja: { ver: true, editar: true },
+    caja_arqueos: { ver: false, editar: false },
     mostrador: { ver: true, editar: true },
     finanzas: { ver: true, editar: true },
     inventario: { ver: true, editar: true },

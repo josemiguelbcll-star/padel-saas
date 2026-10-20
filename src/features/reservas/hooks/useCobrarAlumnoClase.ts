@@ -17,6 +17,7 @@ export interface CobrarAlumnoClaseInput {
   monto: number;
   monto_clase?: number;
   monto_consumo?: number;
+  redistribuir_cuotas?: boolean;
   observaciones?: string | null;
   cuenta_id?: number | null;
 }
@@ -30,7 +31,10 @@ export function useCobrarAlumnoClase(): UseMutationResult<
 
   return useMutation({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.rpc('fn_cobrar_alumno_clase', {
+      const rpc = input.redistribuir_cuotas
+        ? 'fn_cobrar_alumno_clase_redistribuir'
+        : 'fn_cobrar_alumno_clase';
+      const { data, error } = await supabase.rpc(rpc, {
         p_clase_alumno_id: input.clase_alumno_id,
         p_medio_pago: input.medio_pago,
         p_monto: input.monto,

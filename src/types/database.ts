@@ -417,7 +417,16 @@ export interface Usuario {
    * Permisos granulares del usuario (para rol vendedor).
    * Estructura: { modulos?: { [moduloKey: string]: { ver: boolean; editar: boolean } } }
    */
-  permisos?: any;
+  permisos?: PermisosEstructura;
+}
+
+export interface PermisoModulo {
+  ver: boolean;
+  editar: boolean;
+}
+
+export interface PermisosEstructura {
+  modulos?: Record<string, PermisoModulo>;
 }
 
 export interface Cancha {

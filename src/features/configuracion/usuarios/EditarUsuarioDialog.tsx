@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useActualizarUsuario } from '@/features/configuracion/hooks/useActualizarUsuario';
-import type { Rol, Usuario } from '@/types/database';
+import type { PermisoModulo, PermisosEstructura, Rol, Usuario } from '@/types/database';
 import { editarUsuarioSchema } from './usuarioSchema';
 import { SECCIONES_PERMISOS } from '@/lib/permisos';
 
@@ -44,7 +44,7 @@ export function EditarUsuarioDialog({
 
   const [nombre, setNombre] = useState(usuario.nombre);
   const [rol, setRol] = useState<Rol>(usuario.rol);
-  const [permisos, setPermisos] = useState<any>(usuario.permisos || {});
+  const [permisos, setPermisos] = useState<PermisosEstructura>(usuario.permisos || {});
   const [confirmingDesactivar, setConfirmingDesactivar] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -84,7 +84,11 @@ export function EditarUsuarioDialog({
       return;
     }
 
-    const changes: { nombre?: string; rol?: Rol; permisos?: any } = {};
+    const changes: {
+      nombre?: string;
+      rol?: Rol;
+      permisos?: PermisosEstructura;
+    } = {};
     if (parsed.data.nombre !== usuario.nombre) changes.nombre = parsed.data.nombre;
     if (parsed.data.rol !== usuario.rol) changes.rol = parsed.data.rol;
     if (rol === 'vendedor' && JSON.stringify(permisos) !== JSON.stringify(usuario.permisos)) {
@@ -234,14 +238,17 @@ export function EditarUsuarioDialog({
 
               <div className="space-y-3 pt-2">
                 {SECCIONES_PERMISOS.map((seccion) => {
-                  const config = permisos?.modulos?.[seccion.key] || {
-                    ver: seccion.key !== 'inventario',
-                    editar: seccion.key !== 'inventario' && seccion.key !== 'configuracion',
+                  const config: PermisoModulo = permisos.modulos?.[seccion.key] || {
+                    ver: seccion.key !== 'inventario' && seccion.key !== 'caja_arqueos',
+                    editar:
+                      seccion.key !== 'inventario' &&
+                      seccion.key !== 'configuracion' &&
+                      seccion.key !== 'caja_arqueos',
                   };
 
                   const handleToggle = (tipo: 'ver' | 'editar', checked: boolean) => {
-                    const currentConfig = {
-                      ...(permisos?.modulos?.[seccion.key] || config),
+                    const currentConfig: PermisoModulo = {
+                      ...(permisos.modulos?.[seccion.key] || config),
                       [tipo]: checked,
                     };
 
@@ -252,10 +259,10 @@ export function EditarUsuarioDialog({
                       currentConfig.ver = true;
                     }
 
-                    setPermisos((prev: any) => ({
+                    setPermisos((prev) => ({
                       ...prev,
                       modulos: {
-                        ...(prev?.modulos || {}),
+                        ...(prev.modulos || {}),
                         [seccion.key]: currentConfig,
                       },
                     }));

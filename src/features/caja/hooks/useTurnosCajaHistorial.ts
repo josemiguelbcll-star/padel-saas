@@ -24,12 +24,15 @@ export interface TurnoCajaConDetalles extends TurnoCaja {
   diferenciaConProximaApertura: number | null;
 }
 
-export const TURNOS_CAJA_HISTORIAL_QUERY_KEY = (clubId?: number) =>
-  ['caja', 'turnos-historial', clubId] as const;
+export const TURNOS_CAJA_HISTORIAL_QUERY_KEY = (
+  clubId?: number,
+  userId?: string,
+) => ['caja', 'turnos-historial', clubId, userId] as const;
 
 /**
- * Consulta el historial completo de jornadas / turnos de caja del club
- * (aperturas, cierres, arqueos, importes contados vs esperados y usuarios intervinientes).
+ * Consulta el historial de jornadas / turnos de caja permitido al usuario:
+ * los admins ven el club completo y los vendedores solo las jornadas propias.
+ * Incluye aperturas, cierres, arqueos e intervinientes.
  *
  * Además calcula la continuidad entre cierres y la apertura siguiente
  * para auditar si el fondo de caja coincidió al abrir nuevamente la jornada.
@@ -38,21 +41,29 @@ export function useTurnosCajaHistorial(): UseQueryResult<
   TurnoCajaConDetalles[],
   Error
 > {
-  const { club } = useSession();
+  const { club, user } = useSession();
 
   return useQuery<TurnoCajaConDetalles[], Error>({
-    queryKey: TURNOS_CAJA_HISTORIAL_QUERY_KEY(club?.id),
-    enabled: !!club,
+    queryKey: TURNOS_CAJA_HISTORIAL_QUERY_KEY(club?.id, user?.id),
+    enabled: !!club && !!user,
     staleTime: 10_000,
     queryFn: async () => {
-      if (!club) throw new Error('No pudimos identificar tu club.');
+      if (!club || !user) throw new Error('No pudimos identificar tu sesión.');
+
+      let turnosQuery = supabase
+        .from('turnos_caja')
+        .select('*')
+        .eq('club_id', club.id)
+        .order('abierta_en', { ascending: false });
+
+      if (user.rol !== 'admin') {
+        turnosQuery = turnosQuery.or(
+          `vendedor_id.eq.${user.id},usuario_apertura.eq.${user.id},usuario_cierre.eq.${user.id}`,
+        );
+      }
 
       const [turnosRes, usuariosRes] = await Promise.all([
-        supabase
-          .from('turnos_caja')
-          .select('*')
-          .eq('club_id', club.id)
-          .order('abierta_en', { ascending: false }),
+        turnosQuery,
         supabase
           .from('usuarios')
           .select('id, nombre, email, rol')

@@ -147,6 +147,37 @@ export interface ActualizarAlumnoClaseInput {
   nombre_libre?: string | null;
 }
 
+export interface RebalancearCuotaClaseInput {
+  clase_alumno_id: number;
+  clase_id: number;
+  fecha: string;
+  nueva_cuota: number;
+}
+
+export function useRebalancearCuotaClase(): UseMutationResult<
+  void,
+  Error,
+  RebalancearCuotaClaseInput
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input) => {
+      const { error } = await supabase.rpc('fn_rebalancear_cuota_clase', {
+        p_clase_alumno_id: input.clase_alumno_id,
+        p_nueva_cuota: input.nueva_cuota,
+      });
+
+      if (error) throw new Error(mapPostgrestError(error));
+    },
+    onSuccess: (_, input) => {
+      void queryClient.invalidateQueries({
+        queryKey: claseAlumnosQueryKey(input.clase_id, input.fecha),
+      });
+    },
+  });
+}
+
 export function useActualizarAlumnoClase(): UseMutationResult<
   ClaseOcurrenciaAlumno,
   Error,

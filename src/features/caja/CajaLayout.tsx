@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 
 interface CajaTab {
   label: string;
@@ -29,11 +31,18 @@ const tabs: CajaTab[] = [
  * react-router pone aria-current="page" en el NavLink activo automáticamente.
  */
 export function CajaLayout() {
+  const { user } = useSession();
+  const tabsVisibles = tabs.filter(
+    (tab) =>
+      tab.to !== '/app/caja/arqueos' ||
+      getPermiso(user, 'caja_arqueos', 'ver'),
+  );
+
   return (
     <div className="space-y-6">
       <nav className="border-b border-border" aria-label="Secciones de caja">
         <ul className="flex flex-wrap gap-1">
-          {tabs.map((tab) => (
+          {tabsVisibles.map((tab) => (
             <li key={tab.to}>
               <NavLink
                 to={tab.to}
