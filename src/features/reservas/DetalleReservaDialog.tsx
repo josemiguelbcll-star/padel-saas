@@ -289,18 +289,15 @@ function DetalleReservaBody({
   const estaCerrado = reserva.cerrado_en !== null;
   const estaCancelado = reserva.estado === 'cancelada';
 
-  // Cancelar: solo turnos sin plata ni consumo, no cerrados. Mostramos el
-  // motivo para que el vendedor entienda por qué no puede ANTES de apretar
-  // (el server igual lo blinda con la 0055).
+  // La plata ya cobrada se conserva como ingreso de Canchas al cancelar.
+  // Solo se bloquea la cancelación si el turno está cerrado o tiene consumos.
   const motivoNoCancelable: string | null = estaCancelado
     ? 'El turno ya está cancelado.'
     : estaCerrado
       ? 'El turno está cerrado; no se puede cancelar.'
-      : tienePago
-        ? 'Tiene pagos registrados; no se puede cancelar.'
-        : tieneConsumo
-          ? 'Tiene consumos cargados; no se puede cancelar.'
-          : null;
+      : tieneConsumo
+        ? 'Tiene consumos cargados; no se puede cancelar.'
+        : null;
   const puedeCancelar = motivoNoCancelable === null;
 
   // Estado operativo (badge). Mismo cálculo que la grilla / la view.
@@ -1020,8 +1017,9 @@ function DetalleReservaBody({
                   ¿Cancelar esta reserva?
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  El turno no tiene pagos ni consumos. Se cancela y el
-                  horario queda libre.
+                  {tienePago
+                    ? `Se conservarán los ${fmtMoney(reserva.monto_pagado)} ya cobrados como ingreso de Canchas (no se devolverán). La reserva se cancelará y el horario quedará libre.`
+                    : 'La reserva se cancelará y el horario quedará libre.'}
                   {'turno_fijo_id' in reserva && reserva.turno_fijo_id
                     ? ' Si es un turno fijo, el turno fijo en sí NO se eliminará, sino que este día quedará disponible para alquilar.'
                     : ''}
@@ -1276,4 +1274,3 @@ function ObservacionesSection({ reserva, onSave, readOnly }: ObservacionesSectio
     </section>
   );
 }
-

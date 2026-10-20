@@ -45,6 +45,7 @@ import {
   useClaseAlumnos,
   useAgregarAlumnoClase,
   useActualizarAlumnoClase,
+  useRebalancearCuotaClase,
   useQuitarAlumnoClase,
   useGuardarComoAlumnosFijos,
 } from './hooks/useClaseAlumnos';
@@ -195,6 +196,7 @@ function DetalleClaseBody({
 
   const agregarAlumno = useAgregarAlumnoClase();
   const actualizarAlumno = useActualizarAlumnoClase();
+  const rebalancearCuota = useRebalancearCuotaClase();
   const quitarAlumno = useQuitarAlumnoClase();
   const guardarFijos = useGuardarComoAlumnosFijos();
 
@@ -251,6 +253,7 @@ function DetalleClaseBody({
   const [showAgregarAlumno, setShowAgregarAlumno] = useState(false);
   const [alumnoCobrandoId, setAlumnoCobrandoId] = useState<number | null>(null);
   const [montoCobroAlumno, setMontoCobroAlumno] = useState<string>('');
+  const [redistribuirCuotas, setRedistribuirCuotas] = useState(false);
   const [selectedCuentaIdAlumno, setSelectedCuentaIdAlumno] = useState<number | null>(() => {
     if (cuentasActivas.length > 0) {
       const def = cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ?? cuentasActivas[0];
@@ -392,11 +395,28 @@ function DetalleClaseBody({
 
   // Totales globales
   const totalClaseBase = useMemo(() => {
+    if (ocurrencia?.monto_total != null) {
+      return Number(ocurrencia.monto_total);
+    }
     if (alumnos.length > 0) {
       return alumnos.reduce((sum, a) => sum + (Number(a.monto_clase) || 0), 0);
     }
-    return ocurrencia?.monto_total ?? (tarifaResuelta.monto || 0);
-  }, [alumnos, ocurrencia, tarifaResuelta.monto]);
+    return tarifaResuelta.monto || 0;
+  }, [alumnos, ocurrencia?.monto_total, tarifaResuelta.monto]);
+
+  const totalCobradoClase = useMemo(
+    () =>
+      pagos.reduce((sum, pago) => {
+        const montoClase =
+          pago.clase_alumno_id != null
+            ? Number(pago.monto_clase) || 0
+            : Number(pago.monto_clase) > 0 || Number(pago.monto_consumo) > 0
+              ? Number(pago.monto_clase) || 0
+              : Number(pago.monto) || 0;
+        return sum + montoClase;
+      }, 0),
+    [pagos],
+  );
 
   const totalConsumosTotal = useMemo(
     () => consumos.reduce((sum, c) => sum + c.subtotal, 0),
@@ -513,11 +533,11 @@ function DetalleClaseBody({
     const val = parseFloat(valorMontoAlumnoEdit);
     if (isNaN(val) || val < 0) return;
     try {
-      await actualizarAlumno.mutateAsync({
-        id: alumnoId,
+      await rebalancearCuota.mutateAsync({
+        clase_alumno_id: alumnoId,
         clase_id: clase.id,
         fecha,
-        monto_clase: val,
+        nueva_cuota: val,
       });
       setEditandoMontoAlumnoId(null);
     } catch (err) {
@@ -575,7 +595,19 @@ function DetalleClaseBody({
     setCobroError(null);
 
     const cuenta = cuentasAlumnos.find((c) => c.alumno.id === alumnoCobrandoId);
-    const montoClaseParte = cuenta ? Math.min(monto, cuenta.montoClase) : monto;
+    const montoClasePendiente = Math.max(0, totalClaseBase - totalCobradoClase);
+    const montoClaseYaPagadoAlumno = cuenta
+      ? cuenta.pagosAlumno.reduce(
+          (sum, pago) => sum + (Number(pago.monto_clase) || 0),
+          0,
+        )
+      : 0;
+    const montoClasePendienteAlumno = cuenta
+      ? Math.max(0, cuenta.montoClase - montoClaseYaPagadoAlumno)
+      : monto;
+    const montoClaseParte = redistribuirCuotas
+      ? Math.min(monto, montoClasePendiente)
+      : Math.min(monto, montoClasePendienteAlumno);
     const montoConsumoParte = Math.max(0, monto - montoClaseParte);
 
     try {
@@ -586,12 +618,14 @@ function DetalleClaseBody({
         monto,
         monto_clase: montoClaseParte,
         monto_consumo: montoConsumoParte,
+        redistribuir_cuotas: redistribuirCuotas,
         medio_pago: medioCobroAlumno,
         observaciones: obsCobroAlumno.trim() || null,
         cuenta_id: selectedCuentaIdAlumno,
       });
       setAlumnoCobrandoId(null);
       setMontoCobroAlumno('');
+      setRedistribuirCuotas(false);
       setObsCobroAlumno('');
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'No pudimos registrar el cobro.');
@@ -658,7 +692,11 @@ function DetalleClaseBody({
   async function handleBorrarPago(cobroId: number) {
     setCobroError(null);
     try {
-      await borrarCobroMutation.mutateAsync({ cobroId, fecha });
+      await borrarCobroMutation.mutateAsync({
+        cobroId,
+        claseId: clase.id,
+        fecha,
+      });
       setBorrandoCobroId(null);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'No pudimos eliminar el pago.');
@@ -1024,6 +1062,7 @@ function DetalleClaseBody({
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => void handleActualizarMontoAlumno(item.alumno.id)}
+                                    disabled={rebalancearCuota.isPending}
                                     className="h-6 px-1.5 text-xs text-primary"
                                   >
                                     OK
@@ -1038,7 +1077,7 @@ function DetalleClaseBody({
                                     setValorMontoAlumnoEdit(item.montoClase.toString());
                                   }}
                                   className="hover:underline hover:text-foreground cursor-pointer text-left"
-                                  title="Click para cambiar monto de la clase"
+                                  title="Cambiar su parte; el saldo se redistribuye entre los demás alumnos"
                                 >
                                   Clase: <span className="font-semibold text-foreground">{fmtMoney(item.montoClase)}</span>
                                 </button>
@@ -1085,6 +1124,7 @@ function DetalleClaseBody({
                                   onClick={() => {
                                     setAlumnoCobrandoId(item.alumno.id);
                                     setMontoCobroAlumno(item.saldo.toString());
+                                    setRedistribuirCuotas(false);
                                     setObsCobroAlumno('');
                                     const def =
                                       cuentasActivas.find((c) => c.tipo === 'efectivo' || c.es_caja_fisica) ??
@@ -1199,6 +1239,27 @@ function DetalleClaseBody({
                                 required
                               />
                             </div>
+
+                            {alumnos.length > 1 && (
+                              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background p-2.5">
+                                <input
+                                  type="checkbox"
+                                  checked={redistribuirCuotas}
+                                  onChange={(e) =>
+                                    setRedistribuirCuotas(e.target.checked)
+                                  }
+                                  className="mt-0.5 h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
+                                />
+                                <span className="space-y-0.5 text-[11px]">
+                                  <span className="block font-medium text-foreground">
+                                    Redistribuir la parte de clase entre los demás alumnos
+                                  </span>
+                                  <span className="block text-muted-foreground">
+                                    El importe de clase de este pago ajusta su parte y el saldo se reparte por igual. Nunca supera el total de la clase.
+                                  </span>
+                                </span>
+                              </label>
+                            )}
 
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between">

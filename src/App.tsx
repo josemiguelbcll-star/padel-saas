@@ -204,7 +204,7 @@ export function App() {
             <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
             <Route path="efectivo" element={<CajaPage />} />
             <Route path="transferencias" element={<TransferenciasPage />} />
-            <Route path="arqueos" element={<ArqueosCajaPage />} />
+            <Route path="arqueos" element={<ModuleRoute modulo="caja_arqueos"><ArqueosCajaPage /></ModuleRoute>} />
             <Route path="arqueo" element={<Navigate to="/app/caja/arqueos" replace />} />
             <Route path="movimientos-cuentas" element={<MovimientosCuentasPage />} />
           </Route>

@@ -6,7 +6,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import type { Reserva } from '@/types/database';
-import { reservasDelDiaQueryKey } from './useReservasDelDia';
+import { RESERVAS_QUERY_KEY_BASE } from './useReservasDelDia';
 import { actividadDelDiaQueryKey } from './useActividadDelDia';
 import { TURNOS_ABIERTOS_VIEJOS_QUERY_KEY } from './useTurnosAbiertosViejos';
 
@@ -17,11 +17,10 @@ export interface CancelarReservaInput {
 }
 
 /**
- * Cancela una reserva vía `fn_cancelar_reserva` (0055), que aplica la regla
- * de integridad server-side: solo cancela si NO hay pagos ni consumos y el
- * turno no está cerrado. Reemplaza el UPDATE directo `estado='cancelada'`
- * (que no tenía guarda). Setea estado='cancelada' → libera el slot vía el
- * EXCLUDE no_overlap_reservas.
+ * Cancela una reserva vía `fn_cancelar_reserva` (0055/0138), que aplica la
+ * regla de integridad server-side: conserva los pagos como ingreso de Canchas,
+ * y solo rechaza turnos con consumos o ya cerrados. Setea estado='cancelada'
+ * para liberar el slot vía el EXCLUDE no_overlap_reservas.
  */
 export function useCancelarReserva(): UseMutationResult<
   Reserva,
@@ -40,7 +39,7 @@ export function useCancelarReserva(): UseMutationResult<
     },
     onSuccess: (_data, vars) => {
       void queryClient.invalidateQueries({
-        queryKey: reservasDelDiaQueryKey(vars.fecha),
+        queryKey: [RESERVAS_QUERY_KEY_BASE, vars.fecha],
       });
       void queryClient.invalidateQueries({
         queryKey: actividadDelDiaQueryKey(vars.fecha),

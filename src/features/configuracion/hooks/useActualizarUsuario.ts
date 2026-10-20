@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth/useSession';
 import { USUARIOS_CLUB_QUERY_KEY_BASE } from './useUsuariosClub';
-import type { Rol, Usuario } from '@/types/database';
+import type { PermisosEstructura, Rol, Usuario } from '@/types/database';
 
 export interface ActualizarUsuarioInput {
   /** UUID del usuario a actualizar. */
@@ -17,7 +17,7 @@ export interface ActualizarUsuarioInput {
     nombre?: string;
     rol?: Rol;
     activo?: boolean;
-    permisos?: any;
+    permisos?: PermisosEstructura;
   };
 }
 

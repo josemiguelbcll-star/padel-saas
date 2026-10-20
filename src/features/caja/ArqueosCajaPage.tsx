@@ -26,6 +26,7 @@ import {
   type TurnoCajaConDetalles,
 } from './hooks/useTurnosCajaHistorial';
 import { DetalleArqueoDialog } from './DetalleArqueoDialog';
+import { useSession } from '@/features/auth';
 import { useUsuariosClub } from '@/features/configuracion/hooks/useUsuariosClub';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
@@ -69,6 +70,8 @@ function primerDiaMes(fechaIso: string): string {
 type PresetRango = 'todos' | 'hoy' | 'ayer' | 'ultimos7' | 'esteMes' | 'custom';
 
 export function ArqueosCajaPage() {
+  const { user } = useSession();
+  const isAdmin = user?.rol === 'admin';
   const { data: turnos = [], isLoading, error, refetch, isFetching } =
     useTurnosCajaHistorial();
   const usuariosQuery = useUsuariosClub();
@@ -475,25 +478,26 @@ export function ArqueosCajaPage() {
             </div>
           </div>
 
-          {/* Filtro por Usuario */}
-          <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-              <User className="h-3 w-3" />
-              Filtrar por usuario:
-            </Label>
-            <select
-              value={usuarioFiltro}
-              onChange={(e) => setUsuarioFiltro(e.target.value)}
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="todos">Todos los usuarios</option>
-              {usuariosClub.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nombre || u.email} ({u.rol})
-                </option>
-              ))}
-            </select>
-          </div>
+          {isAdmin && (
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+                <User className="h-3 w-3" />
+                Filtrar por usuario:
+              </Label>
+              <select
+                value={usuarioFiltro}
+                onChange={(e) => setUsuarioFiltro(e.target.value)}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="todos">Todos los usuarios</option>
+                {usuariosClub.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nombre || u.email} ({u.rol})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Filtro por Estado */}
           <div className="space-y-1">
