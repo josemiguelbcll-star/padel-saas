@@ -309,7 +309,7 @@ export function ReservasPage() {
         duracion_min: slot.duracionesPermitidas[0] ?? 60,
         fecha_clase: slot.fecha,
         dias_semana: [diaSemanaDe(slot.fecha)],
-        es_recurrente: true,
+        es_recurrente: false,
       });
     } else {
       setSlotParaVolver(null);
