@@ -61,6 +61,7 @@ import { JugadorAutocomplete, type JugadorSeleccionado } from './JugadorAutocomp
 import { ConsumosCatalogo, type PersonaDestinoConsumo } from './ConsumosCatalogo';
 import { formatearFechaAmigable } from './utils/fechaUtils';
 import { formatearHora, sumarMinutos } from './utils/horaUtils';
+import { dividirMontoEnCuotas } from './utils/dividirMonto';
 import { resolverTarifa } from './utils/resolverTarifa';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -230,16 +231,29 @@ function DetalleClaseBody({
   const consumos = useMemo(() => consumosQuery.data ?? [], [consumosQuery.data]);
 
   // Tarifas resueltas
-  const cantidadAlumnosCalc = Math.max(1, alumnos.length || (ocurrencia?.cantidad_alumnos ?? 1));
+  const cantidadAlumnosOcurrencia = Number(ocurrencia?.cantidad_alumnos) || 0;
+  const cantidadAlumnosCalc =
+    alumnos.length > 0
+      ? alumnos.length
+      : cantidadAlumnosOcurrencia > 0
+        ? cantidadAlumnosOcurrencia
+        : undefined;
   const tarifaResuelta = useMemo(
     () =>
       resolverTarifa({
         fecha,
         hora: clase.hora_inicio,
         tarifas: tarifasClasesQuery.data ?? [],
+        profesor_id: clase.profesor_id,
         cantidad_alumnos: cantidadAlumnosCalc,
       }),
-    [fecha, clase.hora_inicio, tarifasClasesQuery.data, cantidadAlumnosCalc],
+    [
+      fecha,
+      clase.hora_inicio,
+      clase.profesor_id,
+      tarifasClasesQuery.data,
+      cantidadAlumnosCalc,
+    ],
   );
 
   // Cuentas del club (tesorería)
@@ -395,14 +409,19 @@ function DetalleClaseBody({
 
   // Totales globales
   const totalClaseBase = useMemo(() => {
-    if (ocurrencia?.monto_total != null) {
-      return Number(ocurrencia.monto_total);
+    const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
+    if (montoOcurrencia > 0) {
+      return montoOcurrencia;
     }
-    if (alumnos.length > 0) {
-      return alumnos.reduce((sum, a) => sum + (Number(a.monto_clase) || 0), 0);
+    if (tarifaResuelta.monto > 0) {
+      return tarifaResuelta.monto;
     }
-    return tarifaResuelta.monto || 0;
-  }, [alumnos, ocurrencia?.monto_total, tarifaResuelta.monto]);
+    const montoAlumnos = alumnos.reduce(
+      (sum, alumno) => sum + (Number(alumno.monto_clase) || 0),
+      0,
+    );
+    return montoAlumnos > 0 ? montoAlumnos : Number(clase.precio) || 0;
+  }, [alumnos, clase.precio, ocurrencia?.monto_total, tarifaResuelta.monto]);
 
   const totalCobradoClase = useMemo(
     () =>
@@ -448,20 +467,29 @@ function DetalleClaseBody({
   async function handleAgregarAlumno(val: JugadorSeleccionado | null) {
     if (!val) return;
 
-    // Dividimos la tarifa equitativamente entre todos los alumnos (existentes + nuevo)
     const nuevoTotalAlumnos = alumnos.length + 1;
     const tarifaParaN = resolverTarifa({
       fecha,
       hora: clase.hora_inicio,
       tarifas: tarifasClasesQuery.data ?? [],
+      profesor_id: clase.profesor_id,
       cantidad_alumnos: nuevoTotalAlumnos,
     });
 
+    const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
     const totalTarifa =
-      ocurrencia?.monto_total ??
-      (tarifaParaN.monto || tarifaResuelta.monto || (clase as any).precio || (alumnos.length > 0 ? alumnos.reduce((s, a) => s + (Number(a.monto_clase) || 0), 0) : 0));
-
-    const cuotaEquitativa = nuevoTotalAlumnos > 0 ? Math.ceil(totalTarifa / nuevoTotalAlumnos) : 0;
+      montoOcurrencia > 0
+        ? montoOcurrencia
+        : tarifaParaN.monto > 0
+          ? tarifaParaN.monto
+          : totalClaseBase;
+    if (totalTarifa <= 0) {
+      setCobroError(
+        `No hay una tarifa vigente para ${profesorNombre} en este horario. Configurala antes de repartir la clase.`,
+      );
+      return;
+    }
+    const cuotas = dividirMontoEnCuotas(totalTarifa, nuevoTotalAlumnos);
 
     try {
       await agregarAlumno.mutateAsync({
@@ -469,23 +497,23 @@ function DetalleClaseBody({
         fecha,
         jugador_id: val.kind === 'jugador' ? val.jugadorId : null,
         nombre_libre: val.kind === 'libre' ? val.nombre : null,
-        monto_clase: cuotaEquitativa,
+        monto_clase: cuotas[alumnos.length]!,
       });
 
-      // Rebalanceamos a los existentes para que todos paguen exactamente la misma cuota
       if (alumnos.length > 0) {
         await Promise.all(
-          alumnos.map((a) =>
+          alumnos.map((a, index) =>
             actualizarAlumno.mutateAsync({
               id: a.id,
               clase_id: clase.id,
               fecha,
-              monto_clase: cuotaEquitativa,
+              monto_clase: cuotas[index]!,
             }),
           ),
         );
       }
 
+      setCobroError(null);
       setShowAgregarAlumno(false);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'Error al agregar alumno.');
@@ -507,19 +535,24 @@ function DetalleClaseBody({
           fecha,
           hora: clase.hora_inicio,
           tarifas: tarifasClasesQuery.data ?? [],
+          profesor_id: clase.profesor_id,
           cantidad_alumnos: restantes.length,
         });
+        const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
         const totalTarifa =
-          ocurrencia?.monto_total ??
-          (tarifaParaN.monto || tarifaResuelta.monto || (clase as any).precio || (alumnos.length > 0 ? alumnos.reduce((s, a) => s + (Number(a.monto_clase) || 0), 0) : 0));
-        const cuotaEquitativa = Math.ceil(totalTarifa / restantes.length);
+          montoOcurrencia > 0
+            ? montoOcurrencia
+            : tarifaParaN.monto > 0
+              ? tarifaParaN.monto
+              : totalClaseBase;
+        const cuotas = dividirMontoEnCuotas(totalTarifa, restantes.length);
         await Promise.all(
-          restantes.map((a) =>
+          restantes.map((a, index) =>
             actualizarAlumno.mutateAsync({
               id: a.id,
               clase_id: clase.id,
               fecha,
-              monto_clase: cuotaEquitativa,
+              monto_clase: cuotas[index]!,
             }),
           ),
         );
@@ -531,7 +564,10 @@ function DetalleClaseBody({
 
   async function handleActualizarMontoAlumno(alumnoId: number) {
     const val = parseFloat(valorMontoAlumnoEdit);
-    if (isNaN(val) || val < 0) return;
+    if (isNaN(val) || val < 0) {
+      setCobroError('Ingresá una cuota válida igual o mayor a 0.');
+      return;
+    }
     try {
       await rebalancearCuota.mutateAsync({
         clase_alumno_id: alumnoId,
@@ -540,6 +576,7 @@ function DetalleClaseBody({
         nueva_cuota: val,
       });
       setEditandoMontoAlumnoId(null);
+      setCobroError(null);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'Error al actualizar monto.');
     }
@@ -551,23 +588,35 @@ function DetalleClaseBody({
       fecha,
       hora: clase.hora_inicio,
       tarifas: tarifasClasesQuery.data ?? [],
+      profesor_id: clase.profesor_id,
       cantidad_alumnos: alumnos.length,
     });
+    const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
     const total =
-      ocurrencia?.monto_total ??
-      (tarifaActual.monto || tarifaResuelta.monto || (clase as any).precio || totalClaseBase);
-    const cuotaPorAlumno = Math.ceil(total / alumnos.length);
+      montoOcurrencia > 0
+        ? montoOcurrencia
+        : tarifaActual.monto > 0
+          ? tarifaActual.monto
+          : totalClaseBase;
+    if (total <= 0) {
+      setCobroError(
+        `No hay una tarifa vigente para ${profesorNombre} en este horario.`,
+      );
+      return;
+    }
+    const cuotas = dividirMontoEnCuotas(total, alumnos.length);
     try {
       await Promise.all(
-        alumnos.map((a) =>
+        alumnos.map((a, index) =>
           actualizarAlumno.mutateAsync({
             id: a.id,
             clase_id: clase.id,
             fecha,
-            monto_clase: cuotaPorAlumno,
+            monto_clase: cuotas[index]!,
           }),
         ),
       );
+      setCobroError(null);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'Error al dividir la tarifa.');
     }
@@ -776,7 +825,9 @@ function DetalleClaseBody({
           <div className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
             <span className="text-muted-foreground">Total Clase</span>
             <div className="text-sm font-semibold tabular-nums text-foreground">
-              {fmtMoney(totalClaseBase)}
+              {tarifasClasesQuery.isLoading && totalClaseBase === 0
+                ? 'Buscando tarifa…'
+                : fmtMoney(totalClaseBase)}
             </div>
           </div>
           <div className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
@@ -805,6 +856,24 @@ function DetalleClaseBody({
             </div>
           </div>
         </div>
+        {tarifasClasesQuery.isError && totalClaseBase === 0 && (
+          <div
+            role="alert"
+            className="rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive"
+          >
+            No se pudieron cargar las tarifas de clases: {tarifasClasesQuery.error.message}
+          </div>
+        )}
+        {!tarifasClasesQuery.isLoading &&
+          !tarifasClasesQuery.isError &&
+          totalClaseBase === 0 && (
+            <div
+              role="status"
+              className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300"
+            >
+              No encontramos una tarifa vigente para {profesorNombre} el {formatearFechaAmigable(fecha)} a las {horaInicio}. Revisá que esté asignada a este profesor y cubra la fecha, el día y el horario de la clase.
+            </div>
+          )}
 
         {/* Pestañas de navegación */}
         <div className="mt-3 flex gap-1 border-t border-border/50 pt-2">

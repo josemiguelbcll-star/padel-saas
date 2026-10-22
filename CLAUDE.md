@@ -454,9 +454,14 @@ cobra a los alumnos directo; el club solo cobra el **alquiler de la cancha**.
 El modelo actual (`clases.precio` fijo, ingreso a unidad "Clases") está
 desalineado. Plan: renombrar UI "Precio"→"Alquiler de cancha por clase";
 **mapear `clase_cobros` a la unidad Canchas** (este es el cambio que tocará
-la REGLA DE ORO — hacerlo EN la función centralizada de atribución); evaluar
-resolver vía `fn_resolver_tarifa` en vez de `clases.precio`. Una clase ES
-conceptualmente un turno fijo del profesor, pero NO se fusionan entidades.
+la REGLA DE ORO — hacerlo EN la función centralizada de atribución).
+**Tarifas por profesor (0142) ya implementado:** las franjas de
+`tarifas_clases` quedan asociadas a un profesor y se resuelven por profesor,
+fecha y horario; las franjas existentes se pueden asignar al profesor
+preservando su historial; las tarifas legadas sin profesor no son fallback.
+La grilla usa esa tarifa para determinar si la clase quedó saldada y el cobro
+conserva el snapshot del monto. Una clase ES conceptualmente un turno fijo
+del profesor, pero NO se fusionan entidades.
 
 **🟠 Planificación de profesores.** Cargar todas las clases de los profes de
 una vez (como turnos fijos pero de clases) para ocupación y proyección. UX

@@ -18,10 +18,9 @@ import type {
  * Hooks para tarifas de CLASES (0034). Espejo exacto de useTarifas.ts
  * apuntando a la tabla `tarifas_clases` y a las RPCs `fn_*_tarifa_clase`.
  *
- * La forma de los datos es idéntica a las tarifas de turnos (tipo
- * `Tarifa` en ambos casos). Reusamos los Input types de useTarifas.ts
- * para no duplicar — si las dos tablas divergen en el futuro,
- * separamos también los inputs.
+ * Las tarifas de clases se filtran por profesor cuando la pantalla de
+ * configuración lo indica. Sin argumento se listan todas para resolver
+ * tarifas en clases; `null` representa que todavía no se eligió profesor.
  */
 export const TARIFAS_CLASES_QUERY_KEY = ['tarifas_clases'] as const;
 
@@ -29,13 +28,44 @@ export const TARIFAS_CLASES_QUERY_KEY = ['tarifas_clases'] as const;
  * Lista de tarifas de clases del club, ordenada igual que tarifas de
  * turnos (prioridad DESC, nombre ASC, vigente_desde DESC).
  */
-export function useTarifasClases(): UseQueryResult<Tarifa[], Error> {
+export function useTarifasClases(
+  profesorId?: number | null,
+): UseQueryResult<Tarifa[], Error> {
   return useQuery<Tarifa[], Error>({
-    queryKey: TARIFAS_CLASES_QUERY_KEY,
+    queryKey: [...TARIFAS_CLASES_QUERY_KEY, profesorId],
+    queryFn: async () => {
+      if (profesorId === null) return [];
+
+      const query =
+        profesorId === undefined
+          ? supabase
+              .from('tarifas_clases')
+              .select('*')
+              .order('prioridad', { ascending: false })
+              .order('nombre', { ascending: true })
+              .order('vigente_desde', { ascending: false })
+          : supabase
+              .from('tarifas_clases')
+              .select('*')
+              .eq('profesor_id', profesorId)
+              .order('prioridad', { ascending: false })
+              .order('nombre', { ascending: true })
+              .order('vigente_desde', { ascending: false });
+      const { data: tarifas, error: queryError } = await query;
+      if (queryError) throw new Error(mapPostgrestError(queryError));
+      return (tarifas ?? []) as Tarifa[];
+    },
+  });
+}
+
+export function useTarifasClasesSinProfesor(): UseQueryResult<Tarifa[], Error> {
+  return useQuery<Tarifa[], Error>({
+    queryKey: [...TARIFAS_CLASES_QUERY_KEY, 'sin-profesor'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tarifas_clases')
         .select('*')
+        .is('profesor_id', null)
         .order('prioridad', { ascending: false })
         .order('nombre', { ascending: true })
         .order('vigente_desde', { ascending: false });
@@ -45,13 +75,48 @@ export function useTarifasClases(): UseQueryResult<Tarifa[], Error> {
   });
 }
 
+export function useAsignarTarifaClaseAProfesor(): UseMutationResult<
+  number,
+  Error,
+  { lineage_id: number; profesor_id: number }
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    number,
+    Error,
+    { lineage_id: number; profesor_id: number }
+  >({
+    mutationFn: async ({ lineage_id, profesor_id }) => {
+      const { data, error } = await supabase
+        .from('tarifas_clases')
+        .update({ profesor_id })
+        .eq('lineage_id', lineage_id)
+        .is('profesor_id', null)
+        .select('id');
+      if (error) throw new Error(mapPostgrestError(error));
+      if (!data || data.length === 0) {
+        throw new Error(
+          'La tarifa ya fue asignada o no está disponible. Actualizá la pantalla e intentá nuevamente.',
+        );
+      }
+      return data.length;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: TARIFAS_CLASES_QUERY_KEY });
+    },
+  });
+}
+
 // ─── Crear franja nueva ──────────────────────────────────────────────
 
 /**
- * Crea una franja nueva via RPC `fn_crear_tarifa_clase` (0034).
- * La RPC se encarga del patrón autoreferente (lineage_id = id propio).
+ * Crea una franja nueva via RPC `fn_crear_tarifa_clase`, asociada al
+ * profesor seleccionado. La RPC se encarga del lineage_id autoreferente.
  */
-export function useCrearTarifaClase(): UseMutationResult<
+export function useCrearTarifaClase(
+  profesorId?: number | null,
+): UseMutationResult<
   Tarifa,
   Error,
   CrearTarifaInput
@@ -59,7 +124,11 @@ export function useCrearTarifaClase(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation<Tarifa, Error, CrearTarifaInput>({
     mutationFn: async (input) => {
+      if (profesorId === null || profesorId === undefined) {
+        throw new Error('Elegí un profesor antes de crear una tarifa de clases.');
+      }
       const { data, error } = await supabase.rpc('fn_crear_tarifa_clase', {
+        p_profesor_id: profesorId,
         p_nombre: input.nombre,
         p_monto: input.monto,
         p_desde_hora: input.desde_hora ?? null,

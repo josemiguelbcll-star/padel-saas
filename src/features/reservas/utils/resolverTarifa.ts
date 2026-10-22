@@ -14,6 +14,8 @@ import { compararHoras } from './horaUtils';
  *      - DURACIÓN (0051): duracion_min NULL aplica a cualquiera;
  *        si se pasa `duracion`, la tarifa aplica si su duracion_min es
  *        NULL o == duracion.
+ *      - PROFESOR (0142): si se pasa `profesor_id`, la tarifa debe
+ *        pertenecer a ese profesor; no hay fallback a tarifas comunes.
  *   2. Ordena: duración ESPECÍFICA gana sobre NULL (solo cuando hay
  *      `duracion` objetivo), luego prioridad DESC, luego id DESC.
  *   3. Devuelve la primera.
@@ -56,6 +58,8 @@ export interface ResolverTarifaParams {
    * Cantidad de alumnos. Opcional: solo aplica para tarifas de clases.
    */
   cantidad_alumnos?: number;
+  /** Profesor al que pertenece la clase; no se usa una tarifa común como fallback. */
+  profesor_id?: number;
   /**
    * Tarifa fija asignada a la cancha (opcional). Si existe y está activa,
    * se prioriza esta tarifa sobre la resolución general por horario.
@@ -64,7 +68,15 @@ export interface ResolverTarifaParams {
 }
 
 export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
-  const { fecha, hora, tarifas, duracion, cantidad_alumnos, tarifaId } = params;
+  const {
+    fecha,
+    hora,
+    tarifas,
+    duracion,
+    cantidad_alumnos,
+    profesor_id,
+    tarifaId,
+  } = params;
 
   // 0. Si la cancha tiene una tarifa asignada específica
   if (tarifaId) {
@@ -80,7 +92,7 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
 
   // 1. Filtrar tarifas activas que aplican a fecha, día, hora y alumnos
   const activasEnFranja = tarifas.filter((t) =>
-    tarifaAplicaFranja(t, fecha, diaSemana, hora, cantidad_alumnos),
+    tarifaAplicaFranja(t, fecha, diaSemana, hora, cantidad_alumnos, profesor_id),
   );
 
   if (activasEnFranja.length === 0) {
@@ -189,8 +201,13 @@ export function tarifaAplicaFranja(
   diaSemana: number,
   hora: string,
   cantidad_alumnos: number | undefined,
+  profesor_id?: number,
 ): boolean {
   if (!tarifa.activa) return false;
+
+  if (profesor_id !== undefined && tarifa.profesor_id !== profesor_id) {
+    return false;
+  }
 
   // Vigencia temporal (0029): comparación lexicográfica de strings ISO
   // 'YYYY-MM-DD' equivale a comparación cronológica.
@@ -214,8 +231,8 @@ export function tarifaAplicaFranja(
 
   // Tarifas de Clases escalonadas (0096)
   if (cantidad_alumnos !== undefined) {
-    const minAlumnos = (tarifa as any).min_alumnos ?? 1;
-    const maxAlumnos = (tarifa as any).max_alumnos ?? null;
+    const minAlumnos = tarifa.min_alumnos ?? 1;
+    const maxAlumnos = tarifa.max_alumnos ?? null;
     if (cantidad_alumnos < minAlumnos) return false;
     if (maxAlumnos !== null && cantidad_alumnos > maxAlumnos) return false;
   }

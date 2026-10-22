@@ -21,6 +21,7 @@ import {
 } from '@/features/configuracion/hooks/useClases';
 import { useFranjasTurno } from '@/features/configuracion/hooks/useFranjasTurno';
 import { useHorariosClub } from '@/features/configuracion/hooks/useHorariosClub';
+import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
 import { DetalleClaseDialog } from './DetalleClaseDialog';
 import { DetalleReservaDialog } from './DetalleReservaDialog';
 import { GrillaDia } from './GrillaDia';
@@ -59,6 +60,7 @@ import {
   formatearFechaAmigable,
 } from './utils/fechaUtils';
 import { formatearHora, normalizarHora, sumarMinutos } from './utils/horaUtils';
+import { resolverTarifa } from './utils/resolverTarifa';
 
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -102,6 +104,7 @@ export function ReservasPage() {
   const canchasQuery = useCanchas();
   const reservasQuery = useReservasDelDia(fecha);
   const clasesQuery = useClases();
+  const tarifasClasesQuery = useTarifasClases();
   const cobrosQuery = useCobrosDelDia(fecha);
   const ocurrenciasQuery = useClaseOcurrenciasDelDia(fecha);
   const claseFinancierosQuery = useClaseDatosFinancierosDelDia(fecha);
@@ -266,8 +269,18 @@ export function ReservasPage() {
         totalEsperado = alumnosDeClase.reduce((sum, a) => sum + (Number(a.monto_clase) || 0), 0) + consumosDeClase;
       } else if (oc && oc.monto_total > 0) {
         totalEsperado = oc.monto_total + consumosDeClase;
-      } else if ((c as any).precio > 0) {
-        totalEsperado = (c as any).precio + consumosDeClase;
+      } else {
+        const tarifa = resolverTarifa({
+          fecha,
+          hora: c.hora_inicio,
+          tarifas: tarifasClasesQuery.data ?? [],
+          profesor_id: c.profesor_id,
+        });
+        if (tarifa.monto > 0) {
+          totalEsperado = tarifa.monto + consumosDeClase;
+        } else if (c.precio > 0) {
+          totalEsperado = c.precio + consumosDeClase;
+        }
       }
 
       // Completamente saldada si el total cobrado cubre el total esperado, o si hubo cobro general y no hay montos en contra
@@ -280,7 +293,14 @@ export function ReservasPage() {
       }
     }
     return s;
-  }, [clasesDelDia, cobrosPorClase, claseFinancierosQuery.data, ocurrenciasPorClase]);
+  }, [
+    clasesDelDia,
+    cobrosPorClase,
+    claseFinancierosQuery.data,
+    ocurrenciasPorClase,
+    tarifasClasesQuery.data,
+    fecha,
+  ]);
 
   // Conteo del día por estado operativo (header).
   const conteo = useMemo(() => {

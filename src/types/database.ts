@@ -488,6 +488,11 @@ export interface Tarifa {
    * mismo lineage_id.
    */
   lineage_id: number;
+  /** Solo tarifas_clases: profesor al que pertenece esta tarifa. */
+  profesor_id?: number | null;
+  /** Solo tarifas de clases: rango de alumnos al que aplica. */
+  min_alumnos?: number;
+  max_alumnos?: number | null;
   /**
    * Duración (minutos) a la que aplica esta tarifa (0051). NULL =
    * cualquier duración (retrocompatible). Tarifa 2D: el precio depende
@@ -844,9 +849,8 @@ export interface Clase {
   /** Una de las 6 duraciones válidas: 60, 90, 120, 150, 180, 240. Default 60. */
   duracion_min: number;
   /**
-   * Precio propio de la clase, DECIMAL(12,2) en la DB. INDEPENDIENTE
-   * del sistema de tarifas: las clases no aplican tarifas (esas son
-   * sólo para partidos).
+   * Campo legado (0035). El alquiler vigente de la clase se resuelve
+   * desde tarifas_clases usando su profesor, fecha y hora.
    */
   precio: number;
   activa: boolean;
@@ -1207,6 +1211,8 @@ export interface VentaItem {
  * columna), separamos los tipos.
  */
 export interface TarifaClase extends Tarifa {
+  /** Profesor asociado; NULL solo en tarifas legadas anteriores a 0142. */
+  profesor_id: number | null;
   /** Mínima cantidad de alumnos para que aplique la tarifa (0096) */
   min_alumnos: number;
   /** Máxima cantidad de alumnos o null si no hay límite (0096) */

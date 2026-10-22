@@ -200,16 +200,31 @@ function ClaseFormBody({
   // recuerda configurarla antes del primer cobro.
   const diasSinTarifa = useMemo(() => {
     if (tarifasClasesQuery.isLoading) return [];
-    if (state.dias_semana.length === 0 || state.hora_inicio === '') return [];
+    if (
+      state.profesor_id === null ||
+      state.dias_semana.length === 0 ||
+      state.hora_inicio === ''
+    ) return [];
     const tarifas = tarifasClasesQuery.data ?? [];
     const sinTarifa: number[] = [];
     for (const dia of state.dias_semana) {
       const fecha = proxFechaConDiaIso(dia);
-      const r = resolverTarifa({ fecha, hora: state.hora_inicio, tarifas });
+      const r = resolverTarifa({
+        fecha,
+        hora: state.hora_inicio,
+        tarifas,
+        profesor_id: state.profesor_id,
+      });
       if (r.tarifa === null) sinTarifa.push(dia);
     }
     return sinTarifa;
-  }, [tarifasClasesQuery.isLoading, tarifasClasesQuery.data, state.dias_semana, state.hora_inicio]);
+  }, [
+    tarifasClasesQuery.isLoading,
+    tarifasClasesQuery.data,
+    state.profesor_id,
+    state.dias_semana,
+    state.hora_inicio,
+  ]);
 
   // Para selects: mostramos activos + (si estamos editando una clase con
   // un profesor/cancha que quedó inactivo) el actualmente seleccionado,
@@ -561,8 +576,8 @@ function ClaseFormBody({
                 aria-hidden="true"
               />
               <p className="text-muted-foreground">
-                El alquiler de cancha lo define la tarifa de clases vigente
-                para el horario. Configurala en{' '}
+                El alquiler depende de la tarifa vigente de este profesor y
+                horario. Configurala en{' '}
                 <strong className="font-medium text-foreground">
                   Tarifas → Clases
                 </strong>
@@ -579,7 +594,8 @@ function ClaseFormBody({
                   aria-hidden="true"
                 />
                 <p>
-                  Sin tarifa de clase configurada para{' '}
+                  Falta configurar una tarifa de alquiler para este profesor
+                  los días{' '}
                   <strong className="font-medium text-foreground">
                     {diasSinTarifa.map((d) => DIA_NOMBRE_CORTO[d]).join(', ')}
                   </strong>{' '}
