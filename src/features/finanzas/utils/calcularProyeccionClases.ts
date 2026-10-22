@@ -71,6 +71,7 @@ export function calcularProyeccionClases(params: {
           fecha,
           hora: clase.hora_inicio,
           tarifas: tarifasClases,
+          profesor_id: clase.profesor_id,
         });
         falta_cobrar += r.monto;
       }

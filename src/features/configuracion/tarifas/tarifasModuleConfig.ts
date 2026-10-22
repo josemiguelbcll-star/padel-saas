@@ -27,14 +27,15 @@ export type TarifasModulo = 'turnos' | 'clases';
  * TarifasPanel recibe una de estas instancias por prop y se vuelve
  * agnóstico de si está operando sobre tarifas de turnos o de clases.
  *
- * Las firmas de los hooks son idénticas entre turnos y clases porque
- * las dos tablas (`tarifas` y `tarifas_clases`) tienen la misma forma.
- * Si en el futuro divergen, separamos los tipos sin romper el patrón.
+ * El identificador del profesor solo lo consume el módulo de clases;
+ * los hooks de turnos ignoran ese contexto.
  */
 export interface TarifasModuleConfig {
   modulo: TarifasModulo;
-  useList: () => UseQueryResult<Tarifa[], Error>;
-  useCrear: () => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
+  useList: (profesorId?: number | null) => UseQueryResult<Tarifa[], Error>;
+  useCrear: (
+    profesorId?: number | null,
+  ) => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
   useCambiarPrecio: () => UseMutationResult<Tarifa, Error, CambiarPrecioInput>;
   useActualizarMetadata: () => UseMutationResult<
     number,
@@ -46,16 +47,15 @@ export interface TarifasModuleConfig {
 /** Config del módulo "Turnos" — tarifas de turnos sueltos / turnos fijos. */
 export const tarifasTurnosConfig: TarifasModuleConfig = {
   modulo: 'turnos',
-  useList: useTarifas,
-  useCrear: useCrearTarifa,
+  useList: () => useTarifas(),
+  useCrear: () => useCrearTarifa(),
   useCambiarPrecio: useCambiarPrecioTarifa,
   useActualizarMetadata: useActualizarMetadataTarifa,
 };
 
 /**
  * Config del módulo "Clases" — alquiler de cancha al profesor para
- * clases. NO se cablea con fn_cobrar_clase todavía (eso es parte del
- * replanteo de Clases anotado en CLAUDE.md).
+ * clases, resuelto por profesor, franja horaria y vigencia.
  */
 export const tarifasClasesConfig: TarifasModuleConfig = {
   modulo: 'clases',

@@ -72,6 +72,8 @@ function describeAplicacion(l: TarifaLinaje): string {
 
 interface TarifasPanelProps {
   config: TarifasModuleConfig;
+  profesorId?: number | null;
+  profesorNombre?: string;
 }
 
 /**
@@ -92,11 +94,15 @@ interface TarifasPanelProps {
  * El histórico de reservas no se ve afectado por nada de esto — cada
  * reserva tiene su `monto_total` snapshot al momento de crearse.
  */
-export function TarifasPanel({ config }: TarifasPanelProps) {
+export function TarifasPanel({
+  config,
+  profesorId,
+  profesorNombre,
+}: TarifasPanelProps) {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'configuracion', 'editar');
 
-  const query = config.useList();
+  const query = config.useList(profesorId);
   // Tarifa 2D (0051): solo el módulo de turnos tiene dimensión duración.
   const soportaDuracion = config.modulo === 'turnos';
 
@@ -131,7 +137,9 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Tarifas
+            {config.modulo === 'clases' && profesorNombre
+              ? `Tarifas de ${profesorNombre}`
+              : 'Tarifas'}
           </h2>
           <p className="text-sm text-muted-foreground">
             Cada franja muestra su precio vigente hoy. Cambiar el precio
@@ -140,7 +148,12 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
           </p>
         </div>
         {canEdit && (
-          <Button type="button" onClick={() => setNuevaOpen(true)} className="shrink-0">
+          <Button
+            type="button"
+            onClick={() => setNuevaOpen(true)}
+            disabled={config.modulo === 'clases' && profesorId == null}
+            className="shrink-0"
+          >
             <Plus className="h-4 w-4" />
             Nueva franja
           </Button>
@@ -167,9 +180,15 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
       {query.data && linajes.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            {canEdit
-              ? 'Todavía no tenés franjas configuradas. Agregá la primera — podés tener una única que aplique a todo, o varias por horario.'
-              : 'El administrador todavía no configuró tarifas para el club.'}
+            {config.modulo === 'clases' && profesorId == null
+              ? 'Elegí un profesor para ver o configurar sus tarifas de alquiler.'
+              : canEdit
+                ? config.modulo === 'clases'
+                  ? `Todavía no hay tarifas de alquiler configuradas para ${profesorNombre ?? 'este profesor'}. Agregá una franja; las tarifas comunes no se aplican a las clases.`
+                  : 'Todavía no tenés franjas configuradas. Agregá la primera — podés tener una única que aplique a todo, o varias por horario.'
+                : config.modulo === 'clases'
+                  ? `El administrador todavía no configuró tarifas de alquiler para ${profesorNombre ?? 'este profesor'}.`
+                  : 'El administrador todavía no configuró tarifas para el club.'}
           </p>
         </div>
       )}
@@ -194,6 +213,7 @@ export function TarifasPanel({ config }: TarifasPanelProps) {
         open={nuevaOpen}
         onOpenChange={setNuevaOpen}
         useCrear={config.useCrear}
+        profesorId={profesorId}
         soportaDuracion={soportaDuracion}
       />
       <CambiarPrecioDialog

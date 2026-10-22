@@ -42,7 +42,10 @@ interface NuevaFranjaDialogProps {
    * el config del módulo (turnos o clases). Permite reusar este dialog
    * sin acoplarlo a una RPC específica.
    */
-  useCrear: () => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
+  useCrear: (
+    profesorId?: number | null,
+  ) => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
+  profesorId?: number | null;
   /**
    * Si el módulo soporta tarifa por duración (turnos: sí; clases: no).
    * Cuando true, muestra el selector de duración (0051). Default false.
@@ -123,9 +126,10 @@ export function NuevaFranjaDialog({
   open,
   onOpenChange,
   useCrear,
+  profesorId,
   soportaDuracion = false,
 }: NuevaFranjaDialogProps) {
-  const crear = useCrear();
+  const crear = useCrear(profesorId);
   const [state, setState] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<FieldErrors>({});
 
