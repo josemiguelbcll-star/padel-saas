@@ -157,6 +157,52 @@ export function useCargarConsumoTurno(): UseMutationResult<
   });
 }
 
+export interface CargarPromoBuffetTurnoInput {
+  reserva_id: number;
+  promo_id: number;
+  tipo_reparto: TipoRepartoConsumo;
+  reserva_jugador_id?: number | null;
+  reserva_jugadores_ids?: number[];
+  solicitud_id: string;
+}
+
+export function useCargarPromoBuffetTurno(): UseMutationResult<
+  number,
+  Error,
+  CargarPromoBuffetTurnoInput
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<number, Error, CargarPromoBuffetTurnoInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc('fn_cargar_promo_buffet_turno', {
+        p_reserva_id: input.reserva_id,
+        p_promo_id: input.promo_id,
+        p_tipo_reparto: input.tipo_reparto,
+        p_reserva_jugador_id: input.reserva_jugador_id ?? null,
+        p_reserva_jugadores_ids: input.reserva_jugadores_ids ?? null,
+        p_solicitud_id: input.solicitud_id,
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      if (data === null) {
+        throw new Error('No recibimos confirmación al cargar la promo.');
+      }
+      return data;
+    },
+    onSettled: (_data, _error, input) => {
+      void queryClient.invalidateQueries({
+        queryKey: reservaConsumosQueryKey(input.reserva_id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['reservas-del-dia'],
+      });
+    },
+  });
+}
+
 export interface QuitarConsumoTurnoInput {
   consumo_id: number;
   /** Sólo para invalidación del query key; no se manda a la RPC. */

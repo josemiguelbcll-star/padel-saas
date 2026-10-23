@@ -6,11 +6,12 @@ import { cn } from '@/lib/utils';
 import { ConsumosCatalogo, type PersonaDestinoConsumo } from './ConsumosCatalogo';
 import {
   useCargarConsumoTurno,
+  useCargarPromoBuffetTurno,
   useQuitarConsumoTurno,
   useReservaConsumos,
 } from './hooks/useReservaConsumos';
 import { useReservaJugadores } from './hooks/useReservaJugadores';
-import type { ReservaConsumo, TipoRepartoConsumo } from '@/types/database';
+import type { PromoBuffet, ReservaConsumo, TipoRepartoConsumo } from '@/types/database';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -38,6 +39,7 @@ export function ConsumosTurnoSection({
   const consumosQuery = useReservaConsumos(reservaId);
   const personasQuery = useReservaJugadores(reservaId);
   const cargar = useCargarConsumoTurno();
+  const cargarPromo = useCargarPromoBuffetTurno();
   const quitar = useQuitarConsumoTurno();
 
   const [showCatalogo, setShowCatalogo] = useState(false);
@@ -129,7 +131,7 @@ export function ConsumosTurnoSection({
   );
 
   const totalTurno = montoAlquiler + totalConsumos;
-  const anyPending = cargar.isPending || quitar.isPending;
+  const anyPending = cargar.isPending || cargarPromo.isPending || quitar.isPending;
 
   async function handleAgregar(
     productoId: number,
@@ -156,6 +158,35 @@ export function ConsumosTurnoSection({
         err instanceof Error
           ? err.message
           : 'No pudimos cargar el consumo.',
+      );
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  }
+
+  async function handleAgregarPromo(
+    promo: PromoBuffet,
+    tipoReparto: TipoRepartoConsumo,
+    reservaJugadorId?: number | null,
+    reservaJugadoresIds?: number[],
+  ): Promise<void> {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setError(null);
+    try {
+      await cargarPromo.mutateAsync({
+        reserva_id: reservaId,
+        promo_id: promo.id,
+        tipo_reparto: tipoReparto,
+        reserva_jugador_id: reservaJugadorId ?? undefined,
+        reserva_jugadores_ids: reservaJugadoresIds,
+        solicitud_id: crypto.randomUUID(),
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos cargar la promo.',
       );
     } finally {
       isSubmittingRef.current = false;
@@ -263,14 +294,15 @@ export function ConsumosTurnoSection({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowCatalogo(false)}
-                disabled={cargar.isPending}
+                disabled={anyPending}
               >
                 Cerrar
               </Button>
             </div>
             <ConsumosCatalogo
               onAdd={handleAgregar}
-              disabled={cargar.isPending}
+              onAddPromo={handleAgregarPromo}
+              disabled={anyPending}
               personas={personasDestino}
               allowMultipleSelection
             />

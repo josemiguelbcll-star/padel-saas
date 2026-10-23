@@ -1,5 +1,5 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, FileSpreadsheet, Plus, UtensilsCrossed } from 'lucide-react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ChevronLeft, FileSpreadsheet, Plus, Tag, UtensilsCrossed } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
@@ -16,6 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ImportarStockDialog } from './ImportarStockDialog';
+import { PromosPanel } from './PromosPanel';
+import { usePromosBuffet } from './hooks/usePromosBuffet';
+import type { PromoBuffet } from '@/types/database';
 import {
   Dialog,
   DialogContent,
@@ -41,9 +44,9 @@ export function BuffetPage() {
     () => productosQuery.data ?? [],
     [productosQuery.data],
   );
+  const promosQuery = usePromosBuffet();
 
-  // Active view: 'mostrador' (fast counter sale) | 'mesas' (table service)
-  const [activeTab, setActiveTab] = useState<'mostrador' | 'mesas'>('mostrador');
+  const [activeTab, setActiveTab] = useState<'mostrador' | 'mesas' | 'promos'>('mostrador');
 
   // Mostrador Cart: Map<producto_id, cantidad>
   const [cart, setCart] = useState<Map<number, number>>(() => new Map());
@@ -57,6 +60,9 @@ export function BuffetPage() {
   const [nuevaMesaOpen, setNuevaMesaOpen] = useState(false);
   const [importarStockOpen, setImportarStockOpen] = useState(false);
   const [nuevaMesaName, setNuevaMesaName] = useState('');
+  const [promoMesaError, setPromoMesaError] = useState<string | null>(null);
+  const [promoMesaLoading, setPromoMesaLoading] = useState(false);
+  const promoMesaSubmittingRef = useRef(false);
 
   // Buffet Mesa Hooks
   const mesasQuery = useMesas();
@@ -93,6 +99,61 @@ export function BuffetPage() {
     });
   }
 
+  async function addPromoMesa(promo: PromoBuffet): Promise<void> {
+    if (!selectedMesaId || !selectedMesa || promoMesaSubmittingRef.current) return;
+    setPromoMesaError(null);
+
+    const faltantes = promo.items.flatMap((item) => {
+      const producto = productos.find((candidate) => candidate.id === item.producto_id);
+      const cantidadEnMesa = selectedMesa.consumos
+        .filter((consumo) => consumo.producto_id === item.producto_id)
+        .reduce((total, consumo) => total + consumo.cantidad, 0);
+      const stockDisponible = Math.max(0, (producto?.stock_actual ?? 0) - cantidadEnMesa);
+
+      if (!producto?.activo || stockDisponible < item.cantidad) {
+        return [`${producto?.nombre ?? 'Producto inactivo'} (hay ${stockDisponible}, necesita ${item.cantidad})`];
+      }
+      return [];
+    });
+
+    if (faltantes.length > 0) {
+      setPromoMesaError(`No se pudo cargar "${promo.nombre}". Stock insuficiente: ${faltantes.join(' · ')}.`);
+      return;
+    }
+
+    promoMesaSubmittingRef.current = true;
+    setPromoMesaLoading(true);
+    try {
+      for (const item of promo.items) {
+        await cargarConsumo.mutateAsync({
+          mesaId: selectedMesaId,
+          productoId: item.producto_id,
+          cantidad: item.cantidad,
+        });
+      }
+    } catch (error) {
+      setPromoMesaError(
+        error instanceof Error
+          ? `No se pudo completar la promo "${promo.nombre}": ${error.message}`
+          : `No se pudo completar la promo "${promo.nombre}".`,
+      );
+    } finally {
+      promoMesaSubmittingRef.current = false;
+      setPromoMesaLoading(false);
+    }
+  }
+
+  function addPromoMostrador(promo: PromoBuffet): void {
+    setLastSale(null);
+    setCart((prev) => {
+      const next = new Map(prev);
+      for (const item of promo.items) {
+        next.set(item.producto_id, (next.get(item.producto_id) ?? 0) + item.cantidad);
+      }
+      return next;
+    });
+  }
+
   function decrementOneMostrador(productoId: number): void {
     setCart((prev) => {
       const next = new Map(prev);
@@ -114,6 +175,7 @@ export function BuffetPage() {
   // Handle addition in active mesa
   async function addOneMesa(productoId: number): Promise<void> {
     if (!selectedMesaId) return;
+    setPromoMesaError(null);
     setLastSale(null);
     await cargarConsumo.mutateAsync({
       mesaId: selectedMesaId,
@@ -202,7 +264,7 @@ export function BuffetPage() {
       setNuevaMesaName('');
       setNuevaMesaOpen(false);
       setSelectedMesaId(created.id);
-    } catch (err) {
+    } catch {
       // handled by mutation state
     }
   }
@@ -252,6 +314,21 @@ export function BuffetPage() {
             }`}
           >
             Mesas Activas
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('promos');
+              setSelectedMesaId(null);
+            }}
+            className={`inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              activeTab === 'promos'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'hover:bg-background/50 hover:text-foreground'
+            }`}
+          >
+            <Tag className="h-3 w-3" />
+            Promos
           </button>
         </div>
         </div>
@@ -304,6 +381,8 @@ export function BuffetPage() {
                 productos={productos}
                 cart={cart}
                 onAdd={addOneMostrador}
+                promos={promosQuery.data ?? []}
+                onAddPromo={addPromoMostrador}
                 readOnly={!canEdit}
               />
               <VentaActual
@@ -428,12 +507,19 @@ export function BuffetPage() {
                       Editando {selectedMesa?.nombre}
                     </span>
                   </div>
-
+                  {promoMesaError && (
+                    <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {promoMesaError}
+                    </p>
+                  )}
                   <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
                     <Catalogo
                       productos={productos}
                       cart={new Map(itemsMesa.map((i) => [i.producto.id, i.cantidad]))}
                       onAdd={addOneMesa}
+                      promos={promosQuery.data ?? []}
+                      onAddPromo={(promo) => void addPromoMesa(promo)}
+                      disabled={cargarConsumo.isPending || promoMesaLoading}
                       readOnly={!canEdit}
                     />
                     <VentaActual
@@ -447,7 +533,18 @@ export function BuffetPage() {
                   </div>
                 </div>
               )}
+
             </>
+          )}
+
+          {activeTab === 'promos' && (
+            <PromosPanel productos={productos} canEdit={canEdit} />
+          )}
+
+          {(activeTab === 'mostrador' || activeTab === 'mesas') && promosQuery.error && (
+            <p className="text-sm text-destructive" role="alert">
+              No pudimos cargar las promos: {promosQuery.error.message}
+            </p>
           )}
         </>
       )}
