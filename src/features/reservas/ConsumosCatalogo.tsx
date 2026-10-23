@@ -11,8 +11,11 @@ import {
 import type {
   CategoriaProducto,
   ProductoConStock,
+  PromoBuffet,
   TipoRepartoConsumo,
 } from '@/types/database';
+import { usePromosBuffet } from '@/features/buffet/hooks/usePromosBuffet';
+import { PromoSelector } from '@/features/buffet/PromoSelector';
 
 const CATEGORIAS_TURNO = [
   ...CATEGORIAS_BUFFET,
@@ -45,6 +48,12 @@ export interface ConsumosCatalogoProps {
     personaId?: number | null,
     personasIds?: number[],
   ) => void;
+  onAddPromo?: (
+    promo: PromoBuffet,
+    tipoReparto: TipoRepartoConsumo,
+    personaId?: number | null,
+    personasIds?: number[],
+  ) => void;
   disabled?: boolean;
   personas?: PersonaDestinoConsumo[];
   labelPersonas?: string;
@@ -53,12 +62,14 @@ export interface ConsumosCatalogoProps {
 
 export function ConsumosCatalogo({
   onAdd,
+  onAddPromo,
   disabled,
   personas = [],
   labelPersonas = 'Asignar consumo a:',
   allowMultipleSelection = false,
 }: ConsumosCatalogoProps) {
   const productosQuery = useProductosConStock();
+  const promosQuery = usePromosBuffet();
   const productos = useMemo(
     () => productosQuery.data ?? [],
     [productosQuery.data],
@@ -127,6 +138,17 @@ export function ConsumosCatalogo({
     }
   }
 
+  function handlePromoClick(promo: PromoBuffet): void {
+    if (!onAddPromo) return;
+    if (isIndividual) {
+      onAddPromo(promo, 'individual', personasSeleccionadasIds[0]);
+    } else if (personasSeleccionadasIds.length > 1) {
+      onAddPromo(promo, 'general', null, personasSeleccionadasIds);
+    } else {
+      onAddPromo(promo, tipoReparto, null);
+    }
+  }
+
   function togglePersona(id: number) {
     setPersonasSeleccionadasIds((actuales) => {
       if (allowMultipleSelection && actuales.includes(id)) {
@@ -153,6 +175,20 @@ export function ConsumosCatalogo({
           : undefined
       }
     >
+      {promosQuery.error && (
+        <p className="text-xs text-destructive" role="alert">
+          No pudimos cargar las promos: {promosQuery.error.message}
+        </p>
+      )}
+      {onAddPromo && (
+        <PromoSelector
+          promos={promosQuery.data ?? []}
+          productos={productos}
+          onSelect={handlePromoClick}
+          disabled={disabled}
+        />
+      )}
+
       {/* 1. Selector de asignación (Grupal vs Individual) */}
       {personas.length > 0 && (
         <div className="space-y-1.5">

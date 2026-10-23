@@ -7,7 +7,9 @@ import type {
   CategoriaProducto,
   Linea,
   ProductoConStock,
+  PromoBuffet,
 } from '@/types/database';
+import { PromoSelector } from './PromoSelector';
 import {
   CATEGORIA_LABEL,
   LINEA_LABEL,
@@ -33,6 +35,9 @@ interface CatalogoProps {
   cart: Map<number, number>;
   /** Click en una card → suma 1 unidad de ese producto al carrito. */
   onAdd: (productoId: number) => void;
+  promos?: PromoBuffet[];
+  onAddPromo?: (promo: PromoBuffet) => void;
+  disabled?: boolean;
   readOnly?: boolean;
 }
 
@@ -50,7 +55,15 @@ interface CatalogoProps {
  *
  * El costo NO se muestra: es información interna del club.
  */
-export function Catalogo({ productos, cart, onAdd, readOnly }: CatalogoProps) {
+export function Catalogo({
+  productos,
+  cart,
+  onAdd,
+  promos = [],
+  onAddPromo,
+  disabled = false,
+  readOnly,
+}: CatalogoProps) {
   // El filtro de línea vive en el querystring (?linea=buffet|shop)
   // para que los sub-items del sidebar puedan deep-linkear al POS con
   // un filtro pre-aplicado. Si el querystring no está o tiene un valor
@@ -170,6 +183,16 @@ export function Catalogo({ productos, cart, onAdd, readOnly }: CatalogoProps) {
         />
       </div>
 
+      {onAddPromo && (
+        <PromoSelector
+          promos={promos}
+          productos={productos}
+          cantidadesReservadas={cart}
+          onSelect={onAddPromo}
+          disabled={readOnly || disabled}
+        />
+      )}
+
       {/* Grid de productos */}
       {productosActivos.length === 0 ? (
         <EmptyState>
@@ -186,7 +209,7 @@ export function Catalogo({ productos, cart, onAdd, readOnly }: CatalogoProps) {
               producto={p}
               cartCantidad={cart.get(p.id) ?? 0}
               onAdd={onAdd}
-              readOnly={readOnly}
+              readOnly={readOnly || disabled}
             />
           ))}
         </div>

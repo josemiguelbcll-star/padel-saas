@@ -169,6 +169,15 @@ categorías de gasto, otros_ingresos), RPCs financieras + integración caja.
   `monto_consumo` (preparado para la cuenta tipo mesa de restaurante y la
   división informativa entre jugadores).
 
+## Promos predefinidas de Buffet (0144)
+- `promos_buffet` + `promo_buffet_items` guardan combos de uno o más
+  productos con cantidades fijas por club y RLS. No aplican descuento:
+  el total suma los precios vigentes de cada producto.
+- Se pueden agregar al carrito de venta directa o cargar a consumos del
+  turno. La carga al turno usa `fn_cargar_promo_buffet_turno` para insertar
+  todas las líneas y descontar stock en una única transacción; cada línea
+  conserva su snapshot de precio, costo y línea de negocio.
+
 ## Turnos fijos (0029–0033)
 - **0029 — Tarifas con vigencia temporal.** `lineage_id` agrupa versiones
   de la misma franja a lo largo del tiempo; `vigente_desde`/`vigente_hasta`;

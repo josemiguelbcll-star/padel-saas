@@ -1057,6 +1057,24 @@ export interface ProductoConStock extends Producto {
   stock_actual: number;
 }
 
+export interface PromoBuffetItem {
+  id: number;
+  club_id: number;
+  promo_id: number;
+  producto_id: number;
+  cantidad: number;
+}
+
+export interface PromoBuffet {
+  id: number;
+  club_id: number;
+  nombre: string;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+  items: PromoBuffetItem[];
+}
+
 export interface MovimientoStock {
   id: number;
   club_id: number;
