@@ -42,15 +42,18 @@ interface NuevaFranjaDialogProps {
    * el config del módulo (turnos o clases). Permite reusar este dialog
    * sin acoplarlo a una RPC específica.
    */
-  useCrear: (
-    profesorId?: number | null,
-  ) => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
-  profesorId?: number | null;
+  useCrear: () => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
   /**
    * Si el módulo soporta tarifa por duración (turnos: sí; clases: no).
    * Cuando true, muestra el selector de duración (0051). Default false.
    */
   soportaDuracion?: boolean;
+  soportaOpcionesClase?: boolean;
+}
+
+interface PrecioOpcionForm {
+  nombre: string;
+  monto: string;
 }
 
 interface FormState {
@@ -63,6 +66,7 @@ interface FormState {
   vigente_desde: string;
   /** null = cualquier duración. Solo se usa si soportaDuracion. */
   duracion_min: number | null;
+  opciones: PrecioOpcionForm[];
 }
 
 const INITIAL = (): FormState => ({
@@ -74,6 +78,10 @@ const INITIAL = (): FormState => ({
   prioridad: '0',
   vigente_desde: todayISO(),
   duracion_min: null,
+  opciones: [1, 2, 3].map((orden) => ({
+    nombre: `Opción ${orden}`,
+    monto: '',
+  })),
 });
 
 const schema = z
@@ -126,10 +134,10 @@ export function NuevaFranjaDialog({
   open,
   onOpenChange,
   useCrear,
-  profesorId,
   soportaDuracion = false,
+  soportaOpcionesClase = false,
 }: NuevaFranjaDialogProps) {
-  const crear = useCrear(profesorId);
+  const crear = useCrear();
   const [state, setState] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -162,7 +170,11 @@ export function NuevaFranjaDialog({
 
     const parsed = schema.safeParse({
       nombre: state.nombre,
-      monto: state.monto.trim() === '' ? NaN : Number(state.monto),
+      monto: soportaOpcionesClase
+        ? Number(state.opciones[0]?.monto)
+        : state.monto.trim() === ''
+          ? NaN
+          : Number(state.monto),
       desde_hora: state.desde_hora,
       hasta_hora: state.hasta_hora,
       dias_semana: state.dias_semana,
@@ -179,17 +191,45 @@ export function NuevaFranjaDialog({
           p === 'hasta_hora' || p === 'dias_semana' || p === 'prioridad' ||
           p === 'vigente_desde'
         ) {
-          fe[p] = issue.message;
+          if (p === 'monto' && soportaOpcionesClase) {
+            fe.opciones = 'Completá las tres opciones con montos mayores a 0.';
+          } else {
+            fe[p] = issue.message;
+          }
         }
       }
       setErrors(fe);
       return;
     }
 
+    const opciones = soportaOpcionesClase
+      ? state.opciones.map((opcion, index) => ({
+          orden: (index + 1) as 1 | 2 | 3,
+          nombre: opcion.nombre.trim(),
+          monto: Number(opcion.monto),
+        }))
+      : undefined;
+    if (
+      opciones &&
+      opciones.some(
+        (opcion) =>
+          !opcion.nombre ||
+          opcion.nombre.length > 80 ||
+          !Number.isFinite(opcion.monto) ||
+          opcion.monto <= 0,
+      )
+    ) {
+      setErrors({
+        opciones: 'Completá los tres nombres y montos con valores mayores a 0.',
+      });
+      return;
+    }
+
     try {
       await crear.mutateAsync({
         nombre: parsed.data.nombre,
-        monto: parsed.data.monto,
+        monto: opciones?.[0]?.monto ?? parsed.data.monto,
+        ...(opciones ? { opciones } : {}),
         desde_hora: parsed.data.desde_hora === '' ? null : parsed.data.desde_hora,
         hasta_hora: parsed.data.hasta_hora === '' ? null : (parsed.data.hasta_hora === '00:00' || parsed.data.hasta_hora === '00:00:00' ? '24:00' : parsed.data.hasta_hora),
         dias_semana:
@@ -210,13 +250,13 @@ export function NuevaFranjaDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={cn('max-w-md', soportaOpcionesClase && 'max-w-2xl')}>
         <DialogHeader>
           <DialogTitle>Nueva franja de tarifa</DialogTitle>
           <DialogDescription>
-            Definí cuándo aplica esta franja (días/horario) y el precio
-            inicial. Después podés cambiar el precio sin perder el
-            historial.
+            Definí cuándo aplica esta franja (días/horario) y{' '}
+            {soportaOpcionesClase ? 'sus tres precios iniciales' : 'su precio inicial'}.
+            Después podés versionarlos sin perder el historial.
           </DialogDescription>
         </DialogHeader>
 
@@ -239,7 +279,59 @@ export function NuevaFranjaDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {soportaOpcionesClase ? (
+            <div className="space-y-2">
+              <Label>Opciones de precio total de la clase</Label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {state.opciones.map((opcion, index) => (
+                  <div key={index} className="space-y-1 rounded-md border border-border p-2">
+                    <Label htmlFor={`franja-opcion-nombre-${index + 1}`}>
+                      Opción {index + 1} · nombre
+                    </Label>
+                    <Input
+                      id={`franja-opcion-nombre-${index + 1}`}
+                      value={opcion.nombre}
+                      onChange={(e) =>
+                        setState({
+                          ...state,
+                          opciones: state.opciones.map((actual, i) =>
+                            i === index ? { ...actual, nombre: e.target.value } : actual,
+                          ),
+                        })
+                      }
+                      maxLength={80}
+                      disabled={pending}
+                      placeholder={`Ej: ${['Básica', 'Intermedia', 'Completa'][index]}`}
+                    />
+                    <Label htmlFor={`franja-opcion-monto-${index + 1}`}>
+                      Total
+                    </Label>
+                    <Input
+                      id={`franja-opcion-monto-${index + 1}`}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0.01"
+                      value={opcion.monto}
+                      onChange={(e) =>
+                        setState({
+                          ...state,
+                          opciones: state.opciones.map((actual, i) =>
+                            i === index ? { ...actual, monto: e.target.value } : actual,
+                          ),
+                        })
+                      }
+                      disabled={pending}
+                      placeholder="0.00"
+                    />
+                  </div>
+                ))}
+              </div>
+              {errors.opciones && (
+                <p role="alert" className="text-xs text-destructive">{errors.opciones}</p>
+              )}
+            </div>
+          ) : (
             <div className="space-y-1">
               <Label htmlFor="franja-monto">Precio inicial</Label>
               <Input
@@ -258,24 +350,24 @@ export function NuevaFranjaDialog({
                 <p role="alert" className="text-xs text-destructive">{errors.monto}</p>
               )}
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="franja-vigente">Vigente desde</Label>
-              <Input
-                id="franja-vigente"
-                type="date"
-                value={state.vigente_desde}
-                onChange={(e) =>
-                  setState({ ...state, vigente_desde: e.target.value })
-                }
-                disabled={pending}
-                aria-invalid={!!errors.vigente_desde}
-              />
-              {errors.vigente_desde && (
-                <p role="alert" className="text-xs text-destructive">
-                  {errors.vigente_desde}
-                </p>
-              )}
-            </div>
+          )}
+          <div className="space-y-1">
+            <Label htmlFor="franja-vigente">Vigente desde</Label>
+            <Input
+              id="franja-vigente"
+              type="date"
+              value={state.vigente_desde}
+              onChange={(e) =>
+                setState({ ...state, vigente_desde: e.target.value })
+              }
+              disabled={pending}
+              aria-invalid={!!errors.vigente_desde}
+            />
+            {errors.vigente_desde && (
+              <p role="alert" className="text-xs text-destructive">
+                {errors.vigente_desde}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

@@ -18,9 +18,7 @@ import type {
  * Hooks para tarifas de CLASES (0034). Espejo exacto de useTarifas.ts
  * apuntando a la tabla `tarifas_clases` y a las RPCs `fn_*_tarifa_clase`.
  *
- * Las tarifas de clases se filtran por profesor cuando la pantalla de
- * configuración lo indica. Sin argumento se listan todas para resolver
- * tarifas en clases; `null` representa que todavía no se eligió profesor.
+ * Las tarifas de clases son comunes al club y se eligen por ocurrencia.
  */
 export const TARIFAS_CLASES_QUERY_KEY = ['tarifas_clases'] as const;
 
@@ -28,82 +26,18 @@ export const TARIFAS_CLASES_QUERY_KEY = ['tarifas_clases'] as const;
  * Lista de tarifas de clases del club, ordenada igual que tarifas de
  * turnos (prioridad DESC, nombre ASC, vigente_desde DESC).
  */
-export function useTarifasClases(
-  profesorId?: number | null,
-): UseQueryResult<Tarifa[], Error> {
+export function useTarifasClases(): UseQueryResult<Tarifa[], Error> {
   return useQuery<Tarifa[], Error>({
-    queryKey: [...TARIFAS_CLASES_QUERY_KEY, profesorId],
+    queryKey: TARIFAS_CLASES_QUERY_KEY,
     queryFn: async () => {
-      if (profesorId === null) return [];
-
-      const query =
-        profesorId === undefined
-          ? supabase
-              .from('tarifas_clases')
-              .select('*')
-              .order('prioridad', { ascending: false })
-              .order('nombre', { ascending: true })
-              .order('vigente_desde', { ascending: false })
-          : supabase
-              .from('tarifas_clases')
-              .select('*')
-              .eq('profesor_id', profesorId)
-              .order('prioridad', { ascending: false })
-              .order('nombre', { ascending: true })
-              .order('vigente_desde', { ascending: false });
-      const { data: tarifas, error: queryError } = await query;
-      if (queryError) throw new Error(mapPostgrestError(queryError));
-      return (tarifas ?? []) as Tarifa[];
-    },
-  });
-}
-
-export function useTarifasClasesSinProfesor(): UseQueryResult<Tarifa[], Error> {
-  return useQuery<Tarifa[], Error>({
-    queryKey: [...TARIFAS_CLASES_QUERY_KEY, 'sin-profesor'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: tarifas, error: queryError } = await supabase
         .from('tarifas_clases')
-        .select('*')
-        .is('profesor_id', null)
+        .select('*, opciones:tarifas_clases_opciones(*)')
         .order('prioridad', { ascending: false })
         .order('nombre', { ascending: true })
         .order('vigente_desde', { ascending: false });
-      if (error) throw new Error(mapPostgrestError(error));
-      return (data ?? []) as Tarifa[];
-    },
-  });
-}
-
-export function useAsignarTarifaClaseAProfesor(): UseMutationResult<
-  number,
-  Error,
-  { lineage_id: number; profesor_id: number }
-> {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    number,
-    Error,
-    { lineage_id: number; profesor_id: number }
-  >({
-    mutationFn: async ({ lineage_id, profesor_id }) => {
-      const { data, error } = await supabase
-        .from('tarifas_clases')
-        .update({ profesor_id })
-        .eq('lineage_id', lineage_id)
-        .is('profesor_id', null)
-        .select('id');
-      if (error) throw new Error(mapPostgrestError(error));
-      if (!data || data.length === 0) {
-        throw new Error(
-          'La tarifa ya fue asignada o no está disponible. Actualizá la pantalla e intentá nuevamente.',
-        );
-      }
-      return data.length;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: TARIFAS_CLASES_QUERY_KEY });
+      if (queryError) throw new Error(mapPostgrestError(queryError));
+      return (tarifas ?? []) as Tarifa[];
     },
   });
 }
@@ -111,12 +45,10 @@ export function useAsignarTarifaClaseAProfesor(): UseMutationResult<
 // ─── Crear franja nueva ──────────────────────────────────────────────
 
 /**
- * Crea una franja nueva via RPC `fn_crear_tarifa_clase`, asociada al
- * profesor seleccionado. La RPC se encarga del lineage_id autoreferente.
+ * Crea una franja nueva vía RPC; la RPC fuerza profesor_id a NULL y valida
+ * el máximo de franjas activas del club.
  */
-export function useCrearTarifaClase(
-  profesorId?: number | null,
-): UseMutationResult<
+export function useCrearTarifaClase(): UseMutationResult<
   Tarifa,
   Error,
   CrearTarifaInput
@@ -124,13 +56,11 @@ export function useCrearTarifaClase(
   const queryClient = useQueryClient();
   return useMutation<Tarifa, Error, CrearTarifaInput>({
     mutationFn: async (input) => {
-      if (profesorId === null || profesorId === undefined) {
-        throw new Error('Elegí un profesor antes de crear una tarifa de clases.');
-      }
       const { data, error } = await supabase.rpc('fn_crear_tarifa_clase', {
-        p_profesor_id: profesorId,
+        p_profesor_id: null,
         p_nombre: input.nombre,
         p_monto: input.monto,
+        p_opciones: input.opciones ?? null,
         p_desde_hora: input.desde_hora ?? null,
         p_hasta_hora: input.hasta_hora ?? null,
         p_dias_semana: input.dias_semana ?? null,
@@ -173,6 +103,7 @@ export function useCambiarPrecioTarifaClase(): UseMutationResult<
           p_lineage_id: input.lineage_id,
           p_monto_nuevo: input.monto_nuevo,
           p_vigente_desde: input.vigente_desde,
+          p_opciones: input.opciones ?? null,
         },
       );
       if (error) throw new Error(mapPostgrestError(error));

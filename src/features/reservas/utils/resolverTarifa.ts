@@ -14,8 +14,6 @@ import { compararHoras } from './horaUtils';
  *      - DURACIÓN (0051): duracion_min NULL aplica a cualquiera;
  *        si se pasa `duracion`, la tarifa aplica si su duracion_min es
  *        NULL o == duracion.
- *      - PROFESOR (0142): si se pasa `profesor_id`, la tarifa debe
- *        pertenecer a ese profesor; no hay fallback a tarifas comunes.
  *   2. Ordena: duración ESPECÍFICA gana sobre NULL (solo cuando hay
  *      `duracion` objetivo), luego prioridad DESC, luego id DESC.
  *   3. Devuelve la primera.
@@ -58,8 +56,6 @@ export interface ResolverTarifaParams {
    * Cantidad de alumnos. Opcional: solo aplica para tarifas de clases.
    */
   cantidad_alumnos?: number;
-  /** Profesor al que pertenece la clase; no se usa una tarifa común como fallback. */
-  profesor_id?: number;
   /**
    * Tarifa fija asignada a la cancha (opcional). Si existe y está activa,
    * se prioriza esta tarifa sobre la resolución general por horario.
@@ -74,7 +70,6 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
     tarifas,
     duracion,
     cantidad_alumnos,
-    profesor_id,
     tarifaId,
   } = params;
 
@@ -92,7 +87,7 @@ export function resolverTarifa(params: ResolverTarifaParams): TarifaResuelta {
 
   // 1. Filtrar tarifas activas que aplican a fecha, día, hora y alumnos
   const activasEnFranja = tarifas.filter((t) =>
-    tarifaAplicaFranja(t, fecha, diaSemana, hora, cantidad_alumnos, profesor_id),
+    tarifaAplicaFranja(t, fecha, diaSemana, hora, cantidad_alumnos),
   );
 
   if (activasEnFranja.length === 0) {
@@ -139,6 +134,34 @@ export interface FranjasDisponiblesParams {
   fecha: string;
   hora: string;
   duracion?: number;
+}
+
+export interface TarifasAplicablesParams {
+  tarifas: Tarifa[];
+  fecha: string;
+  hora: string;
+}
+
+/** Devuelve todas las franjas activas que aplican al día y horario exactos. */
+export function obtenerTarifasAplicables({
+  tarifas,
+  fecha,
+  hora,
+}: TarifasAplicablesParams): Tarifa[] {
+  const diaSemana = diaSemanaDe(fecha);
+  const porLinaje = new Map<number, Tarifa>();
+
+  for (const tarifa of tarifas) {
+    if (!tarifaAplicaFranja(tarifa, fecha, diaSemana, hora, undefined)) continue;
+    const existente = porLinaje.get(tarifa.lineage_id);
+    if (!existente || tarifa.vigente_desde > existente.vigente_desde) {
+      porLinaje.set(tarifa.lineage_id, tarifa);
+    }
+  }
+
+  return [...porLinaje.values()].sort(
+    (a, b) => b.prioridad - a.prioridad || a.nombre.localeCompare(b.nombre),
+  );
 }
 
 /**
@@ -201,13 +224,8 @@ export function tarifaAplicaFranja(
   diaSemana: number,
   hora: string,
   cantidad_alumnos: number | undefined,
-  profesor_id?: number,
 ): boolean {
   if (!tarifa.activa) return false;
-
-  if (profesor_id !== undefined && tarifa.profesor_id !== profesor_id) {
-    return false;
-  }
 
   // Vigencia temporal (0029): comparación lexicográfica de strings ISO
   // 'YYYY-MM-DD' equivale a comparación cronológica.

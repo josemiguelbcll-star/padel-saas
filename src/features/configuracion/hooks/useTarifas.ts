@@ -50,6 +50,7 @@ export function useTarifas(): UseQueryResult<Tarifa[], Error> {
 export interface CrearTarifaInput {
   nombre: string;
   monto: number;
+  opciones?: TarifaClaseOpcionInput[];
   desde_hora?: string | null;
   hasta_hora?: string | null;
   dias_semana?: number[] | null;
@@ -59,6 +60,12 @@ export interface CrearTarifaInput {
   /** Duración (minutos) a la que aplica (0051). NULL/undefined = cualquier
    *  duración. Solo tarifas de TURNOS; las de clases lo ignoran. */
   duracion_min?: number | null;
+}
+
+export interface TarifaClaseOpcionInput {
+  orden: 1 | 2 | 3;
+  nombre: string;
+  monto: number;
 }
 
 /**
@@ -104,6 +111,8 @@ export interface CambiarPrecioInput {
   monto_nuevo: number;
   /** YYYY-MM-DD. Hoy o futuro. NO retroactivo. */
   vigente_desde: string;
+  /** Obligatorio para tarifas de clases; ignorado por las tarifas de turnos. */
+  opciones?: TarifaClaseOpcionInput[];
 }
 
 /**

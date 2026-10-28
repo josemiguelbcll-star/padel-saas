@@ -265,21 +265,26 @@ export function ReservasPage() {
       const oc = ocurrenciasPorClase.get(c.id);
 
       let totalEsperado = 0;
-      if (alumnosDeClase.length > 0) {
-        totalEsperado = alumnosDeClase.reduce((sum, a) => sum + (Number(a.monto_clase) || 0), 0) + consumosDeClase;
-      } else if (oc && oc.monto_total > 0) {
+      if (oc && oc.monto_total > 0) {
         totalEsperado = oc.monto_total + consumosDeClase;
-      } else {
-        const tarifa = resolverTarifa({
-          fecha,
-          hora: c.hora_inicio,
-          tarifas: tarifasClasesQuery.data ?? [],
-          profesor_id: c.profesor_id,
-        });
-        if (tarifa.monto > 0) {
-          totalEsperado = tarifa.monto + consumosDeClase;
-        } else if (c.precio > 0) {
-          totalEsperado = c.precio + consumosDeClase;
+      } else if (cobros.length > 0) {
+        const montoAlumnos = alumnosDeClase.reduce(
+          (sum, alumno) => sum + (Number(alumno.monto_clase) || 0),
+          0,
+        );
+        if (montoAlumnos > 0) {
+          totalEsperado = montoAlumnos + consumosDeClase;
+        } else {
+          const tarifa = resolverTarifa({
+            fecha,
+            hora: c.hora_inicio,
+            tarifas: tarifasClasesQuery.data ?? [],
+          });
+          if (tarifa.monto > 0) {
+            totalEsperado = tarifa.monto + consumosDeClase;
+          } else if (c.precio > 0) {
+            totalEsperado = c.precio + consumosDeClase;
+          }
         }
       }
 

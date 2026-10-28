@@ -72,8 +72,6 @@ function describeAplicacion(l: TarifaLinaje): string {
 
 interface TarifasPanelProps {
   config: TarifasModuleConfig;
-  profesorId?: number | null;
-  profesorNombre?: string;
 }
 
 /**
@@ -94,22 +92,22 @@ interface TarifasPanelProps {
  * El histórico de reservas no se ve afectado por nada de esto — cada
  * reserva tiene su `monto_total` snapshot al momento de crearse.
  */
-export function TarifasPanel({
-  config,
-  profesorId,
-  profesorNombre,
-}: TarifasPanelProps) {
+export function TarifasPanel({ config }: TarifasPanelProps) {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'configuracion', 'editar');
 
-  const query = config.useList(profesorId);
+  const query = config.useList();
   // Tarifa 2D (0051): solo el módulo de turnos tiene dimensión duración.
   const soportaDuracion = config.modulo === 'turnos';
+  const soportaOpcionesClase = config.modulo === 'clases';
 
   const linajes = useMemo<TarifaLinaje[]>(
     () => agruparPorLinaje(query.data ?? []),
     [query.data],
   );
+  const cantidadFranjasActivas = linajes.filter((linaje) => linaje.activa).length;
+  const limiteFranjasClasesAlcanzado =
+    config.modulo === 'clases' && cantidadFranjasActivas >= 3;
 
   const [nuevaOpen, setNuevaOpen] = useState(false);
   const [cambiarPrecioOpen, setCambiarPrecioOpen] = useState(false);
@@ -137,8 +135,8 @@ export function TarifasPanel({
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            {config.modulo === 'clases' && profesorNombre
-              ? `Tarifas de ${profesorNombre}`
+            {config.modulo === 'clases'
+              ? 'Tarifas de clases'
               : 'Tarifas'}
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -146,12 +144,21 @@ export function TarifasPanel({
             cierra la versión actual y crea una nueva — el historial queda
             guardado y las reservas cobradas no se alteran.
           </p>
+          {config.modulo === 'clases' && (
+            <p className="text-xs text-muted-foreground">
+              Podés tener hasta tres franjas activas en el club. La tarifa se
+              elige en cada ocurrencia de clase.
+            </p>
+          )}
         </div>
         {canEdit && (
           <Button
             type="button"
             onClick={() => setNuevaOpen(true)}
-            disabled={config.modulo === 'clases' && profesorId == null}
+            disabled={
+              (config.modulo === 'clases' && query.isLoading) ||
+              limiteFranjasClasesAlcanzado
+            }
             className="shrink-0"
           >
             <Plus className="h-4 w-4" />
@@ -180,15 +187,13 @@ export function TarifasPanel({
       {query.data && linajes.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            {config.modulo === 'clases' && profesorId == null
-              ? 'Elegí un profesor para ver o configurar sus tarifas de alquiler.'
-              : canEdit
-                ? config.modulo === 'clases'
-                  ? `Todavía no hay tarifas de alquiler configuradas para ${profesorNombre ?? 'este profesor'}. Agregá una franja; las tarifas comunes no se aplican a las clases.`
-                  : 'Todavía no tenés franjas configuradas. Agregá la primera — podés tener una única que aplique a todo, o varias por horario.'
-                : config.modulo === 'clases'
-                  ? `El administrador todavía no configuró tarifas de alquiler para ${profesorNombre ?? 'este profesor'}.`
-                  : 'El administrador todavía no configuró tarifas para el club.'}
+            {canEdit
+              ? config.modulo === 'clases'
+                ? 'Todavía no hay tarifas de clase configuradas. Agregá hasta tres franjas; la que corresponda se elige en cada ocurrencia.'
+                : 'Todavía no tenés franjas configuradas. Agregá la primera — podés tener una única que aplique a todo, o varias por horario.'
+              : config.modulo === 'clases'
+                ? 'El administrador todavía no configuró tarifas de clase.'
+                : 'El administrador todavía no configuró tarifas para el club.'}
           </p>
         </div>
       )}
@@ -208,19 +213,26 @@ export function TarifasPanel({
           ))}
         </div>
       )}
+      {limiteFranjasClasesAlcanzado && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Hay {cantidadFranjasActivas} franjas activas; el máximo es tres.
+          Desactivá las sobrantes para volver al límite.
+        </p>
+      )}
 
       <NuevaFranjaDialog
         open={nuevaOpen}
         onOpenChange={setNuevaOpen}
         useCrear={config.useCrear}
-        profesorId={profesorId}
         soportaDuracion={soportaDuracion}
+        soportaOpcionesClase={soportaOpcionesClase}
       />
       <CambiarPrecioDialog
         open={cambiarPrecioOpen}
         onOpenChange={setCambiarPrecioOpen}
         linaje={seleccionado}
         useCambiarPrecio={config.useCambiarPrecio}
+        soportaOpcionesClase={soportaOpcionesClase}
       />
       <EditarMetadataDialog
         open={editarMetadataOpen}
@@ -312,9 +324,26 @@ function LinajeCard({
               Vigente hoy
             </p>
             {linaje.vigenteHoy ? (
-              <p className="text-2xl font-bold tabular-nums text-foreground">
-                {currencyFmt.format(linaje.vigenteHoy.monto)}
-              </p>
+              <>
+                <p className="text-2xl font-bold tabular-nums text-foreground">
+                  {currencyFmt.format(linaje.vigenteHoy.monto)}
+                </p>
+                {linaje.vigenteHoy.opciones && (
+                  <div className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                    {linaje.vigenteHoy.opciones
+                      .filter((opcion) => opcion.monto != null)
+                      .sort((a, b) => a.orden - b.orden)
+                      .map((opcion) => (
+                        <p key={opcion.id}>
+                          {opcion.nombre}: {currencyFmt.format(opcion.monto ?? 0)}
+                        </p>
+                      ))}
+                    {linaje.vigenteHoy.opciones.filter((opcion) => opcion.monto != null).length < 3 && (
+                      <p>Completá las opciones restantes al cambiar el precio.</p>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-sm font-medium text-muted-foreground">
                 Sin precio vigente
