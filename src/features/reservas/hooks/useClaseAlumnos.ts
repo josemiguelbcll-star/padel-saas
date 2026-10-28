@@ -107,26 +107,18 @@ export function useAgregarAlumnoClase(): UseMutationResult<
   AgregarAlumnoClaseInput
 > {
   const queryClient = useQueryClient();
-  const { club } = useSession();
 
   return useMutation({
     mutationFn: async (input) => {
-      if (!club?.id) throw new Error('No hay club seleccionado.');
-
-      const { data, error } = await supabase
-        .from('clase_ocurrencia_alumnos')
-        .insert({
-          club_id: club.id,
-          clase_id: input.clase_id,
-          fecha: input.fecha,
-          jugador_id: input.jugador_id,
-          nombre_libre: input.nombre_libre,
-          monto_clase: input.monto_clase ?? 0,
-          cuota_fija: input.cuota_fija ?? null,
-        })
-        .select('*, jugador:jugador_id(id, nombre, telefono, email)')
-        .single();
-
+      const { data, error } = await supabase.rpc(
+        'fn_agregar_alumno_clase_con_reparto',
+        {
+          p_clase_id: input.clase_id,
+          p_fecha: input.fecha,
+          p_jugador_id: input.jugador_id,
+          p_nombre_libre: input.nombre_libre,
+        },
+      );
       if (error) throw new Error(mapPostgrestError(error));
       return data as ClaseOcurrenciaAlumno;
     },
@@ -225,11 +217,10 @@ export function useQuitarAlumnoClase(): UseMutationResult<
 
   return useMutation({
     mutationFn: async (input) => {
-      const { error } = await supabase
-        .from('clase_ocurrencia_alumnos')
-        .delete()
-        .eq('id', input.id);
-
+      const { error } = await supabase.rpc(
+        'fn_quitar_alumno_clase_con_reparto',
+        { p_clase_alumno_id: input.id },
+      );
       if (error) throw new Error(mapPostgrestError(error));
     },
     onSuccess: (_, input) => {

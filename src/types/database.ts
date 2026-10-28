@@ -488,8 +488,10 @@ export interface Tarifa {
    * mismo lineage_id.
    */
   lineage_id: number;
-  /** Solo tarifas_clases: profesor al que pertenece esta tarifa. */
+  /** Columna heredada de tarifas_clases; las franjas nuevas no se asignan a profesores. */
   profesor_id?: number | null;
+  /** Opciones de precio asociadas a una versión de tarifa de clases. */
+  opciones?: TarifaClaseOpcion[];
   /** Solo tarifas de clases: rango de alumnos al que aplica. */
   min_alumnos?: number;
   max_alumnos?: number | null;
@@ -504,6 +506,16 @@ export interface Tarifa {
    * clases se mapea como Tarifa, llega `undefined` (tratado como null).
    */
   duracion_min: number | null;
+}
+
+export interface TarifaClaseOpcion {
+  id: number;
+  club_id: number;
+  tarifa_clase_id: number;
+  orden: 1 | 2 | 3;
+  nombre: string;
+  /** NULL solamente en tarifas históricas todavía no configuradas. */
+  monto: number | null;
 }
 
 /**

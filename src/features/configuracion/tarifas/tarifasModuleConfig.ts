@@ -27,15 +27,13 @@ export type TarifasModulo = 'turnos' | 'clases';
  * TarifasPanel recibe una de estas instancias por prop y se vuelve
  * agnóstico de si está operando sobre tarifas de turnos o de clases.
  *
- * El identificador del profesor solo lo consume el módulo de clases;
- * los hooks de turnos ignoran ese contexto.
+ * Ambos módulos comparten la misma interfaz y cada hook consulta su
+ * conjunto de tarifas del club.
  */
 export interface TarifasModuleConfig {
   modulo: TarifasModulo;
-  useList: (profesorId?: number | null) => UseQueryResult<Tarifa[], Error>;
-  useCrear: (
-    profesorId?: number | null,
-  ) => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
+  useList: () => UseQueryResult<Tarifa[], Error>;
+  useCrear: () => UseMutationResult<Tarifa, Error, CrearTarifaInput>;
   useCambiarPrecio: () => UseMutationResult<Tarifa, Error, CambiarPrecioInput>;
   useActualizarMetadata: () => UseMutationResult<
     number,
@@ -54,8 +52,8 @@ export const tarifasTurnosConfig: TarifasModuleConfig = {
 };
 
 /**
- * Config del módulo "Clases" — alquiler de cancha al profesor para
- * clases, resuelto por profesor, franja horaria y vigencia.
+ * Config del módulo "Clases" — tarifas comunes por franja horaria y
+ * vigencia, elegidas por ocurrencia de clase.
  */
 export const tarifasClasesConfig: TarifasModuleConfig = {
   modulo: 'clases',

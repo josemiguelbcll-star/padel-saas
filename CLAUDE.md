@@ -464,13 +464,23 @@ El modelo actual (`clases.precio` fijo, ingreso a unidad "Clases") está
 desalineado. Plan: renombrar UI "Precio"→"Alquiler de cancha por clase";
 **mapear `clase_cobros` a la unidad Canchas** (este es el cambio que tocará
 la REGLA DE ORO — hacerlo EN la función centralizada de atribución).
-**Tarifas por profesor (0142) ya implementado:** las franjas de
-`tarifas_clases` quedan asociadas a un profesor y se resuelven por profesor,
-fecha y horario; las franjas existentes se pueden asignar al profesor
-preservando su historial; las tarifas legadas sin profesor no son fallback.
-La grilla usa esa tarifa para determinar si la clase quedó saldada y el cobro
-conserva el snapshot del monto. Una clase ES conceptualmente un turno fijo
-del profesor, pero NO se fusionan entidades.
+**Franjas comunes de clases (0146):** las tarifas no se asignan a profesores;
+se elige una franja activa que coincida con día y horario al abrir cada
+ocurrencia. Cada club puede tener hasta tres franjas activas; las existentes
+y su historial se conservan y las sobrantes se desactivan desde configuración.
+
+**Tres opciones de precio por ocurrencia (0145):** cada versión de tarifa
+de clases tiene tres opciones nombradas con montos de total de clase; la
+opción elegida queda guardada como snapshot en `clase_ocurrencias`. Seleccionar
+otra opción después de registrar cobros está bloqueado. Al elegirla, una RPC
+fija el total y redistribuye atómicamente las cuotas actuales en partes iguales.
+Agregar o quitar alumnos vuelve a repartir el total dentro de una RPC; no se
+permite hacerlo si ya hay cobros. Luego se puede editar la cuota de un alumno
+para que pague más o menos; la RPC de redistribución protege el total seleccionado
+y los pagos ya realizados.
+Las tarifas preexistentes conservan la opción 1 con su monto histórico; las
+opciones 2 y 3 quedan sin monto hasta configurar una nueva versión desde
+"Cambiar precio". Las tarifas de turnos no cambian.
 
 **🟠 Planificación de profesores.** Cargar todas las clases de los profes de
 una vez (como turnos fijos pero de clases) para ocupación y proyección. UX

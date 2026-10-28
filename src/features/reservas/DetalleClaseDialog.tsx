@@ -40,11 +40,13 @@ import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClase
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
 import { useCobrarClase } from './hooks/useCobrarClase';
-import { useClaseOcurrencia } from './hooks/useClaseOcurrencia';
+import {
+  useClaseOcurrencia,
+  useSeleccionarTarifaClaseOpcion,
+} from './hooks/useClaseOcurrencia';
 import {
   useClaseAlumnos,
   useAgregarAlumnoClase,
-  useActualizarAlumnoClase,
   useRebalancearCuotaClase,
   useQuitarAlumnoClase,
   useGuardarComoAlumnosFijos,
@@ -62,7 +64,10 @@ import { ConsumosCatalogo, type PersonaDestinoConsumo } from './ConsumosCatalogo
 import { formatearFechaAmigable } from './utils/fechaUtils';
 import { formatearHora, sumarMinutos } from './utils/horaUtils';
 import { dividirMontoEnCuotas } from './utils/dividirMonto';
-import { resolverTarifa } from './utils/resolverTarifa';
+import {
+  obtenerTarifasAplicables,
+  resolverTarifa,
+} from './utils/resolverTarifa';
 
 // ─────────────────────────────────────────────────────────────────────
 // Constantes y helpers locales
@@ -191,12 +196,12 @@ function DetalleClaseBody({
   // Hooks de datos
   const ocurrenciaQuery = useClaseOcurrencia(clase.id, fecha);
   const ocurrencia = ocurrenciaQuery.data;
+  const seleccionarTarifa = useSeleccionarTarifaClaseOpcion();
 
   const alumnosQuery = useClaseAlumnos(clase.id, fecha);
   const consumosQuery = useClaseConsumos(clase.id, fecha);
 
   const agregarAlumno = useAgregarAlumnoClase();
-  const actualizarAlumno = useActualizarAlumnoClase();
   const rebalancearCuota = useRebalancearCuotaClase();
   const quitarAlumno = useQuitarAlumnoClase();
   const guardarFijos = useGuardarComoAlumnosFijos();
@@ -209,6 +214,7 @@ function DetalleClaseBody({
   const borrarCobroMutation = useBorrarCobroClase();
 
   const tarifasClasesQuery = useTarifasClases();
+  const [tarifaFranjaId, setTarifaFranjaId] = useState<number | null>(null);
 
   // Query sincronizada de pagos (aislada por clase_id para evitar solapamientos entre clases del mismo día)
   const { data: pagos = pagosIniciales } = useQuery<ClaseCobro[]>({
@@ -230,30 +236,47 @@ function DetalleClaseBody({
   const alumnos = useMemo(() => alumnosQuery.data ?? [], [alumnosQuery.data]);
   const consumos = useMemo(() => consumosQuery.data ?? [], [consumosQuery.data]);
 
-  // Tarifas resueltas
-  const cantidadAlumnosOcurrencia = Number(ocurrencia?.cantidad_alumnos) || 0;
-  const cantidadAlumnosCalc =
-    alumnos.length > 0
-      ? alumnos.length
-      : cantidadAlumnosOcurrencia > 0
-        ? cantidadAlumnosOcurrencia
-        : undefined;
+  // Las franjas se eligen en cada ocurrencia; no dependen del profesor.
+  const tarifasAplicables = useMemo(
+    () =>
+      obtenerTarifasAplicables({
+        fecha,
+        hora: clase.hora_inicio,
+        tarifas: tarifasClasesQuery.data ?? [],
+      }),
+    [fecha, clase.hora_inicio, tarifasClasesQuery.data],
+  );
   const tarifaResuelta = useMemo(
     () =>
       resolverTarifa({
         fecha,
         hora: clase.hora_inicio,
         tarifas: tarifasClasesQuery.data ?? [],
-        profesor_id: clase.profesor_id,
-        cantidad_alumnos: cantidadAlumnosCalc,
       }),
-    [
-      fecha,
-      clase.hora_inicio,
-      clase.profesor_id,
-      tarifasClasesQuery.data,
-      cantidadAlumnosCalc,
-    ],
+    [fecha, clase.hora_inicio, tarifasClasesQuery.data],
+  );
+  const opcionTarifaGuardada = useMemo(
+    () =>
+      tarifasClasesQuery.data
+        ?.flatMap((tarifa) =>
+          (tarifa.opciones ?? []).map((opcion) => ({ tarifa, opcion })),
+        )
+        .find(
+          ({ opcion }) => opcion.id === ocurrencia?.tarifa_clase_opcion_id,
+        ) ?? null,
+    [tarifasClasesQuery.data, ocurrencia?.tarifa_clase_opcion_id],
+  );
+  const tarifaFranjaIdElegida =
+    tarifaFranjaId ?? opcionTarifaGuardada?.tarifa.id ?? null;
+  const tarifaFranjaElegida = tarifasAplicables.find(
+    (tarifa) => tarifa.id === tarifaFranjaIdElegida,
+  );
+  const opcionesTarifa = useMemo(
+    () =>
+      (tarifaFranjaElegida?.opciones ?? [])
+        .filter((opcion) => opcion.monto != null && opcion.monto > 0)
+        .sort((a, b) => a.orden - b.orden),
+    [tarifaFranjaElegida],
   );
 
   // Cuentas del club (tesorería)
@@ -349,6 +372,10 @@ function DetalleClaseBody({
   // Catálogo consumos toggle
   const [showCatalogoConsumos, setShowCatalogoConsumos] = useState(false);
 
+  useEffect(() => {
+    setTarifaFranjaId(null);
+  }, [clase.id, fecha]);
+
   // ─────────────────────────────────────────────────────────────────
   // Cálculos Financieros
   // ─────────────────────────────────────────────────────────────────
@@ -410,18 +437,30 @@ function DetalleClaseBody({
   // Totales globales
   const totalClaseBase = useMemo(() => {
     const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
-    if (montoOcurrencia > 0) {
+    if (ocurrencia?.tarifa_clase_opcion_id && montoOcurrencia > 0) {
       return montoOcurrencia;
     }
-    if (tarifaResuelta.monto > 0) {
-      return tarifaResuelta.monto;
-    }
+    if (pagos.length === 0) return 0;
+    if (montoOcurrencia > 0) return montoOcurrencia;
     const montoAlumnos = alumnos.reduce(
-      (sum, alumno) => sum + (Number(alumno.monto_clase) || 0),
+      (total, alumno) => total + (Number(alumno.monto_clase) || 0),
       0,
     );
-    return montoAlumnos > 0 ? montoAlumnos : Number(clase.precio) || 0;
-  }, [alumnos, clase.precio, ocurrencia?.monto_total, tarifaResuelta.monto]);
+    return montoAlumnos || tarifaResuelta.monto || Number(clase.precio) || 0;
+  }, [
+    alumnos,
+    clase.precio,
+    ocurrencia?.monto_total,
+    ocurrencia?.tarifa_clase_opcion_id,
+    pagos.length,
+    tarifaResuelta.monto,
+  ]);
+
+  const tarifaElegida = ocurrencia?.tarifa_clase_opcion_id != null;
+  const tarifaSeleccionada =
+    pagos.length > 0 ||
+    (tarifaElegida &&
+      opcionTarifaGuardada?.tarifa.id === tarifaFranjaIdElegida);
 
   const totalCobradoClase = useMemo(
     () =>
@@ -466,52 +505,17 @@ function DetalleClaseBody({
 
   async function handleAgregarAlumno(val: JugadorSeleccionado | null) {
     if (!val) return;
-
-    const nuevoTotalAlumnos = alumnos.length + 1;
-    const tarifaParaN = resolverTarifa({
-      fecha,
-      hora: clase.hora_inicio,
-      tarifas: tarifasClasesQuery.data ?? [],
-      profesor_id: clase.profesor_id,
-      cantidad_alumnos: nuevoTotalAlumnos,
-    });
-
-    const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
-    const totalTarifa =
-      montoOcurrencia > 0
-        ? montoOcurrencia
-        : tarifaParaN.monto > 0
-          ? tarifaParaN.monto
-          : totalClaseBase;
-    if (totalTarifa <= 0) {
-      setCobroError(
-        `No hay una tarifa vigente para ${profesorNombre} en este horario. Configurala antes de repartir la clase.`,
-      );
+    if (!tarifaSeleccionada || totalClaseBase <= 0) {
+      setCobroError('Elegí una opción de tarifa antes de asignar alumnos.');
       return;
     }
-    const cuotas = dividirMontoEnCuotas(totalTarifa, nuevoTotalAlumnos);
-
     try {
       await agregarAlumno.mutateAsync({
         clase_id: clase.id,
         fecha,
         jugador_id: val.kind === 'jugador' ? val.jugadorId : null,
         nombre_libre: val.kind === 'libre' ? val.nombre : null,
-        monto_clase: cuotas[alumnos.length]!,
       });
-
-      if (alumnos.length > 0) {
-        await Promise.all(
-          alumnos.map((a, index) =>
-            actualizarAlumno.mutateAsync({
-              id: a.id,
-              clase_id: clase.id,
-              fecha,
-              monto_clase: cuotas[index]!,
-            }),
-          ),
-        );
-      }
 
       setCobroError(null);
       setShowAgregarAlumno(false);
@@ -527,42 +531,17 @@ function DetalleClaseBody({
         clase_id: clase.id,
         fecha,
       });
-
-      // Si quedan alumnos, rebalanceamos el total equitativamente entre los que quedan
-      const restantes = alumnos.filter((a) => a.id !== alumnoId);
-      if (restantes.length > 0) {
-        const tarifaParaN = resolverTarifa({
-          fecha,
-          hora: clase.hora_inicio,
-          tarifas: tarifasClasesQuery.data ?? [],
-          profesor_id: clase.profesor_id,
-          cantidad_alumnos: restantes.length,
-        });
-        const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
-        const totalTarifa =
-          montoOcurrencia > 0
-            ? montoOcurrencia
-            : tarifaParaN.monto > 0
-              ? tarifaParaN.monto
-              : totalClaseBase;
-        const cuotas = dividirMontoEnCuotas(totalTarifa, restantes.length);
-        await Promise.all(
-          restantes.map((a, index) =>
-            actualizarAlumno.mutateAsync({
-              id: a.id,
-              clase_id: clase.id,
-              fecha,
-              monto_clase: cuotas[index]!,
-            }),
-          ),
-        );
-      }
+      setCobroError(null);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'Error al quitar alumno.');
     }
   }
 
   async function handleActualizarMontoAlumno(alumnoId: number) {
+    if (!tarifaSeleccionada || totalClaseBase <= 0) {
+      setCobroError('Elegí una opción de tarifa antes de editar las cuotas.');
+      return;
+    }
     const val = parseFloat(valorMontoAlumnoEdit);
     if (isNaN(val) || val < 0) {
       setCobroError('Ingresá una cuota válida igual o mayor a 0.');
@@ -584,38 +563,19 @@ function DetalleClaseBody({
 
   async function handleRepartirTarifaEquitativa() {
     if (alumnos.length === 0) return;
-    const tarifaActual = resolverTarifa({
-      fecha,
-      hora: clase.hora_inicio,
-      tarifas: tarifasClasesQuery.data ?? [],
-      profesor_id: clase.profesor_id,
-      cantidad_alumnos: alumnos.length,
-    });
-    const montoOcurrencia = Number(ocurrencia?.monto_total) || 0;
-    const total =
-      montoOcurrencia > 0
-        ? montoOcurrencia
-        : tarifaActual.monto > 0
-          ? tarifaActual.monto
-          : totalClaseBase;
-    if (total <= 0) {
-      setCobroError(
-        `No hay una tarifa vigente para ${profesorNombre} en este horario.`,
-      );
+    if (!tarifaSeleccionada || totalClaseBase <= 0) {
+      setCobroError('Elegí una opción de tarifa antes de repartir la clase.');
       return;
     }
-    const cuotas = dividirMontoEnCuotas(total, alumnos.length);
     try {
-      await Promise.all(
-        alumnos.map((a, index) =>
-          actualizarAlumno.mutateAsync({
-            id: a.id,
-            clase_id: clase.id,
-            fecha,
-            monto_clase: cuotas[index]!,
-          }),
-        ),
-      );
+      const primeraCuota = dividirMontoEnCuotas(totalClaseBase, alumnos.length)[0];
+      if (primeraCuota === undefined) return;
+      await rebalancearCuota.mutateAsync({
+        clase_alumno_id: alumnos[0]!.id,
+        clase_id: clase.id,
+        fecha,
+        nueva_cuota: primeraCuota,
+      });
       setCobroError(null);
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'Error al dividir la tarifa.');
@@ -623,7 +583,7 @@ function DetalleClaseBody({
   }
 
   async function handleGuardarComoFijos() {
-    if (alumnos.length === 0) return;
+    if (alumnos.length === 0 || !tarifaSeleccionada || totalClaseBase <= 0) return;
     try {
       await guardarFijos.mutateAsync({ clase_id: clase.id, alumnos });
       setFijosGuardadosSuccess(true);
@@ -636,6 +596,10 @@ function DetalleClaseBody({
   async function handleConfirmarCobroAlumno(e: FormEvent) {
     e.preventDefault();
     if (!alumnoCobrandoId) return;
+    if (!tarifaSeleccionada || totalClaseBase <= 0) {
+      setCobroError('Elegí una opción de tarifa antes de cobrar la clase.');
+      return;
+    }
     const monto = parseFloat(montoCobroAlumno);
     if (isNaN(monto) || monto <= 0) {
       setCobroError('Ingresá un monto válido mayor a 0.');
@@ -681,13 +645,33 @@ function DetalleClaseBody({
     }
   }
 
+  async function handleSeleccionarTarifa(opcionId: number): Promise<void> {
+    setCobroError(null);
+    try {
+      await seleccionarTarifa.mutateAsync({
+        clase_id: clase.id,
+        fecha,
+        opcion_id: opcionId,
+      });
+    } catch (err) {
+      setCobroError(
+        err instanceof Error ? err.message : 'No pudimos seleccionar la tarifa.',
+      );
+    }
+  }
+
   async function handleConfirmarCobroGeneral(e: FormEvent) {
     e.preventDefault();
+    if (!tarifaSeleccionada || totalClaseBase <= 0) {
+      setCobroError('Elegí una opción de tarifa antes de cobrar la clase.');
+      return;
+    }
     const monto = parseFloat(montoCobroGeneral);
     if (isNaN(monto) || monto <= 0) {
       setCobroError('Ingresá un monto válido mayor a 0.');
       return;
     }
+
     setCobroError(null);
     try {
       await cobrarGeneralMutation.mutateAsync({
@@ -856,7 +840,7 @@ function DetalleClaseBody({
             </div>
           </div>
         </div>
-        {tarifasClasesQuery.isError && totalClaseBase === 0 && (
+        {tarifasClasesQuery.isError && (
           <div
             role="alert"
             className="rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive"
@@ -866,12 +850,118 @@ function DetalleClaseBody({
         )}
         {!tarifasClasesQuery.isLoading &&
           !tarifasClasesQuery.isError &&
-          totalClaseBase === 0 && (
+          tarifasAplicables.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border bg-card p-3">
+              <Label htmlFor="tarifa-clase-franja" className="text-xs font-semibold">
+                Elegí una franja y el precio total de esta clase
+              </Label>
+              <select
+                id="tarifa-clase-franja"
+                value={tarifaFranjaIdElegida ?? ''}
+                onChange={(event) =>
+                  setTarifaFranjaId(
+                    event.target.value === '' ? null : Number(event.target.value),
+                  )
+                }
+                disabled={
+                  readOnly ||
+                  pagos.length > 0 ||
+                  seleccionarTarifa.isPending ||
+                  ['cancelada', 'liberada'].includes(ocurrencia?.estado ?? '')
+                }
+                className={cn(
+                  'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+              >
+                <option value="">Seleccionar una franja</option>
+                {tarifasAplicables.map((tarifa) => (
+                  <option key={tarifa.id} value={tarifa.id}>
+                    {tarifa.nombre}
+                    {tarifa.desde_hora && tarifa.hasta_hora
+                      ? ` · ${tarifa.desde_hora.slice(0, 5)}–${tarifa.hasta_hora.slice(0, 5)}`
+                      : ''}
+                  </option>
+                ))}
+              </select>
+              {tarifaFranjaElegida && opcionesTarifa.length > 0 ? (
+                <>
+                  <Label htmlFor="tarifa-clase-opcion" className="text-xs">
+                    Opción de precio
+                  </Label>
+                  <select
+                    id="tarifa-clase-opcion"
+                    value={
+                      tarifaElegida &&
+                      opcionesTarifa.some(
+                        (opcion) => opcion.id === ocurrencia?.tarifa_clase_opcion_id,
+                      )
+                        ? String(ocurrencia?.tarifa_clase_opcion_id)
+                        : ''
+                    }
+                    onChange={(event) => {
+                      const opcionId = Number(event.target.value);
+                      if (opcionId > 0) void handleSeleccionarTarifa(opcionId);
+                    }}
+                    disabled={
+                      readOnly ||
+                      pagos.length > 0 ||
+                      alumnosQuery.isLoading ||
+                      tarifaFranjaIdElegida == null ||
+                      seleccionarTarifa.isPending ||
+                      ['cancelada', 'liberada'].includes(ocurrencia?.estado ?? '')
+                    }
+                    className={cn(
+                      'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                    )}
+                  >
+                    <option value="">Seleccionar una opción</option>
+                    {opcionesTarifa.map((opcion) => (
+                      <option key={opcion.id} value={opcion.id}>
+                        {opcion.nombre} · {fmtMoney(opcion.monto ?? 0)}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  {tarifaFranjaElegida
+                    ? 'Esta franja todavía no tiene opciones completas. Configurá sus tres precios en Tarifas de clases.'
+                    : 'Elegí una franja para ver sus opciones de precio.'}
+                </p>
+              )}
+              {ocurrencia?.tarifa_opcion_nombre && (
+                <p className="text-xs text-muted-foreground">
+                  Opción fijada: <strong className="text-foreground">{ocurrencia.tarifa_opcion_nombre}</strong>
+                  {ocurrencia.tarifa_opcion_monto != null &&
+                    ` · ${fmtMoney(ocurrencia.tarifa_opcion_monto)}`}
+                </p>
+              )}
+              {tarifaFranjaElegida &&
+                opcionesTarifa.length > 0 &&
+                !tarifaSeleccionada && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Seleccioná una opción para asignar alumnos y cobrar. El total elegido se reparte entre los alumnos.
+                </p>
+              )}
+              {seleccionarTarifa.isPending && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  Guardando tarifa y distribuyendo el total…
+                </p>
+              )}
+            </div>
+          )}
+        {!tarifasClasesQuery.isLoading &&
+          !tarifasClasesQuery.isError &&
+          tarifasAplicables.length === 0 && (
             <div
               role="status"
               className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300"
             >
-              No encontramos una tarifa vigente para {profesorNombre} el {formatearFechaAmigable(fecha)} a las {horaInicio}. Revisá que esté asignada a este profesor y cubra la fecha, el día y el horario de la clase.
+              No hay una franja vigente para el {formatearFechaAmigable(fecha)} a las {horaInicio}. Revisá los días y horarios configurados en Tarifas de clases.
             </div>
           )}
 
@@ -956,7 +1046,12 @@ function DetalleClaseBody({
                     variant="outline"
                     size="sm"
                     onClick={() => void handleRepartirTarifaEquitativa()}
-                    disabled={actualizarAlumno.isPending || readOnly}
+                    disabled={
+                      rebalancearCuota.isPending ||
+                      readOnly ||
+                      !tarifaSeleccionada ||
+                      totalClaseBase <= 0
+                    }
                     title="Divide el valor total de la clase equitativamente entre los alumnos"
                     className="h-7 text-xs"
                   >
@@ -997,6 +1092,7 @@ function DetalleClaseBody({
                     variant="default"
                     size="sm"
                     onClick={() => setShowAgregarAlumno(true)}
+                    disabled={!tarifaSeleccionada || totalClaseBase <= 0}
                     className="h-7 text-xs"
                   >
                     <Plus className="mr-1 h-3 w-3" />
@@ -1055,6 +1151,7 @@ function DetalleClaseBody({
                     variant="outline"
                     size="sm"
                     onClick={() => setShowAgregarAlumno(true)}
+                    disabled={!tarifaSeleccionada || totalClaseBase <= 0}
                     className="mt-3 text-xs"
                   >
                     <Plus className="mr-1 h-3 w-3" />
@@ -1131,7 +1228,11 @@ function DetalleClaseBody({
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => void handleActualizarMontoAlumno(item.alumno.id)}
-                                    disabled={rebalancearCuota.isPending}
+                                    disabled={
+                                      rebalancearCuota.isPending ||
+                                      !tarifaSeleccionada ||
+                                      totalClaseBase <= 0
+                                    }
                                     className="h-6 px-1.5 text-xs text-primary"
                                   >
                                     OK
@@ -1140,12 +1241,12 @@ function DetalleClaseBody({
                               ) : (
                                 <button
                                   type="button"
+                                  disabled={!tarifaSeleccionada || totalClaseBase <= 0 || readOnly}
                                   onClick={() => {
-                                    if (readOnly) return;
                                     setEditandoMontoAlumnoId(item.alumno.id);
                                     setValorMontoAlumnoEdit(item.montoClase.toString());
                                   }}
-                                  className="hover:underline hover:text-foreground cursor-pointer text-left"
+                                  className="cursor-pointer text-left hover:underline hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                                   title="Cambiar su parte; el saldo se redistribuye entre los demás alumnos"
                                 >
                                   Clase: <span className="font-semibold text-foreground">{fmtMoney(item.montoClase)}</span>
@@ -1190,6 +1291,7 @@ function DetalleClaseBody({
                                   type="button"
                                   variant="default"
                                   size="sm"
+                                  disabled={!tarifaSeleccionada || totalClaseBase <= 0}
                                   onClick={() => {
                                     setAlumnoCobrandoId(item.alumno.id);
                                     setMontoCobroAlumno(item.saldo.toString());
@@ -1610,6 +1712,7 @@ function DetalleClaseBody({
                   type="button"
                   variant="outline"
                   size="sm"
+                  disabled={!tarifaSeleccionada || totalClaseBase <= 0}
                   onClick={() => {
                     setShowCobroGeneral(true);
                     setMontoCobroGeneral(saldoPendienteGeneral.toString());

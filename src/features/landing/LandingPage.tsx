@@ -1,5 +1,9 @@
 import './landing.css';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -25,6 +29,7 @@ import {
 
 import { PadelScrollReveal } from './PadelScrollReveal';
 import { PlayerNavDropdown } from './components/PlayerNavDropdown';
+import { WhatsAppFloatingButton } from './components/WhatsAppFloatingButton';
 import { DEPORTES_CATALOGO } from '@/lib/deportes';
 import { useClubsPublicos } from './hooks/useClubsPublicos';
 import { useSession } from '@/features/auth';
@@ -32,6 +37,19 @@ import { useSession } from '@/features/auth';
 export function LandingPage() {
   const navigate = useNavigate();
   const { user } = useSession();
+  
+  // Refs para animaciones fluidas con GSAP
+  const landingContainerRef = useRef<HTMLDivElement>(null);
+  const heroBadgeRef = useRef<HTMLAnchorElement>(null);
+  const heroTitleRef = useRef<HTMLHeadingElement>(null);
+  const heroSubtitleRef = useRef<HTMLParagraphElement>(null);
+  const heroSearchBarRef = useRef<HTMLDivElement>(null);
+  const heroTagsRef = useRef<HTMLDivElement>(null);
+  const liveSectionRef = useRef<HTMLElement>(null);
+  const splitSectionRef = useRef<HTMLElement>(null);
+  const featuresSectionRef = useRef<HTMLElement>(null);
+  const previewCardRef = useRef<HTMLDivElement>(null);
+  const faqSectionRef = useRef<HTMLElement>(null);
   
   // Real dynamic dates (Próximos 7 días)
   const dateOptions = useMemo(() => {
@@ -126,6 +144,228 @@ export function LandingPage() {
   }, []);
 
   // Split demo state
+  // Animaciones globales GSAP con ScrollTrigger
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // 1. Hero Entrance timeline
+      const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+
+      if (heroBadgeRef.current) {
+        heroTl.fromTo(
+          heroBadgeRef.current,
+          { opacity: 0, y: -18, scale: 0.95 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.6 }
+        );
+      }
+      if (heroTitleRef.current) {
+        heroTl.fromTo(
+          heroTitleRef.current,
+          { opacity: 0, y: 35 },
+          { opacity: 1, y: 0, duration: 0.8 },
+          '-=0.4'
+        );
+      }
+      if (heroSubtitleRef.current) {
+        heroTl.fromTo(
+          heroSubtitleRef.current,
+          { opacity: 0, y: 25 },
+          { opacity: 1, y: 0, duration: 0.6 },
+          '-=0.5'
+        );
+      }
+      if (heroSearchBarRef.current) {
+        heroTl.fromTo(
+          heroSearchBarRef.current,
+          { opacity: 0, y: 35, scale: 0.96 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: 'back.out(1.3)' },
+          '-=0.4'
+        );
+      }
+      if (heroTagsRef.current) {
+        heroTl.fromTo(
+          heroTagsRef.current,
+          { opacity: 0, y: 15 },
+          { opacity: 1, y: 0, duration: 0.5 },
+          '-=0.3'
+        );
+      }
+
+      // 2. Disponibilidad en vivo section reveal
+      if (liveSectionRef.current) {
+        const headerEl = liveSectionRef.current.querySelector('.gsap-reveal-header');
+        if (headerEl) {
+          gsap.fromTo(
+            headerEl,
+            { opacity: 0, y: 30 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.7,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: liveSectionRef.current,
+                start: 'top 80%',
+              },
+            }
+          );
+        }
+
+        const grillaEl = liveSectionRef.current.querySelector('.grilla-simulator');
+        if (grillaEl) {
+          gsap.fromTo(
+            grillaEl,
+            { opacity: 0, x: -35 },
+            {
+              opacity: 1,
+              x: 0,
+              duration: 0.8,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: liveSectionRef.current,
+                start: 'top 75%',
+              },
+            }
+          );
+        }
+
+        const quickCards = liveSectionRef.current.querySelectorAll('.athletic-card');
+        if (quickCards.length > 0) {
+          gsap.fromTo(
+            quickCards,
+            { opacity: 0, x: 35 },
+            {
+              opacity: 1,
+              x: 0,
+              duration: 0.7,
+              stagger: 0.14,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: liveSectionRef.current,
+                start: 'top 75%',
+              },
+            }
+          );
+        }
+      }
+
+      // 3. Match Bill Split section reveal
+      if (splitSectionRef.current) {
+        const textCol = splitSectionRef.current.querySelector('.split-text-col');
+        if (textCol) {
+          gsap.fromTo(
+            textCol,
+            { opacity: 0, y: 30 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.8,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: splitSectionRef.current,
+                start: 'top 75%',
+              },
+            }
+          );
+        }
+
+        const cardCol = splitSectionRef.current.querySelector('.split-card-col');
+        if (cardCol) {
+          gsap.fromTo(
+            cardCol,
+            { opacity: 0, y: 40, scale: 0.96 },
+            {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              duration: 0.8,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: splitSectionRef.current,
+                start: 'top 75%',
+              },
+            }
+          );
+        }
+      }
+
+      // 4. Features tabs section reveal
+      if (featuresSectionRef.current) {
+        const featHeader = featuresSectionRef.current.querySelector('.features-header');
+        if (featHeader) {
+          gsap.fromTo(
+            featHeader,
+            { opacity: 0, y: 30 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.7,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: featuresSectionRef.current,
+                start: 'top 80%',
+              },
+            }
+          );
+        }
+
+        const featPills = featuresSectionRef.current.querySelectorAll('.feature-tab-pill');
+        if (featPills.length > 0) {
+          gsap.fromTo(
+            featPills,
+            { opacity: 0, y: 15, scale: 0.95 },
+            {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              duration: 0.5,
+              stagger: 0.08,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: featuresSectionRef.current,
+                start: 'top 75%',
+              },
+            }
+          );
+        }
+      }
+
+      // 5. FAQ items reveal
+      if (faqSectionRef.current) {
+        const faqCards = faqSectionRef.current.querySelectorAll('.faq-item-card');
+        if (faqCards.length > 0) {
+          gsap.fromTo(
+            faqCards,
+            { opacity: 0, y: 25 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.5,
+              stagger: 0.1,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: faqSectionRef.current,
+                start: 'top 80%',
+              },
+            }
+          );
+        }
+      }
+    }, landingContainerRef);
+
+    return () => ctx.revert();
+  }, []);
+
+  // Transición suave con GSAP al cambiar de pestaña en funcionalidades
+  useEffect(() => {
+    if (previewCardRef.current) {
+      gsap.fromTo(
+        previewCardRef.current,
+        { opacity: 0, y: 14, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: 'power2.out' }
+      );
+    }
+  }, [activeFeatureTab]);
+
   const [beverageCount, setBeverageCount] = useState(4);
   const [ballCount, setBallCount] = useState(2);
 
@@ -249,7 +489,7 @@ export function LandingPage() {
   ];
 
   return (
-    <div className="mg-landing">
+    <div ref={landingContainerRef} className="mg-landing">
       {/* ===== NAV BAR (Warm Bone & MatchGo Branding) ===== */}
       <header className="nav-bar">
         <div className="container">
@@ -309,7 +549,7 @@ export function LandingPage() {
 
         <div className="container relative z-10 py-12">
           <div className="max-w-3xl mb-8">
-            <Link
+            <Link ref={heroBadgeRef}
               to={user ? "/app" : "/login"}
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 hover:border-emerald-400/50 text-[#00FF87] text-xs font-bold uppercase tracking-wider mb-6 shadow-sm transition-all cursor-pointer group"
             >
@@ -318,18 +558,18 @@ export function LandingPage() {
               <ArrowRight className="h-3 w-3 text-emerald-400 opacity-80 group-hover:translate-x-0.5 transition-transform" />
             </Link>
 
-            <h1 className="hero-title-emerald">
+            <h1 ref={heroTitleRef} className="hero-title-emerald">
               Reserva tu cancha <br />
               <span className="hero-title-highlight">al instante</span>
             </h1>
 
-            <p className="hero-subtitle">
+            <p ref={heroSubtitleRef} className="hero-subtitle">
               Explorá las canchas disponibles en tu ciudad y en tiempo real.
             </p>
           </div>
 
           {/* Floating Search Bar (Idéntico a la captura) */}
-          <div className="floating-search-bar">
+          <div ref={heroSearchBarRef} className="floating-search-bar">
             {/* 1. Buscar Ciudad */}
             <div className="search-item">
               <MapPin className="search-item-icon h-4 w-4 text-emerald-600" />
@@ -440,7 +680,7 @@ export function LandingPage() {
           </div>
 
           {/* Selector interactivo de fondo en el Hero */}
-          <div className="flex flex-wrap items-center gap-2 pt-2">
+          <div ref={heroTagsRef} className="flex flex-wrap items-center gap-2 pt-2">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider mr-1">
               📸 Complejos en vivo:
             </span>
@@ -463,9 +703,9 @@ export function LandingPage() {
       </section>
 
       {/* ===== DISPONIBILIDAD EN VIVO & GRILLA DEL DÍA ===== */}
-      <section className="section-light py-16">
+      <section ref={liveSectionRef} className="section-light py-16">
         <div className="container">
-          <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="text-center max-w-3xl mx-auto mb-12 gsap-reveal-header">
             <span className="pill-badge mb-3">
               <span className="w-2 h-2 rounded-full bg-[#00A859] animate-pulse" />
               Grilla Operativa en Tiempo Real
@@ -659,10 +899,10 @@ export function LandingPage() {
       </section>
 
       {/* ===== INTERACTIVE MATCH BILL SPLIT DEMO ===== */}
-      <section className="section-pearl">
+      <section ref={splitSectionRef} className="section-pearl">
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            <div className="lg:col-span-6 space-y-6">
+            <div className="lg:col-span-6 space-y-6 split-text-col">
               <span className="pill-badge">
                 <UtensilsCrossed className="h-3.5 w-3.5" />
                 Innovación Única
@@ -692,7 +932,7 @@ export function LandingPage() {
             </div>
 
             {/* Interactive Simulator Card */}
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-6 split-card-col">
               <div className="athletic-card p-6 border-2 border-emerald-500/20">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
                   <div>
@@ -798,9 +1038,9 @@ export function LandingPage() {
       </section>
 
       {/* ===== FEATURE TABS (Dynamic Previews per Feature) ===== */}
-      <section id="funcionalidades" className="section-light">
+      <section ref={featuresSectionRef} id="funcionalidades" className="section-light">
         <div className="container">
-          <div className="text-center max-w-3xl mx-auto mb-14">
+          <div className="text-center max-w-3xl mx-auto mb-14 features-header">
             <span className="pill-badge mb-3">Módulos Especializados</span>
             <h2 className="section-title">
               Todo lo que necesita un club en una sola pantalla
@@ -817,7 +1057,7 @@ export function LandingPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveFeatureTab(tab.id)}
-                className={`px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                className={`feature-tab-pill px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all cursor-pointer ${
                   activeFeatureTab === tab.id
                     ? 'bg-[#00A859] text-white shadow-lg shadow-emerald-500/25'
                     : 'bg-white text-slate-700 border border-[#E2DDD1] hover:bg-[#ECE8DE]'
@@ -855,7 +1095,7 @@ export function LandingPage() {
               </div>
 
               {/* Right Column: DYNAMIC PREVIEW TAILORED TO THE ACTIVE TAB */}
-              <div className="lg:col-span-6">
+              <div ref={previewCardRef} className="lg:col-span-6">
                 {/* 1. MOCKUP PARA GRILLA EN VIVO */}
                 {currentFeature.previewType === 'grilla' && (
                   <div className="bg-[#FAF9F5] rounded-2xl p-5 border border-[#E2DDD1] shadow-inner space-y-3">
@@ -1084,7 +1324,7 @@ export function LandingPage() {
       </section>
 
       {/* ===== FAQ SECTION ===== */}
-      <section id="faq" className="section-light">
+      <section ref={faqSectionRef} id="faq" className="section-light">
         <div className="container max-w-4xl">
           <div className="text-center mb-12">
             <span className="pill-badge mb-3">Dudas Frecuentes</span>
@@ -1097,7 +1337,7 @@ export function LandingPage() {
               return (
                 <div
                   key={faq.q}
-                  className={`athletic-card p-5 cursor-pointer transition-all ${
+                  className={`faq-item-card athletic-card p-5 cursor-pointer transition-all ${
                     isOpen ? 'border-[#00A859] shadow-md' : 'hover:border-slate-300'
                   }`}
                   onClick={() => setOpenFaq(isOpen ? null : idx)}
@@ -1167,6 +1407,7 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
+      <WhatsAppFloatingButton />
     </div>
   );
 }

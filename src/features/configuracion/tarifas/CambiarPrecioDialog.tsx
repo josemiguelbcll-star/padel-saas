@@ -12,9 +12,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type { Tarifa } from '@/types/database';
-import type { CambiarPrecioInput } from '@/features/configuracion/hooks/useTarifas';
+import type {
+  CambiarPrecioInput,
+  TarifaClaseOpcionInput,
+} from '@/features/configuracion/hooks/useTarifas';
 import type { TarifaLinaje } from './tarifaLineage';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
@@ -54,6 +58,12 @@ interface CambiarPrecioDialogProps {
    * el config del módulo (turnos o clases).
    */
   useCambiarPrecio: () => UseMutationResult<Tarifa, Error, CambiarPrecioInput>;
+  soportaOpcionesClase?: boolean;
+}
+
+interface PrecioOpcionForm {
+  nombre: string;
+  monto: string;
 }
 
 const schema = z.object({
@@ -63,7 +73,9 @@ const schema = z.object({
   vigente_desde: z.string().min(1, 'La fecha es obligatoria.'),
 });
 
-type FieldErrors = Partial<Record<'monto_nuevo' | 'vigente_desde' | 'form', string>>;
+type FieldErrors = Partial<
+  Record<'monto_nuevo' | 'vigente_desde' | 'opciones' | 'form', string>
+>;
 
 /**
  * Cambia el precio de un linaje. Cierra la versión vigente y crea una
@@ -74,10 +86,12 @@ export function CambiarPrecioDialog({
   onOpenChange,
   linaje,
   useCambiarPrecio,
+  soportaOpcionesClase = false,
 }: CambiarPrecioDialogProps) {
   const cambiar = useCambiarPrecio();
   const [montoStr, setMontoStr] = useState('');
   const [vigenteDesde, setVigenteDesde] = useState(todayISO());
+  const [opciones, setOpciones] = useState<PrecioOpcionForm[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const pending = cambiar.isPending;
@@ -86,9 +100,23 @@ export function CambiarPrecioDialog({
     if (open) {
       setMontoStr('');
       setVigenteDesde(todayISO());
+      setOpciones([1, 2, 3].map((orden) => {
+        const actual = linaje?.vigenteHoy?.opciones?.find(
+          (opcion) => opcion.orden === orden,
+        );
+        return {
+          nombre: actual?.nombre ?? `Opción ${orden}`,
+          monto:
+            actual?.monto != null
+              ? String(actual.monto)
+              : orden === 1 && linaje?.vigenteHoy
+                ? String(linaje.vigenteHoy.monto)
+                : '',
+        };
+      }));
       setErrors({});
     }
-  }, [open]);
+  }, [open, linaje]);
 
   function handleOpenChange(next: boolean): void {
     if (pending) return;
@@ -108,7 +136,11 @@ export function CambiarPrecioDialog({
     }
 
     const parsed = schema.safeParse({
-      monto_nuevo: montoStr.trim() === '' ? NaN : Number(montoStr),
+      monto_nuevo: soportaOpcionesClase
+        ? Number(opciones[0]?.monto)
+        : montoStr.trim() === ''
+          ? NaN
+          : Number(montoStr),
       vigente_desde: vigenteDesde,
     });
     if (!parsed.success) {
@@ -116,10 +148,38 @@ export function CambiarPrecioDialog({
       for (const issue of parsed.error.issues) {
         const p = issue.path[0];
         if (p === 'monto_nuevo' || p === 'vigente_desde') {
-          fe[p] = issue.message;
+          if (p === 'monto_nuevo' && soportaOpcionesClase) {
+            fe.opciones = 'Completá las tres opciones con montos mayores a 0.';
+          } else {
+            fe[p] = issue.message;
+          }
         }
       }
       setErrors(fe);
+      return;
+    }
+
+    const opcionesInput: TarifaClaseOpcionInput[] | undefined =
+      soportaOpcionesClase
+        ? opciones.map((opcion, index) => ({
+            orden: (index + 1) as 1 | 2 | 3,
+            nombre: opcion.nombre.trim(),
+            monto: Number(opcion.monto),
+          }))
+        : undefined;
+    if (
+      opcionesInput &&
+      opcionesInput.some(
+        (opcion) =>
+          !opcion.nombre ||
+          opcion.nombre.length > 80 ||
+          !Number.isFinite(opcion.monto) ||
+          opcion.monto <= 0,
+      )
+    ) {
+      setErrors({
+        opciones: 'Completá los tres nombres y montos con valores mayores a 0.',
+      });
       return;
     }
 
@@ -128,6 +188,7 @@ export function CambiarPrecioDialog({
         lineage_id: linaje.lineage_id,
         monto_nuevo: parsed.data.monto_nuevo,
         vigente_desde: parsed.data.vigente_desde,
+        ...(opcionesInput ? { opciones: opcionesInput } : {}),
       });
       onOpenChange(false);
     } catch (err) {
@@ -147,12 +208,13 @@ export function CambiarPrecioDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={cn('max-w-md', soportaOpcionesClase && 'max-w-2xl')}>
         <DialogHeader>
           <DialogTitle>Cambiar precio · {linaje.nombre}</DialogTitle>
           <DialogDescription>
-            El precio actual queda cerrado y se crea una nueva versión.
-            Las reservas pendientes futuras sin cobros (incluyendo turnos fijos) se sincronizarán automáticamente con este nuevo precio.
+            {soportaOpcionesClase
+              ? 'Se cierra la versión actual y se crea otra con los tres precios totales de la clase.'
+              : 'El precio actual queda cerrado y se crea una nueva versión. Las reservas pendientes futuras sin cobros (incluyendo turnos fijos) se sincronizarán automáticamente con este nuevo precio.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -170,7 +232,55 @@ export function CambiarPrecioDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          {soportaOpcionesClase ? (
+            <div className="space-y-2">
+              <Label>Precios totales de la clase</Label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {opciones.map((opcion, index) => (
+                  <div key={index} className="space-y-1 rounded-md border border-border p-2">
+                    <Label htmlFor={`precio-opcion-nombre-${index + 1}`}>
+                      Opción {index + 1} · nombre
+                    </Label>
+                    <Input
+                      id={`precio-opcion-nombre-${index + 1}`}
+                      value={opcion.nombre}
+                      onChange={(e) =>
+                        setOpciones((actuales) =>
+                          actuales.map((actual, i) =>
+                            i === index ? { ...actual, nombre: e.target.value } : actual,
+                          ),
+                        )
+                      }
+                      maxLength={80}
+                      disabled={pending}
+                      placeholder={`Ej: ${['Básica', 'Intermedia', 'Completa'][index]}`}
+                    />
+                    <Label htmlFor={`precio-opcion-monto-${index + 1}`}>Total</Label>
+                    <Input
+                      id={`precio-opcion-monto-${index + 1}`}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0.01"
+                      value={opcion.monto}
+                      onChange={(e) =>
+                        setOpciones((actuales) =>
+                          actuales.map((actual, i) =>
+                            i === index ? { ...actual, monto: e.target.value } : actual,
+                          ),
+                        )
+                      }
+                      disabled={pending}
+                      placeholder="0.00"
+                    />
+                  </div>
+                ))}
+              </div>
+              {errors.opciones && (
+                <p role="alert" className="text-xs text-destructive">{errors.opciones}</p>
+              )}
+            </div>
+          ) : (
             <div className="space-y-1">
               <Label htmlFor="precio-nuevo">Precio nuevo</Label>
               <Input
@@ -192,23 +302,23 @@ export function CambiarPrecioDialog({
                 </p>
               )}
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="precio-vigente">Desde</Label>
-              <Input
-                id="precio-vigente"
-                type="date"
-                value={vigenteDesde}
-                min={todayISO()}
-                onChange={(e) => setVigenteDesde(e.target.value)}
-                disabled={pending}
-                aria-invalid={!!errors.vigente_desde}
-              />
-              {errors.vigente_desde && (
-                <p role="alert" className="text-xs text-destructive">
-                  {errors.vigente_desde}
-                </p>
-              )}
-            </div>
+          )}
+          <div className="space-y-1">
+            <Label htmlFor="precio-vigente">Desde</Label>
+            <Input
+              id="precio-vigente"
+              type="date"
+              value={vigenteDesde}
+              min={todayISO()}
+              onChange={(e) => setVigenteDesde(e.target.value)}
+              disabled={pending}
+              aria-invalid={!!errors.vigente_desde}
+            />
+            {errors.vigente_desde && (
+              <p role="alert" className="text-xs text-destructive">
+                {errors.vigente_desde}
+              </p>
+            )}
           </div>
 
           {/* Preview del cambio */}

@@ -200,11 +200,7 @@ function ClaseFormBody({
   // recuerda configurarla antes del primer cobro.
   const diasSinTarifa = useMemo(() => {
     if (tarifasClasesQuery.isLoading) return [];
-    if (
-      state.profesor_id === null ||
-      state.dias_semana.length === 0 ||
-      state.hora_inicio === ''
-    ) return [];
+    if (state.dias_semana.length === 0 || state.hora_inicio === '') return [];
     const tarifas = tarifasClasesQuery.data ?? [];
     const sinTarifa: number[] = [];
     for (const dia of state.dias_semana) {
@@ -213,7 +209,6 @@ function ClaseFormBody({
         fecha,
         hora: state.hora_inicio,
         tarifas,
-        profesor_id: state.profesor_id,
       });
       if (r.tarifa === null) sinTarifa.push(dia);
     }
@@ -221,7 +216,6 @@ function ClaseFormBody({
   }, [
     tarifasClasesQuery.isLoading,
     tarifasClasesQuery.data,
-    state.profesor_id,
     state.dias_semana,
     state.hora_inicio,
   ]);
