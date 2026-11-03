@@ -56,13 +56,9 @@ import { Browser } from '@capacitor/browser';
 
 export function App() {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // Si la app corre en un dispositivo móvil nativo (Capacitor) y arranca en la raíz, ir directo al módulo de jugador
-    if (Capacitor.isNativePlatform() && (window.location.pathname === '/' || window.location.pathname === '')) {
-      navigate('/player', { replace: true });
-    }
-  }, [navigate]);
+  // En la app nativa (Capacitor) arrancamos directo en el módulo de jugador:
+  // la landing pública es sólo para la web.
+  const esAppNativa = Capacitor.isNativePlatform();
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -150,7 +146,10 @@ export function App() {
       }
     >
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/"
+          element={esAppNativa ? <Navigate to="/player" replace /> : <LandingPage />}
+        />
         <Route path="/buscar" element={<BuscarPage />} />
         <Route path="/club/:slug" element={<ClubProfilePage />} />
         <Route path="/prototipo/desafios" element={<DesafiosPrototype />} />

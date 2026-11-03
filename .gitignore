@@ -12,8 +12,10 @@ coverage/
 docs/_maestro_extract.txt
 Clave Padel Saas suprabase.txt
 
-# Capacitor — proyectos nativos generados (regenerar con `npx cap add android/ios`)
-# Descomentá si querés versionar los proyectos nativos en el mismo repo.
+# Capacitor — proyectos nativos.
+# `android/` se regenera con `npx cap add android`.
+# `ios/` SÍ se versiona: contiene el ícono/splash de MatchGo, el Info.plist
+# custom y el scheme compartido que usa el workflow de TestFlight.
+# (ios/.gitignore ya excluye App/App/public y capacitor.config.json)
 android/
-ios/
 .vercel
