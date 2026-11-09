@@ -72,13 +72,22 @@ export function useCerrarVenta(): UseMutationResult<
         queryKey: ['caja-movimientos'],
       });
       void queryClient.invalidateQueries({
-        queryKey: ['movimientos-cuenta'],
+        queryKey: ['movimientos_cuentas'],
       });
       void queryClient.invalidateQueries({
         queryKey: ['flujo-caja'],
       });
       void queryClient.invalidateQueries({
         queryKey: ['ingresos_por_medio'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['resumen_financiero'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['buffet', 'ventas'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['inventario'],
       });
       void queryClient.invalidateQueries({
         queryKey: ['jugadores'],

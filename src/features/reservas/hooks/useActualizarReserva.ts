@@ -9,19 +9,19 @@ import type { Reserva } from '@/types/database';
 import { RESERVAS_QUERY_KEY_BASE } from './useReservasDelDia';
 
 /**
- * Campos que el detalle de reserva puede actualizar en sprint 3a.
+ * Campos que el detalle de reserva puede actualizar.
  *
  * - `estado`: cancelar (→'cancelada') o marcar como jugada (→'jugada').
  *   Transiciones que NO requieren tocar reserva_pagos siguen este
  *   camino. Para "marcar como pagada" cuando hay saldo pendiente,
  *   habría que insertar un reserva_pago → eso va con la integración
  *   de Caja (sprint posterior).
- * - `observaciones`: el único campo "editable" post-creación que el
- *   doc maestro 8.3 menciona explícitamente como permitido sin
- *   romper trazabilidad.
+ * - `observaciones`: campo editable post-creación.
+ * - `duracion_min`: excepción para turnos abiertos; una RPC valida
+ *   disponibilidad y tarifa, sin modificar pagos ni consumos.
  */
 export type ActualizarReservaChanges = Partial<
-  Pick<Reserva, 'estado' | 'observaciones' | 'monto_total' | 'tarifa_id'>
+  Pick<Reserva, 'estado' | 'observaciones' | 'monto_total' | 'tarifa_id' | 'duracion_min'>
 >;
 
 export interface ActualizarReservaInput {
@@ -32,10 +32,8 @@ export interface ActualizarReservaInput {
 }
 
 /**
- * Actualiza estado y/o observaciones de una reserva. Cualquier otro
- * campo (hora, cancha, jugadores, montos) NO se puede tocar in-place:
- * para reagendar se cancela y se crea nueva (decisión sprint 3a,
- * alineada con doc 8.3).
+ * La duración se cambia mediante RPC atómica; el resto de actualizaciones
+ * simples continúa usando RLS sobre la tabla de reservas.
  */
 export function useActualizarReserva(): UseMutationResult<
   Reserva,
@@ -46,6 +44,16 @@ export function useActualizarReserva(): UseMutationResult<
 
   return useMutation<Reserva, Error, ActualizarReservaInput>({
     mutationFn: async ({ id, changes }) => {
+      if (changes.duracion_min !== undefined) {
+        const { data, error } = await supabase.rpc('fn_actualizar_duracion_reserva', {
+          p_reserva_id: id,
+          p_duracion_min: changes.duracion_min,
+        });
+        if (error) throw new Error(mapPostgrestError(error));
+        if (!data) throw new Error('La función respondió sin datos.');
+        return data as Reserva;
+      }
+
       const { data, error } = await supabase
         .from('reservas')
         .update(changes)

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronLeft, FileSpreadsheet, Plus, Tag, UtensilsCrossed } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, FileSpreadsheet, History, Plus, Tag, UtensilsCrossed } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ImportarStockDialog } from './ImportarStockDialog';
 import { PromosPanel } from './PromosPanel';
+import { HistorialVentas } from './HistorialVentas';
 import { usePromosBuffet } from './hooks/usePromosBuffet';
 import type { PromoBuffet } from '@/types/database';
 import {
@@ -38,6 +39,7 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 export function BuffetPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'mostrador', 'editar');
+  const isAdmin = user?.rol === 'admin';
 
   const productosQuery = useProductosConStock();
   const productos = useMemo(
@@ -46,7 +48,7 @@ export function BuffetPage() {
   );
   const promosQuery = usePromosBuffet();
 
-  const [activeTab, setActiveTab] = useState<'mostrador' | 'mesas' | 'promos'>('mostrador');
+  const [activeTab, setActiveTab] = useState<'mostrador' | 'mesas' | 'promos' | 'ventas'>('mostrador');
 
   // Mostrador Cart: Map<producto_id, cantidad>
   const [cart, setCart] = useState<Map<number, number>>(() => new Map());
@@ -289,7 +291,7 @@ export function BuffetPage() {
             </Button>
           )}
         {/* Tab switcher */}
-        <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+        <div className="inline-flex h-auto flex-wrap items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
           <button
             type="button"
             onClick={() => {
@@ -330,6 +332,23 @@ export function BuffetPage() {
             <Tag className="h-3 w-3" />
             Promos
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('ventas');
+                setSelectedMesaId(null);
+              }}
+              className={`inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                activeTab === 'ventas'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'hover:bg-background/50 hover:text-foreground'
+              }`}
+            >
+              <History className="h-3 w-3" />
+              Ventas
+            </button>
+          )}
         </div>
         </div>
       </header>
@@ -540,6 +559,7 @@ export function BuffetPage() {
           {activeTab === 'promos' && (
             <PromosPanel productos={productos} canEdit={canEdit} />
           )}
+          {activeTab === 'ventas' && isAdmin && <HistorialVentas />}
 
           {(activeTab === 'mostrador' || activeTab === 'mesas') && promosQuery.error && (
             <p className="text-sm text-destructive" role="alert">

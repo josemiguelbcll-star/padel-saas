@@ -1027,10 +1027,14 @@ export type CategoriaProducto = CategoriaBuffet | CategoriaShop;
 export type FuenteMovimientoStock =
   | 'compra_manual'
   | 'venta'
+  | 'anulacion_venta'
   | 'ajuste'
+  | 'ajuste_manual'
   | 'compra_bot_whatsapp'
   | 'consumo_turno'
-  | 'reposicion_consumo';
+  | 'reposicion_consumo'
+  | 'consumo_clase'
+  | 'reposicion_consumo_clase';
 
 export interface Producto {
   id: number;
@@ -1184,6 +1188,9 @@ export interface Venta {
   /** DECIMAL(12,2). Snapshot del total al cierre = SUM(venta_items.subtotal). */
   monto_total: number;
   medio_pago: MedioPago;
+  jugador_id: number | null;
+  /** FALSE cuando la venta fue anulada, conservada para auditoría. */
+  activa: boolean;
   observaciones: string | null;
   usuario_id: string;
   fecha_hora: string;

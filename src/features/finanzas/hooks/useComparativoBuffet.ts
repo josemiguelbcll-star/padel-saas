@@ -90,16 +90,19 @@ export function useComparativoBuffet(): UseQueryResult<
           supabase
             .from('ventas')
             .select('monto_total')
+            .eq('activa', true)
             .gte('fecha_hora', inicioMesAntIni)
             .lte('fecha_hora', finMesAntFin),
           supabase
             .from('ventas')
             .select('monto_total')
+            .eq('activa', true)
             .gte('fecha_hora', inicioMesActualIni)
             .lte('fecha_hora', hoyFin),
           supabase
             .from('ventas')
             .select('monto_total')
+            .eq('activa', true)
             .gte('fecha_hora', inicioMesAntIni)
             .lte('fecha_hora', mismoDiaMesAntFin),
         ]);
