@@ -1694,8 +1694,7 @@ function CobrarPersonaInline({
 }) {
   const montoFieldId = useId();
   const nombreInvitadoFieldId = useId();
-  // Monto editable, pre-relleno con el saldo completo. Se guarda como string
-  // para permitir edición libre; se parsea/valida al confirmar. Pesos enteros.
+  // Monto editable en pesos y centavos, pre-relleno con el saldo completo.
   const [montoStr, setMontoStr] = useState<string>(String(saldo.saldo));
   // Nombre del invitado (0065): solo para tipo='invitado'. Pre-rellena con el
   // nombre_libre actual; vacío si es "Invitado N" (label calculado).
@@ -1742,11 +1741,22 @@ function CobrarPersonaInline({
   const [darPorSaldado, setDarPorSaldado] = useState(false);
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
 
-  const montoNum = Number.parseInt(montoStr, 10);
-  const montoValido = Number.isInteger(montoNum) && montoNum >= 1;
-  const saldoRestante = montoValido && montoNum < saldo.saldo ? saldo.saldo - montoNum : 0;
-  const esParcial = montoValido && saldo.saldo > montoNum;
-  const esCobroMayor = montoValido && montoNum > saldo.saldo;
+  const montoIngresado = Number(montoStr);
+  const montoEnCentavos = Math.round(montoIngresado * 100);
+  const montoValido =
+    montoStr.trim() !== '' &&
+    Number.isFinite(montoIngresado) &&
+    montoEnCentavos >= 1 &&
+    Math.abs(montoIngresado * 100 - montoEnCentavos) < 1e-7;
+  const montoNum = montoValido ? montoEnCentavos / 100 : 0;
+  const saldoCentavos = Math.round(saldo.saldo * 100);
+  const saldoGlobalCentavos = Math.round(globalRestante * 100);
+  const saldoRestante = montoValido && montoEnCentavos < saldoCentavos
+    ? (saldoCentavos - montoEnCentavos) / 100
+    : 0;
+  const esParcial = montoValido && montoEnCentavos < saldoCentavos;
+  const esCobroMayor = montoValido && montoEnCentavos > saldoCentavos;
+  const superaSaldoTurno = montoValido && montoEnCentavos > saldoGlobalCentavos;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1755,12 +1765,8 @@ function CobrarPersonaInline({
       setErrorLocal('Elegí una cuenta o medio de pago.');
       return;
     }
-    if (!Number.isInteger(montoNum) || montoNum < 1) {
-      setErrorLocal('Ingresá un monto válido (mínimo $1).');
-      return;
-    }
-    if (montoNum > globalRestante) {
-      setErrorLocal(`El monto no puede superar el saldo total del turno (${fmtMoney(globalRestante)}).`);
+    if (!montoValido) {
+      setErrorLocal('Ingresá un monto válido (mínimo $0,01 y hasta dos decimales).');
       return;
     }
     await onConfirmar(
@@ -1804,8 +1810,7 @@ function CobrarPersonaInline({
         </div>
       )}
 
-      {/* Monto a cobrar — pre-relleno con el saldo, editable hacia abajo para
-          cobro parcial (0064). */}
+      {/* Monto a cobrar — admite centavos para poder cerrar saldos por redondeo. */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <Label htmlFor={montoFieldId} className="text-xs">
@@ -1821,9 +1826,9 @@ function CobrarPersonaInline({
         <Input
           id={montoFieldId}
           type="number"
-          inputMode="numeric"
-          min={1}
-          step={1}
+          inputMode="decimal"
+          min="0.01"
+          step="0.01"
           value={montoStr}
           onChange={(e) => setMontoStr(e.target.value)}
           disabled={disabled}
@@ -1851,12 +1856,11 @@ function CobrarPersonaInline({
             </label>
           </div>
         )}
-        {esCobroMayor && (
+        {(esCobroMayor || superaSaldoTurno) && (
           <p className="text-[11px] text-muted-foreground">
-            El excedente cubrirá el saldo de otras personas. Saldo global restante tras el pago:{' '}
-            <span className="font-medium tabular-nums text-foreground">
-              {fmtMoney(Math.max(0, globalRestante - montoNum))}
-            </span>
+            {superaSaldoTurno
+              ? `Se cubre el saldo pendiente del turno (${fmtMoney(globalRestante)}); el excedente de ${fmtMoney((montoEnCentavos - saldoGlobalCentavos) / 100)} se registrará como ingreso de Canchas.`
+              : `El excedente cubrirá el saldo de otras personas. Saldo global restante tras el pago: ${fmtMoney(Math.max(0, saldoGlobalCentavos - montoEnCentavos) / 100)}.`}
           </p>
         )}
       </div>

@@ -31,6 +31,7 @@ import { useTarifas } from '@/features/configuracion/hooks/useTarifas';
 import {
   resolverTarifa,
   obtenerFranjasDisponibles,
+  obtenerTarifasAplicables,
 } from './utils/resolverTarifa';
 import { ConsumosTurnoSection } from './ConsumosTurnoSection';
 import { PersonasTurnoSection } from './PersonasTurnoSection';
@@ -91,8 +92,8 @@ interface DetalleReservaDialogProps {
  *     · Cancelar reserva (con confirmación inline antes de aplicar).
  *     · Editar observaciones (campo único editable post-pago).
  *
- *   - NO permite cambiar cancha, hora, duración ni jugadores
- *     (reagendar = cancelar y crear nueva).
+ *   - Permite ajustar la duración de un turno abierto según la
+ *     configuración, conservando los pagos y consumos ya registrados.
  */
 export function DetalleReservaDialog({
   open,
@@ -152,14 +153,6 @@ function DetalleReservaBody({
 
   const tarifasQuery = useTarifas();
   const tarifas = useMemo(() => tarifasQuery.data ?? [], [tarifasQuery.data]);
-  const franjasDisponibles = useMemo(() => {
-    return obtenerFranjasDisponibles({
-      tarifas,
-      fecha: reserva.fecha,
-      hora: reserva.hora_inicio,
-      duracion: reserva.duracion_min,
-    });
-  }, [tarifas, reserva.fecha, reserva.hora_inicio, reserva.duracion_min]);
 
   const tarifaAplicada = useMemo(() => {
     if (reserva.tarifa_id) {
@@ -179,17 +172,127 @@ function DetalleReservaBody({
   const [editandoFranja, setEditandoFranja] = useState(false);
   const [nuevoMontoStr, setNuevoMontoStr] = useState<string>(() => reserva.monto_total.toString());
   const [nuevaTarifaId, setNuevaTarifaId] = useState<number | null>(() => reserva.tarifa_id ?? null);
+  const [nuevaDuracionMin, setNuevaDuracionMin] = useState(() => reserva.duracion_min);
   const [aplicarATodosFijos, setAplicarATodosFijos] = useState(true);
   const [guardandoFranja, setGuardandoFranja] = useState(false);
   const [errorEdicionFranja, setErrorEdicionFranja] = useState<string | null>(null);
+
+  const tarifasHorario = useMemo(
+    () =>
+      obtenerTarifasAplicables({
+        tarifas,
+        fecha: reserva.fecha,
+        hora: reserva.hora_inicio,
+      }).filter((tarifa) => tarifa.duracion_min !== null),
+    [tarifas, reserva.fecha, reserva.hora_inicio],
+  );
+  const opcionesDuracion = useMemo(() => {
+    const duraciones = [...new Set([
+      ...tarifasHorario.map((tarifa) => tarifa.duracion_min!),
+      reserva.duracion_min,
+    ])]
+      .sort((a, b) => a - b);
+
+    return duraciones.map((duracion) => {
+      const tarifa = resolverTarifa({
+        fecha: reserva.fecha,
+        hora: reserva.hora_inicio,
+        duracion,
+        tarifas,
+      });
+      const finMinutos =
+        Number(reserva.hora_inicio.slice(0, 2)) * 60 +
+        Number(reserva.hora_inicio.slice(3, 5)) +
+        duracion;
+      const limiteCierre =
+        club?.hora_cierre === '00:00' || club?.hora_cierre === '00:00:00'
+          ? 24 * 60
+          : club?.hora_cierre
+            ? Number(club.hora_cierre.slice(0, 2)) * 60 +
+              Number(club.hora_cierre.slice(3, 5))
+            : null;
+      const dentroDeLimites =
+        finMinutos <= 24 * 60 &&
+        (limiteCierre === null || finMinutos <= limiteCierre);
+
+      return {
+        duracion,
+        tarifa: tarifa.tarifa,
+        monto: tarifa.monto,
+        disponible:
+          (duracion === reserva.duracion_min ||
+            tarifasHorario.some((tarifa) => tarifa.duracion_min === duracion)) &&
+          dentroDeLimites &&
+          (duracion === reserva.duracion_min ||
+            (tarifa.tarifa !== null && tarifa.monto >= reserva.monto_pagado)),
+      };
+    });
+  }, [
+    tarifasHorario,
+    reserva.duracion_min,
+    reserva.fecha,
+    reserva.hora_inicio,
+    reserva.monto_pagado,
+    tarifas,
+    club?.hora_cierre,
+  ]);
+  const franjasEdicionDisponibles = useMemo(
+    () =>
+      obtenerFranjasDisponibles({
+        tarifas,
+        fecha: reserva.fecha,
+        hora: reserva.hora_inicio,
+        duracion: nuevaDuracionMin,
+      }),
+    [tarifas, reserva.fecha, reserva.hora_inicio, nuevaDuracionMin],
+  );
+  const cambiaDuracion = nuevaDuracionMin !== reserva.duracion_min;
+  const tarifaNuevaDuracion = cambiaDuracion
+    ? resolverTarifa({
+        fecha: reserva.fecha,
+        hora: reserva.hora_inicio,
+        duracion: nuevaDuracionMin,
+        tarifas,
+      })
+    : null;
 
   function handleAbrirEdicionFranja() {
     if (!isAdmin) return;
     setNuevoMontoStr(reserva.monto_total.toString());
     setNuevaTarifaId(reserva.tarifa_id ?? tarifaAplicada?.id ?? null);
+    setNuevaDuracionMin(reserva.duracion_min);
     setAplicarATodosFijos(true);
     setErrorEdicionFranja(null);
     setEditandoFranja(true);
+  }
+
+  function handleSeleccionarDuracion(duracion: number) {
+    setErrorEdicionFranja(null);
+    if (duracion === reserva.duracion_min) {
+      setNuevaDuracionMin(duracion);
+      setNuevoMontoStr(reserva.monto_total.toString());
+      setNuevaTarifaId(reserva.tarifa_id ?? tarifaAplicada?.id ?? null);
+      return;
+    }
+
+    const precio = resolverTarifa({
+      fecha: reserva.fecha,
+      hora: reserva.hora_inicio,
+      duracion,
+      tarifas,
+    });
+    if (!precio.tarifa) {
+      setErrorEdicionFranja('No hay una tarifa configurada para esa duración y horario.');
+      return;
+    }
+    if (precio.monto < reserva.monto_pagado) {
+      setErrorEdicionFranja('La tarifa configurada es menor a lo que ya fue pagado.');
+      return;
+    }
+
+    setNuevaDuracionMin(duracion);
+    setNuevaTarifaId(precio.tarifa.id);
+    setNuevoMontoStr(precio.monto.toString());
   }
 
   function handleSeleccionarFranja(t: Tarifa) {
@@ -212,20 +315,23 @@ function DetalleReservaBody({
       );
       return;
     }
+    if (cambiaDuracion && (!tarifaNuevaDuracion?.tarifa || tarifaNuevaDuracion.monto < reserva.monto_pagado)) {
+      setErrorEdicionFranja('No hay una tarifa válida configurada para esa duración y horario.');
+      return;
+    }
 
     setGuardandoFranja(true);
     try {
       const updated = await actualizarMutation.mutateAsync({
         id: reserva.id,
         fecha: reserva.fecha,
-        changes: {
-          monto_total: montoNum,
-          tarifa_id: nuevaTarifaId,
-        },
+        changes: cambiaDuracion
+          ? { duracion_min: nuevaDuracionMin }
+          : { monto_total: montoNum, tarifa_id: nuevaTarifaId },
       });
 
       // Si es un turno fijo y el usuario eligió aplicar a todos los futuros pendientes sin cobros:
-      if (reserva.turno_fijo_id && aplicarATodosFijos) {
+      if (reserva.turno_fijo_id && aplicarATodosFijos && !cambiaDuracion) {
         const { error: errFijos } = await supabase
           .from('reservas')
           .update({
@@ -249,6 +355,9 @@ function DetalleReservaBody({
         ...prev,
         monto_total: updated.monto_total ?? montoNum,
         tarifa_id: updated.tarifa_id ?? nuevaTarifaId,
+        duracion_min: updated.duracion_min ?? prev.duracion_min,
+        hora_fin: updated.hora_fin ?? prev.hora_fin,
+        estado: updated.estado ?? prev.estado,
       }));
       setEditandoFranja(false);
     } catch (err) {
@@ -350,7 +459,10 @@ function DetalleReservaBody({
 
   const getWhatsAppUrlForTemplate = (type: 'confirmacion' | 'cancelacion' | 'torneo'): string | null => {
     if (!telefonoTitular) return null;
-    const templatesCfg = (club?.config as any)?.whatsapp_templates ?? {};
+    const configTemplates = club?.config.whatsapp_templates;
+    const templatesCfg = typeof configTemplates === 'object' && configTemplates !== null && !Array.isArray(configTemplates)
+      ? (configTemplates as Record<string, unknown>)[type]
+      : undefined;
 
     const defaultTemplates = {
       confirmacion: 'Hola {nombreCliente}, tu turno en {cancha} para el {fecha} a las {hora} está confirmado.',
@@ -358,7 +470,7 @@ function DetalleReservaBody({
       torneo: 'Hola {nombreCliente}, te recordamos la invitación al torneo en {cancha} el {fecha} a las {hora}.',
     };
 
-    let template = templatesCfg[type] || defaultTemplates[type];
+    let template = typeof templatesCfg === 'string' ? templatesCfg : defaultTemplates[type];
 
     template = template.replace(/{nombreCliente}/g, reserva.jugador?.nombre ?? 'jugador');
     template = template.replace(/{cancha}/g, cancha.nombre);
@@ -704,10 +816,45 @@ function DetalleReservaBody({
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Seleccionar franja disponible para este turno:</Label>
-              {franjasDisponibles.length > 0 ? (
+              <Label htmlFor="duracion-reserva" className="text-xs font-semibold">
+                Duración del turno
+              </Label>
+              <select
+                id="duracion-reserva"
+                value={nuevaDuracionMin}
+                onChange={(e) => handleSeleccionarDuracion(Number(e.target.value))}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                disabled={tarifasQuery.isLoading || tarifasQuery.isError}
+              >
+                {opcionesDuracion.map((opcion) => (
+                  <option
+                    key={opcion.duracion}
+                    value={opcion.duracion}
+                    disabled={!opcion.disponible}
+                  >
+                    {opcion.duracion} min
+                    {opcion.tarifa ? ` · ${fmtMoney(opcion.monto)}` : ' · Sin tarifa configurada'}
+                  </option>
+                ))}
+              </select>
+              {tarifasQuery.isError && (
+                <p className="text-xs text-destructive">
+                  No se pudieron cargar las tarifas: {tarifasQuery.error.message}
+                </p>
+              )}
+              {cambiaDuracion ? (
+                <p className="text-[11px] text-muted-foreground">
+                  El nuevo monto se toma de la tarifa configurada. Los pagos y consumos existentes se conservan y el saldo se recalcula.
+                </p>
+              ) : null}
+              <Label className="text-xs font-semibold">Franja / precio</Label>
+              {cambiaDuracion && tarifaNuevaDuracion?.tarifa ? (
+                <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                  {tarifaNuevaDuracion.tarifa.nombre} · {fmtMoney(tarifaNuevaDuracion.monto)}
+                </div>
+              ) : franjasEdicionDisponibles.length > 0 && !cambiaDuracion ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {franjasDisponibles.map((t) => {
+                  {franjasEdicionDisponibles.map((t) => {
                     const isSelected = nuevaTarifaId === t.id && nuevoMontoStr === t.monto.toString();
                     return (
                       <button
@@ -729,6 +876,10 @@ function DetalleReservaBody({
                     );
                   })}
                 </div>
+              ) : cambiaDuracion ? (
+                <p className="text-xs text-destructive">
+                  No hay una tarifa configurada para esa duración y horario.
+                </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   No hay franjas configuradas para esta duración/horario.
@@ -736,7 +887,7 @@ function DetalleReservaBody({
               )}
             </div>
 
-            <div className="space-y-1">
+            {!cambiaDuracion && <div className="space-y-1">
               <Label htmlFor="edicion-monto-reserva" className="text-xs">
                 Monto del turno ($)
               </Label>
@@ -755,9 +906,9 @@ function DetalleReservaBody({
                   Mínimo: {fmtMoney(reserva.monto_pagado)} (ya cobrado a los jugadores).
                 </p>
               )}
-            </div>
+            </div>}
 
-            {Boolean(reserva.turno_fijo_id) && (
+            {Boolean(reserva.turno_fijo_id) && !cambiaDuracion && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-1.5 text-xs">
                 <p className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
                   <Repeat className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
@@ -789,6 +940,11 @@ function DetalleReservaBody({
                 </div>
               </div>
             )}
+            {Boolean(reserva.turno_fijo_id) && cambiaDuracion && (
+              <p className="text-[11px] text-muted-foreground">
+                El cambio de duración se aplica solo a este turno, no a las demás fechas del turno fijo.
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-1">
               <Button
@@ -806,7 +962,11 @@ function DetalleReservaBody({
                 disabled={guardandoFranja}
                 className="h-7 text-xs bg-primary text-primary-foreground"
               >
-                {guardandoFranja ? 'Guardando…' : 'Confirmar nuevo precio'}
+                {guardandoFranja
+                  ? 'Guardando…'
+                  : cambiaDuracion
+                    ? 'Confirmar duración y precio'
+                    : 'Confirmar nuevo precio'}
               </Button>
             </div>
           </form>

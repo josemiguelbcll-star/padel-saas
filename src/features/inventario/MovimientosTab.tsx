@@ -27,21 +27,29 @@ interface MovimientosFiltros {
 // Etiquetas en castellano para cada fuente, alineadas con FuenteMovimientoStock.
 const FUENTE_LABEL: Record<FuenteMovimientoStock, string> = {
   venta: 'Venta',
+  anulacion_venta: 'Anulación de venta',
   compra_manual: 'Compra manual',
   ajuste: 'Ajuste',
+  ajuste_manual: 'Ajuste manual',
   compra_bot_whatsapp: 'Compra (bot WhatsApp)',
   consumo_turno: 'Consumo de turno',
   reposicion_consumo: 'Quitado de consumo',
+  consumo_clase: 'Consumo de clase',
+  reposicion_consumo_clase: 'Quitado de consumo de clase',
 };
 
 const FUENTE_OPTIONS: ReadonlyArray<{ value: FuenteFiltro; label: string }> = [
   { value: 'todas', label: 'Todas' },
   { value: 'venta', label: 'Venta' },
+  { value: 'anulacion_venta', label: 'Anulación de venta' },
   { value: 'compra_manual', label: 'Compra manual' },
   { value: 'ajuste', label: 'Ajuste' },
+  { value: 'ajuste_manual', label: 'Ajuste manual' },
   { value: 'compra_bot_whatsapp', label: 'Compra (bot WhatsApp)' },
   { value: 'consumo_turno', label: 'Consumo de turno' },
   { value: 'reposicion_consumo', label: 'Quitado de consumo' },
+  { value: 'consumo_clase', label: 'Consumo de clase' },
+  { value: 'reposicion_consumo_clase', label: 'Quitado de consumo de clase' },
 ];
 
 const dateTimeFmt = new Intl.DateTimeFormat('es-AR', {

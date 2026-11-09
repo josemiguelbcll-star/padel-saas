@@ -25,17 +25,16 @@ export interface CobrarPersonaTurnoInput {
    * Protege contra race con cambios concurrentes (otro vendedor
    * agregó consumo o quitó persona entre el render y el cobro).
    *
-   * NOTA (0064): la validación cruzada con monto_esperado sólo aplica
-   * cuando NO se manda `monto` (cobro del saldo completo). En un cobro
-   * parcial la RPC valida `monto <= saldo` recalculado.
+   * La RPC vuelve a bloquear la reserva y calcula el saldo global antes
+   * de registrar el pago.
    */
   monto_esperado: number;
   /**
    * Monto a cobrar (0064). OPCIONAL:
    *   - omitido → la RPC cobra el SALDO COMPLETO de la persona
    *     (comportamiento histórico, no rompe callers).
-   *   - con valor → cobro PARCIAL: la RPC valida 0 < monto <= saldo y
-   *     prorratea el desglose alquiler/consumo proporcional al monto.
+   *   - con valor → cobra exactamente ese importe (admite centavos y
+   *     excedentes para redondeo, atribuidos a Canchas por la RPC).
    */
   monto?: number;
   /**

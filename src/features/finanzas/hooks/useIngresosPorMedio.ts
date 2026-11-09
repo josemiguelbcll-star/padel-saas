@@ -81,11 +81,19 @@ export function useIngresosPorMedio(
 
       // Ventas buffet: consultamos venta_pagos para reflejar con precisión pagos
       // divididos / mixtos (ej. 75k transferencia y 25k efectivo). Fallback a ventas.
-      const vpRes = await supabase
-        .from('venta_pagos')
-        .select('monto, medio_pago')
-        .gte('fecha_hora', desdeISO)
-        .lte('fecha_hora', hastaISO);
+      const [vpRes, vprRes] = await Promise.all([
+        supabase
+          .from('venta_pagos')
+          .select('monto, medio_pago')
+          .gte('fecha_hora', desdeISO)
+          .lte('fecha_hora', hastaISO),
+        supabase
+          .from('venta_pagos_reversiones')
+          .select('monto, medio_pago')
+          .gte('fecha_hora', desdeISO)
+          .lte('fecha_hora', hastaISO),
+      ]);
+      if (vprRes.error) throw new Error(mapPostgrestError(vprRes.error));
 
       let ventasItems: Array<{ medio_pago: string; monto: number }> = [];
       if (!vpRes.error && vpRes.data) {
@@ -97,6 +105,7 @@ export function useIngresosPorMedio(
         const vRes = await supabase
           .from('ventas')
           .select('monto_total, medio_pago')
+          .eq('activa', true)
           .gte('fecha_hora', desdeISO)
           .lte('fecha_hora', hastaISO);
         ventasItems = (vRes.data ?? []).map((v) => ({
@@ -132,6 +141,9 @@ export function useIngresosPorMedio(
       }
       for (const v of ventasItems) {
         sumar(v.medio_pago, v.monto);
+      }
+      for (const v of vprRes.data ?? []) {
+        sumar(String(v.medio_pago), -Number(v.monto));
       }
       for (const i of otrosIngRes.data ?? []) {
         sumar(String(i.medio_pago), Number(i.monto));

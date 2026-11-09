@@ -73,9 +73,10 @@ export function useTopVendidos(
           `
           producto_id, producto_nombre, cantidad, costo_unitario,
           subtotal, linea,
-          ventas!inner (fecha_hora)
+          ventas!inner (fecha_hora, activa)
           `,
         )
+        .eq('ventas.activa', true)
         .gte('ventas.fecha_hora', desdeIni)
         .lte('ventas.fecha_hora', hastaFin);
 
@@ -88,7 +89,7 @@ export function useTopVendidos(
         costo_unitario: number | null;
         subtotal: number;
         linea: Linea;
-        ventas: { fecha_hora: string } | null;
+        ventas: { fecha_hora: string; activa: boolean } | null;
       };
 
       const acc = new Map<number, TopVendido>();

@@ -21,6 +21,7 @@ import {
 } from './hooks/useMovimientosCuentas';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
+type FiltroTipoMovimiento = 'todos' | 'ingresos' | 'egresos' | 'transferencias';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -94,6 +95,8 @@ function inicioMesAR(): string {
 const ORIGEN_LABELS: Record<OrigenMovimientoCuenta, { label: string; badgeClass: string }> = {
   reserva_pago: { label: 'Turno', badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
   venta: { label: 'Buffet', badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+  venta_correccion: { label: 'Corrección de venta', badgeClass: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+  venta_reversion: { label: 'Anulación buffet', badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
   clase_cobro: { label: 'Clase', badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
   gasto: { label: 'Gasto', badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
   otro_ingreso: { label: 'Otro Ingreso', badgeClass: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20' },
@@ -106,13 +109,13 @@ const ORIGEN_LABELS: Record<OrigenMovimientoCuenta, { label: string; badgeClass:
 export function MovimientosCuentasPage() {
   // useSession hook
   const cuentasQuery = useCuentas();
-  const cuentas = cuentasQuery.data ?? [];
+  const cuentas = useMemo(() => cuentasQuery.data ?? [], [cuentasQuery.data]);
 
   // Filtros
   const [desde, setDesde] = useState<string>(inicioMesAR);
   const [hasta, setHasta] = useState<string>(hoyAR);
   const [cuentaId, setCuentaId] = useState<number | null>(null);
-  const [filtroTipo, setFiltroTipo] = useState<'todos' | 'ingresos' | 'egresos' | 'transferencias'>('todos');
+  const [filtroTipo, setFiltroTipo] = useState<FiltroTipoMovimiento>('todos');
   const [search, setSearch] = useState('');
 
   const movimientosQuery = useMovimientosCuentas({
@@ -121,7 +124,7 @@ export function MovimientosCuentasPage() {
     cuentaId,
   });
 
-  const rawRows = movimientosQuery.data ?? [];
+  const rawRows = useMemo(() => movimientosQuery.data ?? [], [movimientosQuery.data]);
 
   // Filtrado client-side por tipo de flujo y búsqueda
   const filteredRows = useMemo(() => {
@@ -463,7 +466,7 @@ export function MovimientosCuentasPage() {
             <Label className="text-xs">Tipo de Movimiento</Label>
             <select
               value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value as any)}
+              onChange={(e) => setFiltroTipo(e.target.value as FiltroTipoMovimiento)}
               className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="todos">Todos los movimientos</option>
