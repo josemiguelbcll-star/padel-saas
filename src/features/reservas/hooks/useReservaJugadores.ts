@@ -43,8 +43,14 @@ export function useReservaJugadores(
 
   useEffect(() => {
     if (reservaId === null) return;
+    // Nombre de canal único por instancia: varios componentes montan este
+    // hook con el mismo reservaId a la vez (DetalleReservaDialog +
+    // PersonasTurnoSection + ConsumosTurnoSection). supabase.channel()
+    // deduplica por topic y devuelve el canal ya suscrito, y agregarle un
+    // callback 'postgres_changes' después de subscribe() tira error.
+    const channelId = `reserva-jugadores-${reservaId}-${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel(`reserva-jugadores-${reservaId}`)
+      .channel(channelId)
       .on(
         'postgres_changes',
         {
