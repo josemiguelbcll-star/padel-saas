@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   useMutation,
   useQuery,
@@ -38,6 +39,31 @@ export interface ReservaJugadorConNombre extends ReservaJugador {
 export function useReservaJugadores(
   reservaId: number | null,
 ): UseQueryResult<ReservaJugadorConNombre[], Error> {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (reservaId === null) return;
+    const channel = supabase
+      .channel(`reserva-jugadores-${reservaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reserva_jugadores',
+          filter: `reserva_id=eq.${reservaId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: reservaJugadoresQueryKey(reservaId) });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [reservaId, queryClient]);
+
   return useQuery<ReservaJugadorConNombre[], Error>({
     queryKey: reservaId === null
       ? [RESERVA_JUGADORES_QUERY_KEY_BASE]

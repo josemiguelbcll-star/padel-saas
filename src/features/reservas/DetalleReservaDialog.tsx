@@ -3,9 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/features/auth';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Clock4, ExternalLink, Pencil, Repeat, Trophy, Trash2, ChevronDown, X } from 'lucide-react';
+import { AlertTriangle, CalendarCheck, Clock4, ExternalLink, Pencil, Repeat, Trophy, Trash2, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizarTelefono } from '@/features/player/utils/telefonoArg';
+import { Capacitor } from '@capacitor/core';
 import {
   Dialog,
   DialogContent,
@@ -384,6 +385,7 @@ function DetalleReservaBody({
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [confirmingCancelTodo, setConfirmingCancelTodo] = useState(false);
   const [accionError, setAccionError] = useState<string | null>(null);
+  const [confirmandoMP, setConfirmandoMP] = useState(false);
 
   const esTorneo = reserva.jugador?.nombre?.startsWith('Torneo: ') || false;
   const nombreTorneo = esTorneo ? reserva.jugador?.nombre?.replace(/^Torneo:\s*/, '') : '';
@@ -486,7 +488,33 @@ function DetalleReservaBody({
     const url = getWhatsAppUrlForTemplate(type);
     if (!url) return;
     window.open(url, '_blank');
-    if (type === 'confirmacion' && reserva.estado === 'pendiente' && !readOnly) {
+    if (type === 'confirmacion' && reserva.metodo_pago_pre_reserva === 'transferencia' && !reserva.club_confirmada_en && !readOnly) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Tu sesión venció. Volvé a iniciar sesión.');
+        const response = await fetch('/api/confirm-booking', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ reserva_id: reserva.id }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.reserva) {
+          throw new Error(result.error || 'No pudimos confirmar el turno.');
+        }
+        applyReservaUpdate(result.reserva as Reserva);
+        void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
+      } catch (err) {
+        setAccionError(err instanceof Error ? err.message : 'No pudimos confirmar la reserva.');
+      }
+    } else if (
+      type === 'confirmacion' &&
+      reserva.estado === 'pendiente' &&
+      reserva.metodo_pago_pre_reserva !== 'mercadopago' &&
+      !readOnly
+    ) {
       try {
         const updated = await actualizarMutation.mutateAsync({
           id: reserva.id,
@@ -501,6 +529,36 @@ function DetalleReservaBody({
             : 'No pudimos confirmar la reserva después de abrir WhatsApp.',
         );
       }
+    }
+  }
+
+  async function handleConfirmarTurno(): Promise<void> {
+    setAccionError(null);
+    setConfirmandoMP(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Tu sesión venció. Volvé a iniciar sesión.');
+      const apiUrl = Capacitor.isNativePlatform()
+        ? 'https://matchogo.vercel.app/api/confirm-booking'
+        : '/api/confirm-booking';
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ reserva_id: reserva.id }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.reserva) {
+        throw new Error(result.error || 'No pudimos confirmar el turno.');
+      }
+      applyReservaUpdate(result.reserva as Reserva);
+      void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
+    } catch (err) {
+      setAccionError(err instanceof Error ? err.message : 'No pudimos confirmar el turno.');
+    } finally {
+      setConfirmandoMP(false);
     }
   }
 
@@ -1212,6 +1270,20 @@ function DetalleReservaBody({
           </div>
         ) : (
           <div className="flex flex-wrap items-end justify-end gap-2">
+              {!readOnly &&
+                !reserva.club_confirmada_en &&
+                (reserva.mp_estado === 'pago_acreditado' ||
+                  (reserva.metodo_pago_pre_reserva === 'transferencia' && reserva.estado === 'pendiente')) && (
+                <Button
+                  type="button"
+                  onClick={() => void handleConfirmarTurno()}
+                  disabled={confirmandoMP}
+                  className="gap-2"
+                >
+                  <CalendarCheck className="h-4 w-4" />
+                  {confirmandoMP ? 'Confirmando…' : 'Confirmar turno'}
+                </Button>
+              )}
             {/* Saldo pendiente: no se ofrece "Cerrar turno" (la RPC 0064 lo
                 rechazaría). Hint con el total a cobrar antes de poder cerrar. */}
             {!estaCancelado && !estaCerrado && !todoSaldado && saldoPendiente > 0 && (

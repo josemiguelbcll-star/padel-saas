@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { notificarClubPorReserva } from './_lib/reservaNotifications.js';
 
 // Vercel serverless function (Node.js runtime)
 export default async function handler(req: any, res: any) {
@@ -20,8 +21,10 @@ export default async function handler(req: any, res: any) {
   }
 
   const { reserva_id, club_id, origin_url } = req.body;
+  const authorization = req.headers.authorization || '';
+  const accessToken = authorization.replace(/^Bearer\s+/i, '');
 
-  if (!reserva_id || !club_id || !origin_url) {
+  if (!reserva_id || !club_id || !origin_url || !accessToken) {
     return res.status(400).json({ error: 'Faltan parámetros requeridos: reserva_id, club_id, origin_url' });
   }
 
@@ -37,9 +40,12 @@ export default async function handler(req: any, res: any) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Obtener detalles de la reserva y cancha
+    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    if (authError || !user) return res.status(401).json({ error: 'Sesión inválida.' });
+
     const { data: reserva, error: reservaError } = await supabase
       .from('reservas')
-      .select('id, club_id, monto_sena, estado, canchas(nombre)')
+      .select('id, club_id, jugador_app_id, monto_sena, estado, mp_estado, mp_expira_en, canchas(nombre)')
       .eq('id', Number(reserva_id))
       .single();
 
@@ -52,8 +58,30 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'El club de la reserva no coincide con el solicitado' });
     }
 
-    if (reserva.estado !== 'pendiente') {
+    const { data: jugadorApp } = await supabase
+      .from('jugadores_app')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+    if (!jugadorApp || jugadorApp.id !== reserva.jugador_app_id) {
+      return res.status(403).json({ error: 'La reserva no pertenece al jugador autenticado.' });
+    }
+
+    if (reserva.estado !== 'pendiente' || reserva.mp_estado !== 'pre_reserva') {
       return res.status(400).json({ error: `La reserva está en estado '${reserva.estado}' y no se puede señar` });
+    }
+    if (!reserva.mp_expira_en || new Date(reserva.mp_expira_en).getTime() <= Date.now()) {
+      return res.status(410).json({ error: 'La pre-reserva venció. Elegí nuevamente el horario.' });
+    }
+
+    try {
+      await notificarClubPorReserva(
+        Number(reserva_id),
+        'pre_reserva',
+        process.env.APP_URL || 'https://matchogo.vercel.app',
+      );
+    } catch (notificationError) {
+      console.warn('[create-preference] No se pudo enviar aviso operativo:', notificationError);
     }
 
     // 2. Obtener credenciales de Mercado Pago del club
@@ -78,6 +106,11 @@ export default async function handler(req: any, res: any) {
     const clubNombre = club?.nombre || 'Club';
     const canchaNombre = (reserva as any).canchas?.nombre || '';
     const itemTitle = `Seña Reserva - ${clubNombre}${canchaNombre ? ` (Cancha: ${canchaNombre})` : ''}`;
+    const webhookUrl = new URL(
+      process.env.MP_WEBHOOK_URL ||
+        `${process.env.APP_URL || origin_url}/api/mercadopago-webhook`,
+    );
+    webhookUrl.searchParams.set('club_id', String(club_id));
 
     // 4. Crear preferencia en Mercado Pago
     const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
@@ -102,6 +135,10 @@ export default async function handler(req: any, res: any) {
           failure: `${origin_url}/player/partidos?payment_status=rejected&reserva_id=${reserva_id}`,
           pending: `${origin_url}/player/partidos?payment_status=pending&reserva_id=${reserva_id}`,
         },
+        notification_url: webhookUrl.toString(),
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: reserva.mp_expira_en,
         auto_return: 'approved',
       }),
     });

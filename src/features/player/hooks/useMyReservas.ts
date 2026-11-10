@@ -28,6 +28,9 @@ export interface MiReservaReal {
   monto_total:   number;
   monto_pagado:  number;
   es_futura:     boolean;
+  mp_estado: 'pre_reserva' | 'pago_acreditado' | 'pago_tardio' | 'confirmada' | 'expirada' | null;
+  club_confirmada_en: string | null;
+  mp_expira_en: string | null;
 }
 
 // ── Helpers de formato ────────────────────────────────────────────────────────
@@ -89,8 +92,8 @@ export function useMyReservas() {
       if (!userId) return [];
 
       try {
-        const rpcPromise = supabase.rpc('fn_mis_reservas_app') as any;
-        const { data, error: rpcError } = await (withTimeout(rpcPromise, 5000, 'fn_mis_reservas_app') as any);
+        const rpcPromise = supabase.rpc('fn_mis_reservas_app_v2') as any;
+        const { data, error: rpcError } = await (withTimeout(rpcPromise, 5000, 'fn_mis_reservas_app_v2') as any);
         if (rpcError) {
           console.warn('[useMyReservas] error en fn_mis_reservas_app:', rpcError.message);
           return [];

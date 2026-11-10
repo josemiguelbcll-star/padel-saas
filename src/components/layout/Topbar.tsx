@@ -152,16 +152,16 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                     !n.read && "bg-primary/5 font-medium"
                   )}
                 >
-                  <div className="flex items-center justify-between text-foreground">
-                    <span className="font-semibold truncate max-w-[170px]">
-                      {n.jugadorNombre}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {n.horaInicio.slice(0, 5)} hs ({n.fecha.split('-').reverse().slice(0, 2).join('/')})
+                  <div className="flex items-center justify-between gap-2 text-foreground">
+                    <span className="truncate font-semibold">{n.titulo}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {new Date(n.creada_en).toLocaleString('es-AR', {
+                        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                      })}
                     </span>
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Reservó la cancha <span className="font-medium text-foreground">{n.canchaNombre}</span>
+                    {n.mensaje}
                   </div>
                 </div>
               ))

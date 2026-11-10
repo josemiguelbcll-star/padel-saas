@@ -28,12 +28,14 @@ export function useReservarDesdeApp() {
       fecha:        string;
       hora_inicio:  string;
       duracion_min: number;
+      metodo_pago:  'transferencia' | 'mercadopago';
     }): Promise<ReservaAppConfirmada> => {
       const { data, error: rpcError } = await supabase.rpc('fn_reservar_desde_app', {
         p_cancha_id:    params.cancha_id,
         p_fecha:        params.fecha,
         p_hora_inicio:  params.hora_inicio,
         p_duracion_min: params.duracion_min,
+        p_metodo_pago:  params.metodo_pago,
       });
       if (rpcError) throw new Error(rpcError.message);
       return data as ReservaAppConfirmada;
@@ -51,10 +53,11 @@ export function useReservarDesdeApp() {
     fecha:        string;
     hora_inicio:  string;
     duracion_min: number;
+    metodo_pago:  'transferencia' | 'mercadopago';
   }): Promise<ReservaAppConfirmada | null> => {
     try {
       return await mutation.mutateAsync(params);
-    } catch (err) {
+    } catch {
       return null;
     }
   };

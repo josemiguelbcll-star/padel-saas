@@ -10,6 +10,7 @@ import { useClubPublico, type FotoClub, type CanchaPublica, type ClubPublico } f
 import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibilidadClub';
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
 import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
+import { supabase } from '@/lib/supabase';
 
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
 import { Capacitor } from '@capacitor/core';
@@ -87,10 +88,15 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
       const originUrl = isNative
         ? 'https://matchogo.vercel.app'
         : window.location.origin;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Iniciá sesión para pagar la seña.');
 
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           reserva_id: reservaId,
           club_id: club.id,
@@ -126,6 +132,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
       fecha,
       hora_inicio:  slot.hora_inicio,
       duracion_min: slot.duracion_min,
+      metodo_pago:  metodoPago,
     });
     if (res) {
       setResult(res);
