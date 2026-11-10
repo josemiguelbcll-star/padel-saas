@@ -6,6 +6,7 @@ import { useRotacion } from './hooks/useRotacion';
 import {
   productosParaReponer,
   UMBRAL_DIAS_REPONER,
+  type FiltroReposicion,
   type ProductoReponer,
 } from './utils/reponer';
 import { NuevaOCDialog } from './NuevaOCDialog';
@@ -31,23 +32,27 @@ const LINEA_LABEL: Record<string, string> = {
  * ventana 30d): esto es operativo, foco en agotamiento inminente.
  */
 export function ReposicionTab() {
-  const [soloReponer, setSoloReponer] = useState(true);
+  const [filtro, setFiltro] = useState<FiltroReposicion>('urgentes');
   const query = useRotacion(DIAS_VENTANA);
 
   const [ocOpen, setOcOpen] = useState(false);
   const [prefilledProdId, setPrefilledProdId] = useState<number | null>(null);
 
-  const { reponer, completa } = useMemo(() => {
+  const listas = useMemo(() => {
     const filas = query.data?.filas ?? [];
     return {
-      reponer: productosParaReponer(filas),
-      // Lista completa ranqueada por urgencia: todos los que tienen ritmo de
-      // venta (dias_de_stock !== null), ordenados por días ascendente.
-      completa: productosParaReponer(filas, Number.POSITIVE_INFINITY),
+      urgentes: productosParaReponer(filas),
+      sinStock: productosParaReponer(filas, UMBRAL_DIAS_REPONER, 'sin_stock'),
+      todos: productosParaReponer(filas, UMBRAL_DIAS_REPONER, 'todos'),
     };
   }, [query.data]);
 
-  const lista = soloReponer ? reponer : completa;
+  const lista = listas[filtro === 'sin_stock' ? 'sinStock' : filtro];
+  const opcionesFiltro: Array<{ id: FiltroReposicion; label: string; count: number }> = [
+    { id: 'urgentes', label: `Urgentes < ${UMBRAL_DIAS_REPONER} d`, count: listas.urgentes.length },
+    { id: 'sin_stock', label: 'Sin stock', count: listas.sinStock.length },
+    { id: 'todos', label: 'Todos', count: listas.todos.length },
+  ];
 
   return (
     <div className="space-y-4">
@@ -62,20 +67,36 @@ export function ReposicionTab() {
           </p>
         </div>
 
-        <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-foreground">
-          <input
-            type="checkbox"
-            checked={soloReponer}
-            onChange={(e) => setSoloReponer(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-border accent-primary"
-          />
-          Solo &lt; {UMBRAL_DIAS_REPONER} días
-          {!query.isLoading && (
-            <span className="rounded bg-muted px-1.5 py-0.5 font-medium tabular-nums text-muted-foreground">
-              {reponer.length}
-            </span>
-          )}
-        </label>
+        <div
+          role="group"
+          aria-label="Filtrar productos de reposición"
+          className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-border p-1"
+        >
+          {opcionesFiltro.map((opcion) => (
+            <button
+              key={opcion.id}
+              type="button"
+              aria-pressed={filtro === opcion.id}
+              onClick={() => setFiltro(opcion.id)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded px-2.5 py-1.5 text-xs font-medium transition-colors',
+                filtro === opcion.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {opcion.label}
+              {!query.isLoading && (
+                <span className={cn(
+                  'rounded px-1.5 py-0.5 tabular-nums',
+                  filtro === opcion.id ? 'bg-primary-foreground/15' : 'bg-muted',
+                )}>
+                  {opcion.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </header>
 
       {query.isLoading && (
@@ -100,7 +121,7 @@ export function ReposicionTab() {
 
       {query.data &&
         (lista.length === 0 ? (
-          <VacioReponer soloReponer={soloReponer} />
+          <VacioReponer filtro={filtro} />
         ) : (
           <TablaReponer
             filas={lista}
@@ -242,8 +263,8 @@ function TablaReponer({
 // Estado vacío
 // ─────────────────────────────────────────────────────────────────────
 
-function VacioReponer({ soloReponer }: { soloReponer: boolean }) {
-  if (soloReponer) {
+function VacioReponer({ filtro }: { filtro: FiltroReposicion }) {
+  if (filtro === 'urgentes') {
     return (
       <div className="rounded-md border border-dashed border-border p-8 text-center">
         <PackageCheck
@@ -260,6 +281,19 @@ function VacioReponer({ soloReponer }: { soloReponer: boolean }) {
       </div>
     );
   }
+  if (filtro === 'sin_stock') {
+    return (
+      <div className="rounded-md border border-dashed border-border p-8 text-center">
+        <PackageCheck
+          className="mx-auto h-8 w-8 text-emerald-500"
+          aria-hidden="true"
+        />
+        <p className="mt-2 text-sm font-medium text-foreground">
+          No hay productos sin stock
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-md border border-dashed border-border p-8 text-center">
       <PackageX
@@ -267,8 +301,7 @@ function VacioReponer({ soloReponer }: { soloReponer: boolean }) {
         aria-hidden="true"
       />
       <p className="mt-2 text-sm text-muted-foreground">
-        No hubo ventas en los últimos {DIAS_VENTANA} días para estimar
-        reposición.
+        No hay productos activos para listar.
       </p>
     </div>
   );
