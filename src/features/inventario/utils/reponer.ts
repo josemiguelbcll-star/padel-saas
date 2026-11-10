@@ -15,7 +15,8 @@ import type { RotacionFila } from '../hooks/useRotacion';
 /** Umbral de días de cobertura por debajo del cual un producto "hay que pedir". */
 export const UMBRAL_DIAS_REPONER = 3;
 
-export type SeveridadStock = 'rojo' | 'ambar';
+export type SeveridadStock = 'rojo' | 'ambar' | 'normal';
+export type FiltroReposicion = 'urgentes' | 'sin_stock' | 'todos';
 
 export interface ProductoReponer {
   producto_id: number;
@@ -43,17 +44,38 @@ export interface ProductoReponer {
 export function productosParaReponer(
   filas: ReadonlyArray<RotacionFila>,
   umbral: number = UMBRAL_DIAS_REPONER,
+  filtro: FiltroReposicion = 'urgentes',
 ): ProductoReponer[] {
   return filas
-    .filter((f) => f.dias_de_stock !== null && f.dias_de_stock < umbral)
-    .map((f) => ({
+    .filter((f) => {
+      if (filtro === 'sin_stock') return f.stock_actual <= 0;
+      if (filtro === 'todos') return true;
+      return f.dias_de_stock !== null && f.dias_de_stock < umbral;
+    })
+    .map((f): ProductoReponer => ({
       producto_id: f.producto_id,
       producto_nombre: f.producto_nombre,
       linea: f.linea,
       stock_actual: f.stock_actual,
       dias_de_stock: f.dias_de_stock,
       unidades_vendidas_ventana: f.unidades_vendidas_ventana,
-      severidad: (f.stock_actual <= 0 ? 'rojo' : 'ambar') as SeveridadStock,
+      severidad:
+        f.stock_actual <= 0
+          ? 'rojo'
+          : f.dias_de_stock !== null && f.dias_de_stock < umbral
+            ? 'ambar'
+            : 'normal',
     }))
-    .sort((a, b) => (a.dias_de_stock ?? 0) - (b.dias_de_stock ?? 0));
+    .sort((a, b) => {
+      const aSinStock = a.stock_actual <= 0;
+      const bSinStock = b.stock_actual <= 0;
+      if (aSinStock !== bSinStock) return aSinStock ? -1 : 1;
+      if (a.dias_de_stock === null) {
+        return b.dias_de_stock === null
+          ? a.producto_nombre.localeCompare(b.producto_nombre)
+          : 1;
+      }
+      if (b.dias_de_stock === null) return -1;
+      return a.dias_de_stock - b.dias_de_stock;
+    });
 }
