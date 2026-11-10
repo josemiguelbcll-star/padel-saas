@@ -39,7 +39,6 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 export function BuffetPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'mostrador', 'editar');
-  const isAdmin = user?.rol === 'admin';
 
   const productosQuery = useProductosConStock();
   const productos = useMemo(
@@ -332,23 +331,21 @@ export function BuffetPage() {
             <Tag className="h-3 w-3" />
             Promos
           </button>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('ventas');
-                setSelectedMesaId(null);
-              }}
-              className={`inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                activeTab === 'ventas'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'hover:bg-background/50 hover:text-foreground'
-              }`}
-            >
-              <History className="h-3 w-3" />
-              Ventas
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('ventas');
+              setSelectedMesaId(null);
+            }}
+            className={`inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              activeTab === 'ventas'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'hover:bg-background/50 hover:text-foreground'
+            }`}
+          >
+            <History className="h-3 w-3" />
+            Ventas
+          </button>
         </div>
         </div>
       </header>
@@ -559,7 +556,7 @@ export function BuffetPage() {
           {activeTab === 'promos' && (
             <PromosPanel productos={productos} canEdit={canEdit} />
           )}
-          {activeTab === 'ventas' && isAdmin && <HistorialVentas />}
+          {activeTab === 'ventas' && <HistorialVentas />}
 
           {(activeTab === 'mostrador' || activeTab === 'mesas') && promosQuery.error && (
             <p className="text-sm text-destructive" role="alert">

@@ -4,16 +4,17 @@ import { useSession } from '@/features/auth/useSession';
 
 export interface NotificationItem {
   id: number;
-  jugadorNombre: string;
-  canchaNombre: string;
-  fecha: string;
-  horaInicio: string;
-  fechaAlta: string;
+  reserva_id: number | null;
+  titulo: string;
+  mensaje: string;
+  link: string;
+  creada_en: string;
+  leida: boolean;
   read: boolean;
 }
 
 export function useLiveNotifications() {
-  const { club } = useSession();
+  const { club, user } = useSession();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -42,19 +43,21 @@ export function useLiveNotifications() {
     }
   }, []);
 
-  // Fetch initial notifications (last 5 reservations)
+  // Load persisted reservation and payment notifications for this club user.
   useEffect(() => {
-    if (!club?.id) return;
+    if (!club?.id || !user?.id) return;
     const clubId = club.id;
+    const userId = user.id;
 
     async function fetchInitial() {
       try {
         const { data, error } = await supabase
-          .from('reservas')
-          .select('id, fecha, hora_inicio, cancha:cancha_id(nombre), jugador:jugador_id(nombre), fecha_alta')
+          .from('notificaciones_club')
+          .select('id, reserva_id, titulo, mensaje, link, creada_en, leida')
           .eq('club_id', clubId)
-          .order('fecha_alta', { ascending: false })
-          .limit(5);
+          .eq('usuario_id', userId)
+          .order('creada_en', { ascending: false })
+          .limit(20);
 
         if (error) {
           console.error('[useLiveNotifications] Error fetching initial reservations:', error);
@@ -62,16 +65,12 @@ export function useLiveNotifications() {
         }
 
         if (data) {
-          const items: NotificationItem[] = data.map((d: any) => ({
-            id: d.id,
-            jugadorNombre: d.jugador?.nombre || 'Jugador Anónimo',
-            canchaNombre: d.cancha?.nombre || 'Cancha',
-            fecha: d.fecha,
-            horaInicio: d.hora_inicio,
-            fechaAlta: d.fecha_alta,
-            read: true, // Existing items are read by default
+          const items: NotificationItem[] = (data ?? []).map((item) => ({
+            ...item,
+            read: item.leida,
           }));
           setNotifications(items);
+          setUnreadCount(items.filter((item) => !item.leida).length);
         }
       } catch (err) {
         console.error('[useLiveNotifications] Fetch exception:', err);
@@ -79,12 +78,13 @@ export function useLiveNotifications() {
     }
 
     fetchInitial();
-  }, [club?.id]);
+  }, [club?.id, user?.id]);
 
   // Subscribe to realtime inserts
   useEffect(() => {
-    if (!club?.id) return;
+    if (!club?.id || !user?.id) return;
     const clubId = club.id;
+    const userId = user.id;
 
     const channel = supabase
       .channel(`reservas-realtime-${clubId}`)
@@ -93,44 +93,15 @@ export function useLiveNotifications() {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'reservas',
-          filter: `club_id=eq.${clubId}`,
+          table: 'notificaciones_club',
+          filter: `usuario_id=eq.${userId}`,
         },
-        async (payload: any) => {
-          const newId = payload.new.id;
-
-          try {
-            // Fetch names since realtime insert payload only has raw IDs
-            const { data, error } = await supabase
-              .from('reservas')
-              .select('id, fecha, hora_inicio, cancha:cancha_id(nombre), jugador:jugador_id(nombre), fecha_alta')
-              .eq('id', newId)
-              .maybeSingle();
-
-            if (error) {
-              console.error('[useLiveNotifications] Error loading inserted reservation details:', error);
-              return;
-            }
-
-            if (data) {
-              const r = data as any;
-              const newItem: NotificationItem = {
-                id: r.id,
-                jugadorNombre: r.jugador?.nombre || 'Jugador Anónimo',
-                canchaNombre: r.cancha?.nombre || 'Cancha',
-                fecha: r.fecha,
-                horaInicio: r.hora_inicio,
-                fechaAlta: r.fecha_alta,
-                read: false,
-              };
-
-              setNotifications((prev) => [newItem, ...prev.slice(0, 9)]); // Keep last 10
-              setUnreadCount((c) => c + 1);
-              playSound();
-            }
-          } catch (err) {
-            console.error('[useLiveNotifications] Realtime handling error:', err);
-          }
+        (payload) => {
+          const row = payload.new as Omit<NotificationItem, 'read'>;
+          const newItem: NotificationItem = { ...row, read: row.leida };
+          setNotifications((previous) => [newItem, ...previous.filter((item) => item.id !== row.id).slice(0, 19)]);
+          if (!newItem.leida) setUnreadCount((count) => count + 1);
+          playSound();
         }
       )
       .subscribe();
@@ -138,12 +109,22 @@ export function useLiveNotifications() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [club?.id, playSound]);
+  }, [club?.id, user?.id, playSound]);
 
   const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (!club?.id || !user?.id) return;
+    setNotifications((prev) => prev.map((notification) => ({ ...notification, leida: true, read: true })));
     setUnreadCount(0);
-  }, []);
+    void supabase
+      .from('notificaciones_club')
+      .update({ leida: true })
+      .eq('club_id', club.id)
+      .eq('usuario_id', user.id)
+      .eq('leida', false)
+      .then(({ error }) => {
+        if (error) console.warn('[useLiveNotifications] No se pudieron marcar leídas:', error);
+      });
+  }, [club?.id, user?.id]);
 
   return {
     notifications,

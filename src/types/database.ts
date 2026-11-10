@@ -693,6 +693,12 @@ export interface Reserva {
   /** Suma acumulada de todos los reserva_pagos asociados. La mantiene la RPC. */
   monto_pagado: number;
   estado: EstadoReserva;
+  /** Identidad B2C que originó la reserva desde MatchGo, si aplica. */
+  jugador_app_id?: string | null;
+  metodo_pago_pre_reserva?: 'transferencia' | 'mercadopago' | null;
+  mp_estado?: 'pre_reserva' | 'pago_acreditado' | 'pago_tardio' | 'confirmada' | 'expirada' | null;
+  mp_expira_en?: string | null;
+  club_confirmada_en?: string | null;
   observaciones: string | null;
   /** UUID del usuario que dio de alta la reserva. NULL si el usuario fue eliminado. */
   usuario_alta_id: string | null;
@@ -809,8 +815,9 @@ export interface ReservaPago {
    */
   monto_consumo: number;
   observaciones: string | null;
-  usuario_id: string;
+  usuario_id: string | null;
   fecha_hora: string;
+  mercadopago_payment_id?: string | null;
 }
 
 // La interfaz FranjaDuracion fue removida en la limpieza del Sprint 3a

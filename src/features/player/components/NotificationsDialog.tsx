@@ -14,6 +14,7 @@ import { useNotificaciones } from '../hooks/useNotificaciones';
 import { useJugadorAmigos } from '../hooks/useJugadorAmigos';
 import { usePartidosMutations } from '../hooks/usePartidosAbiertos';
 import { useDesafios } from '../hooks/useDesafios';
+import { useReservasInvitaciones } from '../hooks/useReservasInvitaciones';
 import { cn } from '@/lib/utils';
 
 type FilterTab = 'todas' | 'partidos' | 'amigos' | 'desafios' | 'clubes';
@@ -22,6 +23,7 @@ export function NotificationsBell() {
   const { unreadCount, notificaciones, marcarLeida, marcarTodasLeidas, eliminarNotificacion } = useNotificaciones();
   const { solicitudesRecibidas, pendientesRecibidasCount, confirmarAmigo, rechazarAmigo } = useJugadorAmigos();
   const { responderInvitacion } = usePartidosMutations();
+  const { responderInvitacion: responderInvitacionReserva } = useReservasInvitaciones();
   const { aceptarDesafio, rechazarDesafio } = useDesafios();
   
   const [open, setOpen] = useState(false);
@@ -35,7 +37,7 @@ export function NotificationsBell() {
     if (activeTab === 'todas') return notificaciones;
     if (activeTab === 'partidos') {
       return notificaciones.filter(n =>
-        ['invitacion_partido', 'invitacion_aceptada', 'invitacion_rechazada', 'solicitud_unirse', 'solicitud_aceptada', 'solicitud_rechazada', 'reserva_confirmada', 'recordatorio_turno'].includes(n.tipo)
+          ['invitacion_partido', 'invitacion_aceptada', 'invitacion_rechazada', 'invitacion_reserva', 'solicitud_unirse', 'solicitud_aceptada', 'solicitud_rechazada', 'reserva_confirmada', 'reserva_pago_recibido', 'reserva_pre_reserva_expirada', 'recordatorio_turno'].includes(n.tipo)
       );
     }
     if (activeTab === 'amigos') {
@@ -64,8 +66,10 @@ export function NotificationsBell() {
   const renderIcon = (tipo: string) => {
     switch (tipo) {
       case 'invitacion_partido':
+      case 'invitacion_reserva':
       case 'solicitud_unirse':
       case 'solicitud_aceptada':
+      case 'invitacion_aceptada':
         return <Trophy className="h-4 w-4 text-emerald-600" />;
       case 'solicitud_amigo':
       case 'amistad_aceptada':
@@ -74,6 +78,8 @@ export function NotificationsBell() {
       case 'desafio_aceptado':
         return <Swords className="h-4 w-4 text-amber-600" />;
       case 'reserva_confirmada':
+      case 'reserva_pago_recibido':
+      case 'reserva_pre_reserva_expirada':
       case 'recordatorio_turno':
         return <Calendar className="h-4 w-4 text-indigo-600" />;
       case 'noticia_club':
@@ -242,6 +248,7 @@ export function NotificationsBell() {
                   const meta = n.metadata || {};
                   const isPartidoInvite = n.tipo === 'invitacion_partido' && meta.participante_id;
                   const isDesafio = n.tipo === 'desafio_recibido' && meta.desafio_id;
+                  const isReservaInvite = n.tipo === 'invitacion_reserva' && meta.invitacion_id;
                   const isNoticiaClub = n.tipo === 'noticia_club';
 
                   return (
@@ -340,6 +347,37 @@ export function NotificationsBell() {
                                   participanteId: Number(meta.participante_id),
                                   aceptar: false,
                                 });
+                                marcarLeida(n.id);
+                              });
+                            }}
+                            className="bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 text-xs font-bold px-2.5 py-1.5 rounded-lg transition"
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      )}
+
+                      {isReservaInvite && !n.leido && (
+                        <div className="flex items-center justify-end gap-2 pt-2 mt-1 border-t border-indigo-100/60">
+                          <button
+                            disabled={processingIds[`reserva-${meta.invitacion_id}`]}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await handleAction(`reserva-${meta.invitacion_id}`, async () => {
+                                await responderInvitacionReserva(Number(meta.invitacion_id), true);
+                                marcarLeida(n.id);
+                              });
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg transition"
+                          >
+                            Aceptar
+                          </button>
+                          <button
+                            disabled={processingIds[`reserva-${meta.invitacion_id}`]}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await handleAction(`reserva-${meta.invitacion_id}`, async () => {
+                                await responderInvitacionReserva(Number(meta.invitacion_id), false);
                                 marcarLeida(n.id);
                               });
                             }}

@@ -9,15 +9,30 @@ interface PartidosTabProps {
   isLoading: boolean;
 }
 
-function EstadoBadge({ estado }: { estado: string }) {
-  const c = colorEstado(estado);
+function EstadoBadge({ estado, mpEstado }: { estado: string; mpEstado: MiReservaReal['mp_estado'] }) {
+  const c = mpEstado === 'confirmada'
+    ? { text: '#15803D', bg: '#F0FDF4', border: '#BBF7D0' }
+    : mpEstado === 'pago_tardio'
+      ? { text: '#B91C1C', bg: '#FEF2F2', border: '#FECACA' }
+      : mpEstado === 'pago_acreditado' || mpEstado === 'pre_reserva'
+        ? { text: '#B45309', bg: '#FFFBEB', border: '#FDE68A' }
+        : colorEstado(estado);
+  const label = mpEstado === 'pre_reserva'
+    ? 'Pre-reserva · pagar seña'
+    : mpEstado === 'pago_acreditado'
+      ? 'Seña acreditada · espera al club'
+      : mpEstado === 'pago_tardio'
+        ? 'Pago tardío · revisión del club'
+        : mpEstado === 'confirmada'
+          ? 'Confirmada por el club'
+          : labelEstado(estado);
   return (
     <span style={{
       fontSize: 11, fontWeight: 700,
       color: c.text, background: c.bg, border: `1px solid ${c.border}`,
       borderRadius: 20, padding: '3px 10px', flexShrink: 0,
     }}>
-      {labelEstado(estado)}
+      {label}
     </span>
   );
 }
@@ -27,7 +42,7 @@ function ProximaCard({ r, onVerDetalle }: { r: MiReservaReal; onVerDetalle: () =
     <div className="mgp-card" style={{ marginBottom: 0 }}>
       {/* Estado + fecha */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <EstadoBadge estado={r.estado} />
+        <EstadoBadge estado={r.estado} mpEstado={r.mp_estado} />
         <span style={{ fontSize: 12, color: 'var(--mgp-muted)' }}>
           {formatFechaReserva(r.fecha)}
         </span>

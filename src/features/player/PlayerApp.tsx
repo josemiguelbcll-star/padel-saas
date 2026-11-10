@@ -126,10 +126,10 @@ function PlayerAppContent() {
           });
           const data = await response.json();
           if (data.success) {
-            setNotification('¡Pago de seña confirmado exitosamente! Tu reserva está asegurada.');
+            setNotification(data.message || 'Seña acreditada. El club debe confirmar el turno.');
             reload();
           } else {
-            setNotification('Seña registrada, pero hubo un detalle al verificar: ' + (data.error || 'Verificando con el club.'));
+            setNotification(data.message || data.error || 'El pago sigue pendiente de verificación.');
           }
         } catch (err) {
           console.error('[PlayerApp] Error al confirmar pago:', err);
@@ -151,7 +151,10 @@ function PlayerAppContent() {
         }
       })();
     } else if (paymentStatus && paymentStatus !== 'approved') {
-      setNotification('El pago con Mercado Pago no se pudo completar o fue rechazado. Podés intentar de nuevo.');
+      setNotification(paymentStatus === 'pending'
+        ? 'Mercado Pago informó que el pago sigue pendiente. La reserva se actualizará cuando llegue la confirmación.'
+        : 'El pago con Mercado Pago no se pudo completar o fue rechazado. Podés intentar de nuevo.');
+      reload();
       const newParams = new URLSearchParams(searchParams);
       newParams.delete('payment_status');
       newParams.delete('status');
@@ -159,6 +162,9 @@ function PlayerAppContent() {
       newParams.delete('external_reference');
       newParams.delete('payment_id');
       setSearchParams(newParams, { replace: true });
+    } else if (paymentStatus === 'approved' && reservaId && !paymentId) {
+      setNotification('Mercado Pago aprobó el pago. Estamos esperando la confirmación del servidor.');
+      reload();
     }
   }, [paymentStatus, reservaId, paymentId]);
 
