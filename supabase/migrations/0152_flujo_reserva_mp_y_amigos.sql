@@ -1,4 +1,7 @@
 -- Flujo de pre-reserva con Mercado Pago, confirmación del club e invitaciones.
+-- IMPORTANTE: usar BEGIN/COMMIT para que los ALTER TABLE sean visibles cuando
+-- Postgres compila las funciones PL/pgSQL que referencian el tipo public.reservas.
+BEGIN;
 
 ALTER TABLE public.reservas
   ADD COLUMN IF NOT EXISTS jugador_app_id UUID REFERENCES public.jugadores_app(id) ON DELETE SET NULL,
@@ -214,8 +217,20 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.fn_reservar_desde_app(BIGINT, DATE, TIME, INTEGER, TEXT)
   TO authenticated;
-REVOKE ALL ON FUNCTION public.fn_reservar_desde_app(BIGINT, DATE, TIME, INTEGER)
-  FROM PUBLIC, anon, authenticated;
+-- El overload de 4 args (sin metodo_pago) ya no debe ser llamado directamente
+-- desde la app. Lo revocamos solo si existe para evitar error en entornos limpios.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'fn_reservar_desde_app'
+      AND p.pronargs = 4
+  ) THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.fn_reservar_desde_app(BIGINT, DATE, TIME, INTEGER) FROM PUBLIC, anon, authenticated';
+  END IF;
+END $$;
 
 -- Envuelve la disponibilidad existente y reabre slots cuyo único bloqueo es
 -- una pre-reserva de Mercado Pago vencida.
@@ -867,3 +882,5 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.fn_mis_reservas_app_v2() TO authenticated;
 REVOKE ALL ON FUNCTION public.fn_mis_reservas_app_v2() FROM PUBLIC, anon;
+
+COMMIT;
