@@ -73,18 +73,13 @@ export function SidebarNav({ onNavigate, collapsed }: SidebarNavProps) {
   const visibles = useMemo(() => {
     return navItems
       .filter((item) => {
+        // Los items gestionados por permisos se rigen SIEMPRE por getPermiso:
+        // así se respeta lo que el admin concede en "Permisos del vendedor"
+        // y un `adminOnly` no puede taparlo por error.
+        if (item.modulo) return getPermiso(user, item.modulo, 'ver');
+        // `adminOnly` solo aplica a items que NO son configurables por permisos.
         if (item.adminOnly && !esAdmin) return false;
-        let moduloKey: string | null = null;
-        if (item.label === 'Reservas' || item.label === 'Jugadores') moduloKey = 'reservas';
-        else if (item.label === 'Noticias') moduloKey = 'noticias';
-        else if (item.label === 'Caja') moduloKey = 'caja';
-        else if (item.label === 'Mostrador') moduloKey = 'mostrador';
-        else if (item.label === 'Finanzas') moduloKey = 'finanzas';
-        else if (item.label === 'Inventario') moduloKey = 'inventario';
-        else if (item.label === 'Configuración') moduloKey = 'configuracion';
-
-        if (!moduloKey) return true; // Dashboard u otros
-        return getPermiso(user, moduloKey, 'ver');
+        return true;
       })
       .map((item) => {
         // Filtrar sub-items adminOnly según el rol.

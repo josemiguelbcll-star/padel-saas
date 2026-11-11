@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { useActualizarUsuario } from '@/features/configuracion/hooks/useActualizarUsuario';
 import type { PermisoModulo, PermisosEstructura, Rol, Usuario } from '@/types/database';
 import { editarUsuarioSchema } from './usuarioSchema';
-import { SECCIONES_PERMISOS } from '@/lib/permisos';
+import { SECCIONES_PERMISOS, DEFAULT_PERMISOS, PERMISO_MODULO_DEFAULT } from '@/lib/permisos';
 
 interface EditarUsuarioDialogProps {
   open: boolean;
@@ -238,13 +238,12 @@ export function EditarUsuarioDialog({
 
               <div className="space-y-3 pt-2">
                 {SECCIONES_PERMISOS.map((seccion) => {
-                  const config: PermisoModulo = permisos.modulos?.[seccion.key] || {
-                    ver: seccion.key !== 'inventario' && seccion.key !== 'caja_arqueos',
-                    editar:
-                      seccion.key !== 'inventario' &&
-                      seccion.key !== 'configuracion' &&
-                      seccion.key !== 'caja_arqueos',
-                  };
+                  // Mismo default que usa `getPermiso` para decidir el acceso
+                  // real: así lo que se ve acá coincide con lo que se aplica.
+                  const config: PermisoModulo =
+                    permisos.modulos?.[seccion.key] ??
+                    DEFAULT_PERMISOS[seccion.key] ??
+                    PERMISO_MODULO_DEFAULT;
 
                   const handleToggle = (tipo: 'ver' | 'editar', checked: boolean) => {
                     const currentConfig: PermisoModulo = {
