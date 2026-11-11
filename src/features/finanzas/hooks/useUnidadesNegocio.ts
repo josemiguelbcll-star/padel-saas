@@ -105,3 +105,26 @@ export function useUpdateUnidad(): UseMutationResult<
     },
   });
 }
+
+/**
+ * Desactiva una unidad de negocio (soft-delete: `activa = FALSE`).
+ *
+ * No borra la fila ni toca la base de datos: la unidad deja de aparecer en
+ * los selectores pero conserva su historial para el EERR. Reutiliza la misma
+ * política RLS de UPDATE (solo admin del propio club).
+ */
+export function useEliminarUnidad(): UseMutationResult<void, Error, number> {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, number>({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('unidades_negocio')
+        .update({ activa: false })
+        .eq('id', id);
+      if (error) throw new Error(mapPostgrestError(error));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: UNIDADES_NEGOCIO_QUERY_KEY });
+    },
+  });
+}
