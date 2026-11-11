@@ -12,6 +12,11 @@ export interface EliminarPagoReservaInput {
   pagoId: number;
   reservaId: number;
   fechaReserva: string;
+  /**
+   * Motivo de la corrección. Obligatorio cuando el cobro ya entró a una
+   * caja cerrada (solo admin); opcional en el resto de los casos.
+   */
+  motivo?: string;
 }
 
 /**
@@ -27,9 +32,10 @@ export function useEliminarPagoReserva(): UseMutationResult<
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, EliminarPagoReservaInput>({
-    mutationFn: async ({ pagoId }) => {
+    mutationFn: async ({ pagoId, motivo }) => {
       const { error } = await supabase.rpc('fn_eliminar_pago_reserva', {
         p_pago_id: pagoId,
+        p_motivo: motivo ?? null,
       });
 
       if (error) {

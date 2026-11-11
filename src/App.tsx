@@ -203,9 +203,9 @@ export function App() {
             <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
             <Route path="efectivo" element={<CajaPage />} />
             <Route path="transferencias" element={<TransferenciasPage />} />
-            <Route path="arqueos" element={<ModuleRoute modulo="caja_arqueos"><ArqueosCajaPage /></ModuleRoute>} />
+            <Route path="arqueos" element={<AdminOnlyRoute><ArqueosCajaPage /></AdminOnlyRoute>} />
             <Route path="arqueo" element={<Navigate to="/app/caja/arqueos" replace />} />
-            <Route path="movimientos-cuentas" element={<MovimientosCuentasPage />} />
+            <Route path="movimientos-cuentas" element={<AdminOnlyRoute><MovimientosCuentasPage /></AdminOnlyRoute>} />
           </Route>
 
           <Route path="finanzas" element={<ModuleRoute modulo="finanzas"><FinanzasPage /></ModuleRoute>} />

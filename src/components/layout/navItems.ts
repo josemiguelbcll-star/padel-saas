@@ -24,6 +24,11 @@ export interface NavSubItem {
    *  activo compara también el querystring. */
   to: string;
   icon?: LucideIcon;
+  /**
+   * Si TRUE, el sub-item solo se muestra a usuarios con rol 'admin'.
+   * El filtro lo aplica el Sidebar; la seguridad real es server-side.
+   */
+  adminOnly?: boolean;
 }
 
 export interface NavItem {
@@ -74,7 +79,7 @@ export const navItems: NavItem[] = [
     children: [
       { label: 'Efectivo', to: '/app/caja/efectivo', icon: Wallet },
       { label: 'Transferencias', to: '/app/caja/transferencias', icon: ArrowLeftRight },
-      { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt },
+      { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt, adminOnly: true },
     ],
   },
   {

@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth/useSession';
 import { Sidebar, SidebarBrand, SidebarNav } from './Sidebar';
 import { Topbar } from './Topbar';
@@ -17,6 +18,7 @@ import { Topbar } from './Topbar';
  */
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { isImpersonating, club, stopImpersonating } = useSession();
   const navigate = useNavigate();
 
@@ -27,7 +29,10 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Sidebar />
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((c) => !c)}
+      />
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-64 p-0 flex flex-col h-full">
@@ -38,7 +43,12 @@ export function AppShell() {
         </SheetContent>
       </Sheet>
 
-      <div className="flex min-h-screen flex-col md:pl-64">
+      <div
+        className={cn(
+          'flex min-h-screen flex-col transition-[padding] duration-200',
+          sidebarCollapsed ? 'md:pl-16' : 'md:pl-64',
+        )}
+      >
         {isImpersonating && (
           <div className="sticky top-0 z-40 flex items-center justify-between border-b border-amber-500/30 bg-amber-500/15 px-4 py-2 text-xs backdrop-blur text-amber-950 dark:text-amber-200">
             <div className="flex items-center gap-2">
