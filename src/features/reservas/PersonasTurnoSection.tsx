@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  Lock,
   Plus,
   RotateCcw,
   Star,
@@ -29,10 +30,14 @@ import {
   type ReservaJugadorConNombre,
 } from './hooks/useReservaJugadores';
 import { useReservaConsumos } from './hooks/useReservaConsumos';
-import { useReservaPagos } from './hooks/useReservaPagos';
+import {
+  useCajasCerradasDePagos,
+  useReservaPagos,
+} from './hooks/useReservaPagos';
 import { useCobrarPersonaTurno } from './hooks/useCobrarPersonaTurno';
 import { useEliminarPagoReserva } from './hooks/useEliminarPagoReserva';
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { useSession } from '@/features/auth';
 import {
   calcularDesgloseCuenta,
   calcularSaldosPersonas,
@@ -500,13 +505,14 @@ export function PersonasTurnoSection({
     }
   }
 
-  async function handleEliminarPago(pagoId: number): Promise<void> {
+  async function handleEliminarPago(pagoId: number, motivo?: string): Promise<void> {
     setError(null);
     try {
       await eliminarPago.mutateAsync({
         pagoId,
         reservaId,
         fechaReserva: fecha,
+        motivo,
       });
     } catch (err) {
       setError(
@@ -1015,7 +1021,7 @@ interface JugadorCardProps {
   numero: number;
   saldo: SaldoPersona | undefined;
   pagosPropios: ReservaPago[];
-  onEliminarPago: (pagoId: number) => Promise<void>;
+  onEliminarPago: (pagoId: number, motivo?: string) => Promise<void>;
   globalRestante: number;
   cobrosBloqueados: boolean;
   vinculandoActivo: boolean;
@@ -1250,7 +1256,7 @@ interface InvitadoCardProps {
   nombreLibre?: string | null;
   saldo: SaldoPersona | undefined;
   pagosPropios: ReservaPago[];
-  onEliminarPago: (pagoId: number) => Promise<void>;
+  onEliminarPago: (pagoId: number, motivo?: string) => Promise<void>;
   globalRestante: number;
   cobrosBloqueados: boolean;
   cobrandoActivo: boolean;
@@ -1500,18 +1506,33 @@ function RowPagosPersona({
   readOnly,
 }: {
   pagosPropios: ReservaPago[];
-  onEliminarPago: (pagoId: number) => Promise<void>;
+  onEliminarPago: (pagoId: number, motivo?: string) => Promise<void>;
   disabled: boolean;
   readOnly?: boolean;
 }) {
+  const { user } = useSession();
+  const esAdmin = user?.rol === 'admin';
+  const cajasCerradas = useCajasCerradasDePagos(pagosPropios);
   const [confirmingPagoId, setConfirmingPagoId] = useState<number | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
 
   if (pagosPropios.length === 0) return null;
+
+  function cancelar() {
+    setConfirmingPagoId(null);
+    setMotivo('');
+    setLocalError(null);
+  }
 
   return (
     <div className="mt-1 space-y-1">
       {pagosPropios.map((p) => {
         const isConfirming = confirmingPagoId === p.id;
+        // Cobro que ya entró a una caja cerrada: solo un admin puede corregirlo.
+        const cajaCerrada =
+          p.turno_caja_id != null && cajasCerradas.has(p.turno_caja_id);
+        const puedeCorregir = esAdmin;
         return (
           <div
             key={p.id}
@@ -1521,37 +1542,79 @@ function RowPagosPersona({
             <span className="text-[10px] text-muted-foreground font-normal">
               ({MEDIO_PAGO_LABEL[p.medio_pago]})
             </span>
-            {!readOnly && (
+            {!readOnly && cajaCerrada && !puedeCorregir && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-normal text-muted-foreground"
+                title="Este cobro ya fue cerrado en caja. Pedile a un administrador que lo corrija con motivo."
+              >
+                <Lock className="h-3 w-3" />
+                caja cerrada
+              </span>
+            )}
+            {!readOnly && (!cajaCerrada || puedeCorregir) && (
               isConfirming ? (
-                <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-destructive font-semibold">¿Borrar?</span>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingPagoId(null)}
-                    disabled={disabled}
-                    className="rounded p-0.5 hover:bg-muted text-muted-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onEliminarPago(p.id);
-                      setConfirmingPagoId(null);
-                    }}
-                    disabled={disabled}
-                    className="rounded bg-destructive p-0.5 text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    <Check className="h-3 w-3" />
-                  </button>
+                <div className="flex flex-col gap-1">
+                  {cajaCerrada && (
+                    <Input
+                      value={motivo}
+                      onChange={(e) => {
+                        setMotivo(e.target.value);
+                        setLocalError(null);
+                      }}
+                      placeholder="Motivo de la corrección"
+                      className="h-7 text-[11px]"
+                      disabled={disabled}
+                    />
+                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-destructive font-semibold">
+                      {cajaCerrada ? '¿Corregir?' : '¿Borrar?'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={cancelar}
+                      disabled={disabled}
+                      className="rounded p-0.5 hover:bg-muted text-muted-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (cajaCerrada && motivo.trim() === '') {
+                          setLocalError('Indicá el motivo de la corrección.');
+                          return;
+                        }
+                        await onEliminarPago(
+                          p.id,
+                          cajaCerrada ? motivo.trim() : undefined,
+                        );
+                        cancelar();
+                      }}
+                      disabled={disabled}
+                      className="rounded bg-destructive p-0.5 text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      <Check className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {localError && (
+                    <span className="text-[9px] text-destructive">{localError}</span>
+                  )}
                 </div>
               ) : (
                 <button
                   type="button"
-                  onClick={() => setConfirmingPagoId(p.id)}
+                  onClick={() => {
+                    setLocalError(null);
+                    setConfirmingPagoId(p.id);
+                  }}
                   disabled={disabled}
                   className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
-                  title="Eliminar este pago"
+                  title={
+                    cajaCerrada
+                      ? 'Corregir un cobro de caja cerrada (requiere motivo)'
+                      : 'Eliminar este pago'
+                  }
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

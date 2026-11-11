@@ -817,6 +817,12 @@ export interface ReservaPago {
   observaciones: string | null;
   usuario_id: string | null;
   fecha_hora: string;
+  /**
+   * Caja (`turnos_caja.id`) a la que entró este cobro. NOT NULL cuando
+   * `medio_pago = 'efectivo'`; NULL en el resto. Si su `cerrada_en` no es
+   * NULL, el cobro ya fue arqueado y solo un admin puede corregirlo.
+   */
+  turno_caja_id: number | null;
   mercadopago_payment_id?: string | null;
 }
 
