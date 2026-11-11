@@ -1,10 +1,14 @@
-import { useMemo } from 'react';
-import { CircleDot, Loader2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CircleDot, Loader2, Pencil, Plus, PowerOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
 import { useCategoriasGasto } from '@/features/finanzas/hooks/useCategoriasGasto';
 import { useUnidadesNegocio } from '@/features/finanzas/hooks/useUnidadesNegocio';
 import { TIPO_UNIDAD_LABEL } from '@/features/finanzas/finanzasSchemas';
-import type { TipoUnidad } from '@/types/database';
+import type { TipoUnidad, UnidadNegocio } from '@/types/database';
+import { UnidadFormDialog } from './UnidadFormDialog';
+import { EliminarUnidadDialog } from './EliminarUnidadDialog';
 
 /**
  * Color por tipo de unidad para distinguir visualmente.
@@ -27,8 +31,16 @@ const TIPO_COLOR: Record<TipoUnidad, { fg: string; bg: string }> = {
 };
 
 export function UnidadesPage() {
+  const { user } = useSession();
+  const isAdmin = user?.rol === 'admin';
+
   const unidadesQuery = useUnidadesNegocio();
   const catQuery = useCategoriasGasto();
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<UnidadNegocio | null>(null);
+  const [eliminarOpen, setEliminarOpen] = useState(false);
+  const [eliminando, setEliminando] = useState<UnidadNegocio | null>(null);
 
   // Contador de categorías por unidad — útil para que el admin vea de
   // un vistazo dónde concentra clasificaciones.
@@ -41,6 +53,21 @@ export function UnidadesPage() {
     return map;
   }, [catQuery.data]);
 
+  function openNew(): void {
+    setEditing(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(u: UnidadNegocio): void {
+    setEditing(u);
+    setFormOpen(true);
+  }
+
+  function openEliminar(u: UnidadNegocio): void {
+    setEliminando(u);
+    setEliminarOpen(true);
+  }
+
   return (
     <section className="space-y-5">
       <header className="flex items-start justify-between gap-4">
@@ -50,9 +77,17 @@ export function UnidadesPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             Agrupan los ingresos y gastos del club para el estado de
-            resultados. Las unidades son estándar y fijas del sistema.
+            resultados. Los tipos <strong>canchas, clases, buffet</strong>{' '}
+            y <strong>shop</strong> reciben ingresos automáticos desde
+            las pantallas operativas; el resto se carga manualmente.
           </p>
         </div>
+        {isAdmin && (
+          <Button type="button" onClick={openNew} className="shrink-0">
+            <Plus className="h-4 w-4" />
+            Nueva unidad
+          </Button>
+        )}
       </header>
 
       {unidadesQuery.isLoading && (
@@ -71,7 +106,9 @@ export function UnidadesPage() {
       {unidadesQuery.data && unidadesQuery.data.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            No hay unidades cargadas.
+            {isAdmin
+              ? 'Todavía no hay unidades cargadas. Creá la primera con "Nueva unidad".'
+              : 'Todavía no hay unidades cargadas. Pedile al administrador que las configure.'}
           </p>
         </div>
       )}
@@ -87,6 +124,7 @@ export function UnidadesPage() {
                 className={cn(
                   'group rounded-lg border border-border bg-card p-4 transition-colors',
                   !u.activa && 'opacity-60',
+                  isAdmin && 'hover:border-primary/50',
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -103,6 +141,31 @@ export function UnidadesPage() {
                       </span>
                     )}
                   </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEdit(u)}
+                        aria-label={`Editar ${u.nombre}`}
+                        title="Editar"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEliminar(u)}
+                        aria-label={`Desactivar ${u.nombre}`}
+                        title="Desactivar"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <PowerOff className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <h3 className="mt-2 text-base font-semibold text-foreground">
                   {u.nombre}
@@ -118,6 +181,19 @@ export function UnidadesPage() {
           })}
         </div>
       )}
+
+      <UnidadFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        initialValue={editing}
+      />
+
+      <EliminarUnidadDialog
+        open={eliminarOpen}
+        onOpenChange={setEliminarOpen}
+        unidad={eliminando}
+        cantCategorias={eliminando ? contadorCategorias.get(eliminando.id) ?? 0 : 0}
+      />
     </section>
   );
 }
