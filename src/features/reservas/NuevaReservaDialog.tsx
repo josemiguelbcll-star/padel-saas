@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, GraduationCap, Plus, X } from 'lucide-react';
+import { ArrowRight, ExternalLink, GraduationCap, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -36,6 +36,7 @@ import {
   resolverTarifa,
   obtenerFranjasDisponibles,
 } from './utils/resolverTarifa';
+import { normalizarHora, sumarMinutos } from './utils/horaUtils';
 
 export interface NuevoReservaSlot {
   cancha: Cancha;
@@ -127,6 +128,7 @@ interface NuevaReservaBodyProps {
 type FieldErrors = Partial<
   Record<
     | 'titular'
+    | 'hora'
     | 'monto_total'
     | 'estado'
     | 'monto_pagado'
@@ -198,6 +200,12 @@ function NuevaReservaBodyReady({
     return unique;
   }, [slot.duracionesPermitidas, tarifas]);
 
+  // Hora de inicio editable. Se pre-carga del slot tocado en la grilla,
+  // pero el operador puede correrla (ej. 16:30) mientras no se solape: la
+  // grilla sólo propone inicios "tileados" por franja, así que sin esto no
+  // hay forma de arrancar un turno en un inicio intermedio.
+  const [hora, setHora] = useState<string>(() => formatearHora(slot.hora));
+
   const [duracion, setDuracion] = useState<number>(() => {
     const firstSlot = slot.duracionesPermitidas[0];
     if (typeof firstSlot === 'number' && slot.duracionesPermitidas.length === 1 && allowedDurations.includes(firstSlot)) {
@@ -215,12 +223,12 @@ function NuevaReservaBodyReady({
     () =>
       resolverTarifa({
         fecha: slot.fecha,
-        hora: slot.hora,
+        hora,
         tarifas,
         duracion,
         tarifaId: slot.cancha.tarifa_id,
       }),
-    [slot.fecha, slot.hora, slot.cancha.tarifa_id, tarifas, duracion],
+    [slot.fecha, hora, slot.cancha.tarifa_id, tarifas, duracion],
   );
 
   const [titular, setTitular] = useState<JugadorSeleccionado | null>(null);
@@ -261,10 +269,10 @@ function NuevaReservaBodyReady({
     return obtenerFranjasDisponibles({
       tarifas,
       fecha: slot.fecha,
-      hora: slot.hora,
+      hora,
       duracion,
     });
-  }, [tarifas, slot.fecha, slot.hora, duracion]);
+  }, [tarifas, slot.fecha, hora, duracion]);
 
   const [selectedTarifaId, setSelectedTarifaId] = useState<number | null>(() => {
     return tarifaResuelta.tarifa?.id ?? null;
@@ -378,6 +386,12 @@ function NuevaReservaBodyReady({
       return;
     }
 
+    // 1b. Validar la hora de inicio (el input puede quedar vacío).
+    if (!/^\d{2}:\d{2}$/.test(hora)) {
+      setErrors({ hora: 'Ingresá una hora de inicio válida.' });
+      return;
+    }
+
     // 2. Validar el resto con zod.
     const datos = {
       monto_total: montoTotal,
@@ -423,7 +437,7 @@ function NuevaReservaBodyReady({
     const input: CrearReservaInput = {
       cancha_id: slot.cancha.id,
       fecha: slot.fecha,
-      hora_inicio: slot.hora,
+      hora_inicio: normalizarHora(hora),
       duracion_min: duracion,
       jugador_titular_id: titular.jugadorId,
       jugadores_ids: jugadoresIds,
@@ -459,7 +473,7 @@ function NuevaReservaBodyReady({
         <DialogTitle>Nueva reserva</DialogTitle>
         <DialogDescription>
           {formatearFechaAmigable(slot.fecha)} · {slot.cancha.nombre} ·{' '}
-          {formatearHora(slot.hora)} ({duracion} min)
+          {formatearHora(hora)} ({duracion} min)
         </DialogDescription>
       </DialogHeader>
 
@@ -479,7 +493,7 @@ function NuevaReservaBodyReady({
               type="button"
               onClick={() => {
                 onDone();
-                onCrearClase(slot);
+                onCrearClase({ ...slot, hora: normalizarHora(hora) });
               }}
               className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground hover:shadow-xs"
             >
@@ -491,6 +505,51 @@ function NuevaReservaBodyReady({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {/* Hora editable: permite inicios intermedios como 16:30 aunque la
+            grilla haya abierto el diálogo desde el slot de las 16:00. */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">Horario del turno</Label>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2 rounded-xl border border-border bg-muted/30 p-3 sm:gap-3 sm:p-4">
+            <div className="min-w-0 space-y-1.5">
+              <Label
+                htmlFor="reserva-hora"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Desde
+              </Label>
+              <Input
+                id="reserva-hora"
+                type="time"
+                step={1800}
+                value={hora}
+                onChange={(e) => setHora(e.target.value)}
+                disabled={isPending}
+                aria-invalid={errors.hora ? true : undefined}
+                className="h-11 bg-background text-base font-semibold tabular-nums"
+              />
+            </div>
+            <ArrowRight
+              className="mb-3 h-4 w-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <div className="min-w-0 space-y-1.5">
+              <span className="block text-xs font-medium text-muted-foreground">
+                Hasta
+              </span>
+              <div
+                className="flex h-11 items-center rounded-md border border-border bg-background px-3 text-base font-semibold tabular-nums text-foreground"
+                role="status"
+                aria-label={`Hora de finalización: ${formatearHora(sumarMinutos(hora, duracion))}`}
+              >
+                {formatearHora(sumarMinutos(hora, duracion))}
+              </div>
+            </div>
+          </div>
+          {errors.hora && (
+            <p className="text-xs text-destructive">{errors.hora}</p>
+          )}
+        </div>
+
         {/* Duración (si la franja ofrece >1, el usuario elige; si ofrece
             una, queda fija en ésa). */}
          <div className="space-y-2">
