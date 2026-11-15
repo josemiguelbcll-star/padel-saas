@@ -1073,6 +1073,8 @@ export interface Producto {
   stock_minimo: number;
   activo: boolean;
   fecha_alta: string;
+  talla?: string | null;
+  color?: string | null;
 }
 
 /**

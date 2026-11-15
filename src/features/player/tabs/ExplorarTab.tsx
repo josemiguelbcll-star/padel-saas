@@ -202,13 +202,11 @@ export function ExplorarTab({ onSelectClub }: ExplorarTabProps) {
         });
 
         for (const s of ordenadosPorCercania) {
-          if (timeSet.size >= 4) break;
           timeSet.add(s.hora_inicio.slice(0, 5));
         }
       } else {
-        // Si eligió 'Cualquier hora', mostrar hasta 4 turnos disponibles a lo largo del día
+        // Si eligió 'Cualquier hora', mostrar todos los horarios disponibles
         for (const s of libresConDuracion) {
-          if (timeSet.size >= 4) break;
           timeSet.add(s.hora_inicio.slice(0, 5));
         }
       }

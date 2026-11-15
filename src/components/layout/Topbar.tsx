@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, Bell } from 'lucide-react';
+import { Menu, Bell, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -38,10 +39,21 @@ function rolLabel(rol: 'admin' | 'vendedor' | undefined): string {
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
+  const queryClient = useQueryClient();
   const { user, club, signOut, isImpersonating, stopImpersonating } = useSession();
   const { notifications, unreadCount, markAllAsRead } = useLiveNotifications();
   const { webPushActivo, solicitarPermisoWebPush, desactivarWebPush } = usePushNotifications();
   const [toggling, setToggling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   const handleTogglePush = async (checked: boolean) => {
     if (!user?.id) return;
@@ -109,6 +121,18 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Estado de caja — lee el estado real (useCajaAbierta) y linkea a /caja. */}
       <CajaEstadoBadge />
+
+      {/* Botón de recarga general de datos */}
+      <button
+        type="button"
+        onClick={handleRefresh}
+        disabled={isRefreshing}
+        className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-transform"
+        aria-label="Recargar datos del módulo"
+        title="Recargar datos actualizados"
+      >
+        <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin text-primary")} />
+      </button>
 
       {/* Campanita de Alarmas / Notificaciones */}
       <DropdownMenu onOpenChange={(open) => { if (open) markAllAsRead(); }}>

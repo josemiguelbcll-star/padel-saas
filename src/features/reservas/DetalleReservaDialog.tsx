@@ -400,6 +400,10 @@ function DetalleReservaBody({
   const estaCerrado = reserva.cerrado_en !== null;
   const estaCancelado = reserva.estado === 'cancelada';
 
+  // Si el turno está cerrado, solo el administrador puede modificar o editar (vendedores tienen readOnly)
+  const isCerradoBloqueadoParaUsuario = estaCerrado && !isAdmin;
+  const efectivoReadOnly = readOnly || isCerradoBloqueadoParaUsuario;
+
   // La plata ya cobrada se conserva como ingreso de Canchas al cancelar.
   // Solo se bloquea la cancelación si el turno está cerrado o tiene consumos.
   const motivoNoCancelable: string | null = estaCancelado
@@ -1097,6 +1101,13 @@ function DetalleReservaBody({
           </div>
         )}
 
+        {/* Mensaje de aviso si está cerrado y es vendedor */}
+        {isCerradoBloqueadoParaUsuario && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
+            <strong>Turno cerrado:</strong> Solo los administradores pueden editar turnos o consumos de turnos que ya fueron cerrados.
+          </div>
+        )}
+
         {/* Personas del turno: gestión de personas (paso 1b) + división
             de la cuenta (paso 3) + COBRO por persona (paso 4). Cada
             persona muestra su parte, su estado (debe / pagó / pagó
@@ -1109,7 +1120,7 @@ function DetalleReservaBody({
           montoAlquiler={reserva.monto_total}
           fecha={reserva.fecha}
           estadoReserva={reserva.estado}
-          readOnly={readOnly}
+          readOnly={efectivoReadOnly}
         />
 
         {/* Cuenta del alquiler — referencia contable compacta.
@@ -1156,10 +1167,8 @@ function DetalleReservaBody({
         <ConsumosTurnoSection
           reservaId={reserva.id}
           montoAlquiler={reserva.monto_total}
-          readOnly={readOnly}
+          readOnly={efectivoReadOnly}
         />
-
-
 
         {/* Observaciones */}
         <ObservacionesSection
@@ -1172,7 +1181,7 @@ function DetalleReservaBody({
             });
             applyReservaUpdate(updated);
           }}
-          readOnly={readOnly}
+          readOnly={efectivoReadOnly}
         />
 
       </div>

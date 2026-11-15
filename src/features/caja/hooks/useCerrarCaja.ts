@@ -38,11 +38,20 @@ export function useCerrarCaja(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation<TurnoCaja, Error, CerrarCajaInput>({
     mutationFn: async ({ turnoCajaId, efectivoContado, observaciones }) => {
-      const { data, error } = await supabase.rpc('fn_cerrar_caja', {
-        p_turno_caja_id: turnoCajaId,
-        p_efectivo_contado: efectivoContado,
-        p_observaciones: observaciones ?? null,
-      });
+     console.log('Datos para cerrar caja:', {
+  turnoCajaId,
+  efectivoContado,
+  observaciones,
+  usuario: (await supabase.auth.getUser()).data.user?.id
+});
+
+const { data, error } = await supabase.rpc('fn_cerrar_caja', {
+  p_turno_caja_id: turnoCajaId,
+  p_efectivo_contado: efectivoContado,
+  p_observaciones: observaciones ?? null,
+});
+
+console.log('Resultado cierre:', { data, error });
       if (error) throw new Error(mapPostgrestError(error));
       if (!data) {
         throw new Error('La función respondió sin datos. Refrescá el panel.');

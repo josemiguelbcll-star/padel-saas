@@ -476,6 +476,12 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono,
   );
   const [selFin, setSelFin] = useState(sorted[0]?.hora_fin ?? '');
 
+  useEffect(() => {
+    if (sorted.length > 0 && (!selFin || !sorted.some(s => s.hora_fin === selFin))) {
+      setSelFin(sorted[0].hora_fin);
+    }
+  }, [sorted, selFin]);
+
   function handleReservar() {
     onReservar?.({
       cancha_id:    court.canchaId,

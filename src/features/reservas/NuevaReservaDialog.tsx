@@ -885,18 +885,44 @@ function NuevaReservaBodyReady({
                 <p className="text-xs text-destructive">{errors.medio_pago}</p>
               )}
             </div>
-            {club && ((club.config as any)?.deposito ?? {}).transferencia_alias && medioPago === 'transferencia' && (
-              <div className="rounded-md border border-border bg-background p-3 text-sm">
-                <div className="font-medium">Alias para transferir</div>
-                <div className="mt-1 break-words">{((club.config as any).deposito.transferencia_alias)}</div>
-                <div className="mt-2">
-                  <Button size="sm" variant="outline" onClick={() => {
-                    void navigator.clipboard?.writeText(((club.config as any).deposito.transferencia_alias || ''));
-                  }}>
-                    Copiar alias
-                  </Button>
-                </div>
-              </div>
+            {club && (medioPago === 'transferencia' || selectedCuenta?.tipo === 'banco') && (
+              (() => {
+                const alias = (club as any)?.cbu_alias || ((club.config as any)?.deposito ?? {}).transferencia_alias;
+                const banco = (club as any)?.nombre_banco;
+                if (!alias && !banco) return null;
+                return (
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm space-y-1">
+                    <div className="font-semibold text-xs text-primary uppercase tracking-wider">
+                      Datos bancarios del club para transferir
+                    </div>
+                    {banco && (
+                      <div className="text-xs text-muted-foreground">
+                        Banco / Billetera: <strong className="text-foreground">{banco}</strong>
+                      </div>
+                    )}
+                    {alias && (
+                      <div className="text-xs text-muted-foreground">
+                        CBU / Alias: <strong className="text-foreground select-all">{alias}</strong>
+                      </div>
+                    )}
+                    {alias && (
+                      <div className="pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(alias);
+                          }}
+                        >
+                          Copiar CBU/Alias
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </div>
         )}

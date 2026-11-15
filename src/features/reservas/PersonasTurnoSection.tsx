@@ -429,6 +429,7 @@ export function PersonasTurnoSection({
     monto: number,
     nombreInvitado: string | null,
     darPorSaldado?: boolean,
+    cuentaId?: number | null,
   ): Promise<void> {
     setError(null);
     if (saldo.tipo === 'invitado' && nombreInvitado) {
@@ -453,6 +454,7 @@ export function PersonasTurnoSection({
         reserva_id: reservaId,
         fecha,
         medio_pago: medio,
+        cuenta_id: cuentaId ?? null,
         observaciones: obs,
         monto_esperado: saldo.saldo,
         monto,
@@ -1038,6 +1040,7 @@ interface JugadorCardProps {
     monto: number,
     nombreInvitado: string | null,
     darPorSaldado?: boolean,
+    cuentaId?: number | null,
   ) => Promise<void>;
   onDarPorSaldado: (yaPagado: number) => Promise<void>;
   onRestaurarReparto: () => Promise<void>;
@@ -1269,6 +1272,7 @@ interface InvitadoCardProps {
     monto: number,
     nombreInvitado: string | null,
     darPorSaldado?: boolean,
+    cuentaId?: number | null,
   ) => Promise<void>;
   onDarPorSaldado: (yaPagado: number) => Promise<void>;
   onRestaurarReparto: () => Promise<void>;
@@ -1765,6 +1769,7 @@ function CobrarPersonaInline({
     nombreLibreActual ?? '',
   );
 
+  const { club } = useSession();
   const cuentasQuery = useCuentas();
   const cuentasActivas = useMemo(() => {
     return (cuentasQuery.data ?? []).filter((c) => c.activa);
@@ -2023,6 +2028,31 @@ function CobrarPersonaInline({
           </div>
         )}
       </div>
+
+      {(medio === 'transferencia' || cuentaElegida?.tipo === 'banco') && (
+        (() => {
+          const alias = (club as any)?.cbu_alias || ((club?.config as any)?.deposito ?? {}).transferencia_alias;
+          const banco = (club as any)?.nombre_banco;
+          if (!alias && !banco) return null;
+          return (
+            <div className="rounded border border-primary/20 bg-primary/5 p-2 text-xs space-y-0.5">
+              <span className="font-semibold text-[10px] text-primary uppercase tracking-wider block">
+                Cuenta de destino del club:
+              </span>
+              {banco && (
+                <div className="text-[11px] text-muted-foreground">
+                  Banco: <strong className="text-foreground">{banco}</strong>
+                </div>
+              )}
+              {alias && (
+                <div className="text-[11px] text-muted-foreground">
+                  CBU/Alias: <strong className="text-foreground select-all">{alias}</strong>
+                </div>
+              )}
+            </div>
+          );
+        })()
+      )}
 
       <div className="space-y-1">
         <Label className="text-xs">
