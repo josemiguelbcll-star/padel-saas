@@ -80,6 +80,7 @@ export function TransferenciasPage() {
   const [desde, setDesde] = useState<string>(hoyAR);
   const [hasta, setHasta] = useState<string>(hoyAR);
   const [search, setSearch] = useState('');
+  const [selectedCuentaId, setSelectedCuentaId] = useState<number | 'todas'>('todas');
 
   const { club } = useSession();
   const query = useTransferenciasDia({ desde, hasta });
@@ -92,17 +93,23 @@ export function TransferenciasPage() {
     return m;
   }, [cuentasQuery.data]);
 
-  // Búsqueda client-side por nombre o "¿quién transfirió?".
+  const cuentas = useMemo(() => cuentasQuery.data ?? [], [cuentasQuery.data]);
+
+  // Búsqueda client-side por nombre o "¿quién transfirió?" y filtro por cuenta.
   const filtered = useMemo(() => {
-    const rows = query.data ?? [];
+    let rows = query.data ?? [];
+    if (selectedCuentaId !== 'todas') {
+      rows = rows.filter((r) => r.cuenta_id === selectedCuentaId);
+    }
     const q = search.trim().toLowerCase();
     if (q === '') return rows;
     return rows.filter(
       (r) =>
         r.nombre.toLowerCase().includes(q) ||
-        (r.quien_transfirio?.toLowerCase().includes(q) ?? false),
+        (r.quien_transfirio?.toLowerCase().includes(q) ?? false) ||
+        (r.cuenta_id !== null && (cuentasMap.get(r.cuenta_id)?.toLowerCase().includes(q) ?? false)),
     );
-  }, [query.data, search]);
+  }, [query.data, search, selectedCuentaId, cuentasMap]);
 
   const total = useMemo(
     () => filtered.reduce((acc, r) => acc + r.monto, 0),
@@ -234,6 +241,28 @@ export function TransferenciasPage() {
               onChange={(e) => setHasta(e.target.value)}
               className="h-8 w-[9.5rem] text-sm"
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="transf-cuenta" className="text-xs">
+              Filtrar por Cuenta
+            </Label>
+            <select
+              id="transf-cuenta"
+              value={selectedCuentaId}
+              onChange={(e) =>
+                setSelectedCuentaId(
+                  e.target.value === 'todas' ? 'todas' : Number(e.target.value),
+                )
+              }
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="todas">Todas las cuentas</option>
+              {cuentas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} ({c.tipo === 'billetera' ? 'MP' : c.tipo})
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="transf-buscar" className="text-xs">

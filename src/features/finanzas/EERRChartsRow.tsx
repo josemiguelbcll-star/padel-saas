@@ -93,16 +93,25 @@ interface EERRChartsRowProps {
   resumen: ResumenFinanciero;
   anio: number;
   mes: number;
+  desde?: string;
+  hasta?: string;
+  medioPago?: string;
 }
 
-export function EERRChartsRow({ resumen, anio, mes }: EERRChartsRowProps) {
+export function EERRChartsRow({ resumen, anio, mes, desde, hasta, medioPago }: EERRChartsRowProps) {
+  const subtituloCobro = medioPago && medioPago !== 'todos'
+    ? `Filtrado por: ${MEDIO_LABEL[medioPago as MedioPagoIngreso] || medioPago}`
+    : desde && hasta
+      ? `Período ${desde} a ${hasta}`
+      : 'Distribución del mes por medio de pago';
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ChartCard
         titulo="Cómo se cobró el dinero"
-        subtitulo="Distribución del mes por medio de pago"
+        subtitulo={subtituloCobro}
       >
-        <IngresosPorMedioChart anio={anio} mes={mes} />
+        <IngresosPorMedioChart anio={anio} mes={mes} desde={desde} hasta={hasta} medioPago={medioPago} />
       </ChartCard>
       <ChartCard
         titulo="Top categorías de gasto"
@@ -138,8 +147,26 @@ function ChartCard({ titulo, subtitulo, children }: ChartCardProps) {
 // Donut: cómo se cobró el dinero por medio de pago
 // ─────────────────────────────────────────────────────────────────────
 
-function IngresosPorMedioChart({ anio, mes }: { anio: number; mes: number }) {
-  const query = useIngresosPorMedio(anio, mes);
+function IngresosPorMedioChart({
+  anio,
+  mes,
+  desde,
+  hasta,
+  medioPago,
+}: {
+  anio: number;
+  mes: number;
+  desde?: string;
+  hasta?: string;
+  medioPago?: string;
+}) {
+  const query = useIngresosPorMedio({
+    anio,
+    mes,
+    desde,
+    hasta,
+    medioPago,
+  });
 
   if (query.isLoading) {
     return <SkeletonChart />;

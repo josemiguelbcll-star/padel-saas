@@ -126,6 +126,8 @@ export const productoSchema = z
       .int('El stock mínimo debe ser un número entero.')
       .min(0, 'El stock mínimo no puede ser negativo.'),
     activo: z.boolean(),
+    talla: z.string().trim().max(30).optional().nullable(),
+    color: z.string().trim().max(50).optional().nullable(),
   })
   .superRefine((data, ctx) => {
     if (!esCategoriaValida(data.linea, data.categoria)) {
@@ -147,6 +149,8 @@ export interface ProductoFormState {
   costo: string;
   stock_minimo: string;
   activo: boolean;
+  talla: string;
+  color: string;
 }
 
 /** Salida validada del schema, lista para mandar a la RPC/insert. */

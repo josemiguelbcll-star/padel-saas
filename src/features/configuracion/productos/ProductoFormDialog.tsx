@@ -95,6 +95,8 @@ function defaultStateFor(linea: Linea): ProductoFormState {
     costo: '',
     stock_minimo: '0',
     activo: true,
+    talla: '',
+    color: '',
   };
 }
 
@@ -107,6 +109,8 @@ function productoToFormState(p: Producto): ProductoFormState {
     costo: p.costo === null ? '' : p.costo.toString(),
     stock_minimo: p.stock_minimo.toString(),
     activo: p.activo,
+    talla: p.talla ?? '',
+    color: p.color ?? '',
   };
 }
 
@@ -292,6 +296,43 @@ function ProductoFormBody({
             <p className="text-xs text-destructive">{errors.categoria}</p>
           )}
         </div>
+
+        {/* Talla y Color (Especialmente para Vestimenta / Shop) */}
+        {(state.linea === 'shop' || state.categoria === 'vestimenta') && (
+          <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="producto-talla" className="text-xs font-semibold">
+                Talle / Medida (opcional)
+              </Label>
+              <Input
+                id="producto-talla"
+                type="text"
+                placeholder="Ej: S, M, L, XL, 42..."
+                value={state.talla}
+                onChange={(e) => setState({ ...state, talla: e.target.value })}
+                disabled={isPending}
+                maxLength={30}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="producto-color" className="text-xs font-semibold">
+                Color (opcional)
+              </Label>
+              <Input
+                id="producto-color"
+                type="text"
+                placeholder="Ej: Negro, Blanco, Azul..."
+                value={state.color}
+                onChange={(e) => setState({ ...state, color: e.target.value })}
+                disabled={isPending}
+                maxLength={50}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">

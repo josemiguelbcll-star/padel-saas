@@ -819,12 +819,30 @@ function ProductoRow({
       )}
     >
       <td className="px-4 py-2.5">
-        <span className="font-medium text-foreground">{p.nombre}</span>
-        {!p.activo && (
-          <span className="ml-2 inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            Inactivo
-          </span>
-        )}
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-foreground">{p.nombre}</span>
+            {!p.activo && (
+              <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Inactivo
+              </span>
+            )}
+          </div>
+          {(p.talla || p.color) && (
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+              {p.talla && (
+                <span className="rounded bg-muted/60 px-1.5 py-0.2 font-mono">
+                  Talle: {p.talla}
+                </span>
+              )}
+              {p.color && (
+                <span className="rounded bg-muted/60 px-1.5 py-0.2">
+                  Color: {p.color}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">{p.linea}</td>
       <td className="px-3 py-2.5 text-xs text-muted-foreground">{p.categoria}</td>

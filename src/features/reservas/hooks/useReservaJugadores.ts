@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import {
   useMutation,
   useQuery,
@@ -39,37 +38,6 @@ export interface ReservaJugadorConNombre extends ReservaJugador {
 export function useReservaJugadores(
   reservaId: number | null,
 ): UseQueryResult<ReservaJugadorConNombre[], Error> {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (reservaId === null) return;
-    // Nombre de canal único por instancia: varios componentes montan este
-    // hook con el mismo reservaId a la vez (DetalleReservaDialog +
-    // PersonasTurnoSection + ConsumosTurnoSection). supabase.channel()
-    // deduplica por topic y devuelve el canal ya suscrito, y agregarle un
-    // callback 'postgres_changes' después de subscribe() tira error.
-    const channelId = `reserva-jugadores-${reservaId}-${Math.random().toString(36).substring(2, 9)}`;
-    const channel = supabase
-      .channel(channelId)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'reserva_jugadores',
-          filter: `reserva_id=eq.${reservaId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: reservaJugadoresQueryKey(reservaId) });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [reservaId, queryClient]);
-
   return useQuery<ReservaJugadorConNombre[], Error>({
     queryKey: reservaId === null
       ? [RESERVA_JUGADORES_QUERY_KEY_BASE]

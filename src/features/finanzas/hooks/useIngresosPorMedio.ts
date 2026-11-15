@@ -30,30 +30,60 @@ export interface IngresosPorMedioMes {
   total: number;
 }
 
-export const INGRESOS_POR_MEDIO_QUERY_KEY = (anio: number, mes: number) =>
-  ['ingresos_por_medio', anio, mes] as const;
+export interface FiltrosIngresosPorMedio {
+  anio: number;
+  mes: number;
+  desde?: string | null;
+  hasta?: string | null;
+  medioPago?: string | null;
+}
+
+export const INGRESOS_POR_MEDIO_QUERY_KEY = (
+  anio: number,
+  mes: number,
+  desde?: string | null,
+  hasta?: string | null,
+  medioPago?: string | null,
+) => ['ingresos_por_medio', anio, mes, desde, hasta, medioPago] as const;
 
 /**
- * Agrupa los ingresos del mes POR MEDIO DE PAGO. Cuatro fuentes:
+ * Agrupa los ingresos del período POR MEDIO DE PAGO. Cuatro fuentes:
  *   - reserva_pagos (criterio caja: fecha_hora). Reembolsos restan.
  *   - clase_cobros  (fecha_hora).
  *   - ventas        (fecha_hora).
  *   - otros_ingresos (fecha devengado, filtrando con medio_pago seteado).
- *
- * Pensado para alimentar un donut/pie chart en /finanzas que muestre
- * cómo se cobró el dinero del mes (efectivo vs transferencia vs MP,
- * etc.).
  */
 export function useIngresosPorMedio(
-  anio: number,
-  mes: number,
+  anioOrFiltros: number | FiltrosIngresosPorMedio,
+  mesArg?: number,
 ): UseQueryResult<IngresosPorMedioMes, Error> {
+  const isObj = typeof anioOrFiltros === 'object' && anioOrFiltros !== null;
+  const anio = isObj ? anioOrFiltros.anio : anioOrFiltros;
+  const mes = isObj ? anioOrFiltros.mes : (mesArg ?? 1);
+  const desdeFiltro = isObj ? anioOrFiltros.desde : undefined;
+  const hastaFiltro = isObj ? anioOrFiltros.hasta : undefined;
+  const medioFiltro = isObj ? anioOrFiltros.medioPago : undefined;
+
   return useQuery<IngresosPorMedioMes, Error>({
-    queryKey: INGRESOS_POR_MEDIO_QUERY_KEY(anio, mes),
+    queryKey: INGRESOS_POR_MEDIO_QUERY_KEY(anio, mes, desdeFiltro, hastaFiltro, medioFiltro),
     queryFn: async () => {
-      const { desde, hasta } = rangoMesISO(anio, mes);
-      const desdeISO = `${desde}T00:00:00`;
-      const hastaISO = `${hasta}T23:59:59`;
+      let desdeISO: string;
+      let hastaISO: string;
+      let desdeDate: string;
+      let hastaDate: string;
+
+      if (desdeFiltro && hastaFiltro) {
+        desdeDate = desdeFiltro;
+        hastaDate = hastaFiltro;
+        desdeISO = `${desdeFiltro}T00:00:00`;
+        hastaISO = `${hastaFiltro}T23:59:59`;
+      } else {
+        const { desde, hasta } = rangoMesISO(anio, mes);
+        desdeDate = desde;
+        hastaDate = hasta;
+        desdeISO = `${desde}T00:00:00`;
+        hastaISO = `${hasta}T23:59:59`;
+      }
 
       const [pagosRes, clasesRes, otrosIngRes] = await Promise.all([
         supabase
@@ -71,16 +101,14 @@ export function useIngresosPorMedio(
           .select('monto, medio_pago')
           .eq('activo', true)
           .not('medio_pago', 'is', null)
-          .gte('fecha', desde)
-          .lte('fecha', hasta),
+          .gte('fecha', desdeDate)
+          .lte('fecha', hastaDate),
       ]);
 
       for (const r of [pagosRes, clasesRes, otrosIngRes]) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
       }
 
-      // Ventas buffet: consultamos venta_pagos para reflejar con precisión pagos
-      // divididos / mixtos (ej. 75k transferencia y 25k efectivo). Fallback a ventas.
       const [vpRes, vprRes] = await Promise.all([
         supabase
           .from('venta_pagos')
@@ -114,14 +142,27 @@ export function useIngresosPorMedio(
         }));
       }
 
+      const matchMedio = (m: string | null): boolean => {
+        if (!m) return false;
+        if (!medioFiltro || medioFiltro === 'todos') return true;
+        if (m === medioFiltro) return true;
+        if (medioFiltro === 'mp' && ['mp', 'mercado_pago'].includes(m)) return true;
+        if (medioFiltro === 'tarjeta' && ['tarjeta', 'debito', 'credito', 'tarjeta_debito', 'tarjeta_credito'].includes(m)) return true;
+        return false;
+      };
+
       const acumulado = new Map<MedioPagoIngreso, { monto: number; count: number }>();
       const sumar = (medio: string | null, monto: number, contar = true) => {
         if (medio === null) return;
-        const m = (
-          ['efectivo', 'transferencia', 'mp', 'tarjeta', 'otro'].includes(medio)
-            ? (medio as MedioPagoIngreso)
-            : 'otro'
-        );
+        if (!matchMedio(medio)) return;
+
+        let m: MedioPagoIngreso = 'otro';
+        if (medio === 'efectivo') m = 'efectivo';
+        else if (medio === 'transferencia') m = 'transferencia';
+        else if (['mp', 'mercado_pago'].includes(medio)) m = 'mp';
+        else if (['tarjeta', 'debito', 'credito', 'tarjeta_debito', 'tarjeta_credito'].includes(medio)) m = 'tarjeta';
+        else m = 'otro';
+
         const prev = acumulado.get(m) ?? { monto: 0, count: 0 };
         acumulado.set(m, {
           monto: prev.monto + monto,
@@ -129,8 +170,6 @@ export function useIngresosPorMedio(
         });
       };
 
-      // reserva_pagos: reembolsos restan en monto, pero igual cuentan como
-      // movimiento (para que count refleje todo el flujo del medio).
       for (const p of pagosRes.data ?? []) {
         const monto =
           (String(p.tipo) === 'reembolso' ? -1 : 1) * Number(p.monto);

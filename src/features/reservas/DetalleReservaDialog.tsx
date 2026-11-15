@@ -41,6 +41,7 @@ import { useReservaPagos } from './hooks/useReservaPagos';
 import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useCancelarReserva } from './hooks/useCancelarReserva';
 import { useCerrarTurno } from './hooks/useCerrarTurno';
+import { useReabrirTurno } from './hooks/useReabrirTurno';
 import { useReservaJugadores } from './hooks/useReservaJugadores';
 import { useEliminarBloqueoTorneo } from './hooks/useEliminarBloqueoTorneo';
 import { useDesbloquearTurnoFijo } from './hooks/useDesbloquearTurnoFijo';
@@ -376,6 +377,7 @@ function DetalleReservaBody({
   const actualizarMutation = useActualizarReserva(); // solo observaciones
   const cancelarMutation = useCancelarReserva();
   const cerrarMutation = useCerrarTurno();
+  const reabrirMutation = useReabrirTurno();
   const eliminarBloqueoTorneoMutation = useEliminarBloqueoTorneo();
   const desbloquearMutation = useDesbloquearTurnoFijo();
 
@@ -399,6 +401,10 @@ function DetalleReservaBody({
   const tieneConsumo = (consumosQuery.data?.length ?? 0) > 0;
   const estaCerrado = reserva.cerrado_en !== null;
   const estaCancelado = reserva.estado === 'cancelada';
+
+  // Si el turno está cerrado, solo el administrador puede modificar o editar (vendedores tienen readOnly)
+  const isCerradoBloqueadoParaUsuario = estaCerrado && !isAdmin;
+  const efectivoReadOnly = readOnly || isCerradoBloqueadoParaUsuario;
 
   // La plata ya cobrada se conserva como ingreso de Canchas al cancelar.
   // Solo se bloquea la cancelación si el turno está cerrado o tiene consumos.
@@ -582,6 +588,21 @@ function DetalleReservaBody({
     } catch (err) {
       setAccionError(
         err instanceof Error ? err.message : 'No pudimos cerrar el turno.',
+      );
+    }
+  }
+
+  async function handleReabrirTurno(): Promise<void> {
+    setAccionError(null);
+    try {
+      const updated = await reabrirMutation.mutateAsync({
+        id: reserva.id,
+        fecha: reserva.fecha,
+      });
+      applyReservaUpdate(updated);
+    } catch (err) {
+      setAccionError(
+        err instanceof Error ? err.message : 'No pudimos reabrir el turno.',
       );
     }
   }
@@ -1067,7 +1088,7 @@ function DetalleReservaBody({
 
             {isAdmin && (
               <div className="flex items-center gap-1.5">
-                {!readOnly && !estaCerrado && !estaCancelado && (
+                {!readOnly && !estaCancelado && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1097,6 +1118,13 @@ function DetalleReservaBody({
           </div>
         )}
 
+        {/* Mensaje de aviso si está cerrado y es vendedor */}
+        {isCerradoBloqueadoParaUsuario && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
+            <strong>Turno cerrado:</strong> Solo los administradores pueden editar turnos o consumos de turnos que ya fueron cerrados.
+          </div>
+        )}
+
         {/* Personas del turno: gestión de personas (paso 1b) + división
             de la cuenta (paso 3) + COBRO por persona (paso 4). Cada
             persona muestra su parte, su estado (debe / pagó / pagó
@@ -1109,7 +1137,7 @@ function DetalleReservaBody({
           montoAlquiler={reserva.monto_total}
           fecha={reserva.fecha}
           estadoReserva={reserva.estado}
-          readOnly={readOnly}
+          readOnly={efectivoReadOnly}
         />
 
         {/* Cuenta del alquiler — referencia contable compacta.
@@ -1156,10 +1184,8 @@ function DetalleReservaBody({
         <ConsumosTurnoSection
           reservaId={reserva.id}
           montoAlquiler={reserva.monto_total}
-          readOnly={readOnly}
+          readOnly={efectivoReadOnly}
         />
-
-
 
         {/* Observaciones */}
         <ObservacionesSection
@@ -1172,7 +1198,7 @@ function DetalleReservaBody({
             });
             applyReservaUpdate(updated);
           }}
-          readOnly={readOnly}
+          readOnly={efectivoReadOnly}
         />
 
       </div>
@@ -1193,6 +1219,27 @@ function DetalleReservaBody({
             className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
           >
             {accionError}
+          </div>
+        )}
+
+        {/* Si el turno está cerrado y el usuario es Admin, opción para volver a abrir el turno */}
+        {estaCerrado && isAdmin && !confirmingCancel && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Turno cerrado</p>
+              <p className="text-xs text-muted-foreground">Como administrador podés reabrir este turno para modificarlo o registrar cobros.</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void handleReabrirTurno();
+              }}
+              disabled={reabrirMutation.isPending}
+            >
+              {reabrirMutation.isPending ? 'Reabriendo…' : 'Volver a abrir turno'}
+            </Button>
           </div>
         )}
 

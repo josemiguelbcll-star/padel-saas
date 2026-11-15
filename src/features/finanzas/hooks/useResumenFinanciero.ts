@@ -109,22 +109,50 @@ export interface ResumenFinanciero {
   compras_mercaderia_periodo: number;
   /** Serie de ingresos diarios (opcional para deduplicación de query). */
   ingresos_diarios?: any[];
+  desde?: string;
+  hasta?: string;
+  medio_pago?: string;
 }
 
-export const RESUMEN_FINANCIERO_QUERY_KEY = (anio: number, mes: number) =>
-  ['resumen_financiero', anio, mes] as const;
+export interface FiltrosResumenFinanciero {
+  anio?: number;
+  mes?: number;
+  desde?: string | null;
+  hasta?: string | null;
+  medioPago?: string | null;
+}
+
+export const RESUMEN_FINANCIERO_QUERY_KEY = (
+  anio?: number,
+  mes?: number,
+  desde?: string | null,
+  hasta?: string | null,
+  medioPago?: string | null,
+) => ['resumen_financiero', anio, mes, desde, hasta, medioPago] as const;
 
 export function useResumenFinanciero(
-  anio: number,
-  mes: number,
+  anioOrFiltros: number | FiltrosResumenFinanciero,
+  mes?: number,
 ): UseQueryResult<ResumenFinanciero, Error> {
+  const isObject = typeof anioOrFiltros === 'object' && anioOrFiltros !== null;
+  const anio = isObject ? anioOrFiltros.anio : anioOrFiltros;
+  const mesVal = isObject ? anioOrFiltros.mes : mes;
+  const desde = isObject ? anioOrFiltros.desde : undefined;
+  const hasta = isObject ? anioOrFiltros.hasta : undefined;
+  const medioPago = isObject ? anioOrFiltros.medioPago : undefined;
+
   return useQuery<ResumenFinanciero, Error>({
-    queryKey: RESUMEN_FINANCIERO_QUERY_KEY(anio, mes),
+    queryKey: RESUMEN_FINANCIERO_QUERY_KEY(anio, mesVal, desde, hasta, medioPago),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('fn_obtener_resumen_financiero', {
-        p_anio: anio,
-        p_mes: mes,
-      });
+      const params = {
+        p_anio: anio ?? null,
+        p_mes: mesVal ?? null,
+        p_desde: desde ?? null,
+        p_hasta: hasta ?? null,
+        p_medio_pago: medioPago && medioPago !== 'todos' ? medioPago : null,
+      };
+
+      const { data, error } = await supabase.rpc('fn_obtener_resumen_financiero', params);
       if (error) throw new Error(mapPostgrestError(error));
       return data as ResumenFinanciero;
     },

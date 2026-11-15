@@ -13,11 +13,21 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { useUsuariosClub } from '@/features/configuracion/hooks/useUsuariosClub';
 import {
   useMovimientosCuentas,
   type OrigenMovimientoCuenta,
+  type MovimientoCuentaItem,
 } from './hooks/useMovimientosCuentas';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
@@ -108,15 +118,22 @@ const ORIGEN_LABELS: Record<OrigenMovimientoCuenta, { label: string; badgeClass:
 
 export function MovimientosCuentasPage() {
   // useSession hook
+  const { club } = useSession();
   const cuentasQuery = useCuentas();
   const cuentas = useMemo(() => cuentasQuery.data ?? [], [cuentasQuery.data]);
+  const usuariosQuery = useUsuariosClub();
+  const usuarios = useMemo(() => {
+    return (usuariosQuery.data ?? []).filter((u) => !club?.id || u.club_id === club.id);
+  }, [usuariosQuery.data, club?.id]);
 
   // Filtros
   const [desde, setDesde] = useState<string>(inicioMesAR);
   const [hasta, setHasta] = useState<string>(hoyAR);
   const [cuentaId, setCuentaId] = useState<number | null>(null);
+  const [usuarioId, setUsuarioId] = useState<string | 'todos'>('todos');
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipoMovimiento>('todos');
   const [search, setSearch] = useState('');
+  const [movimientoDetalle, setMovimientoDetalle] = useState<MovimientoCuentaItem | null>(null);
 
   const movimientosQuery = useMovimientosCuentas({
     desde,
@@ -126,9 +143,13 @@ export function MovimientosCuentasPage() {
 
   const rawRows = useMemo(() => movimientosQuery.data ?? [], [movimientosQuery.data]);
 
-  // Filtrado client-side por tipo de flujo y búsqueda
+  // Filtrado client-side por tipo de flujo, usuario y búsqueda
   const filteredRows = useMemo(() => {
     let rows = rawRows;
+
+    if (usuarioId !== 'todos') {
+      rows = rows.filter((r) => r.usuario_id === usuarioId);
+    }
 
     if (filtroTipo === 'ingresos') {
       rows = rows.filter((r) => r.signo > 0 && !r.origen.startsWith('transferencia'));
@@ -150,7 +171,7 @@ export function MovimientosCuentasPage() {
     }
 
     return rows;
-  }, [rawRows, filtroTipo, search]);
+  }, [rawRows, usuarioId, filtroTipo, search]);
 
   // Métricas del período
   const { totalIngresos, totalEgresos, flujoNeto } = useMemo(() => {
@@ -440,8 +461,8 @@ export function MovimientosCuentasPage() {
           </div>
         </div>
 
-        {/* Fila 2: Rango personalizado, buscador y tipo */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end pt-2 border-t border-border/60">
+        {/* Fila 2: Rango personalizado, usuario, tipo y buscador */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end pt-2 border-t border-border/60">
           <div className="space-y-1">
             <Label className="text-xs">Desde</Label>
             <Input
@@ -460,6 +481,22 @@ export function MovimientosCuentasPage() {
               onChange={(e) => setHasta(e.target.value)}
               className="h-8 text-xs"
             />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Filtrar por Usuario</Label>
+            <select
+              value={usuarioId}
+              onChange={(e) => setUsuarioId(e.target.value)}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="todos">Todos los usuarios</option>
+              {usuarios.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nombre} ({u.rol})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -528,7 +565,12 @@ export function MovimientosCuentasPage() {
                   };
                   const esIngreso = r.signo > 0;
                   return (
-                    <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                    <tr
+                      key={r.id}
+                      onClick={() => setMovimientoDetalle(r)}
+                      className="hover:bg-muted/50 transition-colors cursor-pointer group"
+                      title="Clic para ver detalle completo"
+                    >
                       <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground font-mono">
                         {fmtFechaHora(r.fecha_hora)}
                       </td>
@@ -602,6 +644,120 @@ export function MovimientosCuentasPage() {
           </div>
         )}
       </div>
+
+      {/* Modal para Info Detallada en Movimientos */}
+      <Dialog
+        open={Boolean(movimientoDetalle)}
+        onOpenChange={(open) => {
+          if (!open) setMovimientoDetalle(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">
+              Detalle del Movimiento
+            </DialogTitle>
+          </DialogHeader>
+
+          {movimientoDetalle && (
+            <div className="space-y-4 py-2 text-sm">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+                <div>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    Monto
+                  </span>
+                  <div
+                    className={cn(
+                      'text-xl font-bold font-mono',
+                      movimientoDetalle.signo > 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                    )}
+                  >
+                    {movimientoDetalle.signo > 0 ? '+' : '-'}
+                    {fmtMoney(movimientoDetalle.monto)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    Tipo
+                  </span>
+                  <div>
+                    <span
+                      className={cn(
+                        'inline-block px-2 py-0.5 text-xs font-medium rounded border mt-0.5',
+                        ORIGEN_LABELS[movimientoDetalle.origen]?.badgeClass ?? 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {ORIGEN_LABELS[movimientoDetalle.origen]?.label ?? movimientoDetalle.origen}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Cuenta destino / origen</span>
+                  <p className="font-medium text-foreground">
+                    {movimientoDetalle.cuenta_nombre}{' '}
+                    <span className="text-[10px] text-muted-foreground uppercase">
+                      ({movimientoDetalle.tipo_cuenta})
+                    </span>
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Fecha y hora</span>
+                  <p className="font-medium font-mono text-foreground">
+                    {fmtFechaHora(movimientoDetalle.fecha_hora)}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Concepto</span>
+                  <p className="font-medium text-foreground">
+                    {movimientoDetalle.concepto}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Registrado por</span>
+                  <p className="font-medium text-foreground">
+                    {movimientoDetalle.usuario_nombre}{' '}
+                    {movimientoDetalle.usuario_rol && (
+                      <span className="text-muted-foreground">
+                        ({movimientoDetalle.usuario_rol})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {movimientoDetalle.detalle && (
+                <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-2.5 text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    Detalle / Observaciones / Comprobante:
+                  </span>
+                  <p className="text-foreground whitespace-pre-wrap break-words">
+                    {movimientoDetalle.detalle}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setMovimientoDetalle(null)}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
