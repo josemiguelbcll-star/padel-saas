@@ -11,8 +11,11 @@ import {
   TrendingUp,
   Lock,
   Unlock,
+  Pencil,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -22,10 +25,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/features/auth';
 import type { TurnoCajaConDetalles } from './hooks/useTurnosCajaHistorial';
 import { useMovimientosCaja } from './hooks/useMovimientosCaja';
 import { MovimientosCajaList } from './MovimientosCajaList';
 import { useResumenCajaAbierta } from './hooks/useResumenCajaAbierta';
+import { useEditarArqueoCaja, useReabrirTurnoCaja } from './hooks/useEditarArqueoCaja';
 
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -73,9 +78,21 @@ export function DetalleArqueoDialog({
   onOpenChange,
   turno,
 }: DetalleArqueoDialogProps) {
+  const { user } = useSession();
+  const isAdmin = user?.rol === 'admin';
+
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'entradas' | 'salidas'>(
     'todos',
   );
+
+  // Estados de edición del arqueo para Admin
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [nuevoContado, setNuevoContado] = useState<string>('');
+  const [nuevasObs, setNuevasObs] = useState<string>('');
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+
+  const editarArqueoMutation = useEditarArqueoCaja();
+  const reabrirTurnoMutation = useReabrirTurnoCaja();
 
   const turnoId = turno?.id ?? null;
   const movimientosQuery = useMovimientosCaja(turnoId);
@@ -96,6 +113,46 @@ export function DetalleArqueoDialog({
   const esCuadrada = turno.cerrada_en !== null && Math.abs(diferenciaNum) < 0.01;
   const esSobrante = turno.cerrada_en !== null && diferenciaNum > 0.01;
   const esFaltante = turno.cerrada_en !== null && diferenciaNum < -0.01;
+
+  const handleIniciarEdicion = () => {
+    setNuevoContado(turno.efectivo_contado !== null ? String(turno.efectivo_contado) : '');
+    setNuevasObs(turno.observaciones_cierre ?? '');
+    setErrorEdicion(null);
+    setModoEdicion(true);
+  };
+
+  const handleGuardarEdicion = async () => {
+    setErrorEdicion(null);
+    const contado = Number(nuevoContado);
+    if (Number.isNaN(contado) || contado < 0) {
+      setErrorEdicion('Ingresá un importe contado válido mayor o igual a cero.');
+      return;
+    }
+
+    try {
+      await editarArqueoMutation.mutateAsync({
+        turno_caja_id: turno.id,
+        nuevo_contado: contado,
+        nuevas_observaciones: nuevasObs.trim() || null,
+      });
+      setModoEdicion(false);
+    } catch (err) {
+      setErrorEdicion(err instanceof Error ? err.message : 'No se pudo guardar la corrección.');
+    }
+  };
+
+  const handleReabrirTurno = async () => {
+    if (!confirm('¿Seguro que deseás volver a abrir este turno de caja? Podrás registrar y modificar cobros nuevamente.')) {
+      return;
+    }
+    setErrorEdicion(null);
+    try {
+      await reabrirTurnoMutation.mutateAsync({ turno_caja_id: turno.id });
+      onOpenChange(false);
+    } catch (err) {
+      setErrorEdicion(err instanceof Error ? err.message : 'No se pudo reabrir la caja.');
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -283,6 +340,102 @@ export function DetalleArqueoDialog({
                 </span>
               </div>
             </div>
+
+            {/* Panel de edición de arqueo y reapertura para Administrador */}
+            {!esAbierta && isAdmin && (
+              <div className="rounded-xl border border-border bg-card p-3.5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <Pencil className="h-3.5 w-3.5 text-primary" />
+                    <span>Acciones de Administrador sobre Arqueo</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!modoEdicion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleIniciarEdicion}
+                        className="h-7 text-xs"
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Editar Arqueo
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setModoEdicion(false)}
+                        className="h-7 text-xs"
+                      >
+                        Cancelar Edición
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReabrirTurno}
+                      disabled={reabrirTurnoMutation.isPending}
+                      className="h-7 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700"
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      {reabrirTurnoMutation.isPending ? 'Reabriendo...' : 'Volver a abrir caja'}
+                    </Button>
+                  </div>
+                </div>
+
+                {modoEdicion && (
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-foreground">
+                          Efectivo Contado Corregido ($)
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={nuevoContado}
+                          onChange={(e) => setNuevoContado(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                          placeholder="Ej: 15400.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-foreground">
+                          Observaciones / Justificación de la corrección
+                        </label>
+                        <Input
+                          type="text"
+                          value={nuevasObs}
+                          onChange={(e) => setNuevasObs(e.target.value)}
+                          className="h-8 text-xs"
+                          placeholder="Motivo del ajuste..."
+                        />
+                      </div>
+                    </div>
+
+                    {errorEdicion && (
+                      <p className="text-xs text-destructive">{errorEdicion}</p>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleGuardarEdicion}
+                        disabled={editarArqueoMutation.isPending}
+                        className="h-7 text-xs"
+                      >
+                        {editarArqueoMutation.isPending ? 'Guardando...' : 'Guardar Corrección de Arqueo'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Observaciones registradas al momento del cierre */}
             {turno.observaciones_cierre && (

@@ -10,36 +10,19 @@ ALTER TABLE public.productos
 COMMENT ON COLUMN public.productos.talla IS 'Talla del producto (ej: S, M, L, XL, 42). Opcional, principalmente para shop/vestimenta.';
 COMMENT ON COLUMN public.productos.color IS 'Color del producto (ej: Negro, Blanco, Azul). Opcional, principalmente para shop/vestimenta.';
 
--- Actualizar la vista vw_productos_con_stock si existe para incluir talla y color
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_views WHERE schemaname = 'public' AND viewname = 'vw_productos_con_stock'
-  ) THEN
-    CREATE OR REPLACE VIEW public.vw_productos_con_stock AS
-    SELECT
-      p.id,
-      p.club_id,
-      p.nombre,
-      p.linea,
-      p.categoria,
-      p.precio,
-      p.costo,
-      p.stock_minimo,
-      p.activo,
-      p.fecha_alta,
-      p.talla,
-      p.color,
-      COALESCE(s.stock_actual, 0) AS stock_actual
-    FROM public.productos p
-    LEFT JOIN (
-      SELECT
-        producto_id,
-        SUM(cantidad) AS stock_actual
-      FROM public.movimientos_stock
-      GROUP BY producto_id
-    ) s ON s.producto_id = p.id;
-  END IF;
-END $$;
+-- Recrear vw_productos_con_stock con DROP VIEW para evitar error 42P16
+DROP VIEW IF EXISTS public.vw_productos_con_stock;
+
+CREATE VIEW public.vw_productos_con_stock
+WITH (security_invoker = true)
+AS
+SELECT
+  p.*,
+  COALESCE(SUM(m.cantidad), 0)::INT AS stock_actual
+FROM public.productos p
+LEFT JOIN public.movimientos_stock m ON m.producto_id = p.id
+GROUP BY p.id;
+
+GRANT SELECT ON public.vw_productos_con_stock TO authenticated;
 
 COMMIT;

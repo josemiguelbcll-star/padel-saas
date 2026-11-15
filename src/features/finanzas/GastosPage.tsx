@@ -7,11 +7,14 @@ import {
   Loader2,
   Plus,
   Repeat,
+  Search,
   TrendingDown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Gasto } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
@@ -77,7 +80,34 @@ export function GastosPage() {
     }
   }
 
-  const ahora = new Date();
+  const ahora = useMemo(() => new Date(), []);
+  const [search, setSearch] = useState('');
+  const [desde, setDesde] = useState<string>('');
+  const [hasta, setHasta] = useState<string>('');
+  const [unidadFiltro, setUnidadFiltro] = useState<string>('todas');
+
+  const gastosFiltrados = useMemo(() => {
+    let rows = gastosQuery.data ?? [];
+    if (unidadFiltro !== 'todas') {
+      rows = rows.filter((g) => g.unidad_nombre === unidadFiltro);
+    }
+    if (desde) {
+      rows = rows.filter((g) => g.fecha_gasto >= desde);
+    }
+    if (hasta) {
+      rows = rows.filter((g) => g.fecha_gasto <= hasta);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (g) =>
+          (g.categoria_nombre?.toLowerCase().includes(q) ?? false) ||
+          (g.proveedor?.toLowerCase().includes(q) ?? false) ||
+          (g.observaciones?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return rows;
+  }, [gastosQuery.data, unidadFiltro, desde, hasta, search]);
   const anioActual = ahora.getFullYear();
   const mesActual = ahora.getMonth();
   const mesLabel = mesActualFmt.format(ahora);
@@ -192,16 +222,67 @@ export function GastosPage() {
           </section>
 
           {/* Lista */}
-          <section className="space-y-2">
+          <section className="space-y-3">
             <div className="flex items-baseline justify-between">
               <h2 className="text-sm font-semibold text-foreground">
                 Historial reciente
               </h2>
               {gastosQuery.data && (
                 <p className="text-xs text-muted-foreground">
-                  {gastosQuery.data.length} {gastosQuery.data.length === 1 ? 'registro' : 'registros'} en total
+                  {gastosFiltrados.length} de {gastosQuery.data.length} {gastosQuery.data.length === 1 ? 'registro' : 'registros'}
                 </p>
               )}
+            </div>
+
+            {/* Filtros */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4 items-end rounded-lg border border-border bg-card p-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Desde</Label>
+                <Input
+                  type="date"
+                  value={desde}
+                  onChange={(e) => setDesde(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Hasta</Label>
+                <Input
+                  type="date"
+                  value={hasta}
+                  onChange={(e) => setHasta(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Unidad de Negocio</Label>
+                <select
+                  value={unidadFiltro}
+                  onChange={(e) => setUnidadFiltro(e.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="todas">Todas las unidades</option>
+                  <option value="canchas">Canchas</option>
+                  <option value="buffet">Buffet</option>
+                  <option value="shop">Shop</option>
+                  <option value="clases">Clases</option>
+                  <option value="torneos">Torneos</option>
+                  <option value="general">General / Admin</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Buscar</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Concepto, proveedor..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-8 pl-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
 
             {gastosQuery.isLoading && (
@@ -219,7 +300,7 @@ export function GastosPage() {
 
             {gastosQuery.data && (
               <GastosList
-                gastos={gastosQuery.data}
+                gastos={gastosFiltrados}
                 onEditar={canEdit ? (g) => setGastoAEditar(g) : undefined}
                 onAnular={canEdit ? (g) => {
                   setAnularError(null);

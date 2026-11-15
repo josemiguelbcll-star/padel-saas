@@ -1,13 +1,15 @@
 import * as XLSX from 'xlsx';
-import type { CategoriaBuffet } from '@/types/database';
+import type { CategoriaProducto } from '@/types/database';
 
 export interface ProductoStockExcel {
   nombre: string;
-  categoria: CategoriaBuffet;
+  categoria: CategoriaProducto;
   precio: number;
   costo: number | null;
   stock: number;
   hoja: string;
+  talla?: string | null;
+  color?: string | null;
 }
 
 export interface StockExcelLeido {
@@ -34,12 +36,16 @@ function normalizarNombre(value: unknown): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
 }
 
-function normalizarCategoria(value: unknown, fallback: CategoriaBuffet): CategoriaBuffet {
+export function normalizarCategoria(value: unknown, fallback: CategoriaProducto = 'otros'): CategoriaProducto {
   if (typeof value !== 'string') return fallback;
   const lower = value.trim().toLowerCase();
   if (lower.includes('snack')) return 'snacks';
-  if (lower.includes('comida') || lower.includes('alimento')) return 'comidas';
-  if (lower.includes('bebida') || lower.includes('trago')) return 'bebidas';
+  if (lower.includes('comida') || lower.includes('alimento') || lower.includes('sandwich') || lower.includes('empanada')) return 'comidas';
+  if (lower.includes('bebida') || lower.includes('trago') || lower.includes('agua') || lower.includes('gaseosa') || lower.includes('cerveza')) return 'bebidas';
+  if (lower.includes('vestimenta') || lower.includes('ropa') || lower.includes('remera') || lower.includes('pantalon') || lower.includes('short') || lower.includes('indumentaria') || lower.includes('gorra') || lower.includes('buzo')) return 'vestimenta';
+  if (lower.includes('pala') || lower.includes('paleta')) return 'palas';
+  if (lower.includes('pelota') || lower.includes('articulo') || lower.includes('tubo')) return 'articulos_padel';
+  if (lower.includes('accesorio') || lower.includes('grip') || lower.includes('overgrip') || lower.includes('protector') || lower.includes('muñequera')) return 'accesorios';
   if (lower.includes('otro')) return 'otros';
   return fallback;
 }
@@ -50,7 +56,9 @@ interface ColumnMapping {
   costo: number;
   precio: number;
   categoria?: number;
-  categoriaDefault: CategoriaBuffet;
+  talla?: number;
+  color?: number;
+  categoriaDefault: CategoriaProducto;
 }
 
 function detectarColumnas(
@@ -58,7 +66,11 @@ function detectarColumnas(
   nombreHoja: string,
 ): { cols: ColumnMapping; startRow: number } {
   const esCocaOSpeed = /^(COCA|SPEED)\b/i.test(nombreHoja.trim());
-  const categoriaDefault: CategoriaBuffet = /^SNACKS\b/i.test(nombreHoja.trim()) ? 'snacks' : 'bebidas';
+  const categoriaDefault: CategoriaProducto = /^SNACKS\b/i.test(nombreHoja.trim())
+    ? 'snacks'
+    : /^SHOP|ROPA|VESTIMENTA\b/i.test(nombreHoja.trim())
+      ? 'vestimenta'
+      : 'bebidas';
 
   // Buscar fila de encabezado en las primeras 10 filas
   for (let r = 0; r < Math.min(rows.length, 10); r++) {
@@ -70,6 +82,8 @@ function detectarColumnas(
     let costoIdx = -1;
     let precioIdx = -1;
     let catIdx = -1;
+    let tallaIdx = -1;
+    let colorIdx = -1;
 
     for (let c = 0; c < row.length; c++) {
       const cellText = String(row[c] ?? '').trim().toLowerCase();
@@ -85,6 +99,10 @@ function detectarColumnas(
         precioIdx = c;
       } else if (catIdx === -1 && /^(categoria|categoría|linea|línea|tipo)$/i.test(cellText)) {
         catIdx = c;
+      } else if (tallaIdx === -1 && /^(talla|talle|medida|tamaño|tamano|size)$/i.test(cellText)) {
+        tallaIdx = c;
+      } else if (colorIdx === -1 && /^(color|tono)$/i.test(cellText)) {
+        colorIdx = c;
       }
     }
 
@@ -96,6 +114,8 @@ function detectarColumnas(
           costo: costoIdx !== -1 ? costoIdx : (esCocaOSpeed ? 3 : 2),
           precio: precioIdx !== -1 ? precioIdx : 4,
           categoria: catIdx !== -1 ? catIdx : undefined,
+          talla: tallaIdx !== -1 ? tallaIdx : undefined,
+          color: colorIdx !== -1 ? colorIdx : undefined,
           categoriaDefault,
         },
         startRow: r + 1,
@@ -160,9 +180,18 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
       const catValor = cols.categoria !== undefined ? row[cols.categoria] : null;
       const categoria = normalizarCategoria(catValor, cols.categoriaDefault);
 
+      const tallaRaw = cols.talla !== undefined ? row[cols.talla] : null;
+      const colorRaw = cols.color !== undefined ? row[cols.color] : null;
+      const talla = typeof tallaRaw === 'string' || typeof tallaRaw === 'number'
+        ? String(tallaRaw).trim() || null
+        : null;
+      const color = typeof colorRaw === 'string'
+        ? colorRaw.trim() || null
+        : null;
+
       if (!nombre) continue;
       if (stock === null || stock < 0 || !Number.isInteger(stock) || precio === null || precio <= 0) {
-        if (!/^(articulo|producto|fecha|cant|costo|p\.?\s*vta|lays|semix|notas|categoria)$/i.test(nombre)) {
+        if (!/^(articulo|producto|fecha|cant|costo|p\.?\s*vta|lays|semix|notas|categoria|talla|talle|color)$/i.test(nombre)) {
           filasOmitidasPorSede[sede] = (filasOmitidasPorSede[sede] ?? 0) + 1;
         }
         continue;
@@ -174,6 +203,8 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
         precio,
         costo: costo !== null && costo >= 0 ? costo : null,
         stock,
+        talla,
+        color,
         hoja: nombreHoja,
       });
     }
@@ -182,7 +213,8 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
   for (const sede of Object.keys(productosPorSede)) {
     const unicos = new Map<string, ProductoStockExcel>();
     for (const producto of productosPorSede[sede] ?? []) {
-      unicos.set(producto.nombre.toLocaleLowerCase('es-AR'), producto);
+      const claveUnica = `${producto.nombre.toLocaleLowerCase('es-AR')}_${(producto.talla || '').toLowerCase()}_${(producto.color || '').toLowerCase()}`;
+      unicos.set(claveUnica, producto);
     }
     productosPorSede[sede] = [...unicos.values()].sort((a, b) =>
       a.nombre.localeCompare(b.nombre, 'es-AR'),
@@ -198,4 +230,3 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
 
   return { sedes, productosPorSede, filasOmitidasPorSede };
 }
-

@@ -3,7 +3,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Filter,
   Loader2,
+  RotateCcw,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -53,10 +55,23 @@ export function FinanzasPage() {
   const [ingresoOpen, setIngresoOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const [modoPeriodo, setModoPeriodo] = useState<'mes' | 'rango'>('mes');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [filtroMedioPago, setFiltroMedioPago] = useState<string>('todos');
+
   // Comparativo: hook actual + mes anterior.
-  const queryActual = useResumenFinanciero(anio, mes);
+  const queryActual = useResumenFinanciero(
+    modoPeriodo === 'rango' && (fechaDesde || fechaHasta)
+      ? { desde: fechaDesde || undefined, hasta: fechaHasta || undefined, medioPago: filtroMedioPago }
+      : { anio, mes, medioPago: filtroMedioPago },
+  );
   const { anio: anioAnt, mes: mesAnt } = mesAnterior(anio, mes);
-  const queryAnterior = useResumenFinanciero(anioAnt, mesAnt);
+  const queryAnterior = useResumenFinanciero(
+    modoPeriodo === 'rango'
+      ? { anio: anioAnt, mes: mesAnt, medioPago: filtroMedioPago }
+      : { anio: anioAnt, mes: mesAnt, medioPago: filtroMedioPago },
+  );
 
   // Drill-down: qué línea está abierta. Cierra a null.
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
@@ -81,6 +96,16 @@ export function FinanzasPage() {
     const s = mesFmt.format(d);
     return s.charAt(0).toUpperCase() + s.slice(1);
   }, [anio, mes]);
+
+  const tituloPeriodo = useMemo(() => {
+    if (modoPeriodo === 'rango') {
+      if (fechaDesde && fechaHasta) return `${fechaDesde} a ${fechaHasta}`;
+      if (fechaDesde) return `Desde ${fechaDesde}`;
+      if (fechaHasta) return `Hasta ${fechaHasta}`;
+      return 'Rango personalizado';
+    }
+    return mesLabel;
+  }, [modoPeriodo, fechaDesde, fechaHasta, mesLabel]);
 
   const fechaHoyTxt = useMemo(() => {
     const s = fechaCortaFmt.format(ahora);
@@ -373,32 +398,34 @@ export function FinanzasPage() {
             Estado de Resultados
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {mesLabel}
+            {tituloPeriodo}
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
             {fechaHoyTxt}
           </p>
-          <div className="inline-flex overflow-hidden rounded-md border border-border bg-card">
-            <button
-              type="button"
-              onClick={() => navMes(-1)}
-              className="px-2 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Mes anterior"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => navMes(1)}
-              disabled={esMesActual}
-              className="border-l border-border px-2 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Mes siguiente"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          {modoPeriodo === 'mes' && (
+            <div className="inline-flex overflow-hidden rounded-md border border-border bg-card">
+              <button
+                type="button"
+                onClick={() => navMes(-1)}
+                className="px-2 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Mes anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navMes(1)}
+                disabled={esMesActual}
+                className="border-l border-border px-2 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Mes siguiente"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -429,6 +456,100 @@ export function FinanzasPage() {
         </div>
       </header>
 
+      {/* ── Barra de filtros (Rango de fechas y Medio de cobro) ────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Filter className="h-3.5 w-3.5 text-primary" />
+            <span>Filtros:</span>
+          </div>
+
+          {/* Toggle de Modo Período */}
+          <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setModoPeriodo('mes')}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                modoPeriodo === 'mes'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Por mes
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoPeriodo('rango')}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                modoPeriodo === 'rango'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Rango de fechas
+            </button>
+          </div>
+
+          {modoPeriodo === 'rango' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Desde:</span>
+                <input
+                  type="date"
+                  value={fechaDesde}
+                  onChange={(e) => setFechaDesde(e.target.value)}
+                  className="h-8 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Hasta:</span>
+                <input
+                  type="date"
+                  value={fechaHasta}
+                  onChange={(e) => setFechaHasta(e.target.value)}
+                  className="h-8 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Filtro por Medio de Pago / Cobro */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>Cómo se cobró:</span>
+            <select
+              value={filtroMedioPago}
+              onChange={(e) => setFiltroMedioPago(e.target.value)}
+              className="h-8 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="todos">Todos los medios</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="mp">Mercado Pago</option>
+              <option value="tarjeta">Tarjeta (Débito/Crédito)</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+        </div>
+
+        {(modoPeriodo === 'rango' || filtroMedioPago !== 'todos') && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setModoPeriodo('mes');
+              setFechaDesde('');
+              setFechaHasta('');
+              setFiltroMedioPago('todos');
+            }}
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="mr-1 h-3 w-3" />
+            Limpiar filtros
+          </Button>
+        )}
+      </div>
+
       {queryActual.isLoading && (
         <div className="flex items-center gap-2 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -455,7 +576,14 @@ export function FinanzasPage() {
           />
 
           {/* ── Gráficos (2 columnas, estilo dashboard) ─────────────── */}
-          <EERRChartsRow resumen={queryActual.data} anio={anio} mes={mes} />
+          <EERRChartsRow
+            resumen={queryActual.data}
+            anio={anio}
+            mes={mes}
+            desde={modoPeriodo === 'rango' ? fechaDesde : undefined}
+            hasta={modoPeriodo === 'rango' ? fechaHasta : undefined}
+            medioPago={filtroMedioPago}
+          />
 
           {/* ── Tabla EERR con comparativo + drill ──────────────────── */}
           <EERRTable

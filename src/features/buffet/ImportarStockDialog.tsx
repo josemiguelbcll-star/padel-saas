@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { leerStockExcel, type StockExcelLeido } from './importarStockExcel';
+import { CATEGORIA_LABEL } from '@/features/configuracion/productos/productoSchema';
+import type { CategoriaProducto } from '@/types/database';
+import { leerStockExcel, type ProductoStockExcel, type StockExcelLeido } from './importarStockExcel';
 import { useImportarStockExcel, type ResultadoImportacionStock } from './hooks/useImportarStockExcel';
 
 interface ImportarStockDialogProps {
@@ -19,11 +21,23 @@ interface ImportarStockDialogProps {
   onSuccess: (result: ResultadoImportacionStock, sede: string) => void;
 }
 
+const OPCIONES_CATEGORIA: Array<{ value: CategoriaProducto; label: string }> = [
+  { value: 'bebidas', label: 'Bebidas (Buffet)' },
+  { value: 'snacks', label: 'Snacks (Buffet)' },
+  { value: 'comidas', label: 'Comidas (Buffet)' },
+  { value: 'otros', label: 'Otros (Buffet)' },
+  { value: 'vestimenta', label: 'Vestimenta / Ropa (Shop)' },
+  { value: 'palas', label: 'Palas / Paletas (Shop)' },
+  { value: 'articulos_padel', label: 'Pelotas / Artículos (Shop)' },
+  { value: 'accesorios', label: 'Accesorios (Shop)' },
+];
+
 export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarStockDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<string>('');
   const [lectura, setLectura] = useState<StockExcelLeido | null>(null);
   const [sede, setSede] = useState('');
+  const [productosEditables, setProductosEditables] = useState<ProductoStockExcel[]>([]);
   const [errorLectura, setErrorLectura] = useState<string | null>(null);
   const importar = useImportarStockExcel();
 
@@ -32,30 +46,40 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
     setArchivo('');
     setLectura(null);
     setSede('');
+    setProductosEditables([]);
     setErrorLectura(null);
     importar.reset();
   }, [open]);
 
-  const productos = useMemo(
-    () => (lectura && sede ? lectura.productosPorSede[sede] ?? [] : []),
-    [lectura, sede],
-  );
+  useEffect(() => {
+    if (lectura && sede) {
+      setProductosEditables(lectura.productosPorSede[sede] ?? []);
+    } else {
+      setProductosEditables([]);
+    }
+  }, [lectura, sede]);
 
   function handleDescargarPlantilla(e: React.MouseEvent): void {
     e.preventDefault();
 
-    // Headers de la plantilla vacía (esqueleto)
-    const headers = ['Producto', 'Stock', 'Costo', 'Precio', 'Categoria'];
-    const data = [headers];
+    // Headers de la plantilla vacía con los nuevos campos de indumentaria (Talla y Color)
+    const headers = ['Producto', 'Stock', 'Costo', 'Precio', 'Categoria', 'Talla', 'Color'];
+    const data = [
+      headers,
+      ['Ejemplo Remera Bullpadel', 10, 15000, 25000, 'vestimenta', 'M', 'Negro'],
+      ['Ejemplo Bebida Isotónica', 24, 800, 1500, 'bebidas', '', ''],
+    ];
 
     // Crear worksheet con ancho de columnas configurado
     const worksheet = XLSX.utils.aoa_to_sheet(data);
     worksheet['!cols'] = [
-      { wch: 35 }, // Producto
+      { wch: 32 }, // Producto
       { wch: 10 }, // Stock
       { wch: 12 }, // Costo
       { wch: 12 }, // Precio
-      { wch: 15 }, // Categoria
+      { wch: 16 }, // Categoria
+      { wch: 12 }, // Talla
+      { wch: 14 }, // Color
     ];
 
     // Crear el libro de trabajo (workbook)
@@ -82,36 +106,53 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
       const parsed = leerStockExcel(await file.arrayBuffer());
       setArchivo(file.name);
       setLectura(parsed);
-      setSede(parsed.sedes[0] ?? '');
+      const primeraSede = parsed.sedes[0] ?? '';
+      setSede(primeraSede);
+      setProductosEditables(parsed.productosPorSede[primeraSede] ?? []);
     } catch (error) {
       setArchivo(file.name);
       setLectura(null);
       setSede('');
+      setProductosEditables([]);
       setErrorLectura(error instanceof Error ? error.message : 'No pudimos leer el archivo.');
     }
   }
 
+  function handleCambiarCategoria(index: number, cat: CategoriaProducto) {
+    setProductosEditables((prev) => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = { ...copy[index], categoria: cat };
+      }
+      return copy;
+    });
+  }
+
+  function handleCambiarTodasCategorias(cat: CategoriaProducto) {
+    setProductosEditables((prev) => prev.map((p) => ({ ...p, categoria: cat })));
+  }
+
   async function confirmar(): Promise<void> {
-    if (!sede || productos.length === 0) return;
-    const result = await importar.mutateAsync(productos);
+    if (!sede || productosEditables.length === 0) return;
+    const result = await importar.mutateAsync(productosEditables);
     onSuccess(result, sede);
     onOpenChange(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Importar stock desde Excel</DialogTitle>
           <DialogDescription>
-            Cargá masivamente tus productos, costos, precios y stock. Podés usar tu propio Excel o descargar nuestra plantilla predefinida.
+            Cargá masivamente productos, indumentaria con talla y color, costos, precios y stock.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 text-xs">
           <div className="flex items-center gap-2 text-muted-foreground">
             <FileSpreadsheet className="h-4 w-4 text-primary shrink-0" />
-            <span>¿No tenés una plantilla armada?</span>
+            <span>Plantilla con campos para buffet y ropa (talla, color, categoría):</span>
           </div>
           <button
             type="button"
@@ -171,16 +212,58 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
               </div>
             )}
 
-            <div className="rounded-xl border border-border">
-              <div className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
-                <span>Producto</span><span>Stock</span><span>Precio</span>
+            {/* Asignación masiva rápida de categoría */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Asignar categoría a todos los ítems:</span>
+              <div className="flex items-center gap-1.5">
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleCambiarTodasCategorias(e.target.value as CategoriaProducto);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="h-7 rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="" disabled>Seleccionar categoría…</option>
+                  {OPCIONES_CATEGORIA.map((opc) => (
+                    <option key={opc.value} value={opc.value}>{opc.label}</option>
+                  ))}
+                </select>
               </div>
-              <div className="max-h-56 overflow-y-auto">
-                {productos.slice(0, 100).map((producto) => (
-                  <div key={producto.nombre} className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-border/60 px-3 py-2 text-xs last:border-0">
-                    <span className="min-w-0 truncate text-foreground">{producto.nombre}</span>
-                    <span className="tabular-nums text-muted-foreground">{producto.stock}</span>
-                    <span className="w-24 text-right tabular-nums text-foreground">$ {producto.precio.toLocaleString('es-AR')}</span>
+            </div>
+
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="grid grid-cols-[1.5fr_1.3fr_1fr_auto_auto] gap-2 border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                <span>Producto</span>
+                <span>Categoría</span>
+                <span>Talla / Color</span>
+                <span>Stock</span>
+                <span className="text-right">Precio</span>
+              </div>
+              <div className="max-h-60 overflow-y-auto divide-y divide-border/60">
+                {productosEditables.slice(0, 100).map((producto, index) => (
+                  <div key={`${producto.nombre}-${producto.talla}-${producto.color}-${index}`} className="grid grid-cols-[1.5fr_1.3fr_1fr_auto_auto] items-center gap-2 px-3 py-1.5 text-xs">
+                    <span className="min-w-0 truncate font-medium text-foreground" title={producto.nombre}>
+                      {producto.nombre}
+                    </span>
+                    <div>
+                      <select
+                        value={producto.categoria}
+                        onChange={(e) => handleCambiarCategoria(index, e.target.value as CategoriaProducto)}
+                        className="h-7 w-full rounded border border-border bg-background px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {OPCIONES_CATEGORIA.map((opc) => (
+                          <option key={opc.value} value={opc.value}>{CATEGORIA_LABEL[opc.value] || opc.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <span className="truncate text-muted-foreground text-[11px]" title={`${producto.talla || '—'} / ${producto.color || '—'}`}>
+                      {producto.talla || producto.color ? `${producto.talla ?? '—'} / ${producto.color ?? '—'}` : '—'}
+                    </span>
+                    <span className="tabular-nums font-mono text-muted-foreground text-center">{producto.stock}</span>
+                    <span className="w-20 text-right tabular-nums text-foreground font-medium">$ {producto.precio.toLocaleString('es-AR')}</span>
                   </div>
                 ))}
               </div>
@@ -200,9 +283,9 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={importar.isPending}>
             Cancelar
           </Button>
-          <Button type="button" onClick={() => void confirmar()} disabled={productos.length === 0 || importar.isPending}>
+          <Button type="button" onClick={() => void confirmar()} disabled={productosEditables.length === 0 || importar.isPending}>
             {importar.isPending ? <Loader2 className="animate-spin" /> : <Upload />}
-            {importar.isPending ? 'Importando…' : `Importar ${productos.length || ''} productos`}
+            {importar.isPending ? 'Importando…' : `Importar ${productosEditables.length || ''} productos`}
           </Button>
         </DialogFooter>
       </DialogContent>

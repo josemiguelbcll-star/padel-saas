@@ -885,7 +885,7 @@ function NuevaReservaBodyReady({
                 <p className="text-xs text-destructive">{errors.medio_pago}</p>
               )}
             </div>
-            {club && (medioPago === 'transferencia' || selectedCuenta?.tipo === 'banco') && (
+            {club && (medioPago === 'transferencia' || cuentasActivas.find((c) => c.id === selectedCuentaId)?.tipo === 'banco') && (
               (() => {
                 const alias = (club as any)?.cbu_alias || ((club.config as any)?.deposito ?? {}).transferencia_alias;
                 const banco = (club as any)?.nombre_banco;

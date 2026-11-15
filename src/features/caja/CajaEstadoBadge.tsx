@@ -37,7 +37,7 @@ export function CajaEstadoBadge() {
 
   return (
     <NavLink
-      to="/caja"
+      to="/app/caja/arqueos"
       aria-label={abierta ? 'Caja abierta — ir a Caja' : 'Caja cerrada — ir a Caja'}
       className={cn(
         'hidden items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors sm:inline-flex',

@@ -478,7 +478,9 @@ function CourtCard({ court, cancha, contactHref, contactIsExternal, hasTelefono,
 
   useEffect(() => {
     if (sorted.length > 0 && (!selFin || !sorted.some(s => s.hora_fin === selFin))) {
-      setSelFin(sorted[0].hora_fin);
+      if (sorted[0]) {
+        setSelFin(sorted[0].hora_fin);
+      }
     }
   }, [sorted, selFin]);
 

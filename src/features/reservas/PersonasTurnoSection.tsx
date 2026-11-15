@@ -454,7 +454,7 @@ export function PersonasTurnoSection({
         reserva_id: reservaId,
         fecha,
         medio_pago: medio,
-        cuenta_id: cuentaId ?? null,
+        cuenta_id: cuentaId ?? undefined,
         observaciones: obs,
         monto_esperado: saldo.saldo,
         monto,

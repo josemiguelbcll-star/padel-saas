@@ -41,6 +41,7 @@ import { useReservaPagos } from './hooks/useReservaPagos';
 import { useReservaConsumos } from './hooks/useReservaConsumos';
 import { useCancelarReserva } from './hooks/useCancelarReserva';
 import { useCerrarTurno } from './hooks/useCerrarTurno';
+import { useReabrirTurno } from './hooks/useReabrirTurno';
 import { useReservaJugadores } from './hooks/useReservaJugadores';
 import { useEliminarBloqueoTorneo } from './hooks/useEliminarBloqueoTorneo';
 import { useDesbloquearTurnoFijo } from './hooks/useDesbloquearTurnoFijo';
@@ -376,6 +377,7 @@ function DetalleReservaBody({
   const actualizarMutation = useActualizarReserva(); // solo observaciones
   const cancelarMutation = useCancelarReserva();
   const cerrarMutation = useCerrarTurno();
+  const reabrirMutation = useReabrirTurno();
   const eliminarBloqueoTorneoMutation = useEliminarBloqueoTorneo();
   const desbloquearMutation = useDesbloquearTurnoFijo();
 
@@ -586,6 +588,21 @@ function DetalleReservaBody({
     } catch (err) {
       setAccionError(
         err instanceof Error ? err.message : 'No pudimos cerrar el turno.',
+      );
+    }
+  }
+
+  async function handleReabrirTurno(): Promise<void> {
+    setAccionError(null);
+    try {
+      const updated = await reabrirMutation.mutateAsync({
+        id: reserva.id,
+        fecha: reserva.fecha,
+      });
+      applyReservaUpdate(updated);
+    } catch (err) {
+      setAccionError(
+        err instanceof Error ? err.message : 'No pudimos reabrir el turno.',
       );
     }
   }
@@ -1071,7 +1088,7 @@ function DetalleReservaBody({
 
             {isAdmin && (
               <div className="flex items-center gap-1.5">
-                {!readOnly && !estaCerrado && !estaCancelado && (
+                {!readOnly && !estaCancelado && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1202,6 +1219,27 @@ function DetalleReservaBody({
             className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
           >
             {accionError}
+          </div>
+        )}
+
+        {/* Si el turno está cerrado y el usuario es Admin, opción para volver a abrir el turno */}
+        {estaCerrado && isAdmin && !confirmingCancel && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Turno cerrado</p>
+              <p className="text-xs text-muted-foreground">Como administrador podés reabrir este turno para modificarlo o registrar cobros.</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void handleReabrirTurno();
+              }}
+              disabled={reabrirMutation.isPending}
+            >
+              {reabrirMutation.isPending ? 'Reabriendo…' : 'Volver a abrir turno'}
+            </Button>
           </div>
         )}
 
