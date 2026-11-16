@@ -57,7 +57,6 @@ type CriterioOrden = 'ranking' | 'visitas' | 'buffet' | 'nombre';
 
 export function JugadoresPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
   const canEdit = getPermiso(user, 'reservas', 'editar');
 
   const jugadoresQuery = useJugadores();
@@ -304,7 +303,6 @@ export function JugadoresPage() {
         query={jugadoresQuery}
         jugadores={jugadoresFiltrados}
         busquedaActiva={busqueda.trim() !== ''}
-        isAdmin={isAdmin}
         canEdit={canEdit}
         onEdit={openEdit}
         onDelete={requestDelete}
@@ -374,7 +372,6 @@ interface JugadoresTableProps {
   query: ReturnType<typeof useJugadores>;
   jugadores: JugadorConEstadisticas[];
   busquedaActiva: boolean;
-  isAdmin: boolean;
   canEdit: boolean;
   onEdit: (j: JugadorConEstadisticas) => void;
   onDelete: (j: JugadorConEstadisticas) => void;
@@ -384,7 +381,6 @@ function JugadoresTable({
   query,
   jugadores,
   busquedaActiva,
-  isAdmin,
   canEdit,
   onEdit,
   onDelete,
@@ -564,7 +560,7 @@ function JugadoresTable({
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {isAdmin && canEdit && (
+                      {canEdit && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -679,7 +675,7 @@ function JugadoresTable({
                     Editar
                   </Button>
                 )}
-                {isAdmin && canEdit && (
+                {canEdit && (
                   <Button
                     type="button"
                     variant="ghost"

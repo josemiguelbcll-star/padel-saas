@@ -31,6 +31,8 @@ function rolLabel(rol: 'admin' | 'vendedor'): string {
  *     `usuarios_select` de 0001/0002 lo permite).
  *   - Solo admin puede crear / editar / desactivar. Los botones se
  *     ocultan para vendedores; el server-side los rechazaría igual.
+ *     Excepción aprobada a la regla de permisos granulares: la gestión de
+ *     usuarios es una función de identidad del club y se mantiene por rol.
  *
  * Regla del último admin (0018):
  *   - El trigger `tr_proteger_ultimo_admin_activo` bloquea cualquier

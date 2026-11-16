@@ -1,12 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 
 interface CajaTab {
   label: string;
   to: string;
-  /** Si true, solo usuarios con rol 'admin' ven esta pestaña. */
-  adminOnly?: boolean;
+  /**
+   * Clave del módulo de permisos que controla esta pestaña. La visibilidad
+   * la decide SIEMPRE `getPermiso(user, modulo, 'ver')` (lo que el admin
+   * concede en "Permisos del vendedor" manda, nunca el rol).
+   */
+  modulo?: string;
 }
 
 const tabs: CajaTab[] = [
@@ -16,11 +21,11 @@ const tabs: CajaTab[] = [
   // Independiente del turno de caja (no requiere caja abierta).
   { label: 'Transferencias', to: '/app/caja/transferencias' },
   // Arqueo de Caja: historial de aperturas, cierres, arqueos y control de continuidad.
-  // Solo admin (contiene datos sensibles de arqueo y diferencias).
-  { label: 'Arqueo de Caja', to: '/app/caja/arqueos', adminOnly: true },
+  // Datos sensibles de arqueo y diferencias → módulo 'caja_arqueos' (por defecto solo admin).
+  { label: 'Arqueo de Caja', to: '/app/caja/arqueos', modulo: 'caja_arqueos' },
   // Auditoría completa de movimientos bancarios y tesorería de cuentas.
-  // Solo admin.
-  { label: 'Movimientos de Cuentas', to: '/app/caja/movimientos-cuentas', adminOnly: true },
+  // Mismo módulo de control financiero que los arqueos.
+  { label: 'Movimientos de Cuentas', to: '/app/caja/movimientos-cuentas', modulo: 'caja_arqueos' },
 ];
 
 /**
@@ -35,8 +40,9 @@ const tabs: CajaTab[] = [
  */
 export function CajaLayout() {
   const { user } = useSession();
-  const esAdmin = user?.rol === 'admin';
-  const tabsVisibles = tabs.filter((tab) => !tab.adminOnly || esAdmin);
+  const tabsVisibles = tabs.filter(
+    (tab) => !tab.modulo || getPermiso(user, tab.modulo, 'ver'),
+  );
 
   return (
     <div className="space-y-6">

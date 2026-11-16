@@ -25,10 +25,12 @@ export interface NavSubItem {
   to: string;
   icon?: LucideIcon;
   /**
-   * Si TRUE, el sub-item solo se muestra a usuarios con rol 'admin'.
-   * El filtro lo aplica el Sidebar; la seguridad real es server-side.
+   * Clave del módulo de permisos que controla este sub-item (ver
+   * `lib/permisos.ts`). Si está presente, la visibilidad la decide
+   * SIEMPRE `getPermiso(user, modulo, 'ver')`: lo que el admin concede
+   * en "Permisos del vendedor" manda, nunca el rol.
    */
-  adminOnly?: boolean;
+  modulo?: string;
 }
 
 export interface NavItem {
@@ -38,21 +40,11 @@ export interface NavItem {
   disabled?: boolean;
   /**
    * Clave del módulo de permisos que controla este item (ver `lib/permisos.ts`).
-   * Si está presente, la visibilidad la decide SIEMPRE `getPermiso(user, modulo, 'ver')`
-   * y `adminOnly` se ignora: lo que el admin concede en "Permisos del vendedor"
-   * se respeta y no puede ser tapado por un gate de rol.
+   * La visibilidad la decide SIEMPRE `getPermiso(user, modulo, 'ver')`:
+   * lo que el admin concede en "Permisos del vendedor" se respeta y nunca
+   * puede ser tapado por un gate de rol.
    */
   modulo?: string;
-  /**
-   * Si TRUE, el item solo se muestra a usuarios con rol 'admin'. El
-   * filtro lo aplica el Sidebar (no se renderiza para no-admin). La
-   * seguridad real es server-side (RLS + gate en RPCs) — esto es
-   * cosmética del menú.
-   *
-   * IMPORTANTE: no uses `adminOnly` junto con `modulo`. Para módulos
-   * configurables por permisos, usá `modulo` (los permisos mandan).
-   */
-  adminOnly?: boolean;
   /** Sub-items siempre expandidos debajo del padre. */
   children?: NavSubItem[];
 }
@@ -91,7 +83,7 @@ export const navItems: NavItem[] = [
     children: [
       { label: 'Efectivo', to: '/app/caja/efectivo', icon: Wallet },
       { label: 'Transferencias', to: '/app/caja/transferencias', icon: ArrowLeftRight },
-      { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt, adminOnly: true },
+      { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt, modulo: 'caja_arqueos' },
     ],
   },
   {

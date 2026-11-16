@@ -39,6 +39,7 @@ import type { ClaseConProfesor } from '@/features/configuracion/hooks/useClases'
 import { useTarifasClases } from '@/features/configuracion/hooks/useTarifasClases';
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
 import { useCobrarClase } from './hooks/useCobrarClase';
 import {
@@ -192,7 +193,7 @@ function DetalleClaseBody({
   readOnly: readOnlyProp,
 }: DetalleClaseBodyProps) {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const puedeEditarClase = getPermiso(user, 'reservas', 'editar');
 
   // Pestaña activa
   const [activeTab, setActiveTab] = useState<TabSeccion>('alumnos');
@@ -201,9 +202,10 @@ function DetalleClaseBody({
   const ocurrenciaQuery = useClaseOcurrencia(clase.id, fecha);
   const ocurrencia = ocurrenciaQuery.data;
 
-  // Si la ocurrencia está cancelada o liberada o cerrada, o si es vendedor y está cerrada
+  // Si la ocurrencia está cancelada o liberada o cerrada, solo puede editarse
+  // con permiso de edición de reservas (lo decide el permiso, no el rol).
   const esCerrada = ocurrencia?.estado === 'cancelada' || ocurrencia?.estado === 'liberada';
-  const readOnly = readOnlyProp || (esCerrada && !isAdmin);
+  const readOnly = readOnlyProp || (esCerrada && !puedeEditarClase);
   const seleccionarTarifa = useSeleccionarTarifaClaseOpcion();
 
   const alumnosQuery = useClaseAlumnos(clase.id, fecha);

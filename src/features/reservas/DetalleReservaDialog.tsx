@@ -147,6 +147,9 @@ function DetalleReservaBody({
   readOnly,
 }: DetalleReservaBodyProps) {
   const { club, user } = useSession();
+  // Excepción aprobada a la regla de permisos granulares: estas acciones
+  // (cambiar duración, editar/reabrir un turno cerrado) dependen de RPCs
+  // admin-only en el backend, así que el gate se mantiene por rol.
   const isAdmin = user?.rol === 'admin';
   // Estado local de la reserva: arranca con la prop, se actualiza con
   // los returns de las mutations para reflejar cambios sin esperar a

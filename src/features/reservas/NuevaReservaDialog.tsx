@@ -28,6 +28,7 @@ import {
   type MedioPagoForm,
 } from './nuevaReservaSchema';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import {
   formatearFechaAmigable,
   formatearHora,
@@ -242,7 +243,7 @@ function NuevaReservaBodyReady({
   // tarifa por duración (espejo de montoPagadoTouched).
   const [montoTotalTouched, setMontoTotalTouched] = useState(false);
   const { club, user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const puedeConfigurarFranjas = getPermiso(user, 'configuracion', 'editar');
   const depositoObligatorio = false; // Bypass downpayment requirement for admin panel bookings
   const [estado, setEstado] = useState<EstadoInicial>(
     depositoObligatorio ? 'senada' : 'pendiente',
@@ -648,7 +649,7 @@ function NuevaReservaBodyReady({
         <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold text-foreground">Franja horaria / Tarifa</Label>
-            {isAdmin && (
+            {puedeConfigurarFranjas && (
               <Link
                 to="/app/configuracion/tarifas"
                 target="_blank"

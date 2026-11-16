@@ -69,27 +69,25 @@ interface SidebarNavProps {
 
 export function SidebarNav({ onNavigate, collapsed }: SidebarNavProps) {
   const { user } = useSession();
-  const esAdmin = user?.rol === 'admin';
   const visibles = useMemo(() => {
     return navItems
       .filter((item) => {
-        // Los items gestionados por permisos se rigen SIEMPRE por getPermiso:
-        // así se respeta lo que el admin concede en "Permisos del vendedor"
-        // y un `adminOnly` no puede taparlo por error.
+        // La visibilidad la decide SIEMPRE el permiso granular del módulo que
+        // el admin concede en "Permisos del vendedor". Nunca el rol.
         if (item.modulo) return getPermiso(user, item.modulo, 'ver');
-        // `adminOnly` solo aplica a items que NO son configurables por permisos.
-        if (item.adminOnly && !esAdmin) return false;
         return true;
       })
       .map((item) => {
-        // Filtrar sub-items adminOnly según el rol.
+        // Los sub-items con `modulo` propio se rigen por su permiso.
         if (!item.children) return item;
         return {
           ...item,
-          children: item.children.filter((sub) => !sub.adminOnly || esAdmin),
+          children: item.children.filter(
+            (sub) => !sub.modulo || getPermiso(user, sub.modulo, 'ver'),
+          ),
         };
       });
-  }, [user, esAdmin]);
+  }, [user]);
   return (
     <nav
       className={cn(

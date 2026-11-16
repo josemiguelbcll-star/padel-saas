@@ -79,6 +79,9 @@ export function DetalleArqueoDialog({
   turno,
 }: DetalleArqueoDialogProps) {
   const { user } = useSession();
+  // Excepción aprobada a la regla de permisos granulares: editar/reabrir un
+  // arqueo depende de RPCs admin-only (fn_editar_arqueo_caja,
+  // fn_reabrir_turno_caja), así que el gate se mantiene por rol.
   const isAdmin = user?.rol === 'admin';
 
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'entradas' | 'salidas'>(
