@@ -268,3 +268,75 @@ export function useMaterializarTurnosFijos(): UseMutationResult<
     },
   });
 }
+
+// ─── Liberar / reactivar una instancia por fecha ─────────────────────
+
+export interface TurnoFijoPorFechaInput {
+  turno_fijo_id: number;
+  /** 'YYYY-MM-DD'. */
+  fecha: string;
+}
+
+export interface ResultadoTurnoFijoPorFecha {
+  ok: boolean;
+  turno_fijo_id: number;
+  reserva_id: number;
+  fecha: string;
+  estado: string;
+}
+
+function invalidarTurnosYReservas(
+  queryClient: ReturnType<typeof useQueryClient>,
+): void {
+  void queryClient.invalidateQueries({ queryKey: TURNOS_FIJOS_QUERY_KEY });
+  void queryClient.invalidateQueries({ queryKey: ['reservas'] });
+  void queryClient.invalidateQueries({ queryKey: ['reservas-del-dia'] });
+}
+
+/**
+ * Libera una instancia puntual de un turno fijo para una fecha concreta
+ * (marca la reserva como 'cancelada') sin eliminar el turno fijo maestro.
+ * El horario queda disponible para reservar. Requiere que la reserva ya
+ * exista para esa fecha.
+ */
+export function useLiberarTurnoFijoPorFecha(): UseMutationResult<
+  ResultadoTurnoFijoPorFecha,
+  Error,
+  TurnoFijoPorFechaInput
+> {
+  const queryClient = useQueryClient();
+  return useMutation<ResultadoTurnoFijoPorFecha, Error, TurnoFijoPorFechaInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc('fn_liberar_turno_fijo_por_fecha', {
+        p_turno_fijo_id: input.turno_fijo_id,
+        p_fecha: input.fecha,
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      return (data ?? { ok: true }) as ResultadoTurnoFijoPorFecha;
+    },
+    onSuccess: () => invalidarTurnosYReservas(queryClient),
+  });
+}
+
+/**
+ * Revierte una liberación previa de una instancia de turno fijo para una
+ * fecha, si el horario sigue libre. Vuelve la reserva a 'pendiente'.
+ */
+export function useReactivarTurnoFijoPorFecha(): UseMutationResult<
+  ResultadoTurnoFijoPorFecha,
+  Error,
+  TurnoFijoPorFechaInput
+> {
+  const queryClient = useQueryClient();
+  return useMutation<ResultadoTurnoFijoPorFecha, Error, TurnoFijoPorFechaInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc('fn_reactivar_turno_fijo_por_fecha', {
+        p_turno_fijo_id: input.turno_fijo_id,
+        p_fecha: input.fecha,
+      });
+      if (error) throw new Error(mapPostgrestError(error));
+      return (data ?? { ok: true }) as ResultadoTurnoFijoPorFecha;
+    },
+    onSuccess: () => invalidarTurnosYReservas(queryClient),
+  });
+}

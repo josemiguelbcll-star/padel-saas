@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  CalendarX,
   Clock,
   List,
   MapPin,
@@ -37,6 +38,7 @@ import { NuevoTurnoFijoDialog, type TurnoFijoPrefill } from './NuevoTurnoFijoDia
 import { EditarTurnoFijoDialog } from './EditarTurnoFijoDialog';
 import { CancelarTurnoFijoDialog } from './CancelarTurnoFijoDialog';
 import { EliminarTurnoFijoDialog } from './EliminarTurnoFijoDialog';
+import { LiberarTurnoFijoPorFechaDialog } from './LiberarTurnoFijoPorFechaDialog';
 import type { TurnoFijo } from '@/types/database';
 
 const DIAS_PLURAL: Record<number, string> = {
@@ -82,6 +84,7 @@ export function TurnosFijosPage() {
   const [editarOpen, setEditarOpen] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);
   const [eliminarOpen, setEliminarOpen] = useState(false);
+  const [liberarOpen, setLiberarOpen] = useState(false);
   const [seleccionado, setSeleccionado] = useState<TurnoFijo | null>(null);
 
   // Vista del módulo + precarga del alta desde el calendario + buscador.
@@ -114,6 +117,11 @@ export function TurnosFijosPage() {
   function openEliminar(t: TurnoFijo): void {
     setSeleccionado(t);
     setEliminarOpen(true);
+  }
+
+  function openLiberar(t: TurnoFijo): void {
+    setSeleccionado(t);
+    setLiberarOpen(true);
   }
 
   function nombreTitularDe(t: TurnoFijo): string {
@@ -384,6 +392,10 @@ export function TurnosFijosPage() {
                             <Pencil className="mr-2 h-3.5 w-3.5" />
                             Editar
                           </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => openLiberar(t)}>
+                            <CalendarX className="mr-2 h-3.5 w-3.5" />
+                            Liberar por fecha
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onSelect={() => openEliminar(t)}
@@ -425,6 +437,11 @@ export function TurnosFijosPage() {
         onOpenChange={setEliminarOpen}
         turno={seleccionado}
         titularNombre={seleccionado ? nombreTitularDe(seleccionado) : undefined}
+      />
+      <LiberarTurnoFijoPorFechaDialog
+        open={liberarOpen}
+        onOpenChange={setLiberarOpen}
+        turno={seleccionado}
       />
     </section>
   );
