@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { CircleDot, Loader2, Pencil, Plus, PowerOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { getPermiso } from '@/lib/permisos';
 import { useSession } from '@/features/auth';
 import { useCategoriasGasto } from '@/features/finanzas/hooks/useCategoriasGasto';
 import { useUnidadesNegocio } from '@/features/finanzas/hooks/useUnidadesNegocio';
@@ -32,7 +33,7 @@ const TIPO_COLOR: Record<TipoUnidad, { fg: string; bg: string }> = {
 
 export function UnidadesPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
 
   const unidadesQuery = useUnidadesNegocio();
   const catQuery = useCategoriasGasto();
@@ -82,7 +83,7 @@ export function UnidadesPage() {
             las pantallas operativas; el resto se carga manualmente.
           </p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button type="button" onClick={openNew} className="shrink-0">
             <Plus className="h-4 w-4" />
             Nueva unidad
@@ -106,7 +107,7 @@ export function UnidadesPage() {
       {unidadesQuery.data && unidadesQuery.data.length === 0 && (
         <div className="rounded-md border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            {isAdmin
+            {canEdit
               ? 'Todavía no hay unidades cargadas. Creá la primera con "Nueva unidad".'
               : 'Todavía no hay unidades cargadas. Pedile al administrador que las configure.'}
           </p>
@@ -124,7 +125,7 @@ export function UnidadesPage() {
                 className={cn(
                   'group rounded-lg border border-border bg-card p-4 transition-colors',
                   !u.activa && 'opacity-60',
-                  isAdmin && 'hover:border-primary/50',
+                  canEdit && 'hover:border-primary/50',
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -141,7 +142,7 @@ export function UnidadesPage() {
                       </span>
                     )}
                   </div>
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                       <Button
                         type="button"

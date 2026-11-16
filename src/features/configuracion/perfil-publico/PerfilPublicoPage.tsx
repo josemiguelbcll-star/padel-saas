@@ -42,8 +42,7 @@ import { getPermiso } from '@/lib/permisos';
 export function PerfilPublicoPage() {
   const { club, user, updateClub } = useSession();
   const queryClient = useQueryClient();
-  const isAdmin = user?.rol === 'admin';
-  const canEdit = isAdmin || getPermiso(user, 'configuracion', 'editar');
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
 
   // Form local state (inicializado del club actual)
   const [descripcion, setDescripcion] = useState(club?.descripcion ?? '');

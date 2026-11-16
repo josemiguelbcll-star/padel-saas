@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { getPermiso } from '@/lib/permisos';
 
 // Cargar gráficos de forma perezosa (lazy) para reducir el bundle inicial
 const IngresosUnidadChart = lazy(() =>
@@ -90,14 +91,15 @@ function mesAnterior(anio: number, mes: number): { anio: number; mes: number } {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * Dashboard del club. Para admin renderiza un panel ejecutivo con KPIs
- * + gráficos + tarjetas operativas + movimientos recientes. Para
- * vendedor solo muestra placeholder + banner de setup pendientes (si
- * aplica). Información financiera = del dueño.
+ * Dashboard del club. Si el usuario tiene `ver` en Finanzas, renderiza un
+ * panel ejecutivo con KPIs + gráficos + tarjetas operativas + movimientos
+ * recientes. Si no, solo muestra placeholder + banner de setup pendientes
+ * (si aplica). La visibilidad la decide SIEMPRE el permiso granular que el
+ * admin concede (`finanzas.ver`), nunca el rol.
  */
 export function DashboardPage() {
   const { user, club } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  const panelEjecutivo = getPermiso(user, 'finanzas', 'ver');
 
   const ahora = new Date();
   const anio = ahora.getFullYear();
@@ -113,10 +115,10 @@ export function DashboardPage() {
         fecha={ahora}
         mes={mes}
         anio={anio}
-        isAdmin={isAdmin}
+        panelEjecutivo={panelEjecutivo}
       />
 
-      {isAdmin ? (
+      {panelEjecutivo ? (
         <AdminDashboard anio={anio} mes={mes} />
       ) : (
         <VendedorDashboard />
@@ -135,7 +137,8 @@ interface DashboardHeroProps {
   fecha: Date;
   mes: number;
   anio: number;
-  isAdmin: boolean;
+  /** true si el usuario puede ver el panel ejecutivo (permiso finanzas.ver). */
+  panelEjecutivo: boolean;
 }
 
 function DashboardHero({
@@ -143,7 +146,7 @@ function DashboardHero({
   fecha,
   mes,
   anio,
-  isAdmin,
+  panelEjecutivo,
 }: DashboardHeroProps) {
   const fechaTexto = fechaCorta.format(fecha);
   // Capitalizar primera letra ("martes 22 de mayo" → "Martes 22 de mayo")
@@ -156,7 +159,7 @@ function DashboardHero({
           {nombreUsuario ? `Hola, ${nombreUsuario.split(' ')[0]}` : 'Dashboard'}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {isAdmin
+          {panelEjecutivo
             ? `Resumen de ${MESES_NOMBRE[mes]} ${anio}`
             : 'Bienvenido de vuelta'}
         </p>
@@ -816,7 +819,9 @@ function SetupPendientesBanner() {
   const horariosQuery = useHorariosClub();
   const tarifasQuery = useTarifas();
 
-  if (user?.rol !== 'admin') return null;
+  // El banner invita a configurar el club (horarios/tarifas), así que se
+  // rige por el permiso de edición de Configuración, no por el rol.
+  if (!getPermiso(user, 'configuracion', 'editar')) return null;
   if (horariosQuery.isLoading || tarifasQuery.isLoading) return null;
 
   const horariosFaltantes =

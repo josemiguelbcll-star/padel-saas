@@ -44,8 +44,10 @@ import { getPermiso } from '@/lib/permisos';
 
 export function MarcaPage() {
   const { club, user } = useSession();
-  const isAdmin = user?.rol === 'admin';
-  const canEdit = isAdmin || getPermiso(user, 'configuracion', 'editar');
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
+  // "Resetear datos de prueba" es una acción destructiva a nivel plataforma,
+  // sin permiso granular asociado: se mantiene restringida al admin del club.
+  const esAdmin = user?.rol === 'admin';
   const mutation = useActualizarMarcaClub();
 
   const [nombre, setNombre] = useState<string>(club?.nombre ?? '');
@@ -272,7 +274,7 @@ export function MarcaPage() {
       </section>
 
       {/* ── Resetear Datos de Prueba ─────────────────────────────── */}
-      {isAdmin && <ResetClubSection clubId={club.id} clubNombre={club.nombre} />}
+      {esAdmin && <ResetClubSection clubId={club.id} clubNombre={club.nombre} />}
 
       {error && (
         <div

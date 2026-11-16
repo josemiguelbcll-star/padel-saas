@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { getPermiso } from '@/lib/permisos';
 import {
   JugadorAutocomplete,
   type JugadorSeleccionado,
@@ -1515,7 +1516,6 @@ function RowPagosPersona({
   readOnly?: boolean;
 }) {
   const { user } = useSession();
-  const esAdmin = user?.rol === 'admin';
   const cajasCerradas = useCajasCerradasDePagos(pagosPropios);
   const [confirmingPagoId, setConfirmingPagoId] = useState<number | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -1536,7 +1536,7 @@ function RowPagosPersona({
         // Cobro que ya entró a una caja cerrada: solo un admin puede corregirlo.
         const cajaCerrada =
           p.turno_caja_id != null && cajasCerradas.has(p.turno_caja_id);
-        const puedeCorregir = esAdmin;
+        const puedeCorregir = getPermiso(user, 'caja_arqueos', 'editar');
         return (
           <div
             key={p.id}

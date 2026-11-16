@@ -48,8 +48,9 @@ import { getPermiso } from '@/lib/permisos';
 
 export function ConfiguracionLayout() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
-  const canEdit = isAdmin || getPermiso(user, 'configuracion', 'editar');
+  // La edición se rige por el permiso granular del módulo (el admin siempre
+  // puede vía getPermiso). Nunca por rol.
+  const canEdit = getPermiso(user, 'configuracion', 'editar');
 
   const visibleTabs = tabs.filter((tab) => {
     if (tab.to === '/app/configuracion/perfil-publico') {

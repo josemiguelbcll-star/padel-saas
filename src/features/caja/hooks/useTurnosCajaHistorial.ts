@@ -2,6 +2,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import type { TurnoCaja } from '@/types/database';
 
 export interface SiguienteTurnoInfo {
@@ -56,7 +57,9 @@ export function useTurnosCajaHistorial(): UseQueryResult<
         .eq('club_id', club.id)
         .order('abierta_en', { ascending: false });
 
-      if (user.rol !== 'admin') {
+      // Quien tiene permiso de ver Arqueos ve todo el club; si no, solo sus
+      // propias jornadas. Lo decide el permiso granular, no el rol.
+      if (!getPermiso(user, 'caja_arqueos', 'ver')) {
         turnosQuery = turnosQuery.or(
           `vendedor_id.eq.${user.id},usuario_apertura.eq.${user.id},usuario_cierre.eq.${user.id}`,
         );

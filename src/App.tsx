@@ -203,9 +203,9 @@ export function App() {
             <Route index element={<Navigate to="/app/caja/efectivo" replace />} />
             <Route path="efectivo" element={<CajaPage />} />
             <Route path="transferencias" element={<TransferenciasPage />} />
-            <Route path="arqueos" element={<AdminOnlyRoute><ArqueosCajaPage /></AdminOnlyRoute>} />
+            <Route path="arqueos" element={<ModuleRoute modulo="caja_arqueos"><ArqueosCajaPage /></ModuleRoute>} />
             <Route path="arqueo" element={<Navigate to="/app/caja/arqueos" replace />} />
-            <Route path="movimientos-cuentas" element={<AdminOnlyRoute><MovimientosCuentasPage /></AdminOnlyRoute>} />
+            <Route path="movimientos-cuentas" element={<ModuleRoute modulo="caja_arqueos"><MovimientosCuentasPage /></ModuleRoute>} />
           </Route>
 
           <Route path="finanzas" element={<ModuleRoute modulo="finanzas"><FinanzasPage /></ModuleRoute>} />
@@ -228,7 +228,7 @@ export function App() {
             <Route path="unidades" element={<UnidadesPage />} />
             <Route path="categorias-gasto" element={<CategoriasGastoPage />} />
             <Route path="cuentas" element={<TesoreriaPage />} />
-            <Route path="perfil-publico" element={<AdminOnlyRoute><PerfilPublicoPage /></AdminOnlyRoute>} />
+            <Route path="perfil-publico" element={<ModuleRoute modulo="configuracion" accion="editar"><PerfilPublicoPage /></ModuleRoute>} />
             <Route path="mensajeria" element={<MensajeriaPage />} />
           </Route>
 
@@ -240,23 +240,21 @@ export function App() {
 }
 
 /**
- * Gate de rol para rutas admin-only (ej. /inventario). Si el caller no
- * es admin, redirige a "/" (el sidebar también esconde el item; este
- * gate es la red de seguridad para acceso directo por URL). La
- * seguridad real es server-side (RLS + RPC gates).
+ * Gate de permisos para rutas. La visibilidad la decide SIEMPRE el permiso
+ * granular del módulo (`getPermiso`), nunca el rol. Si el usuario no lo
+ * tiene, redirige a "/app". La seguridad real es server-side (RLS + RPC gates).
  */
-function AdminOnlyRoute({ children }: { children: ReactNode }) {
+function ModuleRoute({
+  children,
+  modulo,
+  accion = 'ver',
+}: {
+  children: ReactNode;
+  modulo: string;
+  accion?: 'ver' | 'editar';
+}) {
   const { user } = useSession();
-  if (user?.rol !== 'admin') {
-    return <Navigate to="/app" replace />;
-  }
-  return <>{children}</>;
-}
-
-function ModuleRoute({ children, modulo }: { children: ReactNode; modulo: string }) {
-  const { user } = useSession();
-  const ver = getPermiso(user, modulo, 'ver');
-  if (!ver) {
+  if (!getPermiso(user, modulo, accion)) {
     return <Navigate to="/app" replace />;
   }
   return <>{children}</>;

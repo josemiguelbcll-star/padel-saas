@@ -27,6 +27,7 @@ import {
 } from './hooks/useTurnosCajaHistorial';
 import { DetalleArqueoDialog } from './DetalleArqueoDialog';
 import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { useUsuariosClub } from '@/features/configuracion/hooks/useUsuariosClub';
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
@@ -71,7 +72,9 @@ type PresetRango = 'todos' | 'hoy' | 'ayer' | 'ultimos7' | 'esteMes' | 'custom';
 
 export function ArqueosCajaPage() {
   const { user } = useSession();
-  const isAdmin = user?.rol === 'admin';
+  // Ver arqueos de todo el club (y filtrarlos por usuario) se rige por el
+  // permiso de Arqueos, no por el rol.
+  const puedeVerArqueosDeTodos = getPermiso(user, 'caja_arqueos', 'ver');
   const { data: turnos = [], isLoading, error, refetch, isFetching } =
     useTurnosCajaHistorial();
   const usuariosQuery = useUsuariosClub();
@@ -478,7 +481,7 @@ export function ArqueosCajaPage() {
             </div>
           </div>
 
-          {isAdmin && (
+          {puedeVerArqueosDeTodos && (
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
                 <User className="h-3 w-3" />
