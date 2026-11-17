@@ -45,7 +45,7 @@ interface RecurrenteCardProps {
   onCargarReal: () => void;
   /** Solo se usa cuando estado === 'cargado': anula el real del mes y
    *  reabre el dialog para cargar el correcto. */
-  onCorregir: () => void;
+  onCorregir?: () => void;
   onEditar: () => void;
   onDesactivar: () => void;
   onEliminar: () => void;
@@ -236,7 +236,7 @@ export function RecurrenteCard({
           el real + recargar) en lugar de "Cargar otro". */}
       {!readOnly && (
         <div className="mt-3 flex">
-          {estado === 'cargado' ? (
+          {estado === 'cargado' && onCorregir ? (
             <Button
               type="button"
               size="sm"
@@ -247,7 +247,7 @@ export function RecurrenteCard({
               <Pencil className="h-3.5 w-3.5" />
               Corregir
             </Button>
-          ) : (
+          ) : estado !== 'cargado' ? (
             <Button
               type="button"
               size="sm"
@@ -258,7 +258,7 @@ export function RecurrenteCard({
               <Plus className="h-3.5 w-3.5" />
               Cargar real
             </Button>
-          )}
+          ) : null}
         </div>
       )}
     </article>

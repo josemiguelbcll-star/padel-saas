@@ -7,6 +7,7 @@ export const SECCIONES_PERMISOS = [
   { key: 'caja_arqueos', label: 'Arqueos de caja', descripcion: 'Consultar el historial de arqueos propios.' },
   { key: 'mostrador', label: 'Mostrador / Buffet', descripcion: 'Registrar ventas de mostrador y buffet.' },
   { key: 'finanzas', label: 'Finanzas', descripcion: 'Visualizar flujo de caja, cargar gastos y otros ingresos.' },
+  { key: 'cuentas_por_pagar', label: 'Cuentas por pagar', descripcion: 'Editar y anular deudas y cuotas pendientes.' },
   { key: 'inventario', label: 'Inventario', descripcion: 'Gestión de stock, proveedores y órdenes de compra.' },
   { key: 'configuracion', label: 'Configuración', descripcion: 'Editar canchas, tarifas, horarios, profesores y marca.' },
 ] as const;
@@ -33,6 +34,7 @@ export const DEFAULT_PERMISOS: Record<string, PermisoModulo> = {
   caja_arqueos: { ver: false, editar: false },
   mostrador: { ver: true, editar: true },
   finanzas: { ver: true, editar: true },
+  cuentas_por_pagar: { ver: true, editar: false },
   inventario: { ver: false, editar: false },
   configuracion: { ver: true, editar: false },
 };

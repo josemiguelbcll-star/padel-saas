@@ -86,7 +86,13 @@ const BUCKETS: ReadonlyArray<BucketDef> = [
  * El día efectivo es clamp(diaPlantilla, ultimoDelMes) — NO addMonths.
  * Estado se computa con la fecha local del día.
  */
-export function RecurrentesPanel({ readOnly }: { readOnly?: boolean }) {
+export function RecurrentesPanel({
+  readOnly,
+  canCorrectGastos = true,
+}: {
+  readOnly?: boolean;
+  canCorrectGastos?: boolean;
+}) {
   const ahora = new Date();
   const anio = ahora.getFullYear();
   const mes = ahora.getMonth();
@@ -302,16 +308,20 @@ export function RecurrentesPanel({ readOnly }: { readOnly?: boolean }) {
                       key={c.fila.id}
                       data={c}
                       onCargarReal={() => setCargarRealFila(c.fila)}
-                      onCorregir={() => {
-                        const real = c.realesDelMes[0];
-                        if (!real) return;
-                        setCorregirError(null);
-                        setCorregirData({
-                          fila: c.fila,
-                          realId: real.id,
-                          realMonto: real.monto,
-                        });
-                      }}
+                      onCorregir={
+                        canCorrectGastos
+                          ? () => {
+                              const real = c.realesDelMes[0];
+                              if (!real) return;
+                              setCorregirError(null);
+                              setCorregirData({
+                                fila: c.fila,
+                                realId: real.id,
+                                realMonto: real.monto,
+                              });
+                            }
+                          : undefined
+                      }
                       onEditar={() => { setEditandoFila(c.fila); setOpenNueva(true); }}
                       onDesactivar={() => setDesactivarFila(c.fila)}
                       onEliminar={() => setEliminarFila(c.fila)}
