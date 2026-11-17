@@ -8,6 +8,7 @@ import {
   CalendarRange,
   CircleDashed,
   History,
+  Pencil,
   Receipt,
   Repeat,
   Wallet,
@@ -21,13 +22,14 @@ import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useCajaAbierta } from '@/features/caja/hooks/useCajaAbierta';
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { EditarCuotaCxPDialog } from './EditarCuotaCxPDialog';
 import {
   useCuentasPorPagar,
   usePagosCuotaRecientes,
   type CuentaPorPagarFila,
   type PagoCuotaReciente,
 } from './hooks/useCuentasPorPagar';
-import { useAnularPagoCuota } from './hooks/useAnulaciones';
+import { useAnularGasto, useAnularPagoCuota } from './hooks/useAnulaciones';
 import { AnularDialog } from './AnularDialog';
 import { PagarCuotaDialog } from './PagarCuotaDialog';
 import { MEDIO_PAGO_LABEL } from './finanzasSchemas';
@@ -161,19 +163,46 @@ function clasificar(
 export function CuentasPorPagarPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'finanzas', 'editar');
+  const canManageCxP = getPermiso(user, 'cuentas_por_pagar', 'editar');
 
   const query = useCuentasPorPagar();
   const pagosQuery = usePagosCuotaRecientes();
   const cajaQuery = useCajaAbierta();
   const anularPago = useAnularPagoCuota();
+  const anularGasto = useAnularGasto();
 
   const [proveedorFiltro, setProveedorFiltro] = useState<string>('todos');
   const [soloVencidas, setSoloVencidas] = useState(false);
   const [cuotaSeleccionada, setCuotaSeleccionada] =
     useState<CuentaPorPagarFila | null>(null);
+  const [cuotaAEditar, setCuotaAEditar] =
+    useState<CuentaPorPagarFila | null>(null);
+  const [gastoAAnular, setGastoAAnular] =
+    useState<CuentaPorPagarFila | null>(null);
   const [pagoAAnular, setPagoAAnular] = useState<PagoCuotaReciente | null>(null);
   const [anularError, setAnularError] = useState<string | null>(null);
+  const [anularGastoError, setAnularGastoError] = useState<string | null>(null);
   const [ajusteMsg, setAjusteMsg] = useState<string | null>(null);
+
+  async function handleAnularGastoConfirm(
+    motivoTipo: MotivoAnulacionTipo,
+    motivoDetalle: string | null,
+  ): Promise<void> {
+    if (!gastoAAnular) return;
+    setAnularGastoError(null);
+    try {
+      await anularGasto.mutateAsync({
+        gasto_id: gastoAAnular.gasto_id,
+        motivo_tipo: motivoTipo,
+        motivo_detalle: motivoDetalle,
+      });
+      setGastoAAnular(null);
+    } catch (err) {
+      setAnularGastoError(
+        err instanceof Error ? err.message : 'No pudimos anular la cuenta por pagar.',
+      );
+    }
+  }
 
   async function handleAnularPagoConfirm(
     motivoTipo: MotivoAnulacionTipo,
@@ -430,7 +459,13 @@ export function CuentasPorPagarPage() {
                 def={def}
                 cuotas={lista}
                 onPagar={(c) => setCuotaSeleccionada(c)}
+                onEditar={(c) => setCuotaAEditar(c)}
+                onAnular={(c) => {
+                  setAnularGastoError(null);
+                  setGastoAAnular(c);
+                }}
                 canEdit={canEdit}
+                canManageCxP={canManageCxP}
               />
             );
           })}
@@ -445,6 +480,57 @@ export function CuentasPorPagarPage() {
           setPagoAAnular(p);
         }}
         canEdit={canEdit}
+      />
+
+      <EditarCuotaCxPDialog
+        open={cuotaAEditar !== null}
+        onOpenChange={(open) => {
+          if (!open) setCuotaAEditar(null);
+        }}
+        cuota={cuotaAEditar}
+      />
+
+      <AnularDialog
+        open={gastoAAnular !== null}
+        onOpenChange={(open) => {
+          if (anularGasto.isPending) return;
+          if (!open) {
+            setGastoAAnular(null);
+            setAnularGastoError(null);
+          }
+        }}
+        titulo="Anular cuenta por pagar"
+        descripcion="Se anulará el gasto completo y dejarán de aparecer todas sus cuotas pendientes. La acción queda registrada con motivo; no se borra físicamente. No se puede anular si ya hay cuotas pagadas o si proviene de una orden de compra."
+        resumen={
+          gastoAAnular && (
+            <div className="space-y-0.5">
+              <p className="font-medium text-foreground">
+                {gastoAAnular.proveedor ??
+                  gastoAAnular.concepto_recurrente ?? (
+                    <span className="italic text-muted-foreground">
+                      (sin proveedor)
+                    </span>
+                  )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {gastoAAnular.categoria_nombre} · {gastoAAnular.unidad_nombre} ·{' '}
+                {cuotaLabel(gastoAAnular)}
+              </p>
+              <p className="flex items-baseline justify-between pt-1">
+                <span className="text-[11px] text-muted-foreground">
+                  Cuota seleccionada
+                </span>
+                <span className="text-lg font-bold tabular-nums text-foreground">
+                  {fmtMoney(gastoAAnular.monto)}
+                </span>
+              </p>
+            </div>
+          )
+        }
+        confirmLabel="Anular cuenta"
+        pending={anularGasto.isPending}
+        error={anularGastoError}
+        onConfirm={handleAnularGastoConfirm}
       />
 
       <PagarCuotaDialog
@@ -672,10 +758,21 @@ interface BucketSectionProps {
   def: BucketDef;
   cuotas: Array<CuentaPorPagarFila & { bucket: Bucket }>;
   onPagar: (c: CuentaPorPagarFila) => void;
+  onEditar: (c: CuentaPorPagarFila) => void;
+  onAnular: (c: CuentaPorPagarFila) => void;
   canEdit: boolean;
+  canManageCxP: boolean;
 }
 
-function BucketSection({ def, cuotas, onPagar, canEdit }: BucketSectionProps) {
+function BucketSection({
+  def,
+  cuotas,
+  onPagar,
+  onEditar,
+  onAnular,
+  canEdit,
+  canManageCxP,
+}: BucketSectionProps) {
   const Icon = def.icon;
   const total = cuotas.reduce((acc, c) => acc + c.monto, 0);
 
@@ -707,7 +804,10 @@ function BucketSection({ def, cuotas, onPagar, canEdit }: BucketSectionProps) {
             cuota={c}
             urgente={def.urgent}
             onPagar={() => onPagar(c)}
+            onEditar={() => onEditar(c)}
+            onAnular={() => onAnular(c)}
             canEdit={canEdit}
+            canManageCxP={canManageCxP}
           />
         ))}
       </ul>
@@ -723,12 +823,18 @@ function CuotaRow({
   cuota,
   urgente,
   onPagar,
+  onEditar,
+  onAnular,
   canEdit,
+  canManageCxP,
 }: {
   cuota: CuentaPorPagarFila;
   urgente: boolean;
   onPagar: () => void;
+  onEditar: () => void;
+  onAnular: () => void;
   canEdit: boolean;
+  canManageCxP: boolean;
 }) {
   const cuotaLabel = cuota.es_anticipo
     ? 'Anticipo'
@@ -787,6 +893,32 @@ function CuotaRow({
         <Button type="button" size="sm" onClick={onPagar}>
           Pagar
         </Button>
+      )}
+
+      {canManageCxP && cuota.compra_id === null && (
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onEditar}
+            aria-label="Editar cuota"
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Editar</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onAnular}
+            aria-label="Anular cuenta por pagar"
+            className="text-destructive hover:text-destructive"
+          >
+            <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Anular</span>
+          </Button>
+        </div>
       )}
     </li>
   );

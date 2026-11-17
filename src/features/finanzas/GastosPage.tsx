@@ -50,6 +50,7 @@ type Tab = 'movimientos' | 'recurrentes';
 export function GastosPage() {
   const { user } = useSession();
   const canEdit = getPermiso(user, 'finanzas', 'editar');
+  const canManageCxP = getPermiso(user, 'cuentas_por_pagar', 'editar');
 
   const gastosQuery = useGastos();
   const cxpQuery = useCuentasPorPagar();
@@ -301,8 +302,8 @@ export function GastosPage() {
             {gastosQuery.data && (
               <GastosList
                 gastos={gastosFiltrados}
-                onEditar={canEdit ? (g) => setGastoAEditar(g) : undefined}
-                onAnular={canEdit ? (g) => {
+                onEditar={canManageCxP ? (g) => setGastoAEditar(g) : undefined}
+                onAnular={canManageCxP ? (g) => {
                   setAnularError(null);
                   setGastoAAnular(g);
                 } : undefined}
@@ -312,7 +313,12 @@ export function GastosPage() {
         </div>
       )}
 
-      {tab === 'recurrentes' && <RecurrentesPanel readOnly={!canEdit} />}
+      {tab === 'recurrentes' && (
+        <RecurrentesPanel
+          readOnly={!canEdit}
+          canCorrectGastos={canManageCxP}
+        />
+      )}
 
       <NuevoGastoDialog open={open} onOpenChange={setOpen} />
 
