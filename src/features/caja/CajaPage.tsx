@@ -206,7 +206,7 @@ function CajaAbiertaContent({
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-              Caja abierta — {fechaFmt.format(new Date(caja.fecha_jornada))}
+              Caja abierta — {fechaFmt.format(new Date(`${caja.fecha_jornada}T12:00:00`))}
             </div>
             <p className="text-sm text-muted-foreground">
               Apertura {horaFmt.format(new Date(caja.abierta_en))} ·

@@ -457,7 +457,7 @@ export function BuffetPage() {
                     <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                       {(mesasQuery.data ?? []).map((m) => {
                         const mTotal = m.consumos.reduce(
-                          (sum, c) => sum + c.producto.precio * c.cantidad,
+                          (sum, c) => sum + (c.producto?.precio ?? 0) * c.cantidad,
                           0,
                         );
                         return (

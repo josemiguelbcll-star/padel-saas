@@ -3,7 +3,9 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  FileText,
   Info,
+  Receipt,
   ShoppingCart,
   TrendingDown,
   TrendingUp,
@@ -45,6 +47,7 @@ import {
   useIngresosDiariosMes,
 } from '@/features/finanzas/hooks/useIngresosDiariosMes';
 import { BandaHoy } from '@/features/dashboard';
+import { useInformeTurno } from '@/features/informes/hooks/useInformeTurno';
 
 // ─────────────────────────────────────────────────────────────────────
 // Formatters + constantes
@@ -176,15 +179,102 @@ function DashboardHero({
 // ─────────────────────────────────────────────────────────────────────
 
 function VendedorDashboard() {
+  const { user } = useSession();
+  const puedeVerInforme = getPermiso(user, 'caja_arqueos', 'ver');
+  const cajaAbierta = useCajaAbierta();
+  const turnoId = cajaAbierta.data?.id ?? null;
+  const informeQuery = useInformeTurno(turnoId);
+  const informe = informeQuery.data ?? null;
+
   return (
-    <div className="rounded-lg border border-dashed border-border p-8 text-center">
-      <Activity
-        className="mx-auto h-8 w-8 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <p className="mt-3 text-sm text-muted-foreground">
-        Usá el menú lateral para gestionar reservas, caja y mostrador.
-      </p>
+    <div className="space-y-5">
+      {/* Contexto del club: venta del día, proyección, ocupación, alarmas. */}
+      <BandaHoy />
+
+      <h2 className="border-t border-border pt-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Tu turno
+      </h2>
+
+      {cajaAbierta.isLoading || informeQuery.isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-lg bg-muted/40"
+            />
+          ))}
+        </div>
+      ) : !turnoId ? (
+        <div className="rounded-lg border border-dashed border-border p-8 text-center">
+          <Wallet
+            className="mx-auto h-8 w-8 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <p className="mt-3 text-sm text-muted-foreground">
+            No tenés una caja abierta. Abrí tu turno desde Caja → Efectivo
+            para empezar a cobrar.
+          </p>
+        </div>
+      ) : informe ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              icon={TrendingUp}
+              label="Cobrado en tu turno"
+              valor={informe.porMedio.total}
+              valorAnterior={null}
+              signoVerde="positivo"
+              loading={false}
+              deshabilitarComparativo
+              bottomNote={`${informe.cobros.length} cobros · todos los medios`}
+            />
+            <KpiCard
+              icon={Wallet}
+              label="Efectivo esperado"
+              valor={informe.arqueo.esperado}
+              valorAnterior={null}
+              signoVerde="positivo"
+              loading={false}
+              deshabilitarComparativo
+              bottomNote="En tu caja ahora"
+            />
+            <KpiCard
+              icon={Receipt}
+              label="Efectivo contado"
+              valor={informe.arqueo.contado}
+              valorAnterior={null}
+              signoVerde="positivo"
+              loading={false}
+              deshabilitarComparativo
+              bottomNote={
+                informe.arqueo.diferencia !== null
+                  ? `Diferencia ${fmtMoney(informe.arqueo.diferencia)}`
+                  : 'Sin arqueo todavía'
+              }
+            />
+            <KpiCard
+              icon={ShoppingCart}
+              label="Buffet + Shop"
+              valor={informe.unidades.buffet + informe.unidades.shop}
+              valorAnterior={null}
+              signoVerde="positivo"
+              loading={false}
+              deshabilitarComparativo
+              bottomNote="Turno + mostrador"
+            />
+          </div>
+
+          {puedeVerInforme && (
+            <Link
+              to="/app/caja/informe"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-foreground/30 hover:bg-muted/40"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Ver informe completo del turno
+            </Link>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

@@ -25,6 +25,7 @@ const CajaLayout = lazy(() => import('@/features/caja/CajaLayout').then((m) => (
 const CajaPage = lazy(() => import('@/features/caja/CajaPage').then((m) => ({ default: m.CajaPage })));
 const TransferenciasPage = lazy(() => import('@/features/caja/TransferenciasPage').then((m) => ({ default: m.TransferenciasPage })));
 const ArqueosCajaPage = lazy(() => import('@/features/caja/ArqueosCajaPage').then((m) => ({ default: m.ArqueosCajaPage })));
+const InformeTurnoPage = lazy(() => import('@/features/informes/InformeTurnoPage').then((m) => ({ default: m.InformeTurnoPage })));
 const MovimientosCuentasPage = lazy(() => import('@/features/caja/MovimientosCuentasPage').then((m) => ({ default: m.MovimientosCuentasPage })));
 const FinanzasPage = lazy(() => import('@/features/finanzas/FinanzasPage').then((m) => ({ default: m.FinanzasPage })));
 const FlujoCajaPage = lazy(() => import('@/features/finanzas/flujo/FlujoCajaPage').then((m) => ({ default: m.FlujoCajaPage })));
@@ -206,6 +207,7 @@ export function App() {
             <Route path="arqueos" element={<ModuleRoute modulo="caja_arqueos"><ArqueosCajaPage /></ModuleRoute>} />
             <Route path="arqueo" element={<Navigate to="/app/caja/arqueos" replace />} />
             <Route path="movimientos-cuentas" element={<ModuleRoute modulo="caja_arqueos"><MovimientosCuentasPage /></ModuleRoute>} />
+            <Route path="informe" element={<ModuleRoute modulo="caja_arqueos"><InformeTurnoPage /></ModuleRoute>} />
           </Route>
 
           <Route path="finanzas" element={<ModuleRoute modulo="finanzas"><FinanzasPage /></ModuleRoute>} />

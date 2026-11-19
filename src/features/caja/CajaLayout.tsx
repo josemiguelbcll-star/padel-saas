@@ -26,6 +26,10 @@ const tabs: CajaTab[] = [
   // Auditoría completa de movimientos bancarios y tesorería de cuentas.
   // Mismo módulo de control financiero que los arqueos.
   { label: 'Movimientos de Cuentas', to: '/app/caja/movimientos-cuentas', modulo: 'caja_arqueos' },
+  // Informe de la jornada de caja: cobros por medio, unidades de negocio,
+  // arqueo y contexto del club del día. Exportable a PDF. Solo admin
+  // (permiso caja_arqueos, que por defecto el vendedor no tiene).
+  { label: 'Informe', to: '/app/caja/informe', modulo: 'caja_arqueos' },
 ];
 
 /**
