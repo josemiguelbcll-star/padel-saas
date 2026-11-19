@@ -207,14 +207,18 @@ export function useInformeDia(
         }),
         supabase.rpc('fn_flujo_caja', {
           p_desde: (() => {
-            const [y, m] = fecha.split('-').map(Number);
+            const parts = fecha.split('-').map(Number);
+            const y = parts[0] ?? 0;
+            const m = parts[1] ?? 1;
             const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
             const lastDay = new Date(prev.y, prev.m, 0).getDate();
             const dia = Math.min(Number(fecha.slice(8, 10)), lastDay);
             return `${prev.y}-${String(prev.m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
           })(),
           p_hasta: (() => {
-            const [y, m] = fecha.split('-').map(Number);
+            const parts = fecha.split('-').map(Number);
+            const y = parts[0] ?? 0;
+            const m = parts[1] ?? 1;
             const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
             return `${prev.y}-${String(prev.m).padStart(2, '0')}-01`;
           })(),
@@ -366,8 +370,8 @@ export function useInformeDia(
       const horasDisponibles =
         horarios?.hora_apertura && horarios?.hora_cierre && canchasActivas > 0
           ? (() => {
-              const [ah, am] = horarios.hora_apertura.split(':').map(Number);
-              const [ch, cm] = horarios.hora_cierre.split(':').map(Number);
+              const [ah = 0, am = 0] = horarios.hora_apertura.split(':').map(Number);
+              const [ch = 0, cm = 0] = horarios.hora_cierre.split(':').map(Number);
               let mins = ch * 60 + cm - (ah * 60 + am);
               if (mins <= 0) mins += 1440;
               return mins / 60;

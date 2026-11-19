@@ -215,14 +215,14 @@ export function ocupacionDelDia(input: {
         if (pctWin > mejor) {
           mejor = pctWin;
           pico = {
-            etiqueta: `${horaLabel(win[0])}–${horaLabel((win[5] + 1) % 24)}`,
+            etiqueta: `${horaLabel(win[0] ?? 0)}–${horaLabel(((win[5] ?? 0) + 1) % 24)}`,
             pct: pctWin,
           };
         }
         if (pctWin < peor) {
           peor = pctWin;
           valle = {
-            etiqueta: `${horaLabel(win[0])}–${horaLabel((win[5] + 1) % 24)}`,
+            etiqueta: `${horaLabel(win[0] ?? 0)}–${horaLabel(((win[5] ?? 0) + 1) % 24)}`,
             pct: pctWin,
           };
         }
