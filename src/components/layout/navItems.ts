@@ -13,6 +13,7 @@ import {
   TrendingDown,
   TrendingUp,
   Receipt,
+  FileText,
   Settings,
   Smartphone,
   type LucideIcon,
@@ -84,6 +85,7 @@ export const navItems: NavItem[] = [
       { label: 'Efectivo', to: '/app/caja/efectivo', icon: Wallet },
       { label: 'Transferencias', to: '/app/caja/transferencias', icon: ArrowLeftRight },
       { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt, modulo: 'caja_arqueos' },
+      { label: 'Informe de turno', to: '/app/caja/informe', icon: FileText, modulo: 'caja_arqueos' },
     ],
   },
   {
