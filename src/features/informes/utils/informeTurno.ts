@@ -284,7 +284,7 @@ export function topProductosVendidos(
     cantidad: number;
     subtotal: number;
   }>,
-  limite = 5,
+  limite = Number.POSITIVE_INFINITY,
 ): ProductoVendido[] {
   const mapa = new Map<string, ProductoVendido>();
   for (const it of items) {

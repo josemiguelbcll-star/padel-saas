@@ -865,15 +865,15 @@ function SeccionUnidades({
 
       <Seccion
         numero={4}
-        titulo="Más vendidos"
-        subtitulo="Consumos del turno y ventas de mostrador"
+        titulo="Productos vendidos"
+        subtitulo="Todo lo vendido en la jornada: consumos del turno y ventas de mostrador"
       >
         {topProductos.length === 0 ? (
           <p className="rounded-md border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
             Sin ventas de productos
           </p>
         ) : (
-          <ol className="space-y-2">
+          <ol className="max-h-96 space-y-2 overflow-y-auto pr-1">
             {topProductos.map((p, i) => (
               <li
                 key={p.nombre}
