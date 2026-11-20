@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { InformeDiarioData } from '../hooks/useInformeDia';
+import { MEDIO_LABEL } from '../utils/informeTurno';
 import {
   generarAlertas,
   type CeldaOcupacion,
@@ -77,21 +78,21 @@ export function InformeDiarioView({
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-card">
       {/* ── Header estilo informe ── */}
-      <header className="border-b-2 border-foreground/80 bg-foreground px-5 py-4 text-background">
+      <header className="border-b-2 border-primary/60 bg-primary px-5 py-4 text-primary-foreground">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-background/60">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-foreground/60">
               Informe diario del dueño{nombreClub ? ` · ${nombreClub.toUpperCase()}` : ''}
             </p>
             <h2 className="mt-1 text-xl font-bold capitalize">
               {informe.jornada.titulo}
             </h2>
-            <p className="mt-1 text-[11px] text-background/60">
+            <p className="mt-1 text-[11px] text-primary-foreground/60">
               {informe.jornada.lineas.join(' · ')}
             </p>
           </div>
           {alertas.length > 0 && (
-            <span className="rounded-full border border-amber-400/50 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-300">
+            <span className="rounded-full border border-amber-300/50 bg-amber-300/10 px-3 py-1 text-[11px] font-semibold text-amber-200">
               Día con {alertas.length} punto{alertas.length === 1 ? '' : 's'} para revisar
             </span>
           )}
@@ -119,6 +120,7 @@ export function InformeDiarioView({
             <SeccionMes informe={informe} />
             <SeccionManana informe={informe} />
             <SeccionAlertas alertas={alertas} />
+            <SeccionPagos cobros={informe.cobros} />
           </div>
         </div>
       </div>
@@ -906,6 +908,94 @@ function SeccionManana({ informe }: { informe: InformeDiarioData }) {
         </Card>
       )}
     </TituloSeccion>
+  );
+}
+
+// ── Detalle de cobros (sin número, como en el PDF no va numerado) ────
+
+const ORIGEN_LABEL_PAGO: Record<string, string> = {
+  reserva: 'Reserva',
+  clase: 'Clase',
+  venta: 'Venta',
+  otro_ingreso: 'Otro ingreso',
+};
+
+function SeccionPagos({ cobros }: { cobros: InformeDiarioData['cobros'] }) {
+  const [verTodos, setVerTodos] = useState(false);
+  if (cobros.length === 0) return null;
+  const visibles = verTodos ? [...cobros].reverse() : [...cobros].reverse().slice(0, 30);
+  const fechaHoraFmt = new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+  return (
+    <section className="space-y-2">
+      <h3 className="text-[13px] font-bold uppercase tracking-wide text-foreground">
+        Detalle de cobros
+        <span className="ml-1.5 text-[10px] font-normal normal-case text-muted-foreground">
+          ({cobros.length})
+        </span>
+      </h3>
+      <div className="overflow-x-auto rounded-lg border border-border/70">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              {['Fecha/hora', 'Tipo', 'Detalle', 'Medio', 'Monto'].map((h, i) => (
+                <th
+                  key={h}
+                  className={cn(
+                    'px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground',
+                    i === 0 ? 'text-left' : i === 4 ? 'text-right' : 'text-left',
+                  )}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {visibles.map((c) => (
+              <tr key={c.clave}>
+                <td className="whitespace-nowrap px-2 py-1 tabular-nums text-muted-foreground">
+                  {fechaHoraFmt.format(new Date(c.fecha_hora))}
+                </td>
+                <td className="px-2 py-1 text-muted-foreground">
+                  {ORIGEN_LABEL_PAGO[c.origen] ?? c.origen}
+                </td>
+                <td className="max-w-[220px] truncate px-2 py-1 text-foreground">
+                  {c.descripcion}
+                </td>
+                <td className="px-2 py-1 text-muted-foreground">
+                  {MEDIO_LABEL[c.medio_pago]}
+                </td>
+                <td
+                  className={cn(
+                    'px-2 py-1 text-right font-semibold tabular-nums',
+                    c.monto < 0
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-emerald-600 dark:text-emerald-400',
+                  )}
+                >
+                  {c.monto < 0 ? '−' : '+'} {fmtMoney(Math.abs(c.monto))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {cobros.length > 30 && (
+        <button
+          type="button"
+          onClick={() => setVerTodos((v) => !v)}
+          className="text-[11px] text-primary underline-offset-4 hover:underline"
+        >
+          {verTodos ? 'Mostrar solo los últimos 30' : `Ver los ${cobros.length} cobros`}
+        </button>
+      )}
+    </section>
   );
 }
 

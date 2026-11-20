@@ -211,16 +211,16 @@ export function useInformeDia(
             const y = parts[0] ?? 0;
             const m = parts[1] ?? 1;
             const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
-            const lastDay = new Date(prev.y, prev.m, 0).getDate();
-            const dia = Math.min(Number(fecha.slice(8, 10)), lastDay);
-            return `${prev.y}-${String(prev.m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+            return `${prev.y}-${String(prev.m).padStart(2, '0')}-01`;
           })(),
           p_hasta: (() => {
             const parts = fecha.split('-').map(Number);
             const y = parts[0] ?? 0;
             const m = parts[1] ?? 1;
             const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
-            return `${prev.y}-${String(prev.m).padStart(2, '0')}-01`;
+            const lastDay = new Date(prev.y, prev.m, 0).getDate();
+            const dia = Math.min(Number(fecha.slice(8, 10)), lastDay);
+            return `${prev.y}-${String(prev.m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
           })(),
           p_granularidad: 'month',
           p_cuenta_id: null,
@@ -269,7 +269,12 @@ export function useInformeDia(
         cobrosClase: raw.cobrosClase,
         ventaIds: raw.ventaIds,
       });
-      const { cobros } = raw;
+      // Solo cobros ya ocurridos: un pago con fecha futura no cuenta
+      // en la facturación del día.
+      const ahora = Date.now();
+      const cobros = raw.cobros.filter(
+        (c) => new Date(c.fecha_hora).getTime() <= ahora,
+      );
       const { items, total } = agruparCobrosPorMedio(cobros);
 
       // ── 4. Reservas / clases / canchas / horarios ────────────────
