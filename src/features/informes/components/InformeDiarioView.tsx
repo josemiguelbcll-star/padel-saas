@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { InformeDiarioData } from '../hooks/useInformeDia';
 import { MEDIO_LABEL } from '../utils/informeTurno';
@@ -68,13 +68,6 @@ export function InformeDiarioView({
     [informe, reponer.productos],
   );
 
-  const variacion =
-    informe.facturacionAnterior > 0
-      ? ((informe.facturacion - informe.facturacionAnterior) /
-          informe.facturacionAnterior) *
-        100
-      : null;
-
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-card">
       {/* ── Header estilo informe ── */}
@@ -100,10 +93,7 @@ export function InformeDiarioView({
       </header>
 
       <div className="space-y-6 p-5">
-        <KpiStrip
-          informe={informe}
-          variacion={variacion}
-        />
+        <KpiStrip informe={informe} />
 
         {/* Grid de secciones a 2 columnas como el PDF */}
         <div className="grid gap-6 xl:grid-cols-2">
@@ -130,23 +120,7 @@ export function InformeDiarioView({
 
 // ── KPIs grandes (fila superior del informe) ────────────────────────
 
-function KpiStrip({
-  informe,
-  variacion,
-}: {
-  informe: InformeDiarioData;
-  variacion: number | null;
-}) {
-  const fechaAntLabel = useMemo(() => {
-    const d = new Date(`${informe.fecha}T12:00:00`);
-    d.setDate(d.getDate() - 7);
-    return d.toLocaleDateString('es-AR', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'numeric',
-    });
-  }, [informe.fecha]);
-
+function KpiStrip({ informe }: { informe: InformeDiarioData }) {
   const items: Array<{
     label: string;
     valor: string;
@@ -157,26 +131,7 @@ function KpiStrip({
       label: 'Facturación del día',
       valor: fmtMoney(informe.facturacion),
       grande: true,
-      sub:
-        variacion !== null ? (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 font-semibold',
-              variacion >= 0
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-red-600 dark:text-red-400',
-            )}
-          >
-            {variacion >= 0 ? (
-              <TrendingUp className="h-3 w-3" aria-hidden="true" />
-            ) : (
-              <TrendingDown className="h-3 w-3" aria-hidden="true" />
-            )}
-            {variacion >= 0 ? '▲' : '▼'} {Math.abs(Math.round(variacion * 10) / 10)}% vs {fechaAntLabel} ({fmtMoney(informe.facturacionAnterior)})
-          </span>
-        ) : (
-          <span className="text-muted-foreground">Sin semana anterior</span>
-        ),
+      sub: <span className="text-muted-foreground">Todos los medios de cobro</span>,
     },
     {
       label: 'Ocupación de canchas',
