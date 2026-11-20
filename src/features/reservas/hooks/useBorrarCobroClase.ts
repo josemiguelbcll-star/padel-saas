@@ -35,9 +35,7 @@ export function useBorrarCobroClase(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: [CLASE_COBROS_QUERY_KEY_BASE],
       });
-      void queryClient.invalidateQueries({
-        queryKey: ['caja-abierta-resumen'],
-      });
+      void queryClient.invalidateQueries({ queryKey: ['caja'] });
       void queryClient.invalidateQueries({
         queryKey: claseAlumnosQueryKey(input.claseId, input.fecha),
       });

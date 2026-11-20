@@ -12,6 +12,8 @@ interface CajaTab {
    * concede en "Permisos del vendedor" manda, nunca el rol).
    */
   modulo?: string;
+  /** Restringe temporalmente esta pestaña a administradores. */
+  soloAdmin?: boolean;
 }
 
 const tabs: CajaTab[] = [
@@ -26,10 +28,8 @@ const tabs: CajaTab[] = [
   // Auditoría completa de movimientos bancarios y tesorería de cuentas.
   // Mismo módulo de control financiero que los arqueos.
   { label: 'Movimientos de Cuentas', to: '/app/caja/movimientos-cuentas', modulo: 'caja_arqueos' },
-  // Informe de la jornada de caja: cobros por medio, unidades de negocio,
-  // arqueo y contexto del club del día. Exportable a PDF. Solo admin
-  // (permiso caja_arqueos, que por defecto el vendedor no tiene).
-  { label: 'Informe', to: '/app/caja/informe', modulo: 'caja_arqueos' },
+  // Informe de caja reservado temporalmente a administradores.
+  { label: 'Informe', to: '/app/caja/informe', soloAdmin: true },
 ];
 
 /**
@@ -45,7 +45,9 @@ const tabs: CajaTab[] = [
 export function CajaLayout() {
   const { user } = useSession();
   const tabsVisibles = tabs.filter(
-    (tab) => !tab.modulo || getPermiso(user, tab.modulo, 'ver'),
+    (tab) =>
+      (!tab.soloAdmin || user?.rol === 'admin') &&
+      (!tab.modulo || getPermiso(user, tab.modulo, 'ver')),
   );
 
   return (

@@ -49,6 +49,7 @@ export function useEliminarPagoReserva(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: [RESERVAS_QUERY_KEY_BASE, fechaReserva],
       });
+      void queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });
 }

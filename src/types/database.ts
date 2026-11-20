@@ -783,6 +783,7 @@ export interface ReservaPago {
   /** DECIMAL(12,2). Siempre > 0. Para revertir un cobro se inserta otra fila con tipo='reembolso'. */
   monto: number;
   medio_pago: MedioPago;
+  cuenta_id: number | null;
   tipo: TipoPago;
   /**
    * FK histórica a la ficha global del jugador (`jugadores.id`). NULL

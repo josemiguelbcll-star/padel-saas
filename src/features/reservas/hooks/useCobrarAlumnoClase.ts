@@ -54,9 +54,7 @@ export function useCobrarAlumnoClase(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: claseAlumnosQueryKey(input.clase_id, input.fecha),
       });
-      void queryClient.invalidateQueries({
-        queryKey: ['caja-abierta-resumen'],
-      });
+      void queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });
 }

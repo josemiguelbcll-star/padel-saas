@@ -68,7 +68,7 @@ export async function fetchCobrosInforme(
   let pagosQuery = supabase
     .from('reserva_pagos')
     .select(
-      `id, reserva_id, monto, medio_pago, tipo, monto_alquiler, monto_consumo, fecha_hora,
+      `id, reserva_id, monto, medio_pago, cuenta_id, tipo, monto_alquiler, monto_consumo, fecha_hora,
        reservas (fecha, hora_inicio, canchas (nombre))`,
     )
     .gte('fecha_hora', desdeISO)
@@ -78,7 +78,7 @@ export async function fetchCobrosInforme(
   let clasesQuery = supabase
     .from('clase_cobros')
     .select(
-      `id, clase_id, fecha, monto, monto_clase, monto_consumo, medio_pago, fecha_hora,
+      `id, clase_id, fecha, monto, monto_clase, monto_consumo, medio_pago, cuenta_id, fecha_hora,
        clases (nombre)`,
     )
     .gte('fecha_hora', desdeISO)
@@ -87,14 +87,14 @@ export async function fetchCobrosInforme(
 
   let vpQuery = supabase
     .from('venta_pagos')
-    .select(`id, venta_id, monto, medio_pago, fecha_hora, ventas (observaciones)`)
+    .select(`id, venta_id, monto, medio_pago, cuenta_id, fecha_hora, ventas (observaciones)`)
     .gte('fecha_hora', desdeISO)
     .lte('fecha_hora', hastaISO);
   if (filtrarUsuario) vpQuery = vpQuery.eq('usuario_id', usuarioId);
 
   let otrosQuery = supabase
     .from('otros_ingresos')
-    .select('id, concepto, monto, medio_pago, fecha, fecha_cobro, turno_caja_id');
+    .select('id, concepto, monto, medio_pago, fecha, fecha_cobro, turno_caja_id, cuenta_id');
   if (filtrarUsuario) {
     otrosQuery = otrosQuery.eq('usuario_id', usuarioId as string);
   } else if (fecha) {
@@ -125,6 +125,8 @@ export async function fetchCobrosInforme(
     reserva_id: number;
     monto: number;
     medio_pago: string;
+    cuenta_id: number | null;
+    cuenta: { nombre: string } | null;
     tipo: 'sena' | 'pago' | 'reembolso';
     monto_alquiler: number;
     monto_consumo: number;
@@ -168,6 +170,8 @@ export async function fetchCobrosInforme(
             ? 'Reembolso reserva'
             : 'Cobro reserva') + (detalle ? ` · ${detalle}` : ''),
       medio_pago: normalizarMedio(p.medio_pago),
+      cuenta_id: p.cuenta_id,
+      cuenta_nombre: null,
       monto: (p.tipo === 'reembolso' ? -1 : 1) * Number(p.monto),
     });
   }
@@ -180,6 +184,8 @@ export async function fetchCobrosInforme(
     monto: number;
     monto_clase: number | null;
     medio_pago: string;
+    cuenta_id: number | null;
+    cuenta: { nombre: string } | null;
     fecha_hora: string;
     clases: { nombre: string | null } | null;
   };
@@ -197,6 +203,8 @@ export async function fetchCobrosInforme(
       fecha_hora: c.fecha_hora,
       descripcion: `Cobro clase${c.clases?.nombre ? ` · ${c.clases.nombre}` : ''}`,
       medio_pago: normalizarMedio(c.medio_pago),
+      cuenta_id: c.cuenta_id,
+      cuenta_nombre: null,
       monto: Number(c.monto),
     });
   }
@@ -207,6 +215,8 @@ export async function fetchCobrosInforme(
     venta_id: number;
     monto: number;
     medio_pago: string;
+    cuenta_id: number | null;
+    cuenta: { nombre: string } | null;
     fecha_hora: string;
     ventas: { observaciones: string | null } | null;
   };
@@ -219,6 +229,8 @@ export async function fetchCobrosInforme(
         fecha_hora: v.fecha_hora,
         descripcion: `Venta #${v.venta_id}`,
         medio_pago: normalizarMedio(v.medio_pago),
+        cuenta_id: v.cuenta_id,
+        cuenta_nombre: null,
         monto: Number(v.monto),
       });
       if (Number(v.monto) > 0) ventaIdsSet.add(v.venta_id);
@@ -246,6 +258,8 @@ export async function fetchCobrosInforme(
           fecha_hora: rev.fecha_hora,
           descripcion: `Reversión venta #${rev.venta_id}`,
           medio_pago: normalizarMedio(rev.medio_pago),
+          cuenta_id: null,
+          cuenta_nombre: null,
           monto: -Number(rev.monto),
         });
       }
@@ -254,7 +268,7 @@ export async function fetchCobrosInforme(
     // Fallback: tabla `ventas` directamente.
     let vQuery = supabase
       .from('ventas')
-      .select('id, monto_total, medio_pago, fecha_hora, observaciones')
+      .select('id, monto_total, medio_pago, cuenta_id, fecha_hora, observaciones')
       .eq('activa', true)
       .gte('fecha_hora', desdeISO)
       .lte('fecha_hora', hastaISO);
@@ -265,6 +279,7 @@ export async function fetchCobrosInforme(
       id: number;
       monto_total: number;
       medio_pago: string;
+      cuenta_id: number | null;
       fecha_hora: string;
     }>) {
       cobros.push({
@@ -273,6 +288,8 @@ export async function fetchCobrosInforme(
         fecha_hora: v.fecha_hora,
         descripcion: `Venta #${v.id}`,
         medio_pago: normalizarMedio(v.medio_pago),
+        cuenta_id: v.cuenta_id,
+        cuenta_nombre: null,
         monto: Number(v.monto_total),
       });
       ventaIdsSet.add(v.id);
@@ -290,6 +307,8 @@ export async function fetchCobrosInforme(
     fecha: string;
     fecha_cobro: string | null;
     turno_caja_id: number | null;
+    cuenta_id: number | null;
+    cuenta: { nombre: string } | null;
   }>) {
     let incluir = false;
     if (filtrarUsuario) {
@@ -308,8 +327,33 @@ export async function fetchCobrosInforme(
       fecha_hora: i.fecha_cobro ?? `${i.fecha}T12:00:00`,
       descripcion: `Otro ingreso · ${i.concepto}`,
       medio_pago: normalizarMedio(i.medio_pago),
+      cuenta_id: i.cuenta_id,
+      cuenta_nombre: null,
       monto: Number(i.monto),
     });
+  }
+
+  const cuentaIds = [
+    ...new Set(
+      cobros
+        .map((cobro) => cobro.cuenta_id)
+        .filter((id): id is number => id !== null),
+    ),
+  ];
+  if (cuentaIds.length > 0) {
+    const { data: cuentas, error: cuentasErr } = await supabase
+      .from('cuentas')
+      .select('id, nombre')
+      .in('id', cuentaIds);
+    if (cuentasErr) throw new Error(mapPostgrestError(cuentasErr));
+    const nombresPorId = new Map(
+      (cuentas ?? []).map((cuenta) => [cuenta.id, cuenta.nombre]),
+    );
+    for (const cobro of cobros) {
+      if (cobro.cuenta_id !== null) {
+        cobro.cuenta_nombre = nombresPorId.get(cobro.cuenta_id) ?? null;
+      }
+    }
   }
 
   cobros.sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));

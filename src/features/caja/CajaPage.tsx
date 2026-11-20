@@ -44,6 +44,7 @@ const fechaFmt = new Intl.DateTimeFormat('es-AR', {
 const horaFmt = new Intl.DateTimeFormat('es-AR', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
 });
 
 /**
@@ -256,6 +257,11 @@ function CajaAbiertaContent({
           </div>
         )}
         {resumenQuery.data && <ResumenCajaCard resumen={resumenQuery.data} />}
+        {!resumenQuery.isLoading && !resumenQuery.error && !resumenQuery.data && (
+          <p className="text-xs text-muted-foreground">
+            Esta jornada ya no está disponible. Actualizá la pantalla para ver el estado actual de la caja.
+          </p>
+        )}
       </section>
 
       {/* Movimientos del día (auditoría) */}

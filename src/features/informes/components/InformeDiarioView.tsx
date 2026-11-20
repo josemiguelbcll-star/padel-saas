@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { InformeDiarioData } from '../hooks/useInformeDia';
-import { MEDIO_LABEL } from '../utils/informeTurno';
 import {
   generarAlertas,
   type CeldaOcupacion,
@@ -437,15 +436,24 @@ function SeccionClasesProfesor({ informe }: { informe: InformeDiarioData }) {
 // ── 2 · Caja y medios de cobro ──────────────────────────────────────
 
 function SeccionCaja({ informe }: { informe: InformeDiarioData }) {
+  const efectivoApertura = informe.jornadas.reduce(
+    (total, jornada) => total + Number(jornada.turno.monto_apertura),
+    0,
+  );
   const efectivoEsperado = informe.jornadas.reduce(
-    (a, j) => a + j.arqueo.esperado,
+    (total, jornada) => total + jornada.arqueo.esperado,
     0,
   );
-  const efectivoContado = informe.jornadas.reduce(
-    (a, j) => a + (j.arqueo.contado ?? 0),
+  const jornadasArqueadas = informe.jornadas.filter(
+    (jornada) => jornada.arqueo.contado !== null,
+  );
+  const efectivoContado = jornadasArqueadas.reduce(
+    (total, jornada) => total + (jornada.arqueo.contado ?? 0),
     0,
   );
-  const hayContado = informe.jornadas.some((j) => j.arqueo.contado !== null);
+  const hayContado = jornadasArqueadas.length > 0;
+  const arqueoCompleto = hayContado && jornadasArqueadas.length === informe.jornadas.length;
+  const netoMovimientos = efectivoEsperado - efectivoApertura;
   return (
     <TituloSeccion n={2} titulo="Caja y medios de cobro">
       <div className="grid gap-2 sm:grid-cols-2">
@@ -457,9 +465,12 @@ function SeccionCaja({ informe }: { informe: InformeDiarioData }) {
             {fmtMoney(efectivoEsperado)}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Aperturas {fmtMoney(efectivoApertura)} · movimientos netos {fmtMoney(netoMovimientos)}
+          </p>
+          <p className="mt-1 text-[10px] text-muted-foreground">
             {hayContado
-              ? `Contado en arqueos: ${fmtMoney(efectivoContado)}`
-              : 'Esperado según cobros en efectivo'}
+              ? `Contado: ${fmtMoney(efectivoContado)} · ${jornadasArqueadas.length}/${informe.jornadas.length} jornadas arqueadas${arqueoCompleto ? '' : ' (parcial)'}`
+              : 'Sin jornadas arqueadas'}
           </p>
         </Card>
         <Card>
@@ -470,8 +481,8 @@ function SeccionCaja({ informe }: { informe: InformeDiarioData }) {
                   ? Math.round((m.monto / Math.abs(informe.porMedio.total)) * 100)
                   : 0;
               return (
-                <li key={m.medio} className="flex items-baseline justify-between text-[11px]">
-                  <span className="text-foreground">{MEDIO_LABEL[m.medio]}</span>
+                <li key={m.clave} className="flex items-baseline justify-between text-[11px]">
+                  <span className="text-foreground">{m.etiqueta}</span>
                   <span className="tabular-nums text-foreground">
                     {fmtMoney(m.monto)} · {pct}%
                   </span>

@@ -105,6 +105,7 @@ export function useCobrarPersonaTurno(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: [RESERVAS_QUERY_KEY_BASE, input.fecha],
       });
+      void queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });
 }

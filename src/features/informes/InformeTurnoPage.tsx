@@ -52,6 +52,7 @@ const fechaLargaFmt = new Intl.DateTimeFormat('es-AR', {
   timeZone: AR_TZ,
 });
 
+
 const fechaCortaFmt = new Intl.DateTimeFormat('es-AR', {
   day: '2-digit',
   month: '2-digit',
@@ -62,6 +63,7 @@ const fechaCortaFmt = new Intl.DateTimeFormat('es-AR', {
 const horaFmt = new Intl.DateTimeFormat('es-AR', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
   timeZone: AR_TZ,
 });
 
@@ -94,7 +96,7 @@ type ModoInforme = 'turno' | 'dia';
  *   - "Día completo": todos los cobros del club en el día calendario +
  *     arqueo de cada jornada abierta ese día.
  *
- * Solo visible para quienes tienen `caja_arqueos` (admin por defecto).
+ * Acceso temporal restringido al rol administrador.
  */
 export function InformeTurnoPage() {
   const { club } = useSession();
@@ -153,7 +155,10 @@ function ModoJornada() {
   const turnos = turnosQuery.data ?? [];
 
   const [turnoId, setTurnoId] = useState<number | null>(null);
-  const turnoSelId = turnoId ?? turnos[0]?.id ?? null;
+  const [fechaJornada, setFechaJornada] = useState('');
+  const turnoSelId = turnos.some((turno) => turno.id === turnoId)
+    ? turnoId
+    : (turnos.find((turno) => turno.fecha_jornada === fechaJornada)?.id ?? turnos[0]?.id ?? null);
 
   const informeQuery = useInformeTurno(turnoSelId);
   const informe = informeQuery.data ?? null;
@@ -220,6 +225,10 @@ function ModoJornada() {
           loading={turnosQuery.isLoading}
           turnoSelId={turnoSelId}
           onChange={setTurnoId}
+          onFechaChange={(fecha) => {
+            setFechaJornada(fecha);
+            setTurnoId(null);
+          }}
         />
         <BotonExportar datos={viewData} />
       </div>
@@ -244,6 +253,7 @@ function SelectorJornada({
   loading,
   turnoSelId,
   onChange,
+  onFechaChange,
 }: {
   turnos: Array<{
     id: number;
@@ -255,7 +265,16 @@ function SelectorJornada({
   loading: boolean;
   turnoSelId: number | null;
   onChange: (id: number) => void;
+  onFechaChange: (fecha: string) => void;
 }) {
+  const fechas = [...new Set(turnos.map((turno) => turno.fecha_jornada))];
+  const turnoSeleccionado = turnos.find((turno) => turno.id === turnoSelId) ?? turnos[0] ?? null;
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(turnoSeleccionado?.fecha_jornada ?? '');
+  const fechaActiva = fechas.includes(fechaSeleccionada)
+    ? fechaSeleccionada
+    : (turnoSeleccionado?.fecha_jornada ?? fechas[0] ?? '');
+  const jornadasDelDia = turnos.filter((turno) => turno.fecha_jornada === fechaActiva);
+
   if (loading) {
     return <div className="h-9 w-full max-w-md animate-pulse rounded bg-muted/50" />;
   }
@@ -267,42 +286,71 @@ function SelectorJornada({
     );
   }
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <label
-        htmlFor="selector-turno"
-        className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
-      >
-        Jornada
-      </label>
-      <select
-        id="selector-turno"
-        value={turnoSelId ?? ''}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-9 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {turnos.map((t) => (
-          <option key={t.id} value={t.id}>
-            {labelTurno(t.fecha_jornada, t.abierta_en, t.cerrada_en, t.vendedorNombre)}
-          </option>
-        ))}
-      </select>
-    </div>
+    <section className="w-full space-y-3" aria-label="Seleccionar jornada">
+      <div className="flex flex-wrap items-center gap-3">
+        <label
+          htmlFor="selector-fecha-jornada"
+          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Día de caja
+        </label>
+        <Input
+          id="selector-fecha-jornada"
+          type="date"
+          value={fechaActiva}
+          onChange={(event) => {
+            const nextFecha = event.target.value;
+            setFechaSeleccionada(nextFecha);
+            onFechaChange(nextFecha);
+          }}
+          className="h-9 w-auto"
+          aria-label="Elegir día de caja"
+        />
+        <span className="text-xs text-muted-foreground">
+          {jornadasDelDia.length} {jornadasDelDia.length === 1 ? 'jornada' : 'jornadas'}
+        </span>
+      </div>
+      {jornadasDelDia.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {jornadasDelDia.map((turno) => {
+            const seleccionada = turno.id === turnoSelId;
+            const apertura = horaFmt.format(new Date(turno.abierta_en));
+            const cierre = turno.cerrada_en
+              ? horaFmt.format(new Date(turno.cerrada_en))
+              : null;
+            return (
+              <button
+                key={turno.id}
+                type="button"
+                onClick={() => onChange(turno.id)}
+                aria-pressed={seleccionada}
+                className={cn(
+                  'rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  seleccionada
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-card hover:bg-muted/40',
+                )}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    {apertura}{cierre ? `–${cierre}` : ' · Abierta'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">#{turno.id}</span>
+                </span>
+                <span className="mt-1 block truncate text-xs text-muted-foreground">
+                  {turno.vendedorNombre ?? 'Responsable sin nombre'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+          No hay jornadas de caja para ese día. Elegí otra fecha.
+        </p>
+      )}
+    </section>
   );
-}
-
-function labelTurno(
-  fechaJornada: string,
-  abiertaEn: string,
-  cerradaEn: string | null,
-  vendedorNombre: string | null,
-): string {
-  const fecha = fechaCortaFmt.format(new Date(`${fechaJornada}T12:00:00`));
-  const apertura = horaFmt.format(new Date(abiertaEn));
-  const estado = cerradaEn
-    ? `cierre ${horaFmt.format(new Date(cerradaEn))}`
-    : 'abierta';
-  const vend = vendedorNombre ? ` · ${vendedorNombre}` : '';
-  return `${fecha} · ${apertura} → ${estado}${vend}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -597,10 +645,10 @@ function SeccionMedios({
                 ? Math.round((m.monto / Math.abs(porMedio.total)) * 100)
                 : 0;
             return (
-              <li key={m.medio} className="space-y-1">
+              <li key={m.clave} className="space-y-1">
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-foreground">
-                    {MEDIO_LABEL[m.medio]}
+                    {m.etiqueta}
                     <span className="ml-1.5 text-[11px] text-muted-foreground">
                       {m.count} {m.count === 1 ? 'cobro' : 'cobros'} · {pct}%
                     </span>
@@ -893,7 +941,7 @@ function SeccionCobros({ cobros }: { cobros: CobroTurno[] }) {
                       {c.descripcion}
                     </td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground">
-                      {MEDIO_LABEL[c.medio_pago]}
+                      {c.cuenta_nombre ?? MEDIO_LABEL[c.medio_pago]}
                     </td>
                     <td
                       className={cn(

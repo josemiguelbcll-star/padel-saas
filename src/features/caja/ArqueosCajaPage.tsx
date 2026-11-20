@@ -50,6 +50,7 @@ const fechaCortaFmt = new Intl.DateTimeFormat('es-AR', {
 const horaFmt = new Intl.DateTimeFormat('es-AR', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
   timeZone: AR_TZ,
 });
 

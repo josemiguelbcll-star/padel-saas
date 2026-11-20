@@ -207,7 +207,7 @@ export function App() {
             <Route path="arqueos" element={<ModuleRoute modulo="caja_arqueos"><ArqueosCajaPage /></ModuleRoute>} />
             <Route path="arqueo" element={<Navigate to="/app/caja/arqueos" replace />} />
             <Route path="movimientos-cuentas" element={<ModuleRoute modulo="caja_arqueos"><MovimientosCuentasPage /></ModuleRoute>} />
-            <Route path="informe" element={<ModuleRoute modulo="caja_arqueos"><InformeTurnoPage /></ModuleRoute>} />
+            <Route path="informe" element={<AdminRoute><InformeTurnoPage /></AdminRoute>} />
           </Route>
 
           <Route path="finanzas" element={<ModuleRoute modulo="finanzas"><FinanzasPage /></ModuleRoute>} />
@@ -246,6 +246,14 @@ export function App() {
  * granular del módulo (`getPermiso`), nunca el rol. Si el usuario no lo
  * tiene, redirige a "/app". La seguridad real es server-side (RLS + RPC gates).
  */
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { user } = useSession();
+  if (user?.rol !== 'admin') {
+    return <Navigate to="/app" replace />;
+  }
+  return <>{children}</>;
+}
+
 function ModuleRoute({
   children,
   modulo,
