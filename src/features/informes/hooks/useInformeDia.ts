@@ -44,8 +44,6 @@ export interface InformeDiarioData {
   };
   // KPIs grandes
   facturacion: number;
-  /** Facturación del mismo día de la semana anterior (fecha−7). */
-  facturacionAnterior: number;
   ocupacion: OcupacionDia;
   mapa: MapaOcupacion | null;
   ingresoHoraDisponible: number | null;
@@ -145,7 +143,6 @@ export function useInformeDia(
         flujo7Res,
         flujoMesRes,
         flujoMesAntRes,
-        flujoAnteriorRes,
         clubRes,
       ] = await Promise.all([
         fetchCobrosInforme({ desdeISO, hastaISO, usuarioId: null, fecha }),
@@ -225,20 +222,6 @@ export function useInformeDia(
           p_granularidad: 'month',
           p_cuenta_id: null,
         }),
-        supabase.rpc('fn_flujo_caja', {
-          p_desde: (() => {
-            const d = new Date(`${fecha}T12:00:00`);
-            d.setDate(d.getDate() - 13);
-            return d.toISOString().slice(0, 10);
-          })(),
-          p_hasta: (() => {
-            const d = new Date(`${fecha}T12:00:00`);
-            d.setDate(d.getDate() - 7);
-            return d.toISOString().slice(0, 10);
-          })(),
-          p_granularidad: 'day',
-          p_cuenta_id: null,
-        }),
         supabase
           .from('clubes')
           .select('hora_apertura, hora_cierre, nombre')
@@ -257,7 +240,6 @@ export function useInformeDia(
         flujo7Res,
         flujoMesRes,
         flujoMesAntRes,
-        flujoAnteriorRes,
         clubRes,
       ]) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
@@ -581,9 +563,6 @@ export function useInformeDia(
           ],
         },
         facturacion: total,
-        facturacionAnterior: (
-          (flujoAnteriorRes.data ?? []) as unknown as FlujoRow[]
-        ).reduce((a, r) => a + Number(r.ingresos), 0),
         ocupacion,
         mapa,
         ingresoHoraDisponible,
