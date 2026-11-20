@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Ban, Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -118,17 +118,34 @@ export function HistorialVentas() {
   const cuentasActivas = (cuentasQuery.data ?? []).filter((cuenta) => cuenta.activa);
   const jugadores = jugadoresQuery.data ?? [];
 
+  // Filtro por rango de fecha/hora (aplica a la tabla y a la descarga CSV).
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
+  const [exportando, setExportando] = useState(false);
+
+  const rangoIso = useMemo(() => {
+    const gte = filtroDesde ? new Date(filtroDesde).toISOString() : null;
+    // "Hasta" es inclusivo del minuto elegido.
+    const lte = filtroHasta
+      ? new Date(new Date(filtroHasta).getTime() + 60_000).toISOString()
+      : null;
+    return { gte, lte };
+  }, [filtroDesde, filtroHasta]);
+
   const ventasQuery = useQuery<VentaConDetalle[], Error>({
-    queryKey: ['buffet', 'ventas', club?.id],
+    queryKey: ['buffet', 'ventas', club?.id, filtroDesde, filtroHasta],
     enabled: Boolean(club?.id),
     queryFn: async () => {
       if (!club) throw new Error('No pudimos identificar tu club.');
-      const { data: ventasData, error: ventasError } = await supabase
+      let query = supabase
         .from('ventas')
         .select('*')
         .eq('club_id', club.id)
         .order('fecha_hora', { ascending: false })
         .limit(100);
+      if (rangoIso.gte) query = query.gte('fecha_hora', rangoIso.gte);
+      if (rangoIso.lte) query = query.lte('fecha_hora', rangoIso.lte);
+      const { data: ventasData, error: ventasError } = await query;
       if (ventasError) throw new Error(mapPostgrestError(ventasError));
 
       const ventas = (ventasData ?? []) as unknown as VentaConDetalle[];
@@ -256,6 +273,84 @@ export function HistorialVentas() {
     [pagosDraft],
   );
 
+  async function handleDescargarCsv(): Promise<void> {
+    if (!club) return;
+    setExportando(true);
+    try {
+      let query = supabase
+        .from('ventas')
+        .select('*')
+        .eq('club_id', club.id)
+        .order('fecha_hora', { ascending: false })
+        .limit(5000);
+      if (rangoIso.gte) query = query.gte('fecha_hora', rangoIso.gte);
+      if (rangoIso.lte) query = query.lte('fecha_hora', rangoIso.lte);
+      const { data: ventasData, error: ventasError } = await query;
+      if (ventasError) throw new Error(mapPostgrestError(ventasError));
+
+      const ventas = (ventasData ?? []) as unknown as VentaConDetalle[];
+      if (ventas.length === 0) return;
+
+      const ventaIds = ventas.map((venta) => venta.id);
+      const [itemsResult, pagosResult] = await Promise.all([
+        supabase.from('venta_items').select('*').in('venta_id', ventaIds),
+        supabase.from('venta_pagos').select('*').in('venta_id', ventaIds),
+      ]);
+      if (itemsResult.error) throw new Error(mapPostgrestError(itemsResult.error));
+      if (pagosResult.error) throw new Error(mapPostgrestError(pagosResult.error));
+
+      const items = (itemsResult.data ?? []) as unknown as VentaItem[];
+      const pagos = (pagosResult.data ?? []) as unknown as VentaPago[];
+
+      const esc = (valor: string | number | null | undefined): string =>
+        `"${String(valor ?? '').replace(/"/g, '""')}"`;
+
+      const headers = [
+        'ID Venta',
+        'Fecha/Hora',
+        'Estado',
+        'Productos',
+        'Pagos',
+        'Total',
+        'Observaciones',
+      ];
+      const rows = ventas.map((venta) => {
+        const lineasVenta = items.filter((item) => item.venta_id === venta.id);
+        const pagosVenta = pagos.filter((pago) => pago.venta_id === venta.id);
+        const productosTxt = lineasVenta
+          .map((item) => `${item.cantidad} x ${item.producto_nombre}`)
+          .join(' | ');
+        const pagosTxt = pagosVenta
+          .map((pago) => `${MEDIO_LABEL[normalizarMedioPago(pago.medio_pago)]} $${Number(pago.monto).toFixed(2)}`)
+          .join(' | ');
+        return [
+          esc(venta.id),
+          esc(new Date(venta.fecha_hora).toLocaleString('es-AR')),
+          esc(venta.activa ? 'Activa' : 'Anulada'),
+          esc(productosTxt),
+          esc(pagosTxt),
+          Number(venta.monto_total).toFixed(2),
+          esc(venta.observaciones),
+        ].join(',');
+      });
+
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const desdeTxt = filtroDesde ? filtroDesde.slice(0, 10) : 'inicio';
+      const hastaTxt = filtroHasta ? filtroHasta.slice(0, 10) : 'hoy';
+      link.setAttribute('download', `ventas_buffet_${desdeTxt}_a_${hastaTxt}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportando(false);
+    }
+  }
+
   function abrirEdicion(venta: VentaConDetalle): void {
     setVentaAEditar(venta);
     setMotivo('');
@@ -323,11 +418,62 @@ export function HistorialVentas() {
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">Historial de ventas</h2>
-        <p className="text-sm text-muted-foreground">
-          Podés corregir o anular ventas recientes. La operación original queda en el historial.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Historial de ventas</h2>
+          <p className="text-sm text-muted-foreground">
+            Podés corregir o anular ventas recientes. La operación original queda en el historial.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="ventas-desde" className="text-xs text-muted-foreground">
+              Desde
+            </Label>
+            <Input
+              id="ventas-desde"
+              type="datetime-local"
+              className="h-9 w-52"
+              value={filtroDesde}
+              onChange={(event) => setFiltroDesde(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ventas-hasta" className="text-xs text-muted-foreground">
+              Hasta
+            </Label>
+            <Input
+              id="ventas-hasta"
+              type="datetime-local"
+              className="h-9 w-52"
+              value={filtroHasta}
+              onChange={(event) => setFiltroHasta(event.target.value)}
+            />
+          </div>
+          {(filtroDesde || filtroHasta) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFiltroDesde('');
+                setFiltroHasta('');
+              }}
+            >
+              Limpiar
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleDescargarCsv()}
+            disabled={exportando}
+          >
+            <Download className="mr-1 h-4 w-4" />
+            {exportando ? 'Descargando...' : 'Descargar CSV'}
+          </Button>
+        </div>
       </div>
 
       {ventas.length === 0 ? (

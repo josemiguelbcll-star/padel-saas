@@ -193,7 +193,7 @@ export async function fetchDetalleVentas(input: {
 
   return {
     unidades,
-    topProductos: topProductosVendidos(topItems, 5),
+    topProductos: topProductosVendidos(topItems),
     margenPositivo,
     margenBase,
     insumosUnidades,
