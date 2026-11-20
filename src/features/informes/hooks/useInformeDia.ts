@@ -414,18 +414,15 @@ export function useInformeDia(
             supabase
               .from('reserva_pagos')
               .select('turno_caja_id, monto, tipo')
-              .in('turno_caja_id', turnoIds)
-              .eq('medio_pago', 'efectivo'),
+              .in('turno_caja_id', turnoIds),
             supabase
               .from('clase_cobros')
               .select('turno_caja_id, monto')
-              .in('turno_caja_id', turnoIds)
-              .eq('medio_pago', 'efectivo'),
+              .in('turno_caja_id', turnoIds),
             supabase
               .from('venta_pagos')
               .select('turno_caja_id, monto')
-              .in('turno_caja_id', turnoIds)
-              .eq('medio_pago', 'efectivo'),
+              .in('turno_caja_id', turnoIds),
             supabase
               .from('caja_movimientos_manuales')
               .select('turno_caja_id, tipo, monto')
@@ -449,8 +446,7 @@ export function useInformeDia(
           const { data: vRes2 } = await supabase
             .from('ventas')
             .select('turno_caja_id, monto_total')
-            .in('turno_caja_id', turnoIds)
-            .eq('medio_pago', 'efectivo');
+            .in('turno_caja_id', turnoIds);
           ventaEfectivoRows = (
             (vRes2 ?? []) as Array<{
               turno_caja_id: number;

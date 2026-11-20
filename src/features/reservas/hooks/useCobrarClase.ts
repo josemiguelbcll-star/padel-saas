@@ -50,6 +50,7 @@ export function useCobrarClase(): UseMutationResult<
       void queryClient.invalidateQueries({
         queryKey: [CLASE_COBROS_QUERY_KEY_BASE, cobro.fecha],
       });
+      void queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });
 }

@@ -92,8 +92,8 @@ export function useTurnosCajaHistorial(): UseQueryResult<
           ? usersMap.get(t.usuario_cierre) || 'Usuario desconocido'
           : null;
         const uVendedor = t.vendedor_id
-          ? usersMap.get(t.vendedor_id) || null
-          : null;
+          ? usersMap.get(t.vendedor_id) ?? uApertura
+          : uApertura;
 
         const sig = idx > 0 ? turnosRaw[idx - 1] : null;
         const siguienteTurno: SiguienteTurnoInfo | null = sig

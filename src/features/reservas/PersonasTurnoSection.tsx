@@ -1516,6 +1516,8 @@ function RowPagosPersona({
   readOnly?: boolean;
 }) {
   const { user } = useSession();
+  const cuentasQuery = useCuentas();
+  const cuentas = cuentasQuery.data ?? [];
   const cajasCerradas = useCajasCerradasDePagos(pagosPropios);
   const [confirmingPagoId, setConfirmingPagoId] = useState<number | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -1537,6 +1539,10 @@ function RowPagosPersona({
         const cajaCerrada =
           p.turno_caja_id != null && cajasCerradas.has(p.turno_caja_id);
         const puedeCorregir = getPermiso(user, 'caja_arqueos', 'editar');
+        const cuentaNombre = p.cuenta_id
+          ? cuentas.find((cuenta) => cuenta.id === p.cuenta_id)?.nombre
+          : null;
+        const medioLabel = cuentaNombre ?? MEDIO_PAGO_LABEL[p.medio_pago];
         return (
           <div
             key={p.id}
@@ -1544,7 +1550,7 @@ function RowPagosPersona({
           >
             <span>ya pagó {fmtMoney(p.monto)}</span>
             <span className="text-[10px] text-muted-foreground font-normal">
-              ({MEDIO_PAGO_LABEL[p.medio_pago]})
+              ({medioLabel})
             </span>
             {!readOnly && cajaCerrada && !puedeCorregir && (
               <span

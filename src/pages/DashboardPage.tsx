@@ -180,7 +180,7 @@ function DashboardHero({
 
 function VendedorDashboard() {
   const { user } = useSession();
-  const puedeVerInforme = getPermiso(user, 'caja_arqueos', 'ver');
+  const puedeVerInforme = user?.rol === 'admin';
   const cajaAbierta = useCajaAbierta();
   const turnoId = cajaAbierta.data?.id ?? null;
   const informeQuery = useInformeTurno(turnoId);

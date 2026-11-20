@@ -32,6 +32,8 @@ export interface NavSubItem {
    * en "Permisos del vendedor" manda, nunca el rol.
    */
   modulo?: string;
+  /** Restringe la navegación a usuarios con rol administrador. */
+  soloAdmin?: boolean;
 }
 
 export interface NavItem {
@@ -46,6 +48,8 @@ export interface NavItem {
    * puede ser tapado por un gate de rol.
    */
   modulo?: string;
+  /** Restringe la navegación a usuarios con rol administrador. */
+  soloAdmin?: boolean;
   /** Sub-items siempre expandidos debajo del padre. */
   children?: NavSubItem[];
 }
@@ -85,7 +89,7 @@ export const navItems: NavItem[] = [
       { label: 'Efectivo', to: '/app/caja/efectivo', icon: Wallet },
       { label: 'Transferencias', to: '/app/caja/transferencias', icon: ArrowLeftRight },
       { label: 'Arqueo de Caja', to: '/app/caja/arqueos', icon: Receipt, modulo: 'caja_arqueos' },
-      { label: 'Informe de turno', to: '/app/caja/informe', icon: FileText, modulo: 'caja_arqueos' },
+      { label: 'Informe de turno', to: '/app/caja/informe', icon: FileText, soloAdmin: true }
     ],
   },
   {

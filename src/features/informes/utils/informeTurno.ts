@@ -68,34 +68,53 @@ export interface CobroTurno {
   fecha_hora: string;
   descripcion: string;
   medio_pago: MedioPagoInforme;
+  /** Cuenta de tesorería donde se acreditó el cobro, si está registrada. */
+  cuenta_id: number | null;
+  cuenta_nombre: string | null;
   /** Monto con signo: reembolsos y reversiones ya vienen negativos. */
   monto: number;
 }
 
 export interface IngresoPorMedioInforme {
+  /** Agrupa por cuenta cuando está disponible, si no por medio_pago. */
+  clave: string;
   medio: MedioPagoInforme;
+  etiqueta: string;
   monto: number;
   count: number;
 }
 
 /**
- * Agrupa los cobros del turno por medio de pago, ordenado DESC por monto.
- * Medios sin actividad no aparecen; el total puede ser negativo si hay
- * más reembolsos que cobros.
+ * Agrupa los cobros del turno por cuenta cuando está disponible, y usa el
+ * medio de pago como fallback para registros históricos sin cuenta. Ordena
+ * DESC por monto; el total puede ser negativo si hay más reembolsos que cobros.
  */
 export function agruparCobrosPorMedio(
   cobros: ReadonlyArray<CobroTurno>,
 ): { items: IngresoPorMedioInforme[]; total: number } {
-  const acumulado = new Map<MedioPagoInforme, { monto: number; count: number }>();
-  for (const c of cobros) {
-    const prev = acumulado.get(c.medio_pago) ?? { monto: 0, count: 0 };
-    acumulado.set(c.medio_pago, {
-      monto: prev.monto + c.monto,
-      count: prev.count + 1,
+  const acumulado = new Map<
+    string,
+    { medio: MedioPagoInforme; etiqueta: string; monto: number; count: number }
+  >();
+  for (const cobro of cobros) {
+    const etiqueta = cobro.cuenta_nombre?.trim() || MEDIO_LABEL[cobro.medio_pago];
+    const clave = cobro.cuenta_nombre?.trim()
+      ? `cuenta:${etiqueta.toLocaleLowerCase('es-AR')}`
+      : `medio:${cobro.medio_pago}`;
+    const previo = acumulado.get(clave) ?? {
+      medio: cobro.medio_pago,
+      etiqueta,
+      monto: 0,
+      count: 0,
+    };
+    acumulado.set(clave, {
+      ...previo,
+      monto: previo.monto + cobro.monto,
+      count: previo.count + 1,
     });
   }
   const items = Array.from(acumulado.entries())
-    .map(([medio, v]) => ({ medio, monto: v.monto, count: v.count }))
+    .map(([clave, item]) => ({ clave, ...item }))
     .sort((a, b) => b.monto - a.monto);
   return { items, total: items.reduce((acc, i) => acc + i.monto, 0) };
 }

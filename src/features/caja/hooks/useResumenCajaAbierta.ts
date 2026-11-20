@@ -24,20 +24,19 @@ export const CAJA_RESUMEN_QUERY_KEY = (turnoCajaId: number) =>
  *
  * Hace 4 queries paralelas + 1 de la caja:
  *   1. apertura: turnos_caja.monto_apertura
- *   2. cobros de reserva_pagos en efectivo de esta caja (tipo='reembolso'
+ *   2. cobros de reserva_pagos asociados a esta caja (tipo='reembolso'
  *      resta — regla de oro de fn_cerrar_caja)
- *   3. ventas en efectivo de esta caja
- *   4. clase_cobros en efectivo de esta caja
+ *   3. ventas asociadas a esta caja
+ *   4. clase_cobros asociados a esta caja
  *   5. movimientos manuales de esta caja
  *
  * Mismo cálculo que `fn_cerrar_caja` server-side, replicado en JS para
  * mostrar el esperado en vivo SIN cerrar la caja. La RPC sigue siendo
  * la fuente de verdad al momento del cierre (lock + recalculo atómico).
  *
- * Filtros server-side por `turno_caja_id` + `medio_pago='efectivo'`
- * (doble defensa: en teoría turno_caja_id solo se setea para efectivo
- * desde la 0023, pero filtrar por medio_pago hace el invariante
- * explícito y resiste bugs futuros).
+ * Filtro server-side por `turno_caja_id`: desde 0058, esta FK se asigna
+ * cuando la cuenta de destino tiene `es_caja_fisica=true`, que es la
+ * fuente de verdad compartida con `fn_cerrar_caja`.
  */
 export function useResumenCajaAbierta(
   turnoCajaId: number | null,
@@ -55,17 +54,15 @@ export function useResumenCajaAbierta(
           .from('turnos_caja')
           .select('monto_apertura')
           .eq('id', turnoCajaId)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('reserva_pagos')
           .select('monto, tipo')
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo'),
+          .eq('turno_caja_id', turnoCajaId),
         supabase
           .from('clase_cobros')
           .select('monto')
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo'),
+          .eq('turno_caja_id', turnoCajaId),
         supabase
           .from('caja_movimientos_manuales')
           .select('tipo, monto')
@@ -77,8 +74,8 @@ export function useResumenCajaAbierta(
         if (r.error) throw new Error(mapPostgrestError(r.error));
       }
 
-      // Cobros de ventas buffet en efectivo: consultamos venta_pagos para soportar
-      // pagos divididos/mixtos (ej. 75k transferencia + 25k efectivo solo suma los 25k).
+      // Cobros de ventas de esta caja física: consultamos venta_pagos para
+      // soportar pagos divididos y distinguir las cuentas realmente atadas a caja.
       // Fallback transparente a ventas si la tabla venta_pagos aún no existe.
       let cobros_ventas = 0;
       let count_ventas = 0;
@@ -86,8 +83,7 @@ export function useResumenCajaAbierta(
       const vpRes = await supabase
         .from('venta_pagos')
         .select('monto')
-        .eq('turno_caja_id', turnoCajaId)
-        .eq('medio_pago', 'efectivo');
+        .eq('turno_caja_id', turnoCajaId);
 
       if (!vpRes.error && vpRes.data) {
         cobros_ventas = vpRes.data.reduce((acc, v) => acc + Number(v.monto), 0);
@@ -96,14 +92,14 @@ export function useResumenCajaAbierta(
         const vRes = await supabase
           .from('ventas')
           .select('monto_total')
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo');
+          .eq('turno_caja_id', turnoCajaId);
         if (vRes.data) {
           cobros_ventas = vRes.data.reduce((acc, v) => acc + Number(v.monto_total), 0);
           count_ventas = vRes.data.length;
         }
       }
 
+      if (!cajaRes.data) return null;
       const apertura = Number(
         (cajaRes.data as { monto_apertura: number }).monto_apertura,
       );

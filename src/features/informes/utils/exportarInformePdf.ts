@@ -14,6 +14,8 @@ import {
 } from './informeTurno';
 import type { JornadaArqueo } from '../hooks/useInformeDia';
 
+type ColorRgb = [number, number, number];
+
 const currencyFmt = new Intl.NumberFormat('es-AR', {
   style: 'currency',
   currency: 'ARS',
@@ -80,36 +82,64 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
   let y = 14;
 
-  doc.setFontSize(14);
-  doc.text(datos.titulo, 14, y);
-  y += 6;
+  doc.setFillColor(20, 83, 68);
+  doc.rect(0, 0, pageWidth, 34, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(datos.nombreClub || 'Informe de caja', margin, y + 2);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.setTextColor(90);
-  doc.text(
-    `${datos.nombreClub ? datos.nombreClub + ' · ' : ''}${datos.fechaLabel}`,
-    14,
-    y,
-  );
-  y += 5;
+  doc.text(datos.titulo, margin, y + 9);
+  doc.text(datos.fechaLabel, margin, y + 15);
+  doc.setFontSize(8);
   doc.text(
     `Generado ${new Date().toLocaleString('es-AR', { timeZone: AR_TZ })}`,
-    14,
-    y,
+    margin,
+    y + 21,
   );
-  for (const l of datos.lineasEncabezado) {
-    y += 4;
-    doc.text(l, 14, y);
+  doc.setTextColor(0);
+  y = 41;
+
+  for (const linea of datos.lineasEncabezado) {
+    doc.setFontSize(9);
+    doc.setTextColor(70);
+    doc.text(linea, margin, y);
+    y += 5;
   }
   doc.setTextColor(0);
-  y += 7;
+  y += 2;
 
   const lastY = () =>
     (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
       .finalY;
+  const sectionTitle = (title: string) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(20, 83, 68);
+    doc.text(title.toUpperCase(), margin, y);
+    doc.setDrawColor(20, 83, 68);
+    doc.setLineWidth(0.4);
+    doc.line(margin, y + 1.5, pageWidth - margin, y + 1.5);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'normal');
+    y += 5;
+  };
+  const tableStyles = {
+    theme: 'striped' as const,
+    styles: { fontSize: 8, cellPadding: 2.2, textColor: [45, 55, 55] as ColorRgb },
+    headStyles: { fillColor: [20, 83, 68] as ColorRgb, textColor: [255, 255, 255] as ColorRgb, fontStyle: 'bold' as const },
+    alternateRowStyles: { fillColor: [240, 247, 244] as ColorRgb },
+    margin: { left: margin, right: margin },
+  };
 
+  sectionTitle('Resumen de la jornada');
   autoTable(doc, {
+    ...tableStyles,
     startY: y,
     head: [['Indicador', 'Valor', 'Detalle']],
     body: datos.kpis.map((k) => [
@@ -117,31 +147,35 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
       typeof k.valor === 'number' ? fmtMoney(k.valor) : (k.valor ?? '—'),
       k.nota,
     ]),
-    theme: 'grid',
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [40, 40, 40] },
+    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
   });
   y = lastY() + 6;
 
+  sectionTitle('Cobros por medio de pago');
   autoTable(doc, {
+    ...tableStyles,
     startY: y,
     head: [['Medio de pago', 'Cobros', 'Monto', '%']],
     body: datos.porMedio.items.map((m) => [
-      MEDIO_LABEL[m.medio],
+      m.etiqueta,
       String(m.count),
       fmtMoney(m.monto),
       datos.porMedio.total !== 0
         ? `${Math.round((m.monto / Math.abs(datos.porMedio.total)) * 100)}%`
         : '—',
     ]),
-    theme: 'striped',
-    styles: { fontSize: 9 },
+    columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right', fontStyle: 'bold' }, 3: { halign: 'right' } },
+    foot: [['TOTAL', String(datos.porMedio.items.reduce((sum, item) => sum + item.count, 0)), fmtMoney(datos.porMedio.total), '100%']],
+    showFoot: 'lastPage',
+    footStyles: { fillColor: [20, 83, 68], textColor: [255, 255, 255], fontStyle: 'bold' },
   });
   y = lastY() + 6;
 
   if (datos.arqueo) {
     const a = datos.arqueo;
+    sectionTitle('Arqueo de efectivo');
     autoTable(doc, {
+      ...tableStyles,
       startY: y,
       head: [['Caja de la jornada (efectivo)', 'Monto']],
       body: [
@@ -155,14 +189,20 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
         ['Efectivo contado', a.contado === null ? '—' : fmtMoney(a.contado)],
         ['Diferencia', a.diferencia === null ? '—' : fmtMoney(a.diferencia)],
       ],
-      theme: 'striped',
-      styles: { fontSize: 9 },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index >= 6) {
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
     });
     y = lastY() + 6;
   }
 
   if (datos.jornadas && datos.jornadas.length > 0) {
+    sectionTitle('Jornadas del día');
     autoTable(doc, {
+      ...tableStyles,
       startY: y,
       head: [
         [
@@ -186,13 +226,14 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
         j.arqueo.diferencia === null ? '—' : fmtMoney(j.arqueo.diferencia),
         j.turno.cerrada_en ? 'Cerrada' : 'Abierta',
       ]),
-      theme: 'striped',
-      styles: { fontSize: 8 },
+      styles: { ...tableStyles.styles, fontSize: 7 },
     });
     y = lastY() + 6;
   }
 
+  sectionTitle('Ingresos por unidad de negocio');
   autoTable(doc, {
+    ...tableStyles,
     startY: y,
     head: [['Unidad de negocio', 'Monto', '%']],
     body: [
@@ -202,13 +243,20 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
       ['Shop (turno + mostrador)', fmtMoney(datos.unidades.shop), pct(datos.unidades.shop, datos.unidades.total)],
       ['Total', fmtMoney(datos.unidades.total), '100%'],
     ],
-    theme: 'striped',
-    styles: { fontSize: 9 },
+    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' }, 2: { halign: 'right' } },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.index === 4) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [220, 238, 230];
+      }
+    },
   });
   y = lastY() + 6;
 
   if (datos.topProductos.length > 0) {
+    sectionTitle('Productos más vendidos');
     autoTable(doc, {
+      ...tableStyles,
       startY: y,
       head: [['Más vendidos', 'Unidades', 'Total']],
       body: datos.topProductos.map((p) => [
@@ -216,15 +264,16 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
         String(p.cantidad),
         fmtMoney(p.total),
       ]),
-      theme: 'striped',
-      styles: { fontSize: 9 },
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right', fontStyle: 'bold' } },
     });
     y = lastY() + 6;
   }
 
+  sectionTitle('Contexto del club');
   autoTable(doc, {
+    ...tableStyles,
     startY: y,
-    head: [['Contexto del club', 'Valor']],
+    head: [['Indicador', 'Valor']],
     body: [
       [
         'Ocupación de canchas',
@@ -238,25 +287,38 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
       ],
       ['Reservas del día', String(datos.contexto.reservasCount)],
     ],
-    theme: 'striped',
-    styles: { fontSize: 9 },
+    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
   });
   y = lastY() + 6;
 
+  sectionTitle('Detalle de cobros');
   autoTable(doc, {
+    ...tableStyles,
     startY: y,
     head: [['Fecha/hora', 'Tipo', 'Detalle', 'Medio', 'Monto']],
     body: datos.cobros.map((c) => [
       fmtFechaHora(c.fecha_hora),
       ORIGEN_LABEL[c.origen],
       c.descripcion,
-      MEDIO_LABEL[c.medio_pago],
+      c.cuenta_nombre ?? MEDIO_LABEL[c.medio_pago],
       fmtMoney(c.monto),
     ]),
-    theme: 'striped',
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [40, 40, 40] },
+    styles: { ...tableStyles.styles, fontSize: 7 },
+    columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } },
   });
+
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(
+      `${datos.nombreClub || 'Informe de caja'} · Página ${page} de ${pageCount}`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 7,
+      { align: 'center' },
+    );
+  }
 
   const slug = datos.fechaLabel.replace(/[^\d]+/g, '-').replace(/^-|-$/g, '');
   doc.save(`informe-${slug || 'caja'}.pdf`);

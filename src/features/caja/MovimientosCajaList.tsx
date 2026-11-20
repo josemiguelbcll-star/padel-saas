@@ -23,6 +23,7 @@ const currencyFmt = new Intl.NumberFormat('es-AR', {
 const horaFmt = new Intl.DateTimeFormat('es-AR', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
 });
 
 interface CategoriaConfig {
@@ -108,8 +109,13 @@ export function MovimientosCajaList({
                 </td>
                 <td className="px-3 py-2 align-top">
                   <p className="text-foreground">{m.descripcion}</p>
+                  {m.cuenta_nombre && (
+                    <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+                      Cuenta: {m.cuenta_nombre}
+                    </p>
+                  )}
                   {m.detalle && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 max-w-[min(70vw,48rem)] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground">
                       {m.detalle}
                     </p>
                   )}

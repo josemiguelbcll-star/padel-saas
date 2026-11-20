@@ -35,6 +35,9 @@ export interface MovimientoCajaUnificado {
   signo: '+' | '-';
   /** Título visible (ej. "Cobro reserva (pago)", "Retiro de caja"). */
   descripcion: string;
+  /** Cuenta donde se acreditó el movimiento, si está configurada. */
+  cuenta_id: number | null;
+  cuenta_nombre: string | null;
   /** Info adicional debajo del título (ej. "21/05 15:30 · Cancha 1"). */
   detalle: string | null;
   /** Id de la fila original (para futura navegación al detalle). */
@@ -49,6 +52,8 @@ const fechaCortaFmt = new Intl.DateTimeFormat('es-AR', {
   month: '2-digit',
 });
 
+
+
 function formatearHoraTime(hhmmss: string | null | undefined): string {
   if (!hhmmss) return '';
   // 'HH:MM:SS' o 'HH:MM' → 'HH:MM'
@@ -56,15 +61,16 @@ function formatearHoraTime(hhmmss: string | null | undefined): string {
 }
 
 /**
- * Lista cronológica (DESC — más reciente primero) de TODOS los
- * movimientos de la caja: cobros en efectivo + movimientos manuales.
+ * Lista cronológica (DESC — más reciente primero) de todos los
+ * movimientos asociados a la jornada de caja física + movimientos manuales.
  *
  * Hace 4 queries paralelas con embeds para traer info contextual
  * (reservas → cancha; clases → nombre). Si los embeds tiraran 400
  * en algún entorno, se podrían reemplazar por queries separadas.
  *
- * Solo cobros en efectivo (medio_pago='efectivo'). Los cobros por
- * transferencia/MP/tarjeta NO entran a la caja (regla de oro).
+ * La RPC asocia a `turno_caja_id` los cobros de cuentas físicas según
+ * `cuentas.es_caja_fisica`; filtrar por el literal del medio excluiría
+ * cuentas físicas adicionales configuradas por el club.
  */
 export function useMovimientosCaja(
   turnoCajaId: number | null,
@@ -86,22 +92,20 @@ export function useMovimientosCaja(
           .from('reserva_pagos')
           .select(
             `
-            id, monto, tipo, fecha_hora,
+            id, monto, tipo, fecha_hora, cuenta_id,
             reservas (fecha, hora_inicio, canchas (nombre))
             `,
           )
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo'),
+          .eq('turno_caja_id', turnoCajaId),
         supabase
           .from('clase_cobros')
           .select(
             `
-            id, monto, fecha, fecha_hora, observaciones,
+            id, monto, fecha, fecha_hora, observaciones, cuenta_id,
             clases (nombre)
             `,
           )
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo'),
+          .eq('turno_caja_id', turnoCajaId),
         supabase
           .from('caja_movimientos_manuales')
           .select('id, tipo, monto, concepto, observaciones, fecha_hora')
@@ -120,6 +124,7 @@ export function useMovimientosCaja(
         monto: number;
         tipo: 'sena' | 'pago' | 'reembolso';
         fecha_hora: string;
+        cuenta_id: number | null;
         reservas: {
           fecha: string;
           hora_inicio: string;
@@ -164,6 +169,8 @@ export function useMovimientosCaja(
           signo: p.tipo === 'reembolso' ? '-' : '+',
           descripcion,
           detalle: detalle || null,
+          cuenta_id: p.cuenta_id,
+          cuenta_nombre: null,
           origen_id: p.id,
         });
       }
@@ -173,47 +180,72 @@ export function useMovimientosCaja(
         id: number;
         venta_id: number;
         monto: number;
+        cuenta_id: number | null;
         fecha_hora: string;
         ventas: { observaciones: string | null } | null;
+      };
+      type VentaRow = {
+        id: number;
+        monto_total: number;
+        cuenta_id: number | null;
+        fecha_hora: string;
+        observaciones: string | null;
       };
 
       const vpRes = await supabase
         .from('venta_pagos')
-        .select('id, venta_id, monto, fecha_hora, ventas(observaciones)')
-        .eq('turno_caja_id', turnoCajaId)
-        .eq('medio_pago', 'efectivo');
+        .select('id, venta_id, monto, cuenta_id, fecha_hora, ventas(observaciones)')
+        .eq('turno_caja_id', turnoCajaId);
+      let ventasCaja: Array<{
+        id: number;
+        ventaId: number;
+        monto: number;
+        cuentaId: number | null;
+        fechaHora: string;
+        observaciones: string | null;
+      }> = [];
 
       if (!vpRes.error && vpRes.data) {
-        for (const vp of vpRes.data as unknown as VentaPagoRow[]) {
-          unificados.push({
-            id: `vp-${vp.id}`,
-            categoria: 'cobro_venta',
-            fecha_hora: vp.fecha_hora,
-            monto: Number(vp.monto),
-            signo: '+',
-            descripcion: `Venta buffet #${vp.venta_id}`,
-            detalle: vp.ventas?.observaciones ?? null,
-            origen_id: vp.venta_id,
-          });
-        }
+        ventasCaja = (vpRes.data as unknown as VentaPagoRow[]).map((pago) => ({
+          id: pago.id,
+          ventaId: pago.venta_id,
+          monto: Number(pago.monto),
+          cuentaId: pago.cuenta_id,
+          fechaHora: pago.fecha_hora,
+          observaciones: pago.ventas?.observaciones ?? null,
+        }));
       } else {
         const vRes = await supabase
           .from('ventas')
-          .select('id, monto_total, fecha_hora, observaciones')
-          .eq('turno_caja_id', turnoCajaId)
-          .eq('medio_pago', 'efectivo');
-        for (const v of (vRes.data ?? []) as Array<{ id: number; monto_total: number; fecha_hora: string; observaciones: string | null }>) {
-          unificados.push({
-            id: `v-${v.id}`,
-            categoria: 'cobro_venta',
-            fecha_hora: v.fecha_hora,
-            monto: Number(v.monto_total),
-            signo: '+',
-            descripcion: `Venta buffet #${v.id}`,
-            detalle: v.observaciones ?? null,
-            origen_id: v.id,
-          });
-        }
+          .select('id, monto_total, cuenta_id, fecha_hora, observaciones')
+          .eq('turno_caja_id', turnoCajaId);
+        if (vRes.error) throw new Error(mapPostgrestError(vRes.error));
+        ventasCaja = ((vRes.data ?? []) as VentaRow[]).map((venta) => ({
+          id: venta.id,
+          ventaId: venta.id,
+          monto: Number(venta.monto_total),
+          cuentaId: venta.cuenta_id,
+          fechaHora: venta.fecha_hora,
+          observaciones: venta.observaciones,
+        }));
+      }
+
+      for (const pago of ventasCaja) {
+        const observacionLimpia = pago.observaciones
+          ?.replace(/\[Desglose:\s*[\s\S]*?\]/gi, '')
+          .trim();
+        unificados.push({
+          id: `vp-${pago.id}`,
+          categoria: 'cobro_venta',
+          fecha_hora: pago.fechaHora,
+          monto: pago.monto,
+          signo: '+',
+          descripcion: `Venta buffet #${pago.ventaId}`,
+          detalle: observacionLimpia || null,
+          cuenta_id: pago.cuentaId,
+          cuenta_nombre: null,
+          origen_id: pago.ventaId,
+        });
       }
 
       // ── Cobros de clases ────────────────────────────────────────────
@@ -223,6 +255,7 @@ export function useMovimientosCaja(
         fecha: string;
         fecha_hora: string;
         observaciones: string | null;
+        cuenta_id: number | null;
         clases: { nombre: string | null } | null;
       };
       for (const c of (clasesRes.data ?? []) as unknown as ClaseCobroRow[]) {
@@ -241,6 +274,8 @@ export function useMovimientosCaja(
           signo: '+',
           descripcion: 'Cobro de clase',
           detalle,
+          cuenta_id: c.cuenta_id,
+          cuenta_nombre: null,
           origen_id: c.id,
         });
       }
@@ -273,8 +308,25 @@ export function useMovimientosCaja(
           detalle:
             m.concepto +
             (m.observaciones ? ` — ${m.observaciones}` : ''),
+          cuenta_id: null,
+          cuenta_nombre: null,
           origen_id: m.id,
         });
+      }
+
+      const cuentaIds = [...new Set(unificados.map((m) => m.cuenta_id).filter((id): id is number => id !== null))];
+      if (cuentaIds.length > 0) {
+        const { data: cuentas, error: cuentasErr } = await supabase
+          .from('cuentas')
+          .select('id, nombre')
+          .in('id', cuentaIds);
+        if (cuentasErr) throw new Error(mapPostgrestError(cuentasErr));
+        const nombresPorId = new Map((cuentas ?? []).map((cuenta) => [cuenta.id, cuenta.nombre]));
+        for (const movimiento of unificados) {
+          if (movimiento.cuenta_id !== null) {
+            movimiento.cuenta_nombre = nombresPorId.get(movimiento.cuenta_id) ?? null;
+          }
+        }
       }
 
       // Ordenar cronológicamente DESC (más reciente primero).
