@@ -14,6 +14,17 @@ export interface NoticiaAppFeed {
   comments_count: number;
 }
 
+type FilaNoticiaFeed = {
+  id: number;
+  club_id: number;
+  titulo: string;
+  descripcion: string | null;
+  imagen_url: string | null;
+  creado_en: string;
+  likes_count?: number | null;
+  comments_count?: number | null;
+};
+
 /**
  * Hook para cargar noticias del feed (para jugadores)
  */
@@ -37,7 +48,8 @@ export function useNoticiasAppFeed(clubId?: number) {
         .limit(20);
       if (clubId) q = q.eq('club_id', clubId);
 
-      let { data, error } = await q;
+      let data: FilaNoticiaFeed[] | null = null;
+      let { data: dataConConteos, error } = await q;
       if (error && /likes_count|comments_count|column/i.test(error.message)) {
         let q2 = supabase
           .from('noticias_feed')
@@ -47,8 +59,10 @@ export function useNoticiasAppFeed(clubId?: number) {
           .limit(20);
         if (clubId) q2 = q2.eq('club_id', clubId);
         const retry = await q2;
-        data = retry.data;
+        data = (retry.data ?? null) as FilaNoticiaFeed[] | null;
         error = retry.error;
+      } else {
+        data = (dataConConteos ?? null) as FilaNoticiaFeed[] | null;
       }
       if (error) throw error;
 

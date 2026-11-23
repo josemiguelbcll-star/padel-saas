@@ -246,14 +246,6 @@ export function App() {
  * granular del módulo (`getPermiso`), nunca el rol. Si el usuario no lo
  * tiene, redirige a "/app". La seguridad real es server-side (RLS + RPC gates).
  */
-function AdminRoute({ children }: { children: ReactNode }) {
-  const { user } = useSession();
-  if (user?.rol !== 'admin') {
-    return <Navigate to="/app" replace />;
-  }
-  return <>{children}</>;
-}
-
 function ModuleRoute({
   children,
   modulo,

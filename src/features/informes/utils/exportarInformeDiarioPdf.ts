@@ -359,7 +359,7 @@ export async function exportarInformeDiarioPdf(
   sectionTitle(5, 'Fugas de plata');
   doc.setFillColor(...CARD);
   doc.roundedRect(leftX, y, colW, 36, 2, 2, 'F');
-  const fugasRows = [
+  const fugasRows: [string, string][] = [
     ['Cobros incompletos', money(f.pendienteCobro.total)],
     ['Cancelaciones', money(f.cancelaciones.monto)],
     ['Diferencias de arqueo', money(f.diferenciasArqueo.total)],
@@ -413,7 +413,7 @@ export async function exportarInformeDiarioPdf(
   const m = informe.mes;
   doc.setFillColor(...CARD);
   doc.roundedRect(leftX, y, colW, 34, 2, 2, 'F');
-  const mesRows = [
+  const mesRows: [string, string][] = [
     [`Facturado al ${fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric' })}`, money(m.facturadoMes)],
     ['Mismo período mes anterior', money(m.facturadoMesAntMismoPeriodo)],
     [
