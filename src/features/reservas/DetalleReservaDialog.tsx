@@ -865,6 +865,15 @@ function DetalleReservaBody({
           >
             {ESTADO_OPERATIVO_LABEL[estadoOperativo]}
           </span>
+          {reserva.metodo_pago_pre_reserva === 'mercadopago' && reserva.mp_estado && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {reserva.mp_estado === 'pre_reserva' && 'Pre-reserva Mercado Pago: esperando la seña.'}
+              {reserva.mp_estado === 'pago_acreditado' && 'Seña acreditada. Confirmá el turno para avisarle al jugador.'}
+              {reserva.mp_estado === 'pago_tardio' && 'El pago de Mercado Pago llegó fuera de término. Revisá antes de confirmar.'}
+              {reserva.mp_estado === 'confirmada' && 'Turno confirmado. El jugador ya fue notificado.'}
+              {reserva.mp_estado === 'expirada' && 'La pre-reserva venció y el horario quedó libre.'}
+            </p>
+          )}
         </div>
 
         {/* Franja horaria y precio del turno */}

@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import type { InformeDiarioData } from '../hooks/useInformeDia';
-import { MEDIO_LABEL } from '../utils/informeTurno';
 import {
   generarAlertas,
   type CeldaOcupacion,
@@ -10,19 +8,20 @@ import {
 import { useProductosParaReponer } from '@/features/dashboard/hooks/useProductosParaReponer';
 import { useResumenFinanciero } from '@/features/finanzas/hooks/useResumenFinanciero';
 
-const currencyFmt = new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  minimumFractionDigits: 0,
+const fmtNum = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0,
 });
-const fmtMoney = (n: number) => currencyFmt.format(Math.round(n));
+
+function fmtMoney(n: number): string {
+  const sign = n < 0 ? '−' : '';
+  return `${sign}$ ${fmtNum.format(Math.abs(Math.round(n)))}`;
+}
 
 const CELDA_STYLE: Record<CeldaOcupacion, string> = {
-  fijo: 'bg-sky-500',
-  variable: 'bg-emerald-500',
-  clase: 'bg-violet-500',
-  libre: 'bg-muted',
+  fijo: 'bg-[hsl(var(--inf-green-fijo))]',
+  variable: 'bg-[hsl(var(--inf-green-var))]',
+  clase: 'bg-[hsl(var(--inf-blue))]',
+  libre: 'bg-[hsl(var(--inf-line))]',
 };
 const CELDA_LABEL: Record<CeldaOcupacion, string> = {
   fijo: 'Turno fijo',
@@ -31,11 +30,11 @@ const CELDA_LABEL: Record<CeldaOcupacion, string> = {
   libre: 'Libre',
 };
 
+const AR_TZ = 'America/Argentina/Buenos_Aires';
+
 /**
- * Informe diario del dueño — layout denso a 2 columnas replicando el
- * PDF modelo: header con badge de alertas, fila de KPIs grandes,
- * secciones numeradas (1 Actividad · 2 Caja · 3 Unidades · 4 Mapa ·
- * 5 Fugas · 6 Buffet · 7 Mes · 8 Hoy · 9 Alertas).
+ * Informe diario del dueño — layout del PDF modelo: fondo crema,
+ * header tipográfico, KPIs, secciones numeradas 1–9.
  */
 export function InformeDiarioView({
   informe,
@@ -45,7 +44,6 @@ export function InformeDiarioView({
   nombreClub: string;
 }) {
   const reponer = useProductosParaReponer();
-  // Acumulado del mes por unidad (EERR) para la columna "Acum. mes".
   const mesInicio = `${informe.fecha.slice(0, 7)}-01`;
   const resumenMes = useResumenFinanciero({ desde: mesInicio, hasta: informe.fecha });
   const acumMesPorUnidad = useMemo(() => {
@@ -69,328 +67,362 @@ export function InformeDiarioView({
   );
 
   return (
-    <article className="overflow-hidden rounded-xl border border-border bg-card">
-      {/* ── Header estilo informe ── */}
-      <header className="border-b-2 border-primary/60 bg-primary px-5 py-4 text-primary-foreground">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-foreground/60">
-              Informe diario del dueño{nombreClub ? ` · ${nombreClub.toUpperCase()}` : ''}
-            </p>
-            <h2 className="mt-1 text-xl font-bold capitalize">
-              {informe.jornada.titulo}
-            </h2>
-            <p className="mt-1 text-[11px] text-primary-foreground/60">
-              {informe.jornada.lineas.join(' · ')}
-            </p>
-          </div>
-          {alertas.length > 0 && (
-            <span className="rounded-full border border-amber-300/50 bg-amber-300/10 px-3 py-1 text-[11px] font-semibold text-amber-200">
-              Día con {alertas.length} punto{alertas.length === 1 ? '' : 's'} para revisar
-            </span>
-          )}
-        </div>
-      </header>
+    <article
+      id="informe-diario-pdf"
+      className="informe-dueno text-foreground"
+    >
+      <HeaderInforme
+        informe={informe}
+        nombreClub={nombreClub}
+        alertasCount={alertas.length}
+      />
 
-      <div className="space-y-6 p-5">
+      <div className="mt-6 space-y-5">
         <KpiStrip informe={informe} />
+        <SeccionActividad informe={informe} />
+        <SeccionClasesProfesor informe={informe} />
 
-        {/* Grid de secciones a 2 columnas como el PDF */}
-        <div className="grid gap-6 xl:grid-cols-2">
-          <div className="space-y-6">
-            <SeccionActividad informe={informe} />
-            <SeccionClasesProfesor informe={informe} />
-            <SeccionMapa informe={informe} />
-          </div>
-          <div className="space-y-6">
-            <SeccionCaja informe={informe} />
-            <SeccionUnidades informe={informe} acumMes={acumMesPorUnidad} />
-            <SeccionFugas informe={informe} />
-            <SeccionBuffet informe={informe} reponerCount={reponer.productos?.length ?? 0} />
-            <SeccionMes informe={informe} />
-            <SeccionManana informe={informe} />
-            <SeccionAlertas alertas={alertas} />
-            <SeccionPagos cobros={informe.cobros} />
-          </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <SeccionCaja informe={informe} />
+          <SeccionUnidades informe={informe} acumMes={acumMesPorUnidad} />
         </div>
+
+        <SeccionMapa informe={informe} />
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <SeccionFugas informe={informe} />
+          <SeccionBuffet
+            informe={informe}
+            reponer={reponer.productos ?? []}
+          />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <SeccionMes informe={informe} />
+          <SeccionManana informe={informe} />
+        </div>
+
+        <SeccionAlertas alertas={alertas} />
       </div>
     </article>
   );
 }
 
-// ── KPIs grandes (fila superior del informe) ────────────────────────
+function HeaderInforme({
+  informe,
+  nombreClub,
+  alertasCount,
+}: {
+  informe: InformeDiarioData;
+  nombreClub: string;
+  alertasCount: number;
+}) {
+  const fecha = new Date(`${informe.fecha}T12:00:00`);
+  const titulo = `Cierre del ${fecha.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: AR_TZ,
+  })}`;
+  const semanaAnt = new Date(fecha);
+  semanaAnt.setDate(semanaAnt.getDate() - 7);
+  const generado = new Date();
+  const ctx = informe.contexto;
+  const apertura = ctx.horaApertura?.slice(0, 5) ?? '—';
+  const cierre = ctx.horaCierre?.slice(0, 5) ?? '—';
+
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p
+          className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+          style={{ color: 'hsl(var(--inf-muted))' }}
+        >
+          Informe diario del dueño
+          {nombreClub ? ` · ${nombreClub}` : ''}
+        </p>
+        <h2 className="mt-1 text-[1.65rem] font-extrabold capitalize leading-tight tracking-tight sm:text-3xl">
+          {titulo}
+        </h2>
+        <p className="mt-1.5 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+          Generado {generado.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: AR_TZ })}
+          {' · '}
+          {generado.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: AR_TZ })} h
+          {' · '}
+          {ctx.canchasActivas} canchas
+          {' · '}
+          horario {apertura}–{cierre} h
+          {' · '}
+          Comparación: mismo día de la semana anterior (
+          {semanaAnt.toLocaleDateString('es-AR', {
+            weekday: 'short',
+            day: '2-digit',
+            month: '2-digit',
+            timeZone: AR_TZ,
+          })}
+          )
+        </p>
+      </div>
+      {alertasCount > 0 && (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold"
+          style={{
+            background: 'hsl(var(--inf-peach))',
+            color: 'hsl(var(--inf-peach-ink))',
+            border: '1px solid hsl(var(--inf-peach-border))',
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ background: 'hsl(var(--inf-warn))' }}
+          />
+          Día con {alertasCount} punto{alertasCount === 1 ? '' : 's'} para revisar
+        </span>
+      )}
+    </header>
+  );
+}
+
+function Card({
+  children,
+  className,
+  peach,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  peach?: boolean;
+}) {
+  return (
+    <div
+      className={cn('rounded-2xl border bg-card p-4', className)}
+      style={
+        peach
+          ? {
+              background: 'hsl(var(--inf-peach))',
+              borderColor: 'hsl(var(--inf-peach-border))',
+            }
+          : undefined
+      }
+    >
+      {children}
+    </div>
+  );
+}
 
 function KpiStrip({ informe }: { informe: InformeDiarioData }) {
-  const items: Array<{
-    label: string;
-    valor: string;
-    sub: React.ReactNode;
-    grande?: boolean;
-  }> = [
-    {
-      label: 'Facturación del día',
-      valor: fmtMoney(informe.facturacion),
-      grande: true,
-      sub: <span className="text-muted-foreground">Todos los medios de cobro</span>,
-    },
-    {
-      label: 'Ocupación de canchas',
-      valor:
-        informe.ocupacion.porcentaje === null
-          ? '—'
-          : `${Math.round(informe.ocupacion.porcentaje)}%`,
-      sub: informe.mapa
-        ? `${Math.round(informe.ocupacion.minutosOcupados / 60)} h ocupadas · ${Math.round(informe.ocupacion.minutosDisponibles / 60)} h disponibles`
-        : 'Sin horario configurado',
-    },
-    {
-      label: 'Ingreso por hora disponible',
-      valor:
-        informe.ingresoHoraDisponible === null
-          ? '—'
-          : fmtMoney(informe.ingresoHoraDisponible),
-      sub:
-        informe.ingresoHoraOcupada !== null
-          ? `Por hora ocupada: ${fmtMoney(informe.ingresoHoraOcupada)}`
-          : 'Canchas + clases ÷ horas disponibles',
-    },
-    {
-      label: 'Pendiente de cobro',
-      valor: fmtMoney(informe.pendienteCobro.total),
-      sub: `${informe.pendienteCobro.count} turno(s) con saldo`,
-    },
-  ];
+  const ocupHoras = Math.round(informe.ocupacion.minutosOcupados / 60);
+  const dispHoras = Math.round(informe.ocupacion.minutosDisponibles / 60);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {items.map((k) => (
-        <div
-          key={k.label}
-          className={cn(
-            'rounded-lg border border-border bg-muted/20 p-4',
-            k.grande && 'border-foreground/20 bg-foreground/[0.03]',
-          )}
+      <Card>
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+          Facturación del día
+        </p>
+        <p className="mt-2 text-[1.7rem] font-extrabold tabular-nums leading-none">
+          {fmtMoney(informe.facturacion)}
+        </p>
+        <p className="mt-2 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+          Todos los medios de cobro
+        </p>
+      </Card>
+
+      <Card>
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+          Ocupación de canchas
+        </p>
+        <p className="mt-2 text-[1.7rem] font-extrabold tabular-nums leading-none">
+          {informe.ocupacion.porcentaje === null
+            ? '—'
+            : `${Math.round(informe.ocupacion.porcentaje)}%`}
+        </p>
+        <p className="mt-2 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+          {informe.ocupacion.pico
+            ? `Pico ${informe.ocupacion.pico.etiqueta}: ${Math.round(informe.ocupacion.pico.pct)}%`
+            : `${ocupHoras} h ocupadas`}
+          {informe.ocupacion.valle
+            ? ` · Valle: ${Math.round(informe.ocupacion.valle.pct)}%`
+            : ''}
+          {dispHoras > 0 ? ` · ${ocupHoras} de ${dispHoras} h` : ''}
+        </p>
+      </Card>
+
+      <Card>
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+          Ingreso por hora disponible
+        </p>
+        <p className="mt-2 text-[1.7rem] font-extrabold tabular-nums leading-none">
+          {informe.ingresoHoraDisponible === null
+            ? '—'
+            : fmtMoney(informe.ingresoHoraDisponible)}
+        </p>
+        <p className="mt-2 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+          {informe.ingresoHoraOcupada !== null
+            ? `Canchas + clases ÷ ${dispHoras} h · por hora ocupada: ${fmtMoney(informe.ingresoHoraOcupada)}`
+            : 'Canchas + clases ÷ horas disponibles'}
+        </p>
+      </Card>
+
+      <Card peach>
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-peach-ink))' }}>
+          Pendiente de cobro
+        </p>
+        <p
+          className="mt-2 text-[1.7rem] font-extrabold tabular-nums leading-none"
+          style={{ color: 'hsl(var(--inf-peach-ink))' }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {k.label}
-          </p>
-          <p
-            className={cn(
-              'mt-1 font-bold tabular-nums leading-none text-foreground',
-              k.grande ? 'text-3xl' : 'text-2xl',
-            )}
-          >
-            {k.valor}
-          </p>
-          <div className="mt-2 text-[11px]">{k.sub}</div>
-        </div>
-      ))}
+          {fmtMoney(informe.pendienteCobro.total)}
+        </p>
+        <p className="mt-2 text-[11px]" style={{ color: 'hsl(var(--inf-peach-ink))' }}>
+          {informe.pendienteCobro.count} turno{informe.pendienteCobro.count === 1 ? '' : 's'} con cobro incompleto
+        </p>
+      </Card>
     </div>
   );
 }
 
-// ── Primitivas de sección ───────────────────────────────────────────
-
-function TituloSeccion({
-  n,
-  titulo,
-  right,
-  children,
-}: {
-  n: number;
-  titulo: string;
-  right?: React.ReactNode;
-  children?: React.ReactNode;
-}) {
+function Titulo({ n, titulo, right }: { n: number; titulo: string; right?: React.ReactNode }) {
   return (
-    <section className="space-y-2.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-[13px] font-bold uppercase tracking-wide text-foreground">
-          <span className="mr-1.5 text-muted-foreground">{n}·</span>
-          {titulo}
-        </h3>
-        {right}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn('rounded-lg border border-border/70 bg-muted/10 p-3', className)}>
-      {children}
+    <div className="mb-3 flex items-baseline justify-between gap-2">
+      <h3 className="text-[13px] font-bold tracking-tight">
+        {n} · {titulo}
+      </h3>
+      {right}
     </div>
   );
 }
-
-function MiniStat({
-  label,
-  valor,
-  sub,
-}: {
-  label: string;
-  valor: string;
-  sub?: string;
-}) {
-  return (
-    <Card>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-lg font-bold tabular-nums leading-none text-foreground">
-        {valor}
-      </p>
-      {sub && <p className="mt-1 text-[10px] text-muted-foreground">{sub}</p>}
-    </Card>
-  );
-}
-
-function TablaSimple({
-  head,
-  children,
-}: {
-  head: string[];
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border/70">
-      <table className="w-full text-[11px]">
-        <thead>
-          <tr className="border-b border-border bg-muted/40">
-            {head.map((h, i) => (
-              <th
-                key={h}
-                className={cn(
-                  'px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground',
-                  i === 0 ? 'text-left' : 'text-right',
-                )}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/50">{children}</tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── 1 · Actividad del día ───────────────────────────────────────────
 
 function SeccionActividad({ informe }: { informe: InformeDiarioData }) {
   const a = informe.actividad;
   const cards = [
     {
       label: 'Turnos fijos',
-      count: a.turnosFijos.count,
-      horas: a.turnosFijos.horas,
-      monto: a.turnosFijos.monto,
+      count: String(a.turnosFijos.count),
+      sub: `${a.turnosFijos.horas} h · ${fmtMoney(a.turnosFijos.monto)}`,
     },
     {
       label: 'Turnos variables',
-      count: a.variables.count,
-      horas: a.variables.horas,
-      monto: a.variables.monto,
+      count: String(a.variables.count),
+      sub: `${a.variables.horas} h · ${fmtMoney(a.variables.monto)}`,
     },
     {
       label: 'Clases con profe',
-      count: a.clases.count,
-      horas: a.clases.horas,
-      monto: a.clases.monto,
-      extra: `${a.clases.alumnos} alumnos`,
+      count: String(a.clases.count),
+      sub: `${a.clases.horas} h · ${fmtMoney(a.clases.monto)} · ${a.clases.alumnos} alumnos`,
     },
     {
       label: 'Insumos facturados',
-      count: a.insumos.unidades,
-      horas: null,
-      monto: a.insumos.monto,
-      extra: 'u. · Buffet + shop',
+      count: `${a.insumos.unidades} u.`,
+      sub: `Buffet + shop · ${fmtMoney(a.insumos.monto)}`,
     },
   ];
+  const totalH = a.turnosFijos.horas + a.variables.horas + a.clases.horas;
+  const pct = (h: number) => (totalH > 0 ? Math.round((h / totalH) * 100) : 0);
+
   return (
-    <TituloSeccion n={1} titulo="Actividad del día">
-      <div className="grid grid-cols-2 gap-2">
+    <section>
+      <Titulo
+        n={1}
+        titulo="Actividad del día"
+        right={
+          <span className="text-[10px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+            Cada número con su comparación contra la semana anterior
+          </span>
+        }
+      />
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {cards.map((c) => (
-          <Card key={c.label}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <Card key={c.label} className="p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
               {c.label}
             </p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
-              {c.count}
-            </p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {c.horas !== null ? `${c.horas} h · ` : ''}
-              {fmtMoney(c.monto)}
-              {c.extra ? ` · ${c.extra}` : ''}
+            <p className="mt-1.5 text-2xl font-extrabold tabular-nums leading-none">{c.count}</p>
+            <p className="mt-1.5 text-[10px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+              {c.sub}
             </p>
           </Card>
         ))}
       </div>
-      <Card>
-        <p className="text-[11px] text-foreground">
-          <span className="font-semibold">Mix de horas ocupadas:</span>{' '}
-          {(() => {
-            const total = a.turnosFijos.horas + a.variables.horas + a.clases.horas;
-            if (total <= 0) return '—';
-            const pct = (h: number) => Math.round((h / total) * 100);
-            return `${pct(a.turnosFijos.horas)}% fijos · ${pct(a.variables.horas)}% variables · ${pct(a.clases.horas)}% clases.`;
-          })()}{' '}
-          <span className="text-muted-foreground">
-            Los fijos dan base estable; los variables y las clases son donde está el crecimiento.
-          </span>
-        </p>
-      </Card>
-    </TituloSeccion>
-  );
-}
-
-// ── Clases por profesor (sub-bloque sin número, como el PDF) ─────────
-
-function SeccionClasesProfesor({ informe }: { informe: InformeDiarioData }) {
-  const { filas, total } = informe.clasesProfesor;
-  return (
-    <section className="space-y-2">
-      <h3 className="text-[13px] font-bold uppercase tracking-wide text-foreground">
-        Clases por profesor
-      </h3>
-      {filas.length === 0 ? (
-        <Card>
-          <p className="text-[11px] text-muted-foreground">
-            Sin clases dictadas ni inscriptos en el período.
-          </p>
-        </Card>
-      ) : (
-        <TablaSimple
-          head={[
-            'Profesor',
-            'Clases hoy',
-            'Alumnos',
-            'Ingresos hoy',
-            'Clases mes',
-            'Ingresos mes',
-            '% escuela',
-          ]}
-        >
-          {[...filas, total].map((f, i) => (
-            <tr key={f.profesor} className={cn(i === filas.length && 'bg-muted/40 font-bold')}>
-              <td className="px-2 py-1.5 text-foreground">{f.profesor}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{f.clasesHoy}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{f.alumnosHoy}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtMoney(f.ingresosHoy)}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{f.clasesMes}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtMoney(f.ingresosMes)}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{Math.round(f.pctEscuela)}%</td>
-            </tr>
-          ))}
-        </TablaSimple>
-      )}
+      <p className="mt-3 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+        Mix de horas ocupadas:{' '}
+        <span style={{ color: 'hsl(var(--inf-ink))' }}>
+          {pct(a.turnosFijos.horas)}% fijos · {pct(a.variables.horas)}% variables · {pct(a.clases.horas)}% clases.
+        </span>{' '}
+        Los fijos dan base estable; los variables y las clases son donde está el crecimiento.
+      </p>
     </section>
   );
 }
 
-// ── 2 · Caja y medios de cobro ──────────────────────────────────────
+function SeccionClasesProfesor({ informe }: { informe: InformeDiarioData }) {
+  const { filas, total } = informe.clasesProfesor;
+  return (
+    <section>
+      <p
+        className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em]"
+        style={{ color: 'hsl(var(--inf-muted))' }}
+      >
+        Clases por profesor
+      </p>
+      {filas.length === 0 ? (
+        <Card>
+          <p className="text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+            Sin clases dictadas ni inscriptos en el período.
+          </p>
+        </Card>
+      ) : (
+        <div
+          className="overflow-x-auto rounded-2xl"
+          style={{ border: '1px solid hsl(var(--inf-line))', background: 'hsl(var(--inf-card))' }}
+        >
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr style={{ borderBottom: '1px solid hsl(var(--inf-line))' }}>
+                {['Profesor', 'Clases hoy', 'Alumnos', 'Ingresos hoy', 'Clases mes', 'Ingresos mes', '% escuela'].map(
+                  (h, i) => (
+                    <th
+                      key={h}
+                      className={cn(
+                        'px-3 py-2 text-[9px] font-bold uppercase tracking-wider',
+                        i === 0 ? 'text-left' : 'text-right',
+                      )}
+                      style={{ color: 'hsl(var(--inf-muted))' }}
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {[...filas, total].map((f, i) => {
+                const esTotal = i === filas.length;
+                return (
+                  <tr
+                    key={f.profesor}
+                    style={{
+                      borderTop: esTotal ? '1px solid hsl(var(--inf-line))' : undefined,
+                      fontWeight: esTotal ? 700 : 400,
+                    }}
+                  >
+                    <td className="px-3 py-2">{f.profesor}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{f.clasesHoy}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{f.alumnosHoy}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(f.ingresosHoy)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{f.clasesMes}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(f.ingresosMes)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{Math.round(f.pctEscuela)}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function SeccionCaja({ informe }: { informe: InformeDiarioData }) {
   const efectivoApertura = informe.jornadas.reduce(
@@ -401,97 +433,104 @@ function SeccionCaja({ informe }: { informe: InformeDiarioData }) {
     (total, jornada) => total + jornada.arqueo.esperado,
     0,
   );
-  const jornadasArqueadas = informe.jornadas.filter(
-    (jornada) => jornada.arqueo.contado !== null,
-  );
+  const jornadasArqueadas = informe.jornadas.filter((j) => j.arqueo.contado !== null);
   const efectivoContado = jornadasArqueadas.reduce(
     (total, jornada) => total + (jornada.arqueo.contado ?? 0),
     0,
   );
+  const diferencia = jornadasArqueadas.reduce(
+    (total, jornada) => total + (jornada.arqueo.diferencia ?? 0),
+    0,
+  );
   const hayContado = jornadasArqueadas.length > 0;
-  const arqueoCompleto = hayContado && jornadasArqueadas.length === informe.jornadas.length;
-  const netoMovimientos = efectivoEsperado - efectivoApertura;
+  const cobrosEfectivo =
+    informe.porMedio.items.find((m) => m.medio === 'efectivo')?.monto ?? 0;
+  const maxAbs = Math.max(...informe.porMedio.items.map((m) => Math.abs(m.monto)), 1);
+
   return (
-    <TituloSeccion n={2} titulo="Caja y medios de cobro">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Card>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Efectivo total acumulado en caja
-          </p>
-          <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
-            {fmtMoney(efectivoEsperado)}
-          </p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            Aperturas {fmtMoney(efectivoApertura)} · movimientos netos {fmtMoney(netoMovimientos)}
-          </p>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            {hayContado
-              ? `Contado: ${fmtMoney(efectivoContado)} · ${jornadasArqueadas.length}/${informe.jornadas.length} jornadas arqueadas${arqueoCompleto ? '' : ' (parcial)'}`
-              : 'Sin jornadas arqueadas'}
-          </p>
-        </Card>
-        <Card>
-          <ul className="space-y-1">
-            {informe.porMedio.items.map((m) => {
-              const pct =
-                informe.porMedio.total !== 0
-                  ? Math.round((m.monto / Math.abs(informe.porMedio.total)) * 100)
-                  : 0;
-              return (
-                <li key={m.clave} className="flex items-baseline justify-between text-[11px]">
-                  <span className="text-foreground">{m.etiqueta}</span>
-                  <span className="tabular-nums text-foreground">
-                    {fmtMoney(m.monto)} · {pct}%
-                  </span>
-                </li>
-              );
-            })}
-            <li className="flex items-baseline justify-between border-t border-border/60 pt-1 text-[11px] font-bold">
-              <span className="text-foreground">Total cobrado</span>
-              <span className="tabular-nums text-foreground">
-                {fmtMoney(informe.porMedio.total)}
+    <Card className="p-5">
+      <Titulo n={2} titulo="Caja y medios de cobro" />
+      <ul className="space-y-2">
+        {informe.porMedio.items.map((m) => {
+          const pct =
+            informe.porMedio.total !== 0
+              ? Math.round((m.monto / Math.abs(informe.porMedio.total)) * 100)
+              : 0;
+          const bar = Math.max(4, (Math.abs(m.monto) / maxAbs) * 100);
+          return (
+            <li key={m.clave} className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-2 text-[11px]">
+              <span>{m.etiqueta}</span>
+              <span className="h-1.5 overflow-hidden rounded-full" style={{ background: 'hsl(var(--inf-line))' }}>
+                <span
+                  className="block h-full rounded-full"
+                  style={{ width: `${bar}%`, background: 'hsl(var(--inf-green-bar))' }}
+                />
+              </span>
+              <span className="tabular-nums">
+                {fmtMoney(m.monto)}{' '}
+                <span style={{ color: 'hsl(var(--inf-muted))' }}>{pct}%</span>
               </span>
             </li>
-          </ul>
-        </Card>
+          );
+        })}
+        <li
+          className="flex items-baseline justify-between border-t pt-2 text-[12px] font-bold"
+          style={{ borderColor: 'hsl(var(--inf-line))' }}
+        >
+          <span>Total cobrado</span>
+          <span className="tabular-nums">{fmtMoney(informe.porMedio.total)}</span>
+        </li>
+      </ul>
+
+      <div className="mt-4 rounded-xl bg-muted p-3 text-[11px]">
+        <p
+          className="mb-2 text-[9px] font-bold uppercase tracking-wider"
+          style={{ color: 'hsl(var(--inf-muted))' }}
+        >
+          Efectivo total acumulado en caja
+        </p>
+        <FilaCaja label="Saldo inicial (apertura)" valor={efectivoApertura} />
+        <FilaCaja label="+ Cobros en efectivo del día" valor={cobrosEfectivo} />
+        <FilaCaja label="= Efectivo esperado" valor={efectivoEsperado} bold />
+        <FilaCaja
+          label="Efectivo contado en arqueo"
+          valor={hayContado ? efectivoContado : null}
+        />
+        {hayContado && (
+          <FilaCaja
+            label="Diferencia"
+            valor={diferencia}
+            warn={diferencia !== 0}
+          />
+        )}
       </div>
-      {informe.jornadas.length > 0 && (
-        <div className="space-y-1">
-          {informe.jornadas.map((j) => (
-            <div
-              key={j.turno.id}
-              className="flex flex-wrap items-baseline justify-between gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[11px]"
-            >
-              <span className="font-medium text-foreground">
-                Jornada #{j.turno.id}
-                <span className="ml-1.5 font-normal text-muted-foreground">
-                  {j.turno.cerrada_en ? 'Cerrada' : 'Abierta'}
-                </span>
-              </span>
-              <span className="tabular-nums text-muted-foreground">
-                Esperado {fmtMoney(j.arqueo.esperado)}
-                {j.arqueo.diferencia !== null && j.arqueo.diferencia !== 0 && (
-                  <span
-                    className={cn(
-                      'ml-1.5 font-semibold',
-                      j.arqueo.diferencia < 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-emerald-600 dark:text-emerald-400',
-                    )}
-                  >
-                    Dif. {fmtMoney(j.arqueo.diferencia)}
-                  </span>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </TituloSeccion>
+    </Card>
   );
 }
 
-// ── 3 · Ingresos por unidad + facturación 7 días ────────────────────
+function FilaCaja({
+  label,
+  valor,
+  bold,
+  warn,
+}: {
+  label: string;
+  valor: number | null;
+  bold?: boolean;
+  warn?: boolean;
+}) {
+  return (
+    <div className={cn('flex items-baseline justify-between py-0.5', bold && 'font-bold')}>
+      <span style={{ color: warn ? 'hsl(var(--inf-warn))' : undefined }}>{label}</span>
+      <span
+        className="tabular-nums"
+        style={{ color: warn ? 'hsl(var(--inf-warn))' : undefined }}
+      >
+        {valor === null ? '—' : fmtMoney(valor)}
+      </span>
+    </div>
+  );
+}
 
 function SeccionUnidades({
   informe,
@@ -508,42 +547,52 @@ function SeccionUnidades({
     { key: 'shop', label: 'Shop', hoy: u.shop },
   ];
   const totalMes = filas.reduce((a, f) => a + (acumMes.get(f.key) ?? 0), 0);
+
   return (
-    <TituloSeccion n={3} titulo="Ingresos por unidad de negocio">
-      <TablaSimple head={['Unidad', 'Hoy', 'Acum. mes', '% del mes']}>
-        {filas.map((f) => {
-          const mes = acumMes.get(f.key) ?? 0;
-          const pctMes = totalMes > 0 ? (mes / totalMes) * 100 : 0;
-          return (
-            <tr key={f.key}>
-              <td className="px-2 py-1.5 text-foreground">{f.label}</td>
-              <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-foreground">
-                {fmtMoney(f.hoy)}
-              </td>
-              <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
-                {fmtMoney(mes)}
-              </td>
-              <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                {Math.round(pctMes)}%
-              </td>
-            </tr>
-          );
-        })}
-        <tr className="bg-muted/40 font-bold">
-          <td className="px-2 py-1.5 text-foreground">Total facturado</td>
-          <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
-            {fmtMoney(u.total)}
-          </td>
-          <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
-            {fmtMoney(totalMes)}
-          </td>
-          <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-            100%
-          </td>
-        </tr>
-      </TablaSimple>
+    <Card className="p-5">
+      <Titulo n={3} titulo="Ingresos por unidad de negocio" />
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr>
+            {['Unidad', 'Hoy', 'Acum. mes', '% del mes'].map((h, i) => (
+              <th
+                key={h}
+                className={cn(
+                  'pb-2 text-[9px] font-bold uppercase tracking-wider',
+                  i === 0 ? 'text-left' : 'text-right',
+                )}
+                style={{ color: 'hsl(var(--inf-muted))' }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => {
+            const mes = acumMes.get(f.key) ?? 0;
+            const pctMes = totalMes > 0 ? (mes / totalMes) * 100 : 0;
+            return (
+              <tr key={f.key} style={{ borderTop: '1px solid hsl(var(--inf-line))' }}>
+                <td className="py-1.5">{f.label}</td>
+                <td className="py-1.5 text-right font-semibold tabular-nums">{fmtMoney(f.hoy)}</td>
+                <td className="py-1.5 text-right tabular-nums">{fmtMoney(mes)}</td>
+                <td className="py-1.5 text-right tabular-nums" style={{ color: 'hsl(var(--inf-muted))' }}>
+                  {Math.round(pctMes)}%
+                </td>
+              </tr>
+            );
+          })}
+          <tr className="font-bold" style={{ borderTop: '1px solid hsl(var(--inf-line))' }}>
+            <td className="py-2">Total facturado</td>
+            <td className="py-2 text-right tabular-nums">{fmtMoney(u.total)}</td>
+            <td className="py-2 text-right tabular-nums">{fmtMoney(totalMes)}</td>
+            <td className="py-2 text-right tabular-nums">100%</td>
+          </tr>
+        </tbody>
+      </table>
       <Facturacion7Dias dias={informe.facturacion7dias} />
-    </TituloSeccion>
+    </Card>
   );
 }
 
@@ -557,59 +606,80 @@ function Facturacion7Dias({
   const fmtDia = new Intl.DateTimeFormat('es-AR', {
     weekday: 'short',
     day: 'numeric',
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: AR_TZ,
   });
   return (
-    <Card>
-      <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+    <div className="mt-4">
+      <p
+        className="mb-2 text-[9px] font-bold uppercase tracking-wider"
+        style={{ color: 'hsl(var(--inf-muted))' }}
+      >
         Facturación últimos 7 días
       </p>
-      <div className="flex h-24 items-end gap-1">
-        {dias.map((d) => (
-          <div key={d.fecha} className="flex flex-1 flex-col items-center gap-0.5">
-            <span className="text-[8px] tabular-nums text-muted-foreground">
-              {d.ingresos >= 1000
-                ? `${Math.round(d.ingresos / 1000)}k`
-                : String(Math.round(d.ingresos))}
-            </span>
-            <div
-              className="w-full rounded-t-sm bg-primary/80"
-              style={{ height: `${Math.max(3, (d.ingresos / maxV) * 64)}px` }}
-              title={fmtMoney(d.ingresos)}
-            />
-            <span className="text-[8px] capitalize text-muted-foreground">
-              {fmtDia.format(new Date(`${d.fecha}T12:00:00`)).replace('.', '')}
-            </span>
-          </div>
-        ))}
+      <div className="flex h-28 items-end gap-1.5">
+        {dias.map((d, i) => {
+          const ultimo = i === dias.length - 1;
+          return (
+            <div key={d.fecha} className="flex flex-1 flex-col items-center gap-1">
+              <span className="text-[8px] tabular-nums" style={{ color: 'hsl(var(--inf-muted))' }}>
+                {d.ingresos >= 1000
+                  ? `$${Math.round(d.ingresos / 1000)}k`
+                  : fmtMoney(d.ingresos)}
+              </span>
+              <div
+                className="w-full rounded-t-md"
+                style={{
+                  height: `${Math.max(6, (d.ingresos / maxV) * 72)}px`,
+                  background: ultimo
+                    ? 'hsl(var(--inf-green-fijo))'
+                    : 'hsl(var(--inf-green-soft))',
+                }}
+                title={fmtMoney(d.ingresos)}
+              />
+              <span className="text-[8px] capitalize" style={{ color: 'hsl(var(--inf-muted))' }}>
+                {fmtDia.format(new Date(`${d.fecha}T12:00:00`)).replace('.', '')}
+              </span>
+            </div>
+          );
+        })}
       </div>
-    </Card>
+    </div>
   );
 }
-
-// ── 4 · Mapa de ocupación ───────────────────────────────────────────
 
 function SeccionMapa({ informe }: { informe: InformeDiarioData }) {
   const mapa = informe.mapa;
   if (!mapa || mapa.horas.length === 0) return null;
   return (
-    <TituloSeccion n={4} titulo="Mapa de ocupación por cancha y hora">
-      <div className="overflow-x-auto rounded-lg border border-border/70">
-        <table className="border-collapse">
+    <Card className="p-5">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-[13px] font-bold tracking-tight">4 · Mapa de ocupación por cancha y hora</h3>
+        <div className="flex flex-wrap gap-3 text-[9px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+          {(Object.keys(CELDA_LABEL) as CeldaOcupacion[]).map((k) => (
+            <span key={k} className="flex items-center gap-1">
+              <span className={cn('inline-block h-2.5 w-2.5 rounded-[3px]', CELDA_STYLE[k])} />
+              {CELDA_LABEL[k]}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="border-separate border-spacing-0.5">
           <thead>
             <tr>
-              <th className="px-1.5 py-1 text-left text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                Cancha
+              <th className="px-1 pb-1 text-left text-[9px] font-bold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+                {' '}
               </th>
               {mapa.horas.map((h) => (
                 <th
                   key={h}
-                  className="px-0.5 py-1 text-[8px] font-medium tabular-nums text-muted-foreground"
+                  className="px-0 pb-1 text-center text-[9px] font-medium tabular-nums"
+                  style={{ color: 'hsl(var(--inf-muted))' }}
                 >
-                  {String(h).padStart(2, '0')}
+                  {h}
                 </th>
               ))}
-              <th className="px-1.5 py-1 text-right text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+              <th className="px-1 pb-1 text-right text-[9px] font-bold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
                 Ocup.
               </th>
             </tr>
@@ -617,17 +687,15 @@ function SeccionMapa({ informe }: { informe: InformeDiarioData }) {
           <tbody>
             {mapa.canchas.map((c) => (
               <tr key={c.cancha_id}>
-                <td className="whitespace-nowrap px-1.5 py-0.5 text-[10px] font-medium text-foreground">
-                  {c.nombre}
-                </td>
+                <td className="whitespace-nowrap pr-2 text-[10px] font-medium">{c.nombre}</td>
                 {c.celdas.map((celda, i) => (
-                  <td
-                    key={i}
-                    title={CELDA_LABEL[celda]}
-                    className={cn('h-5 w-5 border border-border/50', CELDA_STYLE[celda])}
-                  />
+                  <td key={i} title={CELDA_LABEL[celda]}>
+                    <span
+                      className={cn('block h-5 w-5 rounded-[4px] sm:w-6', CELDA_STYLE[celda])}
+                    />
+                  </td>
                 ))}
-                <td className="px-1.5 py-0.5 text-right text-[10px] tabular-nums text-foreground">
+                <td className="pl-2 text-right text-[10px] tabular-nums">
                   {Math.round(c.ocupacionPct)}%
                 </td>
               </tr>
@@ -635,148 +703,155 @@ function SeccionMapa({ informe }: { informe: InformeDiarioData }) {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-3 text-[9px] text-muted-foreground">
-        {(Object.keys(CELDA_LABEL) as CeldaOcupacion[]).map((k) => (
-          <span key={k} className="flex items-center gap-1">
-            <span className={cn('inline-block h-2.5 w-2.5 rounded-sm', CELDA_STYLE[k])} />
-            {CELDA_LABEL[k]}
-          </span>
-        ))}
-      </div>
-    </TituloSeccion>
+    </Card>
   );
 }
-
-// ── 5 · Fugas de plata ──────────────────────────────────────────────
 
 function SeccionFugas({ informe }: { informe: InformeDiarioData }) {
   const f = informe.fugas;
   const filas: Array<{ label: string; detalle: string; monto: number }> = [
     {
       label: 'Cobros divididos incompletos',
-      detalle: `${f.pendienteCobro.count} jugador(es) · ${f.pendienteCobro.count} turno(s)`,
+      detalle: `${f.pendienteCobro.count} turno${f.pendienteCobro.count === 1 ? '' : 's'}`,
       monto: f.pendienteCobro.total,
     },
     {
-      label: 'Cancelaciones tardías',
-      detalle: `${f.cancelaciones.count} cancelada(s)`,
+      label: 'Cancelaciones',
+      detalle: `${f.cancelaciones.count} cancelada${f.cancelaciones.count === 1 ? '' : 's'}`,
       monto: f.cancelaciones.monto,
     },
     {
       label: 'Diferencias de arqueo',
-      detalle: `${f.diferenciasArqueo.count} jornada(s)`,
-      monto: Math.abs(f.diferenciasArqueo.total),
+      detalle: `${f.diferenciasArqueo.count} jornada${f.diferenciasArqueo.count === 1 ? '' : 's'}`,
+      monto: f.diferenciasArqueo.total,
     },
-  ].filter((x) => x.monto !== 0);
-  if (filas.length === 0) return null;
+  ];
   return (
-    <TituloSeccion n={5} titulo="Fugas de plata">
-      <Card className="p-0">
-        {filas.map((x) => (
+    <Card className="p-5">
+      <Titulo n={5} titulo="Fugas de plata" />
+      <div>
+        {filas.map((x, i) => (
           <div
             key={x.label}
-            className="flex items-baseline justify-between border-b border-border/50 px-3 py-2 text-[11px] last:border-0"
+            className="flex items-baseline justify-between py-2 text-[11px]"
+            style={{ borderTop: i === 0 ? undefined : '1px solid hsl(var(--inf-line))' }}
           >
-            <span className="text-foreground">
+            <span>
               {x.label}
-              <span className="ml-1.5 text-[10px] text-muted-foreground">
+              <span className="ml-2" style={{ color: 'hsl(var(--inf-muted))' }}>
                 {x.detalle}
               </span>
             </span>
-            <span className="font-semibold tabular-nums text-foreground">
-              {fmtMoney(x.monto)}
-            </span>
+            <span className="font-semibold tabular-nums">{fmtMoney(x.monto)}</span>
           </div>
         ))}
-        <div className="flex items-baseline justify-between bg-muted/40 px-3 py-2 text-[11px] font-bold">
-          <span className="text-foreground">Total en riesgo o perdido</span>
-          <span className="tabular-nums text-foreground">{fmtMoney(f.total)}</span>
+        <div
+          className="flex items-baseline justify-between pt-2 text-[12px] font-bold"
+          style={{ borderTop: '1px solid hsl(var(--inf-line))' }}
+        >
+          <span>Total en riesgo o perdido</span>
+          <span className="tabular-nums" style={{ color: 'hsl(var(--inf-warn))' }}>
+            {fmtMoney(f.total)}
+          </span>
         </div>
-      </Card>
-    </TituloSeccion>
+      </div>
+    </Card>
   );
 }
 
-// ── 6 · Buffet y shop ───────────────────────────────────────────────
-
 function SeccionBuffet({
   informe,
-  reponerCount,
+  reponer,
 }: {
   informe: InformeDiarioData;
-  reponerCount: number;
+  reponer: Array<{ producto_nombre: string; stock_actual: number }>;
 }) {
   const b = informe.buffetShop;
-  if (b.ventas === 0 && b.topProductos.length === 0) return null;
   return (
-    <TituloSeccion n={6} titulo="Buffet y shop">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Card>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Ventas POS
+    <Card className="p-5">
+      <Titulo n={6} titulo="Buffet y shop" />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-muted p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+            Ventas
           </p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
-            {fmtMoney(b.ventas)}
+          <p className="mt-1 text-xl font-extrabold tabular-nums">{fmtMoney(b.ventas)}</p>
+        </div>
+        <div className="rounded-xl bg-muted p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+            Margen bruto
           </p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            Margen bruto: {b.margenPct === null ? '—' : `${Math.round(b.margenPct)}%`}
+          <p className="mt-1 text-xl font-extrabold tabular-nums">
+            {b.margenPct === null ? '—' : `${Math.round(b.margenPct)}%`}
           </p>
-        </Card>
-        <Card>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-            Más vendidos · Reponer hoy
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 text-[11px]">
+        <div>
+          <p className="mb-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
+            Más vendidos
           </p>
           {b.topProductos.length === 0 ? (
-            <p className="text-[10px] text-muted-foreground">Sin ventas.</p>
+            <p style={{ color: 'hsl(var(--inf-muted))' }}>Sin ventas.</p>
           ) : (
             <ul className="space-y-0.5">
               {b.topProductos.slice(0, 4).map((p) => (
-                <li
-                  key={p.nombre}
-                  className="flex items-baseline justify-between text-[10px]"
-                >
-                  <span className="text-foreground">
-                    {p.nombre}
-                    <span className="ml-1 text-muted-foreground">{p.cantidad} u.</span>
-                  </span>
-                  <span className="tabular-nums text-foreground">{fmtMoney(p.total)}</span>
+                <li key={p.nombre}>
+                  {p.nombre}{' '}
+                  <span style={{ color: 'hsl(var(--inf-muted))' }}>· {p.cantidad} u.</span>
                 </li>
               ))}
             </ul>
           )}
-          {reponerCount > 0 && (
-            <p className="mt-1.5 border-t border-border/50 pt-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              {reponerCount} producto(s) para reponer stock hoy.
-            </p>
+        </div>
+        <div>
+          <p
+            className="mb-1 text-[9px] font-bold uppercase tracking-wider"
+            style={{ color: 'hsl(var(--inf-warn))' }}
+          >
+            Reponer hoy
+          </p>
+          {reponer.length === 0 ? (
+            <p style={{ color: 'hsl(var(--inf-muted))' }}>Sin faltantes.</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {reponer.slice(0, 4).map((p) => (
+                <li key={p.producto_nombre}>
+                  {p.producto_nombre}{' '}
+                  <span style={{ color: 'hsl(var(--inf-muted))' }}>
+                    · quedan {p.stock_actual}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
-        </Card>
+        </div>
       </div>
-    </TituloSeccion>
+    </Card>
   );
 }
 
-// ── 7 · Cómo viene el mes ───────────────────────────────────────────
-
 function SeccionMes({ informe }: { informe: InformeDiarioData }) {
   const m = informe.mes;
-  const filas: Array<{ label: string; valor: string; sub?: string; tone?: 'pos' | 'neg' }> = [
-    {
-      label: `Facturado al ${new Date(`${informe.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric' })}`,
-      valor: fmtMoney(m.facturadoMes),
-    },
+  const dia = new Date(`${informe.fecha}T12:00:00`).toLocaleDateString('es-AR', {
+    day: 'numeric',
+    month: 'numeric',
+    timeZone: AR_TZ,
+  });
+  const filas: Array<{ label: string; valor: string; extra?: string; tone?: 'pos' | 'neg' }> = [
+    { label: `Facturado al ${dia}`, valor: fmtMoney(m.facturadoMes) },
     {
       label: 'Mismo período mes anterior',
       valor: fmtMoney(m.facturadoMesAntMismoPeriodo),
-      sub:
+      extra:
         m.variacionPct !== null
-          ? `${m.variacionPct >= 0 ? '+' : ''}${Math.round(m.variacionPct * 10) / 10}%`
+          ? `${m.variacionPct >= 0 ? '+' : ''}${m.variacionPct.toFixed(1).replace('.', ',')}%`
           : undefined,
       tone: m.variacionPct === null ? undefined : m.variacionPct >= 0 ? 'pos' : 'neg',
     },
     {
       label: 'Proyección de cierre al ritmo actual',
       valor: m.proyeccionCierre === null ? '—' : fmtMoney(m.proyeccionCierre),
-      sub: 'ritmo actual',
     },
     {
       label: 'Ocupación promedio del mes',
@@ -784,177 +859,99 @@ function SeccionMes({ informe }: { informe: InformeDiarioData }) {
     },
   ];
   return (
-    <TituloSeccion n={7} titulo="Cómo viene el mes">
-      <Card className="p-0">
-        {filas.map((f, i) => (
-          <div
-            key={f.label}
-            className={cn(
-              'flex items-baseline justify-between px-3 py-2 text-[11px]',
-              i > 0 && 'border-t border-border/50',
+    <Card className="p-5">
+      <Titulo n={7} titulo="Cómo viene el mes" />
+      {filas.map((f, i) => (
+        <div
+          key={f.label}
+          className="flex items-baseline justify-between py-2 text-[11px]"
+          style={{ borderTop: i === 0 ? undefined : '1px solid hsl(var(--inf-line))' }}
+        >
+          <span>{f.label}</span>
+          <span className="font-bold tabular-nums">
+            {f.valor}
+            {f.extra && (
+              <span
+                className="ml-2 text-[10px] font-semibold"
+                style={{
+                  color:
+                    f.tone === 'pos'
+                      ? 'hsl(var(--inf-green))'
+                      : f.tone === 'neg'
+                        ? 'hsl(var(--inf-warn))'
+                        : undefined,
+                }}
+              >
+                {f.extra}
+              </span>
             )}
-          >
-            <span className="text-foreground">{f.label}</span>
-            <span
-              className={cn(
-                'font-bold tabular-nums',
-                f.tone === 'pos' && 'text-emerald-600 dark:text-emerald-400',
-                f.tone === 'neg' && 'text-red-600 dark:text-red-400',
-                !f.tone && 'text-foreground',
-              )}
-            >
-              {f.valor}
-              {f.sub && (
-                <span className="ml-1.5 text-[9px] font-normal text-muted-foreground">
-                  {f.sub}
-                </span>
-              )}
-            </span>
-          </div>
-        ))}
-      </Card>
-    </TituloSeccion>
+          </span>
+        </div>
+      ))}
+    </Card>
   );
 }
-
-// ── 8 · Hoy (día siguiente) ─────────────────────────────────────────
 
 function SeccionManana({ informe }: { informe: InformeDiarioData }) {
-  const mananaFecha = useMemo(() => {
+  const m = informe.manana;
+  const manana = useMemo(() => {
     const d = new Date(`${informe.fecha}T12:00:00`);
     d.setDate(d.getDate() + 1);
-    return d.toLocaleDateString('es-AR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
+    return d;
   }, [informe.fecha]);
-  const m = informe.manana;
+  const titulo = `Hoy, ${manana.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'numeric',
+    timeZone: AR_TZ,
+  })}`;
   if (!m) return null;
+  const horasDisp = Math.round(m.minutosDisponibles / 60);
+  const horasOcc = Math.round(m.minutosReservados / 60);
   const sugerencia =
     m.horasLibresPico > 2
-      ? `Acción sugerida: publicar un partido abierto en las horas pico (${m.horasLibresPico} h libres 18–24 h) y avisar por WhatsApp.`
+      ? `Acción sugerida: publicar un partido abierto en las ${m.horasLibresPico} h libres de pico (18–24 h) y avisar por WhatsApp.`
       : null;
+
   return (
-    <TituloSeccion
-      n={8}
-      titulo={`Hoy · ${mananaFecha}`}
+    <div
+      className="rounded-2xl p-5 text-white"
+      style={{ background: 'hsl(var(--inf-dark))' }}
     >
-      <div className="grid grid-cols-3 gap-2">
-        <MiniStat
-          label="Ya reservado"
-          valor={m.pctReservado === null ? '—' : `${Math.round(m.pctReservado)}%`}
-          sub={`${m.reservasCount} reservas`}
-        />
-        <MiniStat
-          label="Horas libres en pico"
-          valor={`${m.horasLibresPico} h`}
-          sub="18–24 h"
-        />
-        <MiniStat
-          label="Minutos reservados"
-          valor={`${Math.round(m.minutosReservados / 60)}h`}
-          sub={`de ${Math.round(m.minutosDisponibles / 60)}h`}
-        />
+      <h3 className="mb-4 text-[13px] font-bold capitalize tracking-tight">
+        8 · {titulo}
+      </h3>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
+            Ya reservado
+          </p>
+          <p className="mt-1 text-2xl font-extrabold tabular-nums">
+            {m.pctReservado === null ? '—' : `${Math.round(m.pctReservado)}%`}
+          </p>
+          <p className="mt-1 text-[10px] text-white/50">
+            {horasOcc} de {horasDisp} h
+          </p>
+        </div>
+        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
+            Huecos en pico
+          </p>
+          <p className="mt-1 text-2xl font-extrabold tabular-nums">{m.horasLibresPico} h</p>
+          <p className="mt-1 text-[10px] text-white/50">18–24 h</p>
+        </div>
       </div>
       {sugerencia && (
-        <Card>
-          <p className="text-[11px] text-foreground">{sugerencia}</p>
-        </Card>
-      )}
-    </TituloSeccion>
-  );
-}
-
-// ── Detalle de cobros (sin número, como en el PDF no va numerado) ────
-
-const ORIGEN_LABEL_PAGO: Record<string, string> = {
-  reserva: 'Reserva',
-  clase: 'Clase',
-  venta: 'Venta',
-  otro_ingreso: 'Otro ingreso',
-};
-
-function SeccionPagos({ cobros }: { cobros: InformeDiarioData['cobros'] }) {
-  const [verTodos, setVerTodos] = useState(false);
-  if (cobros.length === 0) return null;
-  const visibles = verTodos ? [...cobros].reverse() : [...cobros].reverse().slice(0, 30);
-  const fechaHoraFmt = new Intl.DateTimeFormat('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'America/Argentina/Buenos_Aires',
-  });
-  return (
-    <section className="space-y-2">
-      <h3 className="text-[13px] font-bold uppercase tracking-wide text-foreground">
-        Detalle de cobros
-        <span className="ml-1.5 text-[10px] font-normal normal-case text-muted-foreground">
-          ({cobros.length})
-        </span>
-      </h3>
-      <div className="overflow-x-auto rounded-lg border border-border/70">
-        <table className="w-full text-[11px]">
-          <thead>
-            <tr className="border-b border-border bg-muted/40">
-              {['Fecha/hora', 'Tipo', 'Detalle', 'Medio', 'Monto'].map((h, i) => (
-                <th
-                  key={h}
-                  className={cn(
-                    'px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground',
-                    i === 0 ? 'text-left' : i === 4 ? 'text-right' : 'text-left',
-                  )}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {visibles.map((c) => (
-              <tr key={c.clave}>
-                <td className="whitespace-nowrap px-2 py-1 tabular-nums text-muted-foreground">
-                  {fechaHoraFmt.format(new Date(c.fecha_hora))}
-                </td>
-                <td className="px-2 py-1 text-muted-foreground">
-                  {ORIGEN_LABEL_PAGO[c.origen] ?? c.origen}
-                </td>
-                <td className="max-w-[220px] truncate px-2 py-1 text-foreground">
-                  {c.descripcion}
-                </td>
-                <td className="px-2 py-1 text-muted-foreground">
-                  {MEDIO_LABEL[c.medio_pago]}
-                </td>
-                <td
-                  className={cn(
-                    'px-2 py-1 text-right font-semibold tabular-nums',
-                    c.monto < 0
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-emerald-600 dark:text-emerald-400',
-                  )}
-                >
-                  {c.monto < 0 ? '−' : '+'} {fmtMoney(Math.abs(c.monto))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {cobros.length > 30 && (
-        <button
-          type="button"
-          onClick={() => setVerTodos((v) => !v)}
-          className="text-[11px] text-primary underline-offset-4 hover:underline"
+        <p
+          className="mt-4 rounded-xl px-3 py-2.5 text-[11px] font-medium"
+          style={{ background: 'hsl(var(--inf-action))' }}
         >
-          {verTodos ? 'Mostrar solo los últimos 30' : `Ver los ${cobros.length} cobros`}
-        </button>
+          {sugerencia}
+        </p>
       )}
-    </section>
+    </div>
   );
 }
-
-// ── 9 · Alertas ─────────────────────────────────────────────────────
 
 function SeccionAlertas({
   alertas,
@@ -962,32 +959,30 @@ function SeccionAlertas({
   alertas: ReturnType<typeof generarAlertas>;
 }) {
   return (
-    <TituloSeccion n={9} titulo="Alertas para resolver">
+    <div
+      className="rounded-2xl p-5"
+      style={{
+        background: 'hsl(var(--inf-peach))',
+        border: '1px solid hsl(var(--inf-peach-border))',
+      }}
+    >
+      <h3
+        className="mb-2 text-[13px] font-bold tracking-tight"
+        style={{ color: 'hsl(var(--inf-peach-ink))' }}
+      >
+        9 · Alertas para resolver
+      </h3>
       {alertas.length === 0 ? (
-        <Card>
-          <p className="flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Sin alertas — todo en orden.
-          </p>
-        </Card>
+        <p className="text-[12px]" style={{ color: 'hsl(var(--inf-peach-ink))' }}>
+          Sin alertas — todo en orden.
+        </p>
       ) : (
-        <ul className="space-y-1">
+        <ol className="list-decimal space-y-1 pl-4 text-[12px]" style={{ color: 'hsl(var(--inf-peach-ink))' }}>
           {alertas.map((a, i) => (
-            <li
-              key={i}
-              className={cn(
-                'flex items-start gap-2 rounded-md border px-2.5 py-2 text-[11px]',
-                a.severidad === 'rojo'
-                  ? 'border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-400'
-                  : 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400',
-              )}
-            >
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {a.texto}
-            </li>
+            <li key={i}>{a.texto}</li>
           ))}
-        </ul>
+        </ol>
       )}
-    </TituloSeccion>
+    </div>
   );
 }

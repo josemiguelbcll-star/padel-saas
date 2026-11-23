@@ -107,6 +107,25 @@
     /* Turno o clase totalmente saldada (amarillo vibrante con texto de alto contraste) */
     --turno-saldado: 48 96% 48%;
     --turno-saldado-foreground: 0 0% 10%;
+
+    /* Informe diario del dueño (PDF modelo) */
+    --inf-bg: 40 23% 94%;
+    --inf-card: 40 30% 99%;
+    --inf-ink: 24 10% 12%;
+    --inf-muted: 30 8% 42%;
+    --inf-line: 36 12% 86%;
+    --inf-green: 152 32% 32%;
+    --inf-green-bar: 152 28% 42%;
+    --inf-green-soft: 148 28% 62%;
+    --inf-green-fijo: 152 42% 28%;
+    --inf-green-var: 148 32% 58%;
+    --inf-blue: 217 62% 55%;
+    --inf-peach: 28 80% 95%;
+    --inf-peach-border: 28 55% 78%;
+    --inf-peach-ink: 22 55% 38%;
+    --inf-dark: 150 12% 10%;
+    --inf-action: 152 58% 30%;
+    --inf-warn: 28 72% 48%;
   }
 
   .dark {
@@ -175,6 +194,24 @@
     /* Turno o clase totalmente saldada (amarillo vibrante con texto de alto contraste) */
     --turno-saldado: 48 96% 48%;
     --turno-saldado-foreground: 0 0% 10%;
+
+    --inf-bg: 150 8% 10%;
+    --inf-card: 150 8% 13%;
+    --inf-ink: 40 20% 96%;
+    --inf-muted: 30 8% 62%;
+    --inf-line: 150 8% 22%;
+    --inf-green: 152 32% 45%;
+    --inf-green-bar: 152 28% 42%;
+    --inf-green-soft: 148 28% 50%;
+    --inf-green-fijo: 152 42% 38%;
+    --inf-green-var: 148 32% 48%;
+    --inf-blue: 217 62% 58%;
+    --inf-peach: 28 40% 16%;
+    --inf-peach-border: 28 40% 32%;
+    --inf-peach-ink: 28 70% 78%;
+    --inf-dark: 150 12% 8%;
+    --inf-action: 152 50% 32%;
+    --inf-warn: 28 72% 55%;
   }
 }
 
@@ -193,5 +230,22 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: hsl(var(--inf-bg)) !important;
+    color: hsl(var(--inf-ink)) !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .informe-dueno {
+    margin: 0 !important;
+    min-height: auto !important;
   }
 }

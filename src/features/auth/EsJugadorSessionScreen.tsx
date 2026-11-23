@@ -37,7 +37,7 @@ export function EsJugadorSessionScreen({ email, nombre }: EsJugadorSessionScreen
         {/* Badge & Avatar de Jugador */}
         <div className="flex flex-col items-center gap-3">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#D9F23B] to-[#39C54A] flex items-center justify-center shadow-md">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#D9F23B] to-[#1A9B73] flex items-center justify-center shadow-md">
               <Trophy className="w-8 h-8 text-[#0B1F4D]" />
             </div>
             <span className="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-[#00B050] text-white uppercase tracking-wider shadow">

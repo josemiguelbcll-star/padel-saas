@@ -87,7 +87,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const muestraLogo = !!logoUrl && !logoError;
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden md:px-6">
       <Button
         type="button"
         variant="ghost"

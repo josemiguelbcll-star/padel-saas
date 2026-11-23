@@ -8,15 +8,16 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  const { reserva_id, payment_id } = req.body ?? {};
-  if (!reserva_id || !payment_id) {
+  const { reserva_id, payment_id, collection_id } = req.body ?? {};
+  const pagoId = payment_id || collection_id;
+  if (!reserva_id || !pagoId) {
     return res.status(400).json({ error: 'Faltan reserva_id o payment_id.' });
   }
 
   try {
     const result = await verificarYRegistrarPagoMercadoPago(
       Number(reserva_id),
-      String(payment_id),
+      String(pagoId),
       process.env.APP_URL || 'https://matchogo.vercel.app',
     );
     return res.status(result.success ? 200 : 202).json(result);

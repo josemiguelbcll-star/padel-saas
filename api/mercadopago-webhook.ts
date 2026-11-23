@@ -5,15 +5,40 @@ const env = (globalThis as typeof globalThis & {
   process: { env: Record<string, string | undefined> };
 }).process.env;
 
+function extractPaymentId(req: any): string {
+  const body = req.body ?? {};
+  const query = req.query ?? {};
+  const candidates = [
+    body?.data?.id,
+    body?.id,
+    query?.id,
+    query?.['data.id'],
+    query?.data?.id,
+  ];
+  const topic = String(body?.type ?? body?.action ?? query?.topic ?? query?.type ?? '');
+  if (topic && !topic.toLowerCase().includes('payment')) {
+    return '';
+  }
+  for (const candidate of candidates) {
+    if (candidate != null && String(candidate).trim() !== '') {
+      return String(candidate);
+    }
+  }
+  return '';
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const paymentId = String(req.body?.data?.id ?? req.query?.id ?? req.query?.['data.id'] ?? '');
+  const paymentId = extractPaymentId(req);
   const clubId = Number(req.query?.club_id ?? req.body?.club_id);
-  if (!paymentId || !Number.isSafeInteger(clubId) || clubId <= 0) {
-    return res.status(400).json({ error: 'Falta el identificador de pago o club.' });
+  if (!paymentId) {
+    return res.status(200).json({ received: true, ignored: true });
+  }
+  if (!Number.isSafeInteger(clubId) || clubId <= 0) {
+    return res.status(400).json({ error: 'Falta el identificador de club.' });
   }
 
   const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL;

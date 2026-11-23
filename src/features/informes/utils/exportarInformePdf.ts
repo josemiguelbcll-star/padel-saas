@@ -13,6 +13,7 @@ import {
   type TotalesUnidad,
 } from './informeTurno';
 import type { JornadaArqueo } from '../hooks/useInformeDia';
+import { dataUrlLogoMatchgo, dibujarLogoPdf } from './logoMatchgoPdf';
 
 type ColorRgb = [number, number, number];
 
@@ -82,28 +83,31 @@ export async function exportarInformePdf(datos: InformePdfData): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  doc.setDisplayMode(1.25);
+  const logo = await dataUrlLogoMatchgo();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
-  let y = 14;
+  let y = 54;
 
   doc.setFillColor(20, 83, 68);
-  doc.rect(0, 0, pageWidth, 34, 'F');
+  doc.rect(0, 0, pageWidth, 48, 'F');
+  dibujarLogoPdf(doc, logo, margin, 5);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(datos.nombreClub || 'Informe de caja', margin, y + 2);
+  doc.setFontSize(14);
+  doc.text(datos.nombreClub || 'Informe de caja', margin, 22);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.text(datos.titulo, margin, y + 9);
-  doc.text(datos.fechaLabel, margin, y + 15);
+  doc.text(datos.titulo, margin, 28);
+  doc.text(datos.fechaLabel, margin, 34);
   doc.setFontSize(8);
   doc.text(
     `Generado ${new Date().toLocaleString('es-AR', { timeZone: AR_TZ })}`,
     margin,
-    y + 21,
+    40,
   );
   doc.setTextColor(0);
-  y = 41;
+  y = 54;
 
   for (const linea of datos.lineasEncabezado) {
     doc.setFontSize(9);

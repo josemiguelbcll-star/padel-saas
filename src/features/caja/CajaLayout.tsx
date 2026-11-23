@@ -29,7 +29,7 @@ const tabs: CajaTab[] = [
   // Mismo módulo de control financiero que los arqueos.
   { label: 'Movimientos de Cuentas', to: '/app/caja/movimientos-cuentas', modulo: 'caja_arqueos' },
   // Informe de caja reservado temporalmente a administradores.
-  { label: 'Informe', to: '/app/caja/informe', soloAdmin: true },
+  { label: 'Informe', to: '/app/caja/informe' },
 ];
 
 /**
@@ -52,7 +52,7 @@ export function CajaLayout() {
 
   return (
     <div className="space-y-6">
-      <nav className="border-b border-border" aria-label="Secciones de caja">
+      <nav className="print:hidden border-b border-border" aria-label="Secciones de caja">
         <ul className="flex flex-wrap gap-1">
           {tabsVisibles.map((tab) => (
             <li key={tab.to}>

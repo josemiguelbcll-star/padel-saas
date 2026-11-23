@@ -33,12 +33,12 @@ function Avatar({ src, iniciales, size = 64 }: { src?: string | null; iniciales:
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: 'linear-gradient(135deg, #D9F23B 0%, #39C54A 100%)',
+      background: 'linear-gradient(135deg, #D9F23B 0%, #1A9B73 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontWeight: 800, fontSize: size * 0.36,
       fontFamily: "'Poppins', sans-serif",
       color: '#0B1F4D', flexShrink: 0,
-      boxShadow: '0 4px 14px rgba(57,197,74,0.3)',
+      boxShadow: '0 4px 14px rgba(26,155,115,0.3)',
       border: '3px solid rgba(255,255,255,0.2)',
     }}>
       {iniciales || '?'}
@@ -272,13 +272,13 @@ export function PerfilTab({
               style={{
                 padding: '9px 20px', borderRadius: 99,
                 border: 'none',
-                background: 'linear-gradient(135deg, #D9F23B 0%, #39C54A 100%)',
+                background: 'linear-gradient(135deg, #D9F23B 0%, #1A9B73 100%)',
                 color: '#0B1F4D',
                 fontSize: 13, fontWeight: 800,
                 fontFamily: "'Inter', sans-serif",
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 7,
-                boxShadow: '0 4px 14px rgba(57,197,74,0.3)',
+                boxShadow: '0 4px 14px rgba(26,155,115,0.3)',
               }}
             >
               <svg width={15} height={15} viewBox="0 0 24 24" fill="none"

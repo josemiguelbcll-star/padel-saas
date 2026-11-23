@@ -121,7 +121,7 @@ export function HomeTab({ onGoJugar, onGoPartidos, proximaReserva }: HomeTabProp
                 gap: 5,
                 background: 'rgba(57, 197, 74, 0.16)',
                 border: '1px solid rgba(57, 197, 74, 0.3)',
-                color: '#39C54A',
+                color: '#1A9B73',
                 fontSize: 10,
                 fontWeight: 800,
                 padding: '3px 9px',
@@ -131,7 +131,7 @@ export function HomeTab({ onGoJugar, onGoPartidos, proximaReserva }: HomeTabProp
                 marginBottom: 8,
               }}
             >
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#39C54A', boxShadow: '0 0 6px #39C54A' }} />
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1A9B73', boxShadow: '0 0 6px #1A9B73' }} />
               <span>Comunidad MatchGo</span>
             </div>
 
@@ -223,7 +223,7 @@ export function HomeTab({ onGoJugar, onGoPartidos, proximaReserva }: HomeTabProp
                     style={{
                       fontSize: 8,
                       fontWeight: 700,
-                      color: '#39C54A',
+                      color: '#1A9B73',
                       marginTop: 2,
                       letterSpacing: '0.02em',
                     }}

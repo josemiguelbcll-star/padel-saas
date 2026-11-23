@@ -155,9 +155,9 @@ export function PlayerNavDropdown() {
               className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200"
             />
           ) : (
-            <div className={`w-9 h-9 rounded-full ${isClubAdmin ? 'bg-[#0B1F4D] text-[#00FF87]' : 'bg-[#E8EEF5] text-slate-600'} flex items-center justify-center font-bold text-sm ring-2 ring-slate-200`}>
+            <div className={`w-9 h-9 rounded-full ${isClubAdmin ? 'bg-[#0B1F4D] text-[#1A9B73]' : 'bg-[#E8EEF5] text-slate-600'} flex items-center justify-center font-bold text-sm ring-2 ring-slate-200`}>
               {isClubAdmin ? (
-                <Building2 className="w-4 h-4 text-[#00FF87]" />
+                <Building2 className="w-4 h-4 text-[#1A9B73]" />
               ) : (
                 <User className="w-5 h-5 text-slate-500" />
               )}
@@ -201,12 +201,12 @@ export function PlayerNavDropdown() {
                 <img
                   src={displayAvatar}
                   alt={displayName}
-                  className="w-12 h-12 rounded-full object-cover border-2 border-[#00FF87]/60 shadow"
+                  className="w-12 h-12 rounded-full object-cover border-2 border-[#1A9B73]/60 shadow"
                 />
               ) : (
-                <div className={`w-12 h-12 rounded-full ${isClubAdmin ? 'bg-gradient-to-br from-[#0B1F4D] to-[#17326D] border-[#00FF87]/50 text-[#00FF87]' : 'bg-gradient-to-br from-[#D9F23B] to-[#39C54A] text-[#0B1F4D]'} flex items-center justify-center font-extrabold text-base border-2 shadow`}>
+                <div className={`w-12 h-12 rounded-full ${isClubAdmin ? 'bg-gradient-to-br from-[#0B1F4D] to-[#17326D] border-[#1A9B73]/50 text-[#1A9B73]' : 'bg-gradient-to-br from-[#D9F23B] to-[#1A9B73] text-[#0B1F4D]'} flex items-center justify-center font-extrabold text-base border-2 shadow`}>
                   {isClubAdmin ? (
-                    <Building2 className="w-6 h-6 text-[#00FF87]" />
+                    <Building2 className="w-6 h-6 text-[#1A9B73]" />
                   ) : (
                     displayName.charAt(0).toUpperCase()
                   )}
@@ -215,12 +215,12 @@ export function PlayerNavDropdown() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h4 className="text-sm font-bold text-white truncate">{displayName}</h4>
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${isClubAdmin ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' : 'bg-[#00A859]/30 text-[#00FF87] border border-[#00FF87]/30'}`}>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${isClubAdmin ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' : 'bg-[#1A9B73]/20 text-[#1A9B73] border border-[#1A9B73]/30'}`}>
                     {isClubAdmin ? clubAdminInfo?.rol || 'Club' : 'Jugador'}
                   </span>
                 </div>
                 {displayEmail && <p className="text-xs text-slate-300 truncate">{displayEmail}</p>}
-                <p className="text-[11px] text-[#00FF87] font-semibold mt-0.5">{displayCategory}</p>
+                <p className="text-[11px] text-[#1A9B73] font-semibold mt-0.5">{displayCategory}</p>
               </div>
             </div>
           </div>

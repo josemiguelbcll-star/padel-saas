@@ -48,7 +48,7 @@ function TextInput({ value, onChange, placeholder, type = 'text', disabled }: {
       placeholder={placeholder} disabled={disabled}
       style={{
         width: '100%', padding: '15px 16px', borderRadius: 12,
-        border: `1.5px solid ${value ? '#39C54A' : '#E2E8F0'}`,
+        border: `1.5px solid ${value ? '#1A9B73' : '#E2E8F0'}`,
         background: disabled ? '#F1F5F9' : value ? '#F0FDF4' : '#F8F9FC',
         fontSize: 16, fontWeight: value ? 600 : 400,
         fontFamily: "'Inter', sans-serif",
@@ -170,7 +170,7 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
           disabled={!canSave || isSaving}
           style={{
             position: 'absolute', right: 16,
-            background: canSave && !isSaving ? '#39C54A' : 'rgba(255,255,255,0.12)',
+            background: canSave && !isSaving ? '#1A9B73' : 'rgba(255,255,255,0.12)',
             border: 'none',
             borderRadius: 99, padding: '8px 16px',
             color: canSave && !isSaving ? '#0B1F4D' : 'rgba(255,255,255,0.35)',
@@ -228,7 +228,7 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
               width: 88, height: 88, borderRadius: '50%',
               background: form.avatar_url
                 ? `url(${form.avatar_url}) center/cover`
-                : 'linear-gradient(135deg, #D9F23B 0%, #39C54A 100%)',
+                : 'linear-gradient(135deg, #D9F23B 0%, #1A9B73 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 800, fontSize: 32,
               fontFamily: "'Poppins', sans-serif", color: '#0B1F4D',
@@ -239,7 +239,7 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
             <div style={{
               position: 'absolute', bottom: 2, right: 2,
               width: 28, height: 28, borderRadius: '50%',
-              background: '#39C54A',
+              background: '#1A9B73',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: '2px solid #0B1F4D',
             }}>
@@ -309,8 +309,8 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
                     onClick={() => set('categoria', sel ? '' : cat.id)}
                     style={{
                       padding: '10px 0', width: 56, borderRadius: 12,
-                      border: `2px solid ${sel ? '#39C54A' : '#E2E8F0'}`,
-                      background: sel ? '#39C54A' : '#fff',
+                      border: `2px solid ${sel ? '#1A9B73' : '#E2E8F0'}`,
+                      background: sel ? '#1A9B73' : '#fff',
                       color: sel ? '#0B1F4D' : '#374151',
                       fontSize: 14, fontWeight: sel ? 800 : 500,
                       cursor: 'pointer', fontFamily: "'Inter', sans-serif",
@@ -360,7 +360,7 @@ export function EditPerfilScreen({ initial, onSave, onCancel, isSaving }: EditPe
                     onClick={() => set('posicion', sel ? '' : p.id)}
                     style={{
                       flex: 1, padding: '12px 8px', borderRadius: 12,
-                      border: `2px solid ${sel ? '#39C54A' : '#E2E8F0'}`,
+                      border: `2px solid ${sel ? '#1A9B73' : '#E2E8F0'}`,
                       background: sel ? '#F0FDF4' : '#fff',
                       color: sel ? '#0B1F4D' : '#374151',
                       fontSize: 13, fontWeight: sel ? 700 : 500,

@@ -34,7 +34,6 @@ export type TipoNotificacionJugador =
    | 'reserva_pre_reserva_expirada'
   | 'recordatorio_turno'
   | 'noticia_club'
-  | 'test'
   | 'general';
 
 export interface EnviarNotificacionParams {
@@ -174,8 +173,9 @@ export function conectarRealtimeNotificaciones(jugadorAppId: string) {
         filter: `jugador_app_id=eq.${jugadorAppId}`,
       },
       async (payload) => {
-        const notif = payload.new as any;
+        const notif = payload.new as { titulo?: string; mensaje?: string; id?: number; tipo?: string; metadata?: unknown; link?: string };
         if (!notif) return;
+        if (notif.tipo === 'test') return;
 
         console.info('[Realtime Notification] Nueva notificación recibida:', notif.titulo);
 
@@ -484,45 +484,7 @@ export async function notificarRespuestaDesafio(params: {
 }
 
 /**
- * 8. Notificación de Prueba para verificar el funcionamiento en el celular
- */
-export async function dispararNotificacionPrueba(jugadorAppId: string, nombreJugador: string): Promise<boolean> {
-  // Disparo nativo inmediato si estamos en celular
-  if (Capacitor.isNativePlatform()) {
-    try {
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            id: Math.floor(Math.random() * 100000),
-            title: '🔔 Notificación de Prueba MatchGo',
-            body: `¡Hola ${nombreJugador}! Las notificaciones en tu celular están funcionando correctamente.`,
-            schedule: { at: new Date(Date.now() + 100) },
-            channelId: 'matchgo-alerts',
-            smallIcon: 'ic_stat_matchgo',
-            iconColor: '#0B1F4D',
-            largeIcon: 'ic_launcher',
-            extra: { tipo: 'test' },
-          },
-        ],
-      });
-    } catch (e) {
-      console.warn('[Test Notification] Error disparando localmente:', e);
-    }
-  }
-
-  // Guardar además en la base de datos para que aparezca en la bandeja
-  return notificarJugador({
-    jugadorAppId,
-    titulo: '🔔 Notificación de Prueba',
-    mensaje: `¡Hola ${nombreJugador}! Tu sistema de notificaciones está 100% activo y configurado.`,
-    tipo: 'test',
-    metadata: { timestamp: new Date().toISOString() },
-    link: '/player',
-  });
-}
-
-/**
- * 9. Notificar Noticias y Promociones del Club a todos los jugadores
+ * 8. Notificar Noticias y Promociones del Club a todos los jugadores
  */
 export async function notificarNoticiaClub(params: {
   clubId: number;

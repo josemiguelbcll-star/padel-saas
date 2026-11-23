@@ -77,7 +77,7 @@ function ProximaCard({ r, onVerDetalle }: { r: MiReservaReal; onVerDetalle: () =
           {r.monto_pagado > 0 && r.monto_pagado < r.monto_total && (
             <div style={{ fontSize: 12, color: 'var(--mgp-muted)' }}>
               Pagado:{' '}
-              <span style={{ fontWeight: 600, color: '#39C54A' }}>
+              <span style={{ fontWeight: 600, color: '#1A9B73' }}>
                 ${r.monto_pagado.toLocaleString('es-AR')}
               </span>
             </div>

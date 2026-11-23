@@ -23,6 +23,8 @@ export function useDisponibilidadClub(slug: string, fecha: string) {
     queryKey: ['disponibilidad-club', slug, fecha],
     queryFn: () => fetchDisponibilidadClub(slug, fecha),
     enabled: !!slug && !!fecha,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
   });
 }
