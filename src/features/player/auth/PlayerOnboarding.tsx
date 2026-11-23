@@ -52,7 +52,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 28 }}>
             <div style={{
               width: 34, height: 34,
-              background: '#39C54A',
+              background: '#1A9B73',
               borderRadius: 9,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 17, fontWeight: 800, color: '#0B1F4D',
@@ -98,7 +98,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
             style={{
               width: '100%', padding: '17px 16px',
               borderRadius: 14,
-              border: `2px solid ${nombre ? '#39C54A' : '#E2E8F0'}`,
+              border: `2px solid ${nombre ? '#1A9B73' : '#E2E8F0'}`,
               background: nombre ? '#F0FDF4' : '#F8F9FC',
               fontSize: 18, fontWeight: 600,
               fontFamily: "'Inter', sans-serif",
@@ -128,7 +128,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
               borderRadius: 14,
               border: `2px solid ${
                 telefono && telError  ? '#DC2626'
-                : telefono && !telError ? '#39C54A'
+                : telefono && !telError ? '#1A9B73'
                 : '#E2E8F0'
               }`,
               background: telefono && telError  ? '#FEF2F2'
@@ -196,7 +196,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
             width: 34, height: 34,
-            background: '#39C54A', borderRadius: 9,
+            background: '#1A9B73', borderRadius: 9,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 17, fontWeight: 800, color: '#0B1F4D',
             fontFamily: "'Poppins', sans-serif",
@@ -220,10 +220,10 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
         {/* Ícono verde grande */}
         <div style={{
           width: 96, height: 96, borderRadius: '50%',
-          background: '#39C54A',
+          background: '#1A9B73',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           marginBottom: 28,
-          boxShadow: '0 0 0 16px rgba(57,197,74,0.12), 0 0 0 32px rgba(57,197,74,0.06)',
+          boxShadow: '0 0 0 16px rgba(26,155,115),0.12), 0 0 0 32px rgba(26,155,115),0.06)',
         }}>
           <svg width={48} height={48} viewBox="0 0 24 24" fill="none"
             stroke="#0B1F4D" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -249,7 +249,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
             {
               icon: (
                 <svg width={22} height={22} viewBox="0 0 24 24" fill="none"
-                  stroke="#39C54A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  stroke="#1A9B73" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
               ),
@@ -259,7 +259,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
             {
               icon: (
                 <svg width={22} height={22} viewBox="0 0 24 24" fill="none"
-                  stroke="#39C54A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  stroke="#1A9B73" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
@@ -272,7 +272,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
             {
               icon: (
                 <svg width={22} height={22} viewBox="0 0 24 24" fill="none"
-                  stroke="#39C54A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  stroke="#1A9B73" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                   <circle cx="9" cy="7" r="4" />
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -293,7 +293,7 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
             }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
-                background: 'rgba(57,197,74,0.12)',
+                background: 'rgba(26,155,115),0.12)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
               }}>
@@ -332,12 +332,12 @@ export function PlayerOnboarding({ onComplete }: PlayerOnboardingProps) {
           style={{
             width: '100%', padding: '18px',
             borderRadius: 14, border: 'none',
-            background: isCompleting ? '#2da33a' : '#39C54A',
+            background: isCompleting ? '#158264' : '#1A9B73',
             color: '#0B1F4D',
             fontSize: 17, fontWeight: 800,
             fontFamily: "'Inter', sans-serif",
             cursor: isCompleting ? 'default' : 'pointer',
-            boxShadow: '0 4px 20px rgba(57,197,74,0.4)',
+            boxShadow: '0 4px 20px rgba(26,155,115),0.4)',
             letterSpacing: '0.01em',
             transition: 'background 0.2s',
           }}

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { sendBookingEmail } from './_lib/resend.js';
 import { enviarPushReservaJugador } from './_lib/playerReservationNotifications.js';
+import { notificarClubPorReserva } from './_lib/reservaNotifications.js';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -70,6 +71,16 @@ export default async function handler(req: any, res: any) {
       await sendBookingEmail(reservaId);
     } catch (emailError) {
       console.error('[confirm-booking] No se pudo enviar el correo al jugador:', emailError);
+    }
+
+    try {
+      await notificarClubPorReserva(
+        reservaId,
+        'turno_confirmado',
+        process.env.APP_URL || 'https://matchogo.vercel.app',
+      );
+    } catch (clubNotifyError) {
+      console.warn('[confirm-booking] No se pudo notificar al resto del club:', clubNotifyError);
     }
 
     return res.status(200).json({ success: true, reserva: confirmed });

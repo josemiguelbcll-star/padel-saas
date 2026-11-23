@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-export type EventoNotificacionClub = 'pre_reserva' | 'pago_mp_acreditado' | 'pago_mp_tardio';
+export type EventoNotificacionClub = 'pre_reserva' | 'pago_mp_acreditado' | 'pago_mp_tardio' | 'turno_confirmado';
 
 interface ReservaNotificationData {
   id: number;
@@ -36,6 +36,11 @@ const copyByEvent: Record<EventoNotificacionClub, { subject: string; title: stri
     subject: 'Pago de Mercado Pago recibido fuera de término',
     title: 'Pago MP recibido fuera de término',
     message: 'El pago llegó luego del vencimiento. Revisá la reserva antes de resolverla.',
+  },
+  turno_confirmado: {
+    subject: 'Turno confirmado',
+    title: 'Turno confirmado',
+    message: 'El club confirmó el turno. La cancha queda ocupada en la grilla.',
   },
 };
 

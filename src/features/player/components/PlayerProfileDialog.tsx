@@ -284,7 +284,7 @@ export function PlayerProfileDialog({ jugadorId, onClose }: PlayerProfileDialogP
                   width: 80, height: 80, borderRadius: '50%',
                   backgroundImage: `url(${player.foto_url})`,
                   backgroundSize: 'cover', backgroundPosition: 'center',
-                  border: '3px solid #39C54A'
+                  border: '3px solid #1A9B73'
                 }} />
               ) : (
                 <div style={{
@@ -370,7 +370,7 @@ export function PlayerProfileDialog({ jugadorId, onClose }: PlayerProfileDialogP
                 </div>
                 {presentismoPct !== null && (
                   <div style={{ width: '100%', height: 6, background: '#E2E8F0', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${presentismoPct}%`, height: '100%', background: presentismoPct < 85 ? '#EF4444' : '#39C54A' }} />
+                    <div style={{ width: `${presentismoPct}%`, height: '100%', background: presentismoPct < 85 ? '#EF4444' : '#1A9B73' }} />
                   </div>
                 )}
                 {totalCalificacionesAsistencia > 0 && (

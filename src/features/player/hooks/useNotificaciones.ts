@@ -69,7 +69,8 @@ export function useNotificaciones() {
       const limiteFecha = new Date();
       limiteFecha.setHours(limiteFecha.getHours() - 168);
 
-      const filtradas = (data ?? []).filter((n: any) => {
+      const filtradas = (data ?? []).filter((n: { fecha: string; tipo: string }) => {
+        if (n.tipo === 'test') return false;
         const fechaNotif = new Date(n.fecha);
         return fechaNotif >= limiteFecha;
       });

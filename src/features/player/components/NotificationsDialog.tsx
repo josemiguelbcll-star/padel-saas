@@ -84,7 +84,6 @@ export function NotificationsBell() {
         return <Calendar className="h-4 w-4 text-indigo-600" />;
       case 'noticia_club':
         return <Flame className="h-4 w-4 text-amber-500" />;
-      case 'test':
       case 'general':
         return (
           <img
@@ -247,6 +246,7 @@ export function NotificationsBell() {
                 notificacionesFiltradas.map((n) => {
                   const meta = n.metadata || {};
                   const isPartidoInvite = n.tipo === 'invitacion_partido' && meta.participante_id;
+                  const isSolicitudUnirse = n.tipo === 'solicitud_unirse' && meta.participante_id;
                   const isDesafio = n.tipo === 'desafio_recibido' && meta.desafio_id;
                   const isReservaInvite = n.tipo === 'invitacion_reserva' && meta.invitacion_id;
                   const isNoticiaClub = n.tipo === 'noticia_club';
@@ -320,7 +320,7 @@ export function NotificationsBell() {
                       </div>
 
                       {/* Botones de acción directa en la tarjeta de notificación si aplica */}
-                      {isPartidoInvite && !n.leido && (
+                      {(isPartidoInvite || isSolicitudUnirse) && !n.leido && (
                         <div className="flex items-center justify-end gap-2 pt-2 mt-1 border-t border-indigo-100/60">
                           <button
                             disabled={processingIds[`part-${meta.participante_id}`]}
@@ -336,7 +336,7 @@ export function NotificationsBell() {
                             }}
                             className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg transition"
                           >
-                            Aceptar Partido
+                            {isSolicitudUnirse ? 'Aceptar solicitud' : 'Aceptar Partido'}
                           </button>
                           <button
                             disabled={processingIds[`part-${meta.participante_id}`]}

@@ -11,6 +11,7 @@ import { formatFechaReserva, formatHoraReserva } from '../hooks/useMyReservas';
 
 // Importar Diálogo del Perfil
 import { PlayerProfileDialog } from './PlayerProfileDialog';
+import { NoticiaCard } from './NoticiaCard';
 
 /**
  * Feed Central Simple - Novedades en Carousel Continuo + Invitaciones Pendientes + Partidos Abiertos
@@ -31,7 +32,6 @@ export function FeedCentralSimple() {
 
   // Carousel state
   const [currentNoticiaIndex, setCurrentNoticiaIndex] = useState(0);
-  const carouselRef = useRef<HTMLDivElement>(null);
   const isInteractingRef = useRef(false);
 
   useEffect(() => {
@@ -49,62 +49,40 @@ export function FeedCentralSimple() {
     void loadId();
   }, []);
 
-  // Auto-play continuo para el carousel de novedades
+  // Auto-play: una tarjeta a la vez (sin scroll horizontal anidado)
   useEffect(() => {
     if (!noticias || noticias.length <= 1) return;
 
     const interval = setInterval(() => {
       if (!isInteractingRef.current) {
-        setCurrentNoticiaIndex((prev) => {
-          const next = (prev + 1) % noticias.length;
-          if (carouselRef.current) {
-            const container = carouselRef.current;
-            const scrollWidth = container.offsetWidth;
-            container.scrollTo({
-              left: next * scrollWidth,
-              behavior: 'smooth',
-            });
-          }
-          return next;
-        });
+        setCurrentNoticiaIndex((prev) => (prev + 1) % noticias.length);
       }
-    }, 4500);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, [noticias]);
 
-  const handleScroll = () => {
-    if (!carouselRef.current || !noticias || noticias.length === 0) return;
-    const container = carouselRef.current;
-    const scrollPosition = container.scrollLeft;
-    const cardWidth = container.offsetWidth;
-    const newIndex = Math.round(scrollPosition / cardWidth);
-    if (newIndex !== currentNoticiaIndex && newIndex >= 0 && newIndex < noticias.length) {
-      setCurrentNoticiaIndex(newIndex);
+  useEffect(() => {
+    if (!noticias || noticias.length === 0) return;
+    if (currentNoticiaIndex >= noticias.length) {
+      setCurrentNoticiaIndex(0);
     }
-  };
+  }, [noticias, currentNoticiaIndex]);
 
-  const scrollToSlide = (index: number) => {
-    if (!carouselRef.current || !noticias) return;
-    const container = carouselRef.current;
-    const scrollWidth = container.offsetWidth;
-    container.scrollTo({
-      left: index * scrollWidth,
-      behavior: 'smooth',
-    });
-    setCurrentNoticiaIndex(index);
+  const goToSlide = (index: number) => {
+    if (!noticias || noticias.length === 0) return;
+    isInteractingRef.current = true;
+    setCurrentNoticiaIndex(((index % noticias.length) + noticias.length) % noticias.length);
   };
 
   const prevSlide = () => {
     if (!noticias || noticias.length <= 1) return;
-    const prev = (currentNoticiaIndex - 1 + noticias.length) % noticias.length;
-    scrollToSlide(prev);
+    goToSlide(currentNoticiaIndex - 1);
   };
 
   const nextSlide = () => {
     if (!noticias || noticias.length <= 1) return;
-    const next = (currentNoticiaIndex + 1) % noticias.length;
-    scrollToSlide(next);
+    goToSlide(currentNoticiaIndex + 1);
   };
 
   const isLoading = noticiasLoading || invitesLoading || partidosLoading;
@@ -140,56 +118,18 @@ export function FeedCentralSimple() {
             setTimeout(() => { isInteractingRef.current = false; }, 3000); 
           }}
         >
-          {/* Slider Container */}
           <div
-            ref={carouselRef}
-            onScroll={handleScroll}
-            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full rounded-2xl border border-gray-200 bg-white shadow-sm"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+            onClick={() => { isInteractingRef.current = true; }}
           >
-            {noticias.map((noticia) => (
-              <div
-                key={noticia.id}
-                className="w-full shrink-0 snap-center flex flex-col justify-between"
-              >
-                {/* Imagen completa sin recortar */}
-                {noticia.imagen_url && (
-                  <div className="relative w-full overflow-hidden bg-slate-900/5 flex items-center justify-center border-b border-gray-100">
-                    <img
-                      src={noticia.imagen_url}
-                      alt={noticia.titulo}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-auto max-h-[480px] object-contain"
-                      onError={(e) => (e.currentTarget.style.display = 'none')}
-                    />
-                  </div>
-                )}
-
-                {/* Info de la noticia (sin botón de me gusta) */}
-                <div className="p-4 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-extrabold text-gray-900 text-sm sm:text-base leading-snug">
-                        {noticia.titulo}
-                      </h4>
-                      <p className="text-xs text-gray-500 font-medium">
-                        {noticia.club_nombre}
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-bold text-gray-400 shrink-0">
-                      {new Date(noticia.creado_en).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
-                    </span>
-                  </div>
-
-                  {noticia.descripcion && (
-                    <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed pt-1">
-                      {noticia.descripcion}
-                    </p>
-                  )}
-                </div>
+            {noticias[currentNoticiaIndex] && (
+              <div key={noticias[currentNoticiaIndex].id} className="mgp-noticia-in">
+                <NoticiaCard
+                  noticia={noticias[currentNoticiaIndex]}
+                  compact
+                />
               </div>
-            ))}
+            )}
           </div>
 
           {/* Flechas de navegación (si hay más de 1 noticia) */}
@@ -199,7 +139,7 @@ export function FeedCentralSimple() {
                 type="button"
                 onClick={prevSlide}
                 aria-label="Anterior"
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center transition shadow-md opacity-70 hover:opacity-100 z-10"
+                className="absolute left-2 top-[104px] w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center transition shadow-md opacity-70 hover:opacity-100 z-10"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -207,7 +147,7 @@ export function FeedCentralSimple() {
                 type="button"
                 onClick={nextSlide}
                 aria-label="Siguiente"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center transition shadow-md opacity-70 hover:opacity-100 z-10"
+                className="absolute right-2 top-[104px] w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center transition shadow-md opacity-70 hover:opacity-100 z-10"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -218,11 +158,11 @@ export function FeedCentralSimple() {
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => scrollToSlide(idx)}
+                    onClick={() => goToSlide(idx)}
                     aria-label={`Ir a novedad ${idx + 1}`}
                     className={`h-2 rounded-full transition-all cursor-pointer ${
                       currentNoticiaIndex === idx
-                        ? 'w-6 bg-[#00A859]'
+                        ? 'w-6 bg-[#1A9B73]'
                         : 'w-2 bg-gray-300 hover:bg-gray-400'
                     }`}
                   />

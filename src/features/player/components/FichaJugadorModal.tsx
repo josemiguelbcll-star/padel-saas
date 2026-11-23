@@ -108,7 +108,7 @@ export function FichaJugadorModal({ profile, historial, proximas, iniciales, onC
       <div className="fixed inset-x-4 top-[5dvh] bottom-[5dvh] z-[150] max-w-md mx-auto rounded-3xl bg-[#0B1F4D] text-white shadow-2xl overflow-y-auto border-2 border-[#D9F23B]/30 animate-slide-up flex flex-col">
         
         {/* Header bar decorativa */}
-        <div className="bg-gradient-to-r from-[#D9F23B] via-[#39C54A] to-[#D9F23B] h-2 w-full shrink-0" />
+        <div className="bg-gradient-to-r from-[#D9F23B] via-[#1A9B73] to-[#D9F23B] h-2 w-full shrink-0" />
 
         <div className="p-6 flex-1 flex flex-col justify-between">
           <div>
@@ -130,15 +130,15 @@ export function FichaJugadorModal({ profile, historial, proximas, iniciales, onC
               <div className="relative mb-2">
                 {profile.avatar_url ? (
                   <div
-                    className="w-20 h-20 rounded-full border-4 border-[#39C54A] shadow-lg bg-cover bg-center"
+                    className="w-20 h-20 rounded-full border-4 border-[#1A9B73] shadow-lg bg-cover bg-center"
                     style={{ backgroundImage: `url(${profile.avatar_url})` }}
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full border-4 border-[#39C54A] bg-gradient-to-br from-[#D9F23B] to-[#39C54A] text-[#0B1F4D] flex items-center justify-center font-black text-2xl shadow-lg">
+                  <div className="w-20 h-20 rounded-full border-4 border-[#1A9B73] bg-gradient-to-br from-[#D9F23B] to-[#1A9B73] text-[#0B1F4D] flex items-center justify-center font-black text-2xl shadow-lg">
                     {iniciales || '?'}
                   </div>
                 )}
-                <span className="absolute -bottom-1 -right-1 bg-[#39C54A] text-[#0B1F4D] p-1 rounded-full border-2 border-[#0B1F4D] shadow text-xs">
+                <span className="absolute -bottom-1 -right-1 bg-[#1A9B73] text-[#0B1F4D] p-1 rounded-full border-2 border-[#0B1F4D] shadow text-xs">
                   ⚡
                 </span>
               </div>
@@ -206,7 +206,7 @@ export function FichaJugadorModal({ profile, historial, proximas, iniciales, onC
               </div>
               <div className="h-6 w-[1px] bg-white/10" />
               <div>
-                <div className="text-base font-black text-[#39C54A]">100%</div>
+                <div className="text-base font-black text-[#1A9B73]">100%</div>
                 <div className="text-[10px] font-medium text-slate-300">Comunidad</div>
               </div>
             </div>

@@ -180,7 +180,7 @@ function DashboardHero({
 
 function VendedorDashboard() {
   const { user } = useSession();
-  const puedeVerInforme = user?.rol === 'admin';
+  const puedeVerInforme = getPermiso(user, 'caja', 'ver');
   const cajaAbierta = useCajaAbierta();
   const turnoId = cajaAbierta.data?.id ?? null;
   const informeQuery = useInformeTurno(turnoId);
@@ -274,7 +274,26 @@ function VendedorDashboard() {
             </Link>
           )}
         </>
-      ) : null}
+      ) : informeQuery.error ? (
+        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {informeQuery.error.message}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
+            Tu caja está abierta. Los cobros de este turno van a aparecer acá.
+          </p>
+          {puedeVerInforme && (
+            <Link
+              to="/app/caja/informe"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-foreground/30 hover:bg-muted/40"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Generar informe del turno
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

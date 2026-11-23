@@ -1,7 +1,7 @@
 /* ============================================================
    MatchGo Player App — CSS
    Scope: .mg-player
-   Brand: marino #0B1F4D · green #39C54A · lima #D9F23B
+   Brand: marino #0B1F4D · green #1A9B73 · lima #D9F23B
    Fonts: Poppins (display) · Inter (body)
    ============================================================ */
 
@@ -15,7 +15,7 @@
 :root {
   /* ── Brand ── */
   --mgp-marino:    #0B1F4D;
-  --mgp-green:     #39C54A;
+  --mgp-green:     #1A9B73;
   --mgp-lima:      #D9F23B;
 
   /* ── Neutros ── */
@@ -65,19 +65,47 @@
    LAYOUT SHELL
    ============================================================ */
 
-/* Root container */
+/* Escritorio: la app de jugador no se estira. Queda como un teléfono
+   centrado sobre el fondo de la web (misma paleta marino/verde). */
+.mg-player-shell {
+  min-height: 100dvh;
+  background-color: var(--mgp-bg);
+}
+
 .mg-player {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(100%, 1200px);
-  max-width: 1200px;
+  width: 100%;
+  max-width: 100%;
   min-height: 100dvh;
   margin: 0 auto;
   background-color: var(--mgp-bg);
   font-family: var(--mgp-font-body);
   color: var(--mgp-text);
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .mg-player-shell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    background:
+      radial-gradient(1200px 400px at 50% -80px, rgba(11, 31, 77, 0.08), transparent 60%),
+      #F1F5F9;
+  }
+
+  .mg-player {
+    width: 430px;
+    max-width: 430px;
+    min-height: 100dvh;
+    background-color: var(--mgp-bg);
+    box-shadow:
+      0 0 0 1px #E2E8F0,
+      0 24px 60px rgba(11, 31, 77, 0.1);
+  }
 }
 
 /* Scrollable content area */
@@ -99,13 +127,23 @@
   padding: 20px 16px 100px;
 }
 
+@keyframes mgp-noticia-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mgp-noticia-in {
+  animation: mgp-noticia-in 320ms ease-out;
+}
+
 /* Bottom navigation bar */
 .mgp-bottomnav {
   position: fixed;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: min(100%, 1200px);
+  width: 100%;
+  max-width: 430px;
   height: calc(60px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background-color: var(--mgp-surface);
@@ -115,9 +153,10 @@
   z-index: 100;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .mgp-bottomnav {
-    width: min(100%, 1200px);
+    width: 430px;
+    max-width: 430px;
   }
 }
 
@@ -195,20 +234,9 @@
   width: 100%;
 }
 
-@media (min-width: 720px) {
-  .mgp-content {
-    padding: 24px 32px 120px;
-  }
-
-  .mgp-topbar {
-    padding-left: 32px;
-    padding-right: 32px;
-  }
-}
-
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .mgp-bottomnav {
-    max-width: 1200px;
+    max-width: 430px;
     left: 50%;
     transform: translateX(-50%);
   }
@@ -698,18 +726,7 @@
 
 @media (min-width: 720px) {
   .mgp-auth {
-    padding: 48px 32px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .mgp-auth {
-    padding: 72px 48px;
-  }
-
-  .mgp-auth-card {
-    box-shadow: 0 10px 40px rgba(11, 31, 77, 0.08);
-    border-radius: 32px;
+    padding: 32px 20px;
   }
 }
 

@@ -263,7 +263,7 @@ export function JugarTab() {
                       <img
                         src={p.organizador.foto_url}
                         alt={p.organizador?.nombre_display || 'Jugador'}
-                        className="w-11 h-11 rounded-full object-cover shrink-0 border-2 border-[#39C54A] shadow-xs group-hover:opacity-90 transition"
+                        className="w-11 h-11 rounded-full object-cover shrink-0 border-2 border-[#1A9B73] shadow-xs group-hover:opacity-90 transition"
                       />
                     ) : (
                       <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#0B1F4D] to-[#162d6b] text-white font-extrabold text-sm flex items-center justify-center shrink-0 border-2 border-[#D9F23B] shadow-xs font-['Poppins']">
@@ -461,7 +461,7 @@ export function JugarTab() {
                               type="button"
                               onClick={() => solicitarUnirse.mutate({ partidoId: p.id })}
                               disabled={solicitarUnirse.isPending}
-                              className="px-4 py-2 rounded-xl bg-[#39C54A] hover:bg-[#32b041] active:scale-98 text-[#0B1F4D] font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
+                              className="px-4 py-2 rounded-xl bg-[#1A9B73] hover:bg-[#158264] active:scale-98 text-[#0B1F4D] font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
                             >
                               🎾 Solicitar unirme
                             </button>
@@ -833,7 +833,7 @@ export function JugarTab() {
               <button
                 type="submit"
                 disabled={publicarPartido.isPending}
-                style={{ marginTop: 6, padding: '16px', borderRadius: 14, border: 'none', background: '#39C54A', color: '#0B1F4D', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 14px rgba(57,197,74,0.3)' }}
+                style={{ marginTop: 6, padding: '16px', borderRadius: 14, border: 'none', background: '#1A9B73', color: '#0B1F4D', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 14px rgba(26,155,115,0.3)' }}
               >
                 {publicarPartido.isPending ? 'Publicando...' : '🚀 Publicar Partido'}
               </button>

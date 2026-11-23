@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
   Bell,
-  CheckCircle2,
   Trophy,
   UserPlus,
   Swords,
@@ -9,12 +8,10 @@ import {
   Radio,
   X,
   Smartphone,
-  Sparkles,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { dispararNotificacionPrueba } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 
 interface ConfigurarNotificacionesModalProps {
@@ -85,8 +82,6 @@ const CANALES: CanalNotificacion[] = [
 
 export function ConfigurarNotificacionesModal({
   onClose,
-  jugadorId,
-  nombreJugador,
 }: ConfigurarNotificacionesModalProps) {
   const [preferencias, setPreferencias] = useState<Record<string, boolean>>(() => {
     try {
@@ -104,8 +99,6 @@ export function ConfigurarNotificacionesModal({
   });
 
   const [permisoConcedido, setPermisoConcedido] = useState<boolean>(true);
-  const [testEnviado, setTestEnviado] = useState(false);
-  const [loadingTest, setLoadingTest] = useState(false);
 
   useEffect(() => {
     async function checkStatus() {
@@ -138,20 +131,6 @@ export function ConfigurarNotificacionesModal({
       } catch (err) {
         console.warn('Error al pedir permisos:', err);
       }
-    }
-  };
-
-  const handleEnviarPrueba = async () => {
-    setLoadingTest(true);
-    setTestEnviado(false);
-    try {
-      await dispararNotificacionPrueba(jugadorId, nombreJugador || 'Jugador');
-      setTestEnviado(true);
-      setTimeout(() => setTestEnviado(false), 6000);
-    } catch (err) {
-      console.error('Error al enviar prueba:', err);
-    } finally {
-      setLoadingTest(false);
     }
   };
 
@@ -219,34 +198,6 @@ export function ConfigurarNotificacionesModal({
                 </button>
               )}
             </div>
-          </div>
-
-          {/* Botón de Envío de Notificación de Prueba */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-indigo-600" />
-                <h4 className="text-xs font-extrabold text-indigo-950">Probar Notificaciones en Vivo</h4>
-              </div>
-            </div>
-            <p className="text-xs text-indigo-800 leading-relaxed">
-              Enviá una notificación de prueba para verificar que tu teléfono vibre y muestre la alerta en la barra superior.
-            </p>
-            <button
-              disabled={loadingTest}
-              onClick={handleEnviarPrueba}
-              className="mt-1 w-full flex items-center justify-center gap-2 bg-[#0B1F4D] hover:bg-[#162d6b] active:scale-[0.99] disabled:opacity-50 text-white text-xs font-extrabold py-3 px-4 rounded-xl transition shadow-md"
-            >
-              <Bell className="h-4 w-4" />
-              {loadingTest ? 'Enviando alerta...' : 'Enviar Notificación de Prueba al Celular'}
-            </button>
-
-            {testEnviado && (
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-100/80 p-2.5 rounded-xl animate-in fade-in">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                ¡Alerta enviada con éxito! Revisá la barra superior de tu celular.
-              </div>
-            )}
           </div>
 
           {/* Listado de Canales y Configuración */}

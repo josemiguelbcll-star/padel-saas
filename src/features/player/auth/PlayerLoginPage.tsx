@@ -130,10 +130,10 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
         <div className="mgp-auth-card" style={{ textAlign: 'center', maxWidth: 320 }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
-            background: '#39C54A',
+            background: '#1A9B73',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 24px',
-            boxShadow: '0 0 0 12px rgba(57,197,74,0.12)',
+            boxShadow: '0 0 0 12px rgba(26,155,115,0.12)',
           }}>
             <svg width={34} height={34} viewBox="0 0 24 24" fill="none"
               stroke="#0B1F4D" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -159,7 +159,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
             onClick={() => { setRegisterSuccess(false); setMode('login'); setPassword(''); }}
             style={{
               padding: '14px 32px', borderRadius: 12, border: 'none',
-              background: '#39C54A', color: '#0B1F4D',
+              background: '#1A9B73', color: '#0B1F4D',
               fontSize: 15, fontWeight: 700,
               fontFamily: "'Inter', sans-serif", cursor: 'pointer',
             }}
@@ -246,7 +246,7 @@ export function PlayerLoginPage({ onLogin: _onLogin }: PlayerLoginPageProps) {
             margin: '0 0 4px',
             letterSpacing: '-0.02em',
           }}>
-            Match<span style={{ color: '#16A34A' }}>Go</span>
+            Match<span style={{ color: '#1A9B73' }}>Go</span>
           </h1>
           <p style={{ fontSize: 13, color: '#64748B', margin: 0, fontWeight: 500 }}>
             El pádel de Salta en tu bolsillo 🎾

@@ -11,15 +11,17 @@ import { useDisponibilidadClub, type SlotDisponible } from './hooks/useDisponibi
 import { useReservarDesdeApp, type ReservaAppConfirmada } from './hooks/useReservarDesdeApp';
 import { detectarDeporte, obtenerInfoDeporte } from '@/lib/deportes';
 import { supabase } from '@/lib/supabase';
+import { ClubPublicaciones } from '@/features/player/components/ClubPublicaciones';
 
 import { diferenciaMinutos } from '@/features/reservas/utils/horaUtils';
+import { fechaHoy } from '@/features/reservas/utils/fechaUtils';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return fechaHoy();
 }
 function addDays(iso: string, n: number) {
   const d = new Date(iso + 'T12:00:00');
@@ -122,6 +124,27 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
     }
   }
 
+  async function avisarAlClub(reservaId: number) {
+    try {
+      const isNative = Capacitor.isNativePlatform();
+      const apiUrl = isNative
+        ? 'https://matchogo.vercel.app/api/notify-club-reserva'
+        : '/api/notify-club-reserva';
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ reserva_id: reservaId, evento: 'pre_reserva' }),
+      });
+    } catch (err) {
+      console.warn('[BookingBottomSheet] No se pudo avisar al club:', err);
+    }
+  }
+
   async function handleConfirmar() {
     if (isPastDateTime(fecha, slot.hora_inicio)) {
       setLocalError('No se pueden reservar horarios en el pasado. Elegí otro horario.');
@@ -136,6 +159,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
     });
     if (res) {
       setResult(res);
+      void avisarAlClub(res.reserva_id);
       if (metodoPago === 'mercadopago') {
         await pagarConMercadoPago(res.reserva_id);
       }
@@ -412,7 +436,7 @@ function BookingBottomSheet({ slot, fecha, club, onClose, onReservaCreada }: Boo
 
               <button
                 onClick={onReservaCreada}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#39C54A] hover:bg-[#32b041] py-4 text-base font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1A9B73] hover:bg-[#158264] py-4 text-base font-extrabold text-[#0B1F4D] transition active:scale-[0.98]"
               >
                 Ver mis reservas →
               </button>
@@ -958,7 +982,13 @@ export function ClubProfilePage({
             </div>
           )}
 
-          {!dispQuery.isLoading && times.length === 0 && (
+          {dispQuery.isError && (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              No pudimos cargar la disponibilidad. Probá recargar la página.
+            </div>
+          )}
+
+          {!dispQuery.isLoading && !dispQuery.isError && times.length === 0 && (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-muted/20 py-10 text-center">
               <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
               <p className="font-bold text-foreground">Sin turnos disponibles</p>
@@ -1089,6 +1119,8 @@ export function ClubProfilePage({
             <iframe title="Ubicación" width="100%" height="200" style={{ border: 0 }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={mapSrc} />
           </div>
         )}
+
+        <ClubPublicaciones clubId={club.id} clubNombre={club.nombre} />
 
         {/* ── Gallery / Fotos ── */}
         {fotos.length > 0 && (

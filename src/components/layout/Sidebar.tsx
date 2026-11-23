@@ -21,7 +21,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:flex-col md:border-r md:border-border md:bg-card transition-[width] duration-200',
+        'hidden print:hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:flex-col md:border-r md:border-border md:bg-card transition-[width] duration-200',
         collapsed ? 'md:w-16' : 'md:w-64',
       )}
     >

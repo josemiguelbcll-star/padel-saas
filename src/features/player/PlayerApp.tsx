@@ -104,9 +104,9 @@ function PlayerAppContent() {
   const [notification, setNotification] = useState<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const paymentStatus = searchParams.get('payment_status') || searchParams.get('status');
+  const paymentStatus = searchParams.get('payment_status') || searchParams.get('status') || searchParams.get('collection_status');
   const reservaId = searchParams.get('reserva_id') || searchParams.get('external_reference');
-  const paymentId = searchParams.get('payment_id');
+  const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
 
   useEffect(() => {
     if (paymentStatus === 'approved' && reservaId && paymentId) {
@@ -228,24 +228,43 @@ function PlayerAppContent() {
   // ── Splash ────────────────────────────────────────────────────
   if (phase === 'loading') {
     return (
-      <div style={{
-        width: '100%', height: '100dvh',
-        background: '#0B1F4D',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', gap: 8,
-      }}>
-        <span style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 800, fontSize: 32, color: '#fff', lineHeight: 1 }}>
-          MatchGo
-        </span>
-        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Cargando...</span>
+      <div className="mg-player-shell">
+        <div style={{
+          width: '100%', height: '100dvh',
+          background: '#0B1F4D',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
+          <span style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 800, fontSize: 32, color: '#fff', lineHeight: 1 }}>
+            MatchGo
+          </span>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Cargando...</span>
+        </div>
       </div>
     );
   }
 
-  if (phase === 'auth')        return <PlayerLoginPage onLogin={login} />;
-  if (phase === 'onboarding')  return <PlayerOnboarding onComplete={completeOnboarding} />;
+  if (phase === 'auth') {
+    return (
+      <div className="mg-player-shell">
+        <div className="mg-player">
+          <PlayerLoginPage onLogin={login} />
+        </div>
+      </div>
+    );
+  }
+  if (phase === 'onboarding') {
+    return (
+      <div className="mg-player-shell">
+        <div className="mg-player">
+          <PlayerOnboarding onComplete={completeOnboarding} />
+        </div>
+      </div>
+    );
+  }
 
   return (
+    <div className="mg-player-shell">
     <div className="mg-player">
 
       {/* ── Banner Modo Jugador para Administrador de Club ─────── */}
@@ -264,13 +283,13 @@ function PlayerAppContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             <span style={{ fontSize: 14 }}>🎾</span>
             <span style={{ color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Modo Jugador · <strong style={{ color: '#00FF87' }}>{clubNombre || 'Administrador'}</strong>
+              Modo jugador · <strong style={{ color: '#1A9B73' }}>{clubNombre || 'Administrador'}</strong>
             </span>
           </div>
           <button
             onClick={() => navigate('/app')}
             style={{
-              background: '#00B050',
+              background: '#1A9B73',
               color: '#ffffff',
               border: 'none',
               borderRadius: 20,
@@ -409,6 +428,7 @@ function PlayerAppContent() {
           </button>
         ))}
       </nav>
+    </div>
     </div>
   );
 }
