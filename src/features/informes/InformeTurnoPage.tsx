@@ -196,7 +196,7 @@ export function InformeTurnoPage() {
           type="button"
           disabled={!informe || cargando || exportando}
           onClick={() => void descargarPdf()}
-          className="inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: 'hsl(var(--inf-green-fijo))' }}
         >
           <Download className="h-4 w-4" aria-hidden="true" />

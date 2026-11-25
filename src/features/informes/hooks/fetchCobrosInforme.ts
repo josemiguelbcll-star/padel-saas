@@ -87,7 +87,7 @@ export async function fetchCobrosInforme(
 
   let vpQuery = supabase
     .from('venta_pagos')
-    .select(`id, venta_id, monto, medio_pago, cuenta_id, fecha_hora, ventas (observaciones)`)
+    .select(`id, venta_id, monto, medio_pago, cuenta_id, fecha_hora, ventas (observaciones, fecha_hora)`)
     .gte('fecha_hora', desdeISO)
     .lte('fecha_hora', hastaISO);
   if (filtrarUsuario) vpQuery = vpQuery.eq('usuario_id', usuarioId);
@@ -173,6 +173,7 @@ export async function fetchCobrosInforme(
       cuenta_id: p.cuenta_id,
       cuenta_nombre: null,
       monto: (p.tipo === 'reembolso' ? -1 : 1) * Number(p.monto),
+      fecha_operacion: p.reservas?.fecha ?? null,
     });
   }
 
@@ -206,6 +207,7 @@ export async function fetchCobrosInforme(
       cuenta_id: c.cuenta_id,
       cuenta_nombre: null,
       monto: Number(c.monto),
+      fecha_operacion: c.fecha ?? null,
     });
   }
 
@@ -218,7 +220,7 @@ export async function fetchCobrosInforme(
     cuenta_id: number | null;
     cuenta: { nombre: string } | null;
     fecha_hora: string;
-    ventas: { observaciones: string | null } | null;
+    ventas: { observaciones: string | null; fecha_hora: string | null } | null;
   };
   if (!vpRes.error && vpRes.data) {
     const vpRows = vpRes.data as unknown as VpEmbed[];
@@ -232,6 +234,7 @@ export async function fetchCobrosInforme(
         cuenta_id: v.cuenta_id,
         cuenta_nombre: null,
         monto: Number(v.monto),
+        fecha_operacion: v.ventas?.fecha_hora?.slice(0, 10) ?? null,
       });
       if (Number(v.monto) > 0) ventaIdsSet.add(v.venta_id);
     }
@@ -291,6 +294,7 @@ export async function fetchCobrosInforme(
         cuenta_id: v.cuenta_id,
         cuenta_nombre: null,
         monto: Number(v.monto_total),
+        fecha_operacion: v.fecha_hora.slice(0, 10),
       });
       ventaIdsSet.add(v.id);
     }
@@ -330,6 +334,7 @@ export async function fetchCobrosInforme(
       cuenta_id: i.cuenta_id,
       cuenta_nombre: null,
       monto: Number(i.monto),
+      fecha_operacion: (i.fecha_cobro ?? i.fecha ?? '').slice(0, 10) || null,
     });
   }
 

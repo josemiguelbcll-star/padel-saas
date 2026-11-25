@@ -376,6 +376,28 @@ export function ReservasPage() {
     cancha: Cancha;
   } | null>(null);
 
+  // Deep-link `?reserva=<id>`: abre el detalle de esa reserva apenas
+  // cargan las reservas del día (viene del informe de caja, p.ej.).
+  const reservaParam = searchParams.get('reserva');
+  useEffect(() => {
+    if (!reservaParam) return;
+    const id = Number(reservaParam);
+    if (!Number.isFinite(id)) return;
+    const reserva = (reservasQuery.data ?? []).find((r) => r.id === id);
+    if (!reserva) return;
+    const cancha = canchasActivas.find((c) => c.id === reserva.cancha_id);
+    if (!cancha) return;
+    setSelectedDetalle({ reserva, cancha });
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('reserva');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [reservaParam, reservasQuery.data, canchasActivas, setSearchParams]);
+
   // Estado del modal de detalle de clase: guarda clase + cancha + fecha +
   // lista de pagos iniciales (snapshot del momento del click). El dialog
   // tiene state local propio para reflejar agregar/borrar pagos sin

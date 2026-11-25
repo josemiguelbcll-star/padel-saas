@@ -73,6 +73,12 @@ export interface CobroTurno {
   cuenta_nombre: string | null;
   /** Monto con signo: reembolsos y reversiones ya vienen negativos. */
   monto: number;
+  /**
+   * Fecha 'YYYY-MM-DD' de la OPERACIÓN que el cobro cancela (devengado),
+   * distinta de `fecha_hora` (fecha del pago). Spec §2: habilita la
+   * conciliación A+B+C+D. null si no se puede determinar.
+   */
+  fecha_operacion?: string | null;
 }
 
 export interface IngresoPorMedioInforme {
