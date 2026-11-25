@@ -47,6 +47,11 @@
     <meta property="og:image"       content="/assets/padel-1.jpg" />
     <meta property="og:locale"      content="es_AR" />
 
+    <!-- Meta description estándar (Google la usa en resultados y
+         verificaciones; og:description solo aplica a redes sociales). -->
+    <meta name="description"
+      content="MatchGo es una plataforma de gestión integral para clubes de pádel y tenis: grilla de turnos en vivo, reservas online, cuenta del turno, caja, inventario y finanzas. Los jugadores reservan canchas al instante desde la app." />
+
     <title>MatchGo — Reservá tu cancha</title>
     <!--
       Anti-flash del color de marca (0016 — etapa 1). Si el club tiene
@@ -71,7 +76,30 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback para crawlers/sin JS: describe la app aunque el
+           bundle no se ejecute (verificación de Google OAuth). -->
+      <noscript>
+        <main style="font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1rem; line-height: 1.6;">
+          <h1>MatchGo — Gestión para clubes de pádel y tenis</h1>
+          <p>
+            MatchGo es una plataforma de gestión integral para clubes de
+            pádel y tenis. Permite a los clubes administrar la grilla de
+            turnos en tiempo real, reservas online, turnos fijos, clases,
+            caja y arqueos, inventario de buffet y shop, y reportes
+            financieros del negocio.
+          </p>
+          <p>
+            Los jugadores pueden reservar canchas al instante, dividir la
+            cuenta del turno, unirse a clases y seguir sus reservas desde
+            la app.
+          </p>
+          <p>
+            <a href="/privacidad">Política de privacidad</a>
+          </p>
+        </main>
+      </noscript>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
