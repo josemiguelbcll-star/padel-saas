@@ -105,9 +105,9 @@ export async function exportarInformeDiarioPdf(
 
   const kpis: Array<{ label: string; valor: string; nota: string; peach?: boolean }> = [
     {
-      label: 'FACTURACIÓN DEL DÍA',
+      label: 'FACTURADO DEL DÍA',
       valor: money(informe.facturacion),
-      nota: `${informe.cobros.length} cobros · todos los medios`,
+      nota: `Cobrado hoy: ${money(informe.cobrado)} · ${informe.cobros.length} cobros`,
     },
     {
       label: 'OCUPACIÓN DE CANCHAS',
@@ -353,23 +353,27 @@ export async function exportarInformeDiarioPdf(
     y += 4;
   }
 
-  ensure(40);
+  ensure(48);
   const f = informe.fugas;
   const fugasY = y;
   sectionTitle(5, 'Fugas de plata');
   doc.setFillColor(...CARD);
-  doc.roundedRect(leftX, y, colW, 36, 2, 2, 'F');
-  const fugasRows: [string, string][] = [
-    ['Cobros incompletos', money(f.pendienteCobro.total)],
-    ['Cancelaciones', money(f.cancelaciones.monto)],
-    ['Diferencias de arqueo', money(f.diferenciasArqueo.total)],
-    ['Total en riesgo', money(f.total)],
+  doc.roundedRect(leftX, y, colW, 44, 2, 2, 'F');
+  const fugasRows: [string, string, boolean?][] = [
+    ['Cobros incompletos', money(f.cobrosIncompletos.total)],
+    ['Cancelaciones con cargo', money(f.cancelaciones.conCargo.monto), true],
+    ['Cancelaciones perdidas', money(f.cancelaciones.perdidas.monto)],
+    ['Diferencias de arqueo', money(Math.abs(f.diferenciasArqueo.total))],
+    ['Total en riesgo', money(f.totalRiesgo)],
   ];
   let fy = y + 7;
   fugasRows.forEach((row, i) => {
-    doc.setFont('helvetica', i === 3 ? 'bold' : 'normal');
+    const isTotal = i === fugasRows.length - 1;
+    const informativo = row[2] === true;
+    doc.setFont('helvetica', isTotal ? 'bold' : 'normal');
     doc.setFontSize(7);
-    if (i === 3) doc.setTextColor(...WARN);
+    if (isTotal) doc.setTextColor(...WARN);
+    else if (informativo) setMuted();
     else setInk();
     doc.text(row[0], leftX + 3, fy);
     doc.text(row[1], leftX + colW - 3, fy, { align: 'right' });

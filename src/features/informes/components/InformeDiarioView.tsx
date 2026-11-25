@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { InformeDiarioData } from '../hooks/useInformeDia';
 import {
@@ -21,12 +22,14 @@ const CELDA_STYLE: Record<CeldaOcupacion, string> = {
   fijo: 'bg-[hsl(var(--inf-green-fijo))]',
   variable: 'bg-[hsl(var(--inf-green-var))]',
   clase: 'bg-[hsl(var(--inf-blue))]',
+  bloqueo: 'bg-[hsl(var(--inf-warn))]',
   libre: 'bg-[hsl(var(--inf-line))]',
 };
 const CELDA_LABEL: Record<CeldaOcupacion, string> = {
   fijo: 'Turno fijo',
   variable: 'Turno variable',
   clase: 'Clase',
+  bloqueo: 'Bloqueo',
   libre: 'Libre',
 };
 
@@ -54,17 +57,23 @@ export function InformeDiarioView({
     return map;
   }, [resumenMes.data]);
 
-  const alertas = useMemo(
-    () =>
-      generarAlertas({
-        fugas: informe.fugas,
-        jornadasAbiertas: informe.jornadas.filter((j) => !j.turno.cerrada_en)
-          .length,
-        productosStockBajo: reponer.productos?.length ?? 0,
-        pendientesCobroCount: informe.pendientesCobroCount,
-      }),
-    [informe, reponer.productos],
-  );
+  const alertas = useMemo(() => {
+    const base = generarAlertas({
+      fugas: informe.fugas,
+      jornadasAbiertas: informe.jornadas.filter((j) => !j.turno.cerrada_en)
+        .length,
+      productosStockBajo: reponer.productos?.length ?? 0,
+      pendientesCobroCount: informe.pendientesCobroCount,
+      fecha: informe.fecha,
+    });
+    // Controles de cuadratura del spec §8 → "Datos a revisar".
+    const datosARevisar = informe.controles.map((c) => ({
+      severidad: 'ambar' as const,
+      texto: `Datos a revisar (${c.codigo}): ${c.texto}`,
+      destino: c.destino,
+    }));
+    return [...datosARevisar, ...base];
+  }, [informe, reponer.productos]);
 
   return (
     <article
@@ -188,13 +197,16 @@ function Card({
   children,
   className,
   peach,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   peach?: boolean;
+  id?: string;
 }) {
   return (
     <div
+      id={id}
       className={cn('rounded-2xl border bg-card p-4', className)}
       style={
         peach
@@ -215,20 +227,23 @@ function KpiStrip({ informe }: { informe: InformeDiarioData }) {
   const dispHoras = Math.round(informe.ocupacion.minutosDisponibles / 60);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Card>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <Card id="sec-facturacion">
         <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
-          Facturación del día
+          Facturado del día
         </p>
         <p className="mt-2 text-[1.7rem] font-extrabold tabular-nums leading-none">
           {fmtMoney(informe.facturacion)}
         </p>
         <p className="mt-2 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
-          Todos los medios de cobro
+          Devengado · Cobrado hoy: <b>{fmtMoney(informe.cobrado)}</b>
+          {informe.conciliacion.pendienteHoy > 0 && (
+            <> · Pendiente: <b>{fmtMoney(informe.conciliacion.pendienteHoy)}</b></>
+          )}
         </p>
       </Card>
 
-      <Card>
+      <Card id="sec-ocupacion">
         <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
           Ocupación de canchas
         </p>
@@ -248,23 +263,7 @@ function KpiStrip({ informe }: { informe: InformeDiarioData }) {
         </p>
       </Card>
 
-      <Card>
-        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-muted))' }}>
-          Ingreso por hora disponible
-        </p>
-        <p className="mt-2 text-[1.7rem] font-extrabold tabular-nums leading-none">
-          {informe.ingresoHoraDisponible === null
-            ? '—'
-            : fmtMoney(informe.ingresoHoraDisponible)}
-        </p>
-        <p className="mt-2 text-[11px]" style={{ color: 'hsl(var(--inf-muted))' }}>
-          {informe.ingresoHoraOcupada !== null
-            ? `Canchas + clases ÷ ${dispHoras} h · por hora ocupada: ${fmtMoney(informe.ingresoHoraOcupada)}`
-            : 'Canchas + clases ÷ horas disponibles'}
-        </p>
-      </Card>
-
-      <Card peach>
+      <Card peach id="sec-pendiente">
         <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--inf-peach-ink))' }}>
           Pendiente de cobro
         </p>
@@ -321,7 +320,7 @@ function SeccionActividad({ informe }: { informe: InformeDiarioData }) {
   const pct = (h: number) => (totalH > 0 ? Math.round((h / totalH) * 100) : 0);
 
   return (
-    <section>
+    <section id="sec-actividad">
       <Titulo
         n={1}
         titulo="Actividad del día"
@@ -358,7 +357,7 @@ function SeccionActividad({ informe }: { informe: InformeDiarioData }) {
 function SeccionClasesProfesor({ informe }: { informe: InformeDiarioData }) {
   const { filas, total } = informe.clasesProfesor;
   return (
-    <section>
+    <section id="sec-clases">
       <p
         className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em]"
         style={{ color: 'hsl(var(--inf-muted))' }}
@@ -448,7 +447,7 @@ function SeccionCaja({ informe }: { informe: InformeDiarioData }) {
   const maxAbs = Math.max(...informe.porMedio.items.map((m) => Math.abs(m.monto)), 1);
 
   return (
-    <Card className="p-5">
+    <Card className="p-5" id="sec-caja">
       <Titulo n={2} titulo="Caja y medios de cobro" />
       <ul className="space-y-2">
         {informe.porMedio.items.map((m) => {
@@ -549,7 +548,7 @@ function SeccionUnidades({
   const totalMes = filas.reduce((a, f) => a + (acumMes.get(f.key) ?? 0), 0);
 
   return (
-    <Card className="p-5">
+    <Card className="p-5" id="sec-unidades">
       <Titulo n={3} titulo="Ingresos por unidad de negocio" />
       <table className="w-full text-[11px]">
         <thead>
@@ -651,7 +650,7 @@ function SeccionMapa({ informe }: { informe: InformeDiarioData }) {
   const mapa = informe.mapa;
   if (!mapa || mapa.horas.length === 0) return null;
   return (
-    <Card className="p-5">
+    <Card className="p-5" id="sec-mapa">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-[13px] font-bold tracking-tight">4 · Mapa de ocupación por cancha y hora</h3>
         <div className="flex flex-wrap gap-3 text-[9px]" style={{ color: 'hsl(var(--inf-muted))' }}>
@@ -709,26 +708,67 @@ function SeccionMapa({ informe }: { informe: InformeDiarioData }) {
 
 function SeccionFugas({ informe }: { informe: InformeDiarioData }) {
   const f = informe.fugas;
-  const filas: Array<{ label: string; detalle: string; monto: number }> = [
+  const c = informe.conciliacion;
+  const filas: Array<{ label: string; detalle: string; monto: number; informativo?: boolean }> = [
     {
-      label: 'Cobros divididos incompletos',
-      detalle: `${f.pendienteCobro.count} turno${f.pendienteCobro.count === 1 ? '' : 's'}`,
-      monto: f.pendienteCobro.total,
+      label: 'Cobros incompletos (pendiente de hoy)',
+      detalle: `Facturado − cobros de hoy`,
+      monto: c.pendienteHoy,
     },
     {
-      label: 'Cancelaciones',
-      detalle: `${f.cancelaciones.count} cancelada${f.cancelaciones.count === 1 ? '' : 's'}`,
-      monto: f.cancelaciones.monto,
+      label: 'Cancelaciones con cargo cobrado',
+      detalle: `${f.cancelaciones.conCargo.count} · se informa, no suma al riesgo`,
+      monto: f.cancelaciones.conCargo.monto,
+      informativo: true,
+    },
+    {
+      label: 'Cancelaciones perdidas (franja libre)',
+      detalle: `${f.cancelaciones.perdidas.count} · precio del turno − cargo`,
+      monto: f.cancelaciones.perdidas.monto,
+    },
+    {
+      label: 'Cancelaciones reasignadas',
+      detalle: `${f.cancelaciones.reasignadas.count} · no suma al riesgo`,
+      monto: f.cancelaciones.reasignadas.monto,
+      informativo: true,
+    },
+    {
+      label: 'No-show',
+      detalle: `${f.noShow.count}`,
+      monto: f.noShow.monto,
     },
     {
       label: 'Diferencias de arqueo',
       detalle: `${f.diferenciasArqueo.count} jornada${f.diferenciasArqueo.count === 1 ? '' : 's'}`,
-      monto: f.diferenciasArqueo.total,
+      monto: Math.abs(f.diferenciasArqueo.total),
     },
   ];
   return (
-    <Card className="p-5">
+    <Card className="p-5" id="sec-fugas">
       <Titulo n={5} titulo="Fugas de plata" />
+      <div className="mb-2 text-[10px]" style={{ color: 'hsl(var(--inf-muted))' }}>
+        Cobrado del día = operaciones de hoy {fmtMoney(c.operacionesHoy)}
+        {' + '}deudas anteriores {fmtMoney(c.deudasAnteriores)}
+        {' + '}anticipos {fmtMoney(c.anticiposFuturos)}
+        {c.otros !== 0 && <> {' + '}otros {fmtMoney(c.otros)}</>}
+      </div>
+      {informe.reservasPendientes.length > 0 && (
+        <div className="mb-2 space-y-0.5">
+          {informe.reservasPendientes.map((r) => (
+            <Link
+              key={r.id}
+              to={`/app/reservas?fecha=${informe.fecha}&reserva=${r.id}`}
+              className="flex items-baseline justify-between text-[10px] underline decoration-dotted underline-offset-2 hover:opacity-80"
+              style={{ color: 'hsl(var(--inf-muted))' }}
+            >
+              <span>
+                Turno {r.hora_inicio.slice(0, 5)} · Cancha {r.cancha_id} — sin cobrar
+              </span>
+              <span className="tabular-nums">{fmtMoney(r.saldo)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       <div>
         {filas.map((x, i) => (
           <div
@@ -742,7 +782,9 @@ function SeccionFugas({ informe }: { informe: InformeDiarioData }) {
                 {x.detalle}
               </span>
             </span>
-            <span className="font-semibold tabular-nums">{fmtMoney(x.monto)}</span>
+            <span className="font-semibold tabular-nums" style={x.informativo ? { color: 'hsl(var(--inf-muted))' } : undefined}>
+              {fmtMoney(x.monto)}
+            </span>
           </div>
         ))}
         <div
@@ -751,7 +793,7 @@ function SeccionFugas({ informe }: { informe: InformeDiarioData }) {
         >
           <span>Total en riesgo o perdido</span>
           <span className="tabular-nums" style={{ color: 'hsl(var(--inf-warn))' }}>
-            {fmtMoney(f.total)}
+            {fmtMoney(f.totalRiesgo)}
           </span>
         </div>
       </div>
@@ -768,7 +810,7 @@ function SeccionBuffet({
 }) {
   const b = informe.buffetShop;
   return (
-    <Card className="p-5">
+    <Card className="p-5" id="sec-buffet">
       <Titulo n={6} titulo="Buffet y shop" />
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-muted p-3">
@@ -842,15 +884,17 @@ function SeccionMes({ informe }: { informe: InformeDiarioData }) {
     { label: `Facturado al ${dia}`, valor: fmtMoney(m.facturadoMes) },
     {
       label: 'Mismo período mes anterior',
-      valor: fmtMoney(m.facturadoMesAntMismoPeriodo),
+      valor: m.mesAnteriorSinDatos ? 'sin datos' : fmtMoney(m.facturadoMesAntMismoPeriodo),
       extra:
-        m.variacionPct !== null
+        !m.mesAnteriorSinDatos && m.variacionPct !== null
           ? `${m.variacionPct >= 0 ? '+' : ''}${m.variacionPct.toFixed(1).replace('.', ',')}%`
           : undefined,
-      tone: m.variacionPct === null ? undefined : m.variacionPct >= 0 ? 'pos' : 'neg',
+      tone: m.mesAnteriorSinDatos || m.variacionPct === null ? undefined : m.variacionPct >= 0 ? 'pos' : 'neg',
     },
     {
-      label: 'Proyección de cierre al ritmo actual',
+      label: m.proyeccionPorDiaSemana
+        ? 'Proyección de cierre (estimado según día de la semana)'
+        : 'Proyección de cierre al ritmo actual',
       valor: m.proyeccionCierre === null ? '—' : fmtMoney(m.proyeccionCierre),
     },
     {
@@ -859,7 +903,7 @@ function SeccionMes({ informe }: { informe: InformeDiarioData }) {
     },
   ];
   return (
-    <Card className="p-5">
+    <Card className="p-5" id="sec-mes">
       <Titulo n={7} titulo="Cómo viene el mes" />
       {filas.map((f, i) => (
         <div
@@ -915,6 +959,7 @@ function SeccionManana({ informe }: { informe: InformeDiarioData }) {
 
   return (
     <div
+      id="sec-manana"
       className="rounded-2xl p-5 text-white"
       style={{ background: 'hsl(var(--inf-dark))' }}
     >
@@ -979,7 +1024,30 @@ function SeccionAlertas({
       ) : (
         <ol className="list-decimal space-y-1 pl-4 text-[12px]" style={{ color: 'hsl(var(--inf-peach-ink))' }}>
           {alertas.map((a, i) => (
-            <li key={i}>{a.texto}</li>
+            <li key={i}>
+              {a.href ? (
+                <Link
+                  to={a.href}
+                  className="underline decoration-dotted underline-offset-2 hover:opacity-80"
+                >
+                  {a.texto}
+                </Link>
+              ) : a.destino ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    document
+                      .getElementById(a.destino as string)
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                  className="text-left underline decoration-dotted underline-offset-2 hover:opacity-80"
+                >
+                  {a.texto}
+                </button>
+              ) : (
+                a.texto
+              )}
+            </li>
           ))}
         </ol>
       )}

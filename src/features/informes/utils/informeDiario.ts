@@ -4,12 +4,15 @@
  * igual que `informeTurno.ts` y `kpisHoy.ts`.
  */
 import type { EstadoReserva } from '@/types/database';
+import type { FugasSpec } from './informeSpec';
 import { esReservaFirme, saldoAlquiler } from '@/features/dashboard/utils/kpisHoy';
 import { horaAMinutos } from '@/features/dashboard/utils/kpisHoy';
 
 // ── Tipos de entrada (filas plain) ──────────────────────────────────
 
 export interface ReservaDiaRow {
+  /** Presente en las filas reales (los selects lo traen); opcional para fixtures. */
+  id?: number;
   cancha_id: number;
   hora_inicio: string;
   duracion_min: number;
@@ -106,7 +109,7 @@ export interface OcupacionDia {
   valle: { etiqueta: string; pct: number } | null;
 }
 
-export type CeldaOcupacion = 'fijo' | 'variable' | 'clase' | 'libre';
+export type CeldaOcupacion = 'fijo' | 'variable' | 'clase' | 'bloqueo' | 'libre';
 
 export interface MapaOcupacion {
   horas: number[];
@@ -395,6 +398,10 @@ export interface ComoVieneElMes {
   variacionPct: number | null;
   proyeccionCierre: number | null;
   ocupacionMesPct: number | null;
+  /** Spec §7: true si la proyección usó promedio por día de semana. */
+  proyeccionPorDiaSemana?: boolean;
+  /** Spec §7/C13: sin datos del mismo período del mes anterior. */
+  mesAnteriorSinDatos?: boolean;
 }
 
 export function comoVieneElMes(input: {
@@ -529,43 +536,57 @@ export function resumenManana(input: {
 export interface AlertaInforme {
   severidad: 'rojo' | 'ambar';
   texto: string;
+  /** id de sección a la que scrollear al hacer click en la alerta. */
+  destino?: string;
+  /** Ruta interna a la que navegar (tiene prioridad sobre `destino`). */
+  href?: string;
 }
 
 export function generarAlertas(input: {
-  fugas: Fugas;
+  fugas: FugasSpec;
   jornadasAbiertas: number;
   productosStockBajo: number;
   pendientesCobroCount: number;
+  /** Fecha del informe para armar links a la grilla. */
+  fecha?: string;
 }): AlertaInforme[] {
   const alertas: AlertaInforme[] = [];
   if (input.fugas.diferenciasArqueo.count > 0) {
     alertas.push({
       severidad: 'rojo',
       texto: `Diferencia de arqueo en ${input.fugas.diferenciasArqueo.count} jornada(s): ${fmtAlertMoney(Math.abs(input.fugas.diferenciasArqueo.total))}.`,
+      destino: 'sec-caja',
     });
   }
   if (input.pendientesCobroCount > 0) {
     alertas.push({
       severidad: 'ambar',
-      texto: `${input.pendientesCobroCount} turno(s) con cobro pendiente por ${fmtAlertMoney(input.fugas.pendienteCobro.total)}.`,
+      texto: `${input.pendientesCobroCount} turno(s) con cobro pendiente por ${fmtAlertMoney(input.fugas.cobrosIncompletos.total)}.`,
+      destino: 'sec-fugas',
+      href: input.fecha ? `/app/reservas?fecha=${input.fecha}` : undefined,
     });
   }
-  if (input.fugas.cancelaciones.count > 0) {
+  const perdidas = input.fugas.cancelaciones.perdidas;
+  if (perdidas.count > 0) {
     alertas.push({
       severidad: 'ambar',
-      texto: `${input.fugas.cancelaciones.count} cancelación(es) del día por ${fmtAlertMoney(input.fugas.cancelaciones.monto)}.`,
+      texto: `${perdidas.count} cancelación${perdidas.count === 1 ? '' : 'es'} perdida${perdidas.count === 1 ? '' : 's'} del día por ${fmtAlertMoney(perdidas.monto)}.`,
+      destino: 'sec-fugas',
     });
   }
   if (input.productosStockBajo > 0) {
     alertas.push({
       severidad: 'ambar',
       texto: `${input.productosStockBajo} producto(s) para reponer stock.`,
+      destino: 'sec-buffet',
+      href: '/app/inventario',
     });
   }
   if (input.jornadasAbiertas > 0) {
     alertas.push({
       severidad: 'ambar',
       texto: `${input.jornadasAbiertas} jornada(s) de caja siguen abiertas.`,
+      destino: 'sec-caja',
     });
   }
   return alertas;

@@ -1402,8 +1402,11 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="pt-8 border-t border-[#E2DDD1] text-center text-xs text-slate-400">
-            © {new Date().getFullYear()} MatchGo Padel SaaS. Todos los derechos reservados.
+          <div className="pt-8 border-t border-[#E2DDD1] flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
+            <span>© {new Date().getFullYear()} MatchGo Padel SaaS. Todos los derechos reservados.</span>
+            <Link to="/privacidad" className="hover:text-[#00A859]">
+              Política de Privacidad
+            </Link>
           </div>
         </div>
       </footer>

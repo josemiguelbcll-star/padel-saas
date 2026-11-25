@@ -5,16 +5,13 @@ import { useSession } from '@/features/auth';
 import type { TurnoCaja } from '@/types/database';
 import {
   actividadDelDia,
-  calcularFugas,
   clasesPorProfesor,
-  comoVieneElMes,
-  ocupacionDelDia,
   resumenManana,
   type ActividadDia,
+  type CeldaOcupacion,
   type ClaseProfesorRow,
   type ComoVieneElMes,
   type DiaFacturacion,
-  type Fugas,
   type MapaOcupacion,
   type OcupacionDia,
   type ReservaDiaRow,
@@ -30,6 +27,19 @@ import {
 } from '../utils/informeTurno';
 import { fetchCobrosInforme } from './fetchCobrosInforme';
 import { fetchDetalleVentas } from './fetchDetalleVentas';
+import { horaAMinutos } from '@/features/dashboard/utils/kpisHoy';
+import {
+  conciliarCobros,
+  controlesCuadratura,
+  facturadoDelDia,
+  ingresoPorHoraDelDia,
+  matrizOcupacionDelDia,
+  proyeccionCierreMes,
+  calcularFugasSpec,
+  type ControlFallo,
+  type FacturadoDelDia,
+  type ReservaSpecRow,
+} from '../utils/informeSpec';
 
 export interface JornadaArqueo {
   turno: TurnoCaja;
@@ -42,13 +52,26 @@ export interface InformeDiarioData {
     titulo: string;
     lineas: string[];
   };
-  // KPIs grandes
+  // KPIs grandes (spec §2: Facturado ≠ Cobrado)
   facturacion: number;
+  /** Cobrado del día = Σ pagos con fecha de pago = hoy (todos los medios). */
+  cobrado: number;
+  facturado: FacturadoDelDia;
+  conciliacion: ReturnType<typeof conciliarCobros>;
   ocupacion: OcupacionDia;
   mapa: MapaOcupacion | null;
   ingresoHoraDisponible: number | null;
   ingresoHoraOcupada: number | null;
+  ingresoHora: ReturnType<typeof ingresoPorHoraDelDia>;
+  controles: ControlFallo[];
   pendienteCobro: { count: number; total: number };
+  /** Reservas del día con saldo pendiente — para linkear a la grilla. */
+  reservasPendientes: Array<{
+    id: number;
+    cancha_id: number;
+    hora_inicio: string;
+    saldo: number;
+  }>;
   actividad: ActividadDia;
   clasesProfesor: { filas: ClaseProfesorRow[]; total: ClaseProfesorRow };
   porMedio: { items: IngresoPorMedioInforme[]; total: number };
@@ -60,7 +83,7 @@ export interface InformeDiarioData {
     topProductos: ProductoVendido[];
   };
   facturacion7dias: DiaFacturacion[];
-  fugas: Fugas;
+  fugas: ReturnType<typeof calcularFugasSpec>;
   mes: ComoVieneElMes;
   manana: ReturnType<typeof resumenManana> | null;
   pendientesCobroCount: number;
@@ -139,17 +162,18 @@ export function useInformeDia(
         profesoresRes,
         alumnosHoyRes,
         cobrosMesRes,
+        reservas35Res,
+        ventas35Res,
+        consumosTurno35Res,
+        consumosClase35Res,
         reservasMananaRes,
-        flujo7Res,
-        flujoMesRes,
-        flujoMesAntRes,
         clubRes,
       ] = await Promise.all([
         fetchCobrosInforme({ desdeISO, hastaISO, usuarioId: null, fecha }),
         supabase
           .from('reservas')
           .select(
-            'id, cancha_id, hora_inicio, duracion_min, estado, turno_fijo_id, monto_total, monto_pagado, fecha',
+            'id, cancha_id, hora_inicio, duracion_min, estado, turno_fijo_id, monto_total, monto_pagado, fecha, observaciones',
           )
           .eq('club_id', club.id)
           .eq('fecha', fecha),
@@ -171,13 +195,68 @@ export function useInformeDia(
           .from('clase_ocurrencia_alumnos')
           .select('clase_id, monto_clase')
           .eq('fecha', fecha),
-        // Ocurrencias de alumnos del mes en curso (clases dictadas +
-        // ingresos por profesor — fuente real del ingreso por clase).
+        // Ocurrencias de alumnos: últimas ~5 semanas (alimenta clases del
+        // mes Y la serie diaria de facturado para la proyección por día
+        // de semana del spec §7).
         supabase
           .from('clase_ocurrencia_alumnos')
           .select('clase_id, fecha, monto_clase')
           .eq('club_id', club.id)
-          .gte('fecha', `${fecha.slice(0, 7)}-01`)
+          .gte('fecha', (() => {
+            const d = new Date(`${fecha}T12:00:00`);
+            d.setDate(d.getDate() - 34);
+            return d.toISOString().slice(0, 10);
+          })())
+          .lte('fecha', fecha),
+        // Reservas de las últimas ~5 semanas: serie diaria de Canchas
+        // devengado para la proyección por día de semana.
+        supabase
+          .from('reservas')
+          .select(
+            'cancha_id, hora_inicio, duracion_min, estado, turno_fijo_id, monto_total, monto_pagado, fecha, observaciones',
+          )
+          .eq('club_id', club.id)
+          .gte('fecha', (() => {
+            const d = new Date(`${fecha}T12:00:00`);
+            d.setDate(d.getDate() - 34);
+            return d.toISOString().slice(0, 10);
+          })())
+          .lte('fecha', fecha),
+        // Ventas POS de las últimas ~5 semanas: serie diaria de
+        // Buffet+Shop devengado para la proyección.
+        supabase
+          .from('ventas')
+          .select('fecha_hora, monto_total')
+          .eq('club_id', club.id)
+          .eq('activa', true)
+          .gte('fecha_hora', (() => {
+            const d = new Date(`${fecha}T12:00:00`);
+            d.setDate(d.getDate() - 34);
+            return d.toISOString();
+          })())
+          .lte('fecha_hora', `${fecha}T23:59:59`),
+        // Consumos del turno (35d): devengado por fecha de la RESERVA
+        // (no por fecha_hora del consumo, que es la del cobro).
+        supabase
+          .from('reserva_consumos')
+          .select('subtotal, linea, reservas!inner(fecha)')
+          .eq('club_id', club.id)
+          .gte('reservas.fecha', (() => {
+            const d = new Date(`${fecha}T12:00:00`);
+            d.setDate(d.getDate() - 34);
+            return d.toISOString().slice(0, 10);
+          })())
+          .lte('reservas.fecha', fecha),
+        // Consumos de clase (35d): devengado por `fecha` de la ocurrencia.
+        supabase
+          .from('clase_consumos')
+          .select('subtotal, linea, fecha')
+          .eq('club_id', club.id)
+          .gte('fecha', (() => {
+            const d = new Date(`${fecha}T12:00:00`);
+            d.setDate(d.getDate() - 34);
+            return d.toISOString().slice(0, 10);
+          })())
           .lte('fecha', fecha),
         supabase
           .from('reservas')
@@ -186,42 +265,6 @@ export function useInformeDia(
           )
           .eq('club_id', club.id)
           .eq('fecha', mananaFecha),
-        supabase.rpc('fn_flujo_caja', {
-          p_desde: (() => {
-            const d = new Date(`${fecha}T12:00:00`);
-            d.setDate(d.getDate() - 6);
-            return d.toISOString().slice(0, 10);
-          })(),
-          p_hasta: fecha,
-          p_granularidad: 'day',
-          p_cuenta_id: null,
-        }),
-        supabase.rpc('fn_flujo_caja', {
-          p_desde: `${fecha.slice(0, 7)}-01`,
-          p_hasta: fecha,
-          p_granularidad: 'month',
-          p_cuenta_id: null,
-        }),
-        supabase.rpc('fn_flujo_caja', {
-          p_desde: (() => {
-            const parts = fecha.split('-').map(Number);
-            const y = parts[0] ?? 0;
-            const m = parts[1] ?? 1;
-            const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
-            return `${prev.y}-${String(prev.m).padStart(2, '0')}-01`;
-          })(),
-          p_hasta: (() => {
-            const parts = fecha.split('-').map(Number);
-            const y = parts[0] ?? 0;
-            const m = parts[1] ?? 1;
-            const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
-            const lastDay = new Date(prev.y, prev.m, 0).getDate();
-            const dia = Math.min(Number(fecha.slice(8, 10)), lastDay);
-            return `${prev.y}-${String(prev.m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-          })(),
-          p_granularidad: 'month',
-          p_cuenta_id: null,
-        }),
         supabase
           .from('clubes')
           .select('hora_apertura, hora_cierre, nombre')
@@ -236,10 +279,11 @@ export function useInformeDia(
         profesoresRes,
         alumnosHoyRes,
         cobrosMesRes,
+        reservas35Res,
+        ventas35Res,
+        consumosTurno35Res,
+        consumosClase35Res,
         reservasMananaRes,
-        flujo7Res,
-        flujoMesRes,
-        flujoMesAntRes,
         clubRes,
       ]) {
         if (r.error) throw new Error(mapPostgrestError(r.error));
@@ -343,18 +387,128 @@ export function useInformeDia(
         });
       }
 
-      // ── 5. Ocupación + mapa ──────────────────────────────────────
-      const { ocupacion, mapa } = ocupacionDelDia({
-        reservas,
-        clasesHoy,
+      // ── 5. Matriz única de ocupación (spec §4) + Facturado/Cobrado ──
+      const { matriz, mapa: mapaSpec } = matrizOcupacionDelDia({
+        reservas: reservas as ReservaSpecRow[],
+        clases: clasesHoy,
         canchas,
         horaApertura: horarios?.hora_apertura ?? null,
         horaCierre: horarios?.hora_cierre ?? null,
+        diaSemana,
       });
+      // Compat: la vista vieja esperaba OcupacionDia/MapaOcupacion; se
+      // adaptan desde la matriz para que % total/por cancha/pico/mapa
+      // salgan todos de la MISMA fuente (controles C7–C9).
+      const ocupacion: OcupacionDia = {
+        porcentaje: matriz?.pctTotal ?? null,
+        minutosOcupados: matriz ? matriz.celdasOcupadas * 30 : 0,
+        minutosDisponibles: matriz ? matriz.celdasDisponibles * 30 : 0,
+        pico: matriz?.pico
+          ? {
+              etiqueta: `${matriz.pico.desde.slice(0, 5)}–${matriz.pico.hasta.slice(0, 5)} h`,
+              pct: matriz.pico.pct ?? 0,
+            }
+          : null,
+        valle: null,
+      };
+      // Mapa compatible con la vista: agrupa las celdas de 30 min en
+      // horas (cada celda horaria = sus 1–2 medias horas; prioridad
+      // fijo > variable > clase > bloqueo sobre libre).
+      const mapa: MapaOcupacion | null = (() => {
+        if (!mapaSpec || !horarios?.hora_apertura || !horarios?.hora_cierre) return null;
+        const apMin = horaAMinutos(horarios.hora_apertura);
+        const ciMin = horaAMinutos(horarios.hora_cierre);
+        let cierreAbs = ciMin <= apMin ? ciMin + 1440 : ciMin;
+        const horas: number[] = [];
+        for (let h = Math.floor(apMin / 60); h < Math.floor(cierreAbs / 60); h++) {
+          horas.push(h % 24);
+        }
+        if (horas.length === 0) return null;
+        const celdaHora = (celdas: string[], h: number): CeldaOcupacion => {
+          const hIni = h * 60;
+          const hFin = hIni + 60;
+          const tipos = new Set<string>();
+          for (let i = 0; i < celdas.length; i++) {
+            const ini = apMin + i * 30;
+            if (ini < hFin && ini + 30 > hIni) tipos.add(celdas[i] ?? 'libre');
+          }
+          if (tipos.has('fijo')) return 'fijo';
+          if (tipos.has('variable')) return 'variable';
+          if (tipos.has('clase')) return 'clase';
+          if (tipos.has('bloqueo')) return 'bloqueo';
+          return 'libre';
+        };
+        return {
+          horas,
+          canchas: mapaSpec.canchas.map((cm) => {
+            const celdas: string[] = [...cm.celdas];
+            const porHora = horas.map((h) => celdaHora(celdas, h));
+            const ocupadas = porHora.filter((c) => c !== 'libre').length;
+            return {
+              cancha_id: cm.cancha_id,
+              nombre: cm.nombre,
+              celdas: porHora,
+              ocupacionPct: horas.length > 0 ? (ocupadas / horas.length) * 100 : 0,
+            };
+          }),
+        };
+      })();
 
-      // Ingreso por hora disponible / ocupada (canchas + clases cobradas).
+      // Buffet+Shop DEVENGADO por fecha (spec §3/C3/C11): ventas POS +
+      // consumos del turno por fecha de la reserva + consumos de clase
+      // por fecha de la ocurrencia. Se usa para el facturado del día Y
+      // para la serie del gráfico → la barra de hoy SIEMPRE coincide.
+      const buffetPorFecha = new Map<string, number>();
+      const sumarBuffet = (f: string, monto: number) =>
+        buffetPorFecha.set(f, (buffetPorFecha.get(f) ?? 0) + monto);
+      for (const v of (ventas35Res.data ?? []) as Array<{
+        fecha_hora: string;
+        monto_total: number;
+      }>) {
+        sumarBuffet(v.fecha_hora.slice(0, 10), Number(v.monto_total));
+      }
+      for (const c of (consumosTurno35Res.data ?? []) as Array<{
+        subtotal: number;
+        reservas: { fecha: string } | { fecha: string }[] | null;
+      }>) {
+        const res = c.reservas;
+        const fechaReserva = Array.isArray(res) ? res[0]?.fecha : res?.fecha;
+        if (fechaReserva) sumarBuffet(fechaReserva, Number(c.subtotal));
+      }
+      for (const c of (consumosClase35Res.data ?? []) as Array<{
+        subtotal: number;
+        fecha: string;
+      }>) {
+        sumarBuffet(c.fecha, Number(c.subtotal));
+      }
+
+      // ── Facturado (devengado) vs Cobrado (percibido) — spec §2/§3 ──
+      const facturado = facturadoDelDia({
+        reservas: reservas as ReservaSpecRow[],
+        montoClasesHoy,
+        buffetShopMonto: buffetPorFecha.get(fecha) ?? 0,
+      });
+      const conciliacion = conciliarCobros({
+        cobros: raw.cobros.map((c) => ({
+          monto: c.monto,
+          fecha_operacion: c.fecha_operacion ?? null,
+        })),
+        facturadoTotal: facturado.total,
+        fecha,
+      });
+      // Unidades devengadas: Canchas/Escuela del facturado; Buffet/Shop
+      // ya vienen devengados de ítems/consumos (C3 por construcción).
+      const unidadesDevengado = {
+        canchas: facturado.canchas,
+        clases: facturado.escuela,
+        buffet: detalle.unidades.buffet,
+        shop: detalle.unidades.shop,
+        total: facturado.total,
+      };
+
+      // Ingreso por hora: SOLO Canchas + Escuela (spec §5).
       const canchasActivas = canchas.filter((c) => c.activa).length;
-      const horasDisponibles =
+      const horasDisponiblesGlobal =
         horarios?.hora_apertura && horarios?.hora_cierre && canchasActivas > 0
           ? (() => {
               const [ah = 0, am = 0] = horarios.hora_apertura.split(':').map(Number);
@@ -364,23 +518,25 @@ export function useInformeDia(
               return mins / 60;
             })() * canchasActivas
           : null;
-      const ingresoHoraBase = detalle.unidades.canchas + detalle.unidades.clases;
-      const horasOcupadas = ocupacion.minutosOcupados / 60;
-      const ingresoHoraDisponible =
-        horasDisponibles && horasDisponibles > 0
-          ? ingresoHoraBase / horasDisponibles
-          : null;
-      const ingresoHoraOcupada =
-        horasOcupadas > 0 ? ingresoHoraBase / horasOcupadas : null;
+      const ingresoHora = ingresoPorHoraDelDia({
+        canchas: facturado.canchas,
+        escuela: facturado.escuela,
+        matriz,
+        horasDisponiblesGlobal,
+      });
+      const ingresoHoraDisponible = ingresoHora.porHoraDisponible;
+      const ingresoHoraOcupada = ingresoHora.porHoraOcupada;
 
       // ── 6. Actividad ─────────────────────────────────────────────
+      // Spec §3: Insumos (tarjeta) = Buffet+Shop = Ventas §6 = una sola
+      // fuente devengada (`buffetPorFecha`), no el detalle cobrado.
       const actividad = actividadDelDia({
         reservas,
         clasesHoy,
         alumnosClasesHoy,
         montoClasesHoy,
         insumosUnidades: detalle.insumosUnidades,
-        insumosMonto: detalle.insumosMonto,
+        insumosMonto: buffetPorFecha.get(fecha) ?? 0,
       });
 
       // ── 7. Clases por profesor ───────────────────────────────────
@@ -503,39 +659,74 @@ export function useInformeDia(
         }
       }
 
-      // ── 9. Facturación 7 días + mes ──────────────────────────────
-      type FlujoRow = {
-        periodo: string;
-        ingresos: number | string;
-      };
-      const facturacion7dias: DiaFacturacion[] = (
-        (flujo7Res.data ?? []) as unknown as FlujoRow[]
-      ).map((r) => ({ fecha: r.periodo, ingresos: Number(r.ingresos) }));
-
-      const facturadoMes = (
-        ((flujoMesRes.data ?? []) as unknown as FlujoRow[]).reduce(
-          (a, r) => a + Number(r.ingresos),
-          0,
-        )
-      );
-      const facturadoMesAnt = (
-        ((flujoMesAntRes.data ?? []) as unknown as FlujoRow[]).reduce(
-          (a, r) => a + Number(r.ingresos),
-          0,
-        )
-      );
+      // ── 9. Serie diaria de Facturado (devengado) — spec §7 ──────
+      // Canchas desde reservas35; Escuela desde ocurrencias (ventana 35d);
+      // Buffet+Shop desde `buffetPorFecha` (ya calculado en §5 con las
+      // mismas fuentes devengadas → la barra de hoy = KPI, C11).
+      const escuelaPorFecha = new Map<string, number>();
+      for (const c of (cobrosMesRes.data ?? []) as Array<{
+        fecha: string;
+        monto_clase: number;
+      }>) {
+        escuelaPorFecha.set(
+          c.fecha,
+          (escuelaPorFecha.get(c.fecha) ?? 0) + Number(c.monto_clase),
+        );
+      }
+      const reservasPorFecha = new Map<string, ReservaSpecRow[]>();
+      for (const r of (reservas35Res.data ?? []) as unknown as ReservaSpecRow[]) {
+        const arr = reservasPorFecha.get(r.fecha) ?? [];
+        arr.push(r);
+        reservasPorFecha.set(r.fecha, arr);
+      }	
+      const facturadoPorFecha = new Map<string, number>();
+      const fechasConDatos = new Set<string>([
+        ...reservasPorFecha.keys(),
+        ...escuelaPorFecha.keys(),
+        ...buffetPorFecha.keys(),
+      ]);
+      for (const f of fechasConDatos) {
+        facturadoPorFecha.set(
+          f,
+          facturadoDelDia({
+            reservas: reservasPorFecha.get(f) ?? [],
+            montoClasesHoy: escuelaPorFecha.get(f) ?? 0,
+            buffetShopMonto: buffetPorFecha.get(f) ?? 0,
+          }).total,
+        );
+      }
+      const serieCompleta = [...facturadoPorFecha.entries()]
+        .map(([f, v]) => ({ fecha: f, facturado: v }))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const mesActual = fecha.slice(0, 7);
+      const serieMes = serieCompleta.filter((s) => s.fecha.slice(0, 7) === mesActual);
+      const seriePrevias = serieCompleta.filter((s) => s.fecha.slice(0, 7) !== mesActual);
       const hoy = new Date(`${fecha}T12:00:00`);
-      const mes = comoVieneElMes({
-        facturadoMes,
-        facturadoMesAntMismoPeriodo: facturadoMesAnt,
-        diasTranscurridos: hoy.getDate(),
-        diasMes: new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate(),
-        ocupacionMesPct: null,
+      const diasMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+      const proy = proyeccionCierreMes({
+        serieMes,
+        seriePrevias,
+        fecha,
+        diasMes,
       });
+      const facturacion7dias: DiaFacturacion[] = serieCompleta
+        .slice(-7)
+        .map((s) => ({ fecha: s.fecha, ingresos: s.facturado }));
+      const facturadoMes = proy.facturadoAlDiaN;
+      const mes: ComoVieneElMes = {
+        facturadoMes,
+        facturadoMesAntMismoPeriodo: 0,
+        variacionPct: null,
+        proyeccionCierre: proy.proyeccionCierre,
+        ocupacionMesPct: null,
+        proyeccionPorDiaSemana: proy.proyeccionPorDiaSemana,
+        mesAnteriorSinDatos: true,
+      };
 
-      // ── 10. Fugas + mañana ───────────────────────────────────────
-      const fugas = calcularFugas({
-        reservas,
+      // ── 10. Fugas + mañana (spec §6) ─────────────────────────────
+      const fugas = calcularFugasSpec({
+        reservas: reservas as ReservaSpecRow[],
+        pendienteHoy: conciliacion.pendienteHoy,
         diferenciasJornadas: jornadas.map((j) => j.arqueo.diferencia),
       });
       const manana = resumenManana({
@@ -545,11 +736,41 @@ export function useInformeDia(
         horaCierre: horarios?.hora_cierre ?? null,
       });
 
-      const pendientesCount = reservas.filter(
-        (r) =>
-          r.estado !== 'cancelada' &&
-          Number(r.monto_total) - Number(r.monto_pagado) > 0,
+      const reservasPendientes = reservas
+        .filter(
+          (r) =>
+            r.id !== undefined &&
+            r.estado !== 'cancelada' &&
+            Number(r.monto_total) - Number(r.monto_pagado) > 0,
+        )
+        .map((r) => ({
+          id: r.id as number,
+          cancha_id: r.cancha_id,
+          hora_inicio: r.hora_inicio,
+          saldo: Number(r.monto_total) - Number(r.monto_pagado),
+        }));
+      const pendientesCount = reservasPendientes.length;
+
+      // ── 11. Controles de cuadratura C1–C12 (spec §8) ─────────────
+      const clasesSinAlumnos = clasesHoy.filter(
+        (c) => (alumnosHoyPorClase.get(c.id) ?? 0) === 0,
       ).length;
+      const controles = controlesCuadratura({
+        facturado,
+        escuelaTotalDia: facturado.escuela,
+        buffetShopUnidades: detalle.unidades.buffet + detalle.unidades.shop,
+        ventasSeccion6: buffetPorFecha.get(fecha) ?? 0,
+        conciliacion,
+        matriz,
+        horasTarjetas:
+          actividad.turnosFijos.horas +
+          actividad.variables.horas +
+          actividad.clases.horas,
+        suma7dias: facturacion7dias.reduce((a, d) => a + d.ingresos, 0),
+        facturadoHoy: facturado.total,
+        clasesSinAlumnos,
+        mesAnteriorSinDatos: true,
+      });
 
       const lineasEncabezado = fmtActividadLineas(actividad, ocupacion);
 
@@ -562,19 +783,29 @@ export function useInformeDia(
             `${turnos.length} ${turnos.length === 1 ? 'jornada' : 'jornadas'} de caja · ${canchasActivas} canchas · horario ${horarios?.hora_apertura?.slice(0, 5) ?? '—'}–${horarios?.hora_cierre?.slice(0, 5) ?? '—'}`,
           ],
         },
-        facturacion: total,
+        // Spec §2: "Facturado" = devengado (fecha del turno/venta).
+        // El cobrado del día vive en `cobrado`/`conciliacion`.
+        facturacion: facturado.total,
+        cobrado: conciliacion.cobradoTotal,
+        facturado,
+        conciliacion,
         ocupacion,
         mapa,
         ingresoHoraDisponible,
         ingresoHoraOcupada,
-        pendienteCobro: fugas.pendienteCobro,
+        ingresoHora,
+        pendienteCobro: { count: pendientesCount, total: conciliacion.pendienteHoy },
+        reservasPendientes,
         actividad,
         clasesProfesor,
         porMedio: { items, total },
         jornadas,
-        unidades: detalle.unidades,
+        unidades: unidadesDevengado,
+        controles,
         buffetShop: {
-          ventas: detalle.margenBase,
+          // Spec C3: "Ventas" sección 6 = insumos devengados =
+          // Buffet+Shop del facturado. Una sola fuente.
+          ventas: buffetPorFecha.get(fecha) ?? 0,
           margenPct:
             detalle.margenBase > 0
               ? (detalle.margenPositivo / detalle.margenBase) * 100

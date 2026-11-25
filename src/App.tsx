@@ -6,7 +6,7 @@ import { LoginPage, ResetPasswordPage } from '@/features/auth';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { useSession } from '@/features/auth/useSession';
 import { AppShell } from '@/components/layout/AppShell';
-import { LandingPage, ClubProfilePage, BuscarPage } from '@/features/landing';
+import { LandingPage, ClubProfilePage, BuscarPage, PrivacidadPage } from '@/features/landing';
 import { PlayerApp } from '@/features/player/PlayerApp';
 import { DesafiosPrototype } from '@/features/desafios';
 import { PlataformaProtectedRoute } from '@/features/plataforma/PlataformaProtectedRoute';
@@ -152,6 +152,7 @@ export function App() {
           element={esAppNativa ? <Navigate to="/player" replace /> : <LandingPage />}
         />
         <Route path="/buscar" element={<BuscarPage />} />
+        <Route path="/privacidad" element={<PrivacidadPage />} />
         <Route path="/club/:slug" element={<ClubProfilePage />} />
         <Route path="/prototipo/desafios" element={<DesafiosPrototype />} />
         <Route path="/player/*" element={<PlayerApp />} />
