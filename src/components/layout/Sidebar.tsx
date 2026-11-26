@@ -75,6 +75,8 @@ export function SidebarNav({ onNavigate, collapsed }: SidebarNavProps) {
         if (item.soloAdmin && user?.rol !== 'admin') return false;
         // La visibilidad la decide SIEMPRE el permiso granular del módulo que
         // el admin concede en "Permisos del vendedor". Nunca el rol.
+        if (item.modulos?.length)
+          return item.modulos.some((m) => getPermiso(user, m, 'ver'));
         if (item.modulo) return getPermiso(user, item.modulo, 'ver');
         return true;
       })
@@ -86,6 +88,8 @@ export function SidebarNav({ onNavigate, collapsed }: SidebarNavProps) {
           children: item.children.filter(
             (sub) =>
               (!sub.soloAdmin || user?.rol === 'admin') &&
+              (!sub.modulos?.length ||
+                sub.modulos.some((m) => getPermiso(user, m, 'ver'))) &&
               (!sub.modulo || getPermiso(user, sub.modulo, 'ver')),
           ),
         };

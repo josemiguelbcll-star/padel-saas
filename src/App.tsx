@@ -193,7 +193,7 @@ export function App() {
           <Route path="reservas" element={<ModuleRoute modulo="reservas"><ReservasPage /></ModuleRoute>} />
           <Route path="turnos-fijos" element={<ModuleRoute modulo="reservas"><TurnosFijosPage /></ModuleRoute>} />
 
-          <Route path="inventario" element={<ModuleRoute modulo="inventario"><InventarioPage /></ModuleRoute>} />
+          <Route path="inventario" element={<ModuleRoute modulos={['inventario', 'ordenes_compra']}><InventarioPage /></ModuleRoute>} />
 
           <Route path="jugadores" element={<ModuleRoute modulo="reservas"><JugadoresPage /></ModuleRoute>} />
 
@@ -250,14 +250,22 @@ export function App() {
 function ModuleRoute({
   children,
   modulo,
+  modulos,
   accion = 'ver',
 }: {
   children: ReactNode;
-  modulo: string;
+  modulo?: string;
+  /** Alternativa a `modulo`: acceso si tiene el permiso en alguno. */
+  modulos?: string[];
   accion?: 'ver' | 'editar';
 }) {
   const { user } = useSession();
-  if (!getPermiso(user, modulo, accion)) {
+  const permitido = modulos?.length
+    ? modulos.some((m) => getPermiso(user, m, accion))
+    : modulo
+      ? getPermiso(user, modulo, accion)
+      : true;
+  if (!permitido) {
     return <Navigate to="/app" replace />;
   }
   return <>{children}</>;
