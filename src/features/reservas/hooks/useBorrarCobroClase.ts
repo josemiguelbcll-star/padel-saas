@@ -14,6 +14,11 @@ export interface BorrarCobroClaseInput {
   claseId: number;
   /** Fecha de la ocurrencia ('YYYY-MM-DD') para invalidar la query correcta. */
   fecha: string;
+  /**
+   * Motivo de la corrección. Obligatorio cuando el cobro ya entró a una
+   * caja cerrada (solo admin); opcional en el resto de los casos.
+   */
+  motivo?: string;
 }
 
 export function useBorrarCobroClase(): UseMutationResult<
@@ -24,9 +29,10 @@ export function useBorrarCobroClase(): UseMutationResult<
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, BorrarCobroClaseInput>({
-    mutationFn: async ({ cobroId }) => {
+    mutationFn: async ({ cobroId, motivo }) => {
       const { error: rpcError } = await supabase.rpc('fn_borrar_cobro_clase', {
         p_cobro_id: cobroId,
+        p_motivo: motivo ?? null,
       });
 
       if (rpcError) throw new Error(mapPostgrestError(rpcError));

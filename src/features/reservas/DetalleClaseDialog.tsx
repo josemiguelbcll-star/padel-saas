@@ -41,6 +41,7 @@ import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useBorrarCobroClase } from './hooks/useBorrarCobroClase';
+import { useCajasCerradasDePagos } from './hooks/useReservaPagos';
 import { useCobrarClase } from './hooks/useCobrarClase';
 import {
   useClaseOcurrencia,
@@ -222,6 +223,7 @@ function DetalleClaseBody({
   const cobrarAlumnoMutation = useCobrarAlumnoClase();
   const cobrarGeneralMutation = useCobrarClase();
   const borrarCobroMutation = useBorrarCobroClase();
+  const [motivoBorrarCobro, setMotivoBorrarCobro] = useState('');
 
   const tarifasClasesQuery = useTarifasClases();
   const [tarifaFranjaId, setTarifaFranjaId] = useState<number | null>(null);
@@ -241,6 +243,10 @@ function DetalleClaseBody({
     },
     initialData: pagosIniciales.filter((p) => p.clase_id === clase.id),
   });
+
+  // Cajas ya cerradas que recibieron estos cobros: si el cobro entró a una
+  // jornada arqueada, la RPC exige admin + motivo para corregirlo.
+  const cajasCerradas = useCajasCerradasDePagos(pagos);
 
   // Alumnos y Consumos en memoria
   const alumnos = useMemo(() => alumnosQuery.data ?? [], [alumnosQuery.data]);
@@ -732,15 +738,17 @@ function DetalleClaseBody({
     }
   }
 
-  async function handleBorrarPago(cobroId: number) {
+  async function handleBorrarPago(cobroId: number, motivo?: string) {
     setCobroError(null);
     try {
       await borrarCobroMutation.mutateAsync({
         cobroId,
         claseId: clase.id,
         fecha,
+        motivo,
       });
       setBorrandoCobroId(null);
+      setMotivoBorrarCobro('');
     } catch (err) {
       setCobroError(err instanceof Error ? err.message : 'No pudimos eliminar el pago.');
     }
@@ -1916,6 +1924,8 @@ function DetalleClaseBody({
                     ? cuentasAlumnos.find((a) => a.alumno.id === p.clase_alumno_id)
                     : null;
                   const isConfirmingBorrar = borrandoCobroId === p.id;
+                  const pagoCajaCerrada =
+                    p.turno_caja_id != null && cajasCerradas.has(p.turno_caja_id);
 
                   if (isConfirmingBorrar) {
                     return (
@@ -1930,14 +1940,30 @@ function DetalleClaseBody({
                             <p className="text-muted-foreground">
                               {fmtMoney(p.monto)} · {MEDIO_PAGO_LABEL[p.medio_pago]} · {fmtFechaHoraCorta(p.fecha_hora)}. Se actualizará la caja y el saldo del alumno.
                             </p>
+                            {pagoCajaCerrada && (
+                              <p className="mt-1 font-medium text-destructive">
+                                Este cobro ya fue cerrado en caja: solo un administrador puede corregirlo, con motivo.
+                              </p>
+                            )}
                           </div>
                         </div>
+                        {pagoCajaCerrada && (
+                          <Input
+                            value={motivoBorrarCobro}
+                            onChange={(e) => setMotivoBorrarCobro(e.target.value)}
+                            placeholder="Motivo de la corrección"
+                            className="h-8 text-xs"
+                          />
+                        )}
                         <div className="flex justify-end gap-2">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => setBorrandoCobroId(null)}
+                            onClick={() => {
+                              setBorrandoCobroId(null);
+                              setMotivoBorrarCobro('');
+                            }}
                             className="h-7 text-xs"
                           >
                             No, mantener
@@ -1946,8 +1972,16 @@ function DetalleClaseBody({
                             type="button"
                             variant="destructive"
                             size="sm"
-                            onClick={() => void handleBorrarPago(p.id)}
-                            disabled={borrarCobroMutation.isPending}
+                            onClick={() =>
+                              void handleBorrarPago(
+                                p.id,
+                                pagoCajaCerrada ? motivoBorrarCobro.trim() : undefined,
+                              )
+                            }
+                            disabled={
+                              borrarCobroMutation.isPending ||
+                              (pagoCajaCerrada && motivoBorrarCobro.trim() === '')
+                            }
                             className="h-7 text-xs"
                           >
                             {borrarCobroMutation.isPending ? 'Borrando…' : 'Sí, anular pago'}
