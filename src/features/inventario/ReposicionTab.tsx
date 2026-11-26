@@ -10,6 +10,8 @@ import {
   type ProductoReponer,
 } from './utils/reponer';
 import { NuevaOCDialog } from './NuevaOCDialog';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 
 /** Ventana de venta para estimar agotamiento. Igual a la de la alarma del
  *  dashboard → los números coinciden por construcción. */
@@ -32,6 +34,8 @@ const LINEA_LABEL: Record<string, string> = {
  * ventana 30d): esto es operativo, foco en agotamiento inminente.
  */
 export function ReposicionTab() {
+  const { user } = useSession();
+  const puedeGenerarOC = getPermiso(user, 'ordenes_compra', 'editar');
   const [filtro, setFiltro] = useState<FiltroReposicion>('urgentes');
   const query = useRotacion(DIAS_VENTANA);
 
@@ -125,6 +129,7 @@ export function ReposicionTab() {
         ) : (
           <TablaReponer
             filas={lista}
+            puedeGenerarOC={puedeGenerarOC}
             onPedir={(id) => {
               setPrefilledProdId(id);
               setOcOpen(true);
@@ -165,9 +170,11 @@ function severidadFila(p: ProductoReponer): SeveridadFila {
 
 function TablaReponer({
   filas,
+  puedeGenerarOC,
   onPedir,
 }: {
   filas: ProductoReponer[];
+  puedeGenerarOC: boolean;
   onPedir: (productoId: number) => void;
 }) {
   return (
@@ -239,16 +246,18 @@ function TablaReponer({
                   {f.unidades_vendidas_ventana}
                 </td>
                 <td className="px-3 py-2 text-right align-middle">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => onPedir(f.producto_id)}
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    Generar OC
-                  </Button>
+                  {puedeGenerarOC && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onPedir(f.producto_id)}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      Generar OC
+                    </Button>
+                  )}
                 </td>
               </tr>
             );

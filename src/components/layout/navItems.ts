@@ -32,6 +32,12 @@ export interface NavSubItem {
    * en "Permisos del vendedor" manda, nunca el rol.
    */
   modulo?: string;
+  /**
+   * Alternativa a `modulo`: el item se muestra si el usuario tiene `ver`
+   * en AL MENOS uno de estos módulos (ej. Inventario es visible con
+   * `inventario` o con `ordenes_compra`).
+   */
+  modulos?: string[];
   /** Restringe la navegación a usuarios con rol administrador. */
   soloAdmin?: boolean;
 }
@@ -48,6 +54,8 @@ export interface NavItem {
    * puede ser tapado por un gate de rol.
    */
   modulo?: string;
+  /** Igual que en NavSubItem: visible si tiene `ver` en alguno. */
+  modulos?: string[];
   /** Restringe la navegación a usuarios con rol administrador. */
   soloAdmin?: boolean;
   /** Sub-items siempre expandidos debajo del padre. */
@@ -114,6 +122,11 @@ export const navItems: NavItem[] = [
       { label: 'Cuentas por pagar', to: '/app/cxp', icon: Receipt },
     ],
   },
-  { label: 'Inventario', to: '/app/inventario', icon: Package, modulo: 'inventario' },
+  {
+    label: 'Inventario',
+    to: '/app/inventario',
+    icon: Package,
+    modulos: ['inventario', 'ordenes_compra'],
+  },
   { label: 'Configuración', to: '/app/configuracion', icon: Settings, modulo: 'configuracion' },
 ];

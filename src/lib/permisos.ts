@@ -9,6 +9,8 @@ export const SECCIONES_PERMISOS = [
   { key: 'finanzas', label: 'Finanzas', descripcion: 'Visualizar flujo de caja, cargar gastos y otros ingresos.' },
   { key: 'cuentas_por_pagar', label: 'Cuentas por pagar', descripcion: 'Editar y anular deudas y cuotas pendientes.' },
   { key: 'inventario', label: 'Inventario', descripcion: 'Gestión de stock, proveedores y órdenes de compra.' },
+  { key: 'ordenes_compra', label: 'Órdenes de compra', descripcion: 'Crear, editar y cancelar órdenes de compra a proveedores.' },
+  { key: 'ventas', label: 'Ventas — historial', descripcion: 'Ver el historial de ventas y anular o corregir ventas.' },
   { key: 'configuracion', label: 'Configuración', descripcion: 'Editar canchas, tarifas, horarios, profesores y marca.' },
 ] as const;
 
@@ -36,6 +38,8 @@ export const DEFAULT_PERMISOS: Record<string, PermisoModulo> = {
   finanzas: { ver: true, editar: true },
   cuentas_por_pagar: { ver: true, editar: false },
   inventario: { ver: false, editar: false },
+  ordenes_compra: { ver: false, editar: false },
+  ventas: { ver: true, editar: false },
   configuracion: { ver: true, editar: false },
 };
 

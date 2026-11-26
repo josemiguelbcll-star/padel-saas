@@ -20,6 +20,7 @@ import {
 import { useSession } from '@/features/auth';
 import { useJugadores } from '@/features/reservas/hooks/useJugadores';
 import { mapPostgrestError } from '@/lib/dbErrors';
+import { getPermiso } from '@/lib/permisos';
 import { supabase } from '@/lib/supabase';
 import type {
   MedioPago,
@@ -109,7 +110,8 @@ function invalidarDatosDeVentas(queryClient: ReturnType<typeof useQueryClient>):
 }
 
 export function HistorialVentas() {
-  const { club } = useSession();
+  const { user, club } = useSession();
+  const puedeGestionarVentas = getPermiso(user, 'ventas', 'editar');
   const queryClient = useQueryClient();
   const productosQuery = useProductosConStock();
   const cuentasQuery = useCuentas();
@@ -518,7 +520,7 @@ export function HistorialVentas() {
                     {venta.activa ? 'Activa' : 'Anulada'}
                   </td>
                   <td className="px-3 py-3">
-                    {venta.activa && (
+                    {venta.activa && puedeGestionarVentas && (
                       <div className="flex justify-end gap-2">
                         <Button type="button" size="sm" variant="outline" onClick={() => abrirEdicion(venta)}>
                           <Pencil className="mr-1 h-3.5 w-3.5" />

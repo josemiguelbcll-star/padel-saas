@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useProveedores } from '@/features/configuracion/hooks/useProveedores';
+import { useSession } from '@/features/auth';
+import { getPermiso } from '@/lib/permisos';
 import { MEDIO_PAGO_LABEL } from '@/features/finanzas/finanzasSchemas';
 import type {
   Compra,
@@ -100,6 +102,10 @@ function resolveRango(f: ComprasFiltros): { desde: string; hasta: string } {
 }
 
 export function ComprasTab() {
+  const { user } = useSession();
+  const puedeGestionarOC = getPermiso(user, 'ordenes_compra', 'editar');
+  // fn_recibir_oc sigue siendo admin-only (asiento contable + ingreso de stock).
+  const esAdmin = user?.rol === 'admin';
   const proveedoresQuery = useProveedores();
   const [filtros, setFiltros] = useState<ComprasFiltros>(getInitialFiltros);
   const rango = useMemo(() => resolveRango(filtros), [filtros]);
@@ -170,6 +176,7 @@ export function ComprasTab() {
         onChange={setFiltros}
         proveedores={proveedoresActivos}
         onNueva={() => setNuevaOpen(true)}
+        puedeCrear={puedeGestionarOC}
       />
 
       {comprasQuery.isLoading && <SkeletonTabla />}
@@ -190,6 +197,8 @@ export function ComprasTab() {
           onEditar={openEditarFila}
           onCancelar={(f) => setCancelandoFila(f)}
           onRecibir={(c) => setRecibirCompraId(c.id)}
+          puedeGestionar={puedeGestionarOC}
+          esAdmin={esAdmin}
         />
       )}
 
@@ -241,9 +250,10 @@ interface FiltrosBarProps {
   onChange: (f: ComprasFiltros) => void;
   proveedores: Array<{ id: number; nombre: string }>;
   onNueva: () => void;
+  puedeCrear: boolean;
 }
 
-function FiltrosBar({ filtros, onChange, proveedores, onNueva }: FiltrosBarProps) {
+function FiltrosBar({ filtros, onChange, proveedores, onNueva, puedeCrear }: FiltrosBarProps) {
   function set<K extends keyof ComprasFiltros>(key: K, value: ComprasFiltros[K]) {
     onChange({ ...filtros, [key]: value });
   }
@@ -384,12 +394,14 @@ function FiltrosBar({ filtros, onChange, proveedores, onNueva }: FiltrosBarProps
           </>
         )}
 
-        <div className="ml-auto flex items-end pb-0.5">
-          <Button type="button" onClick={onNueva}>
-            <Plus className="h-4 w-4" />
-            Nueva OC
-          </Button>
-        </div>
+        {puedeCrear && (
+          <div className="ml-auto flex items-end pb-0.5">
+            <Button type="button" onClick={onNueva}>
+              <Plus className="h-4 w-4" />
+              Nueva OC
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -405,6 +417,8 @@ interface ComprasTableProps {
   onEditar: (c: CompraListaFila) => void;
   onCancelar: (c: CompraListaFila) => void;
   onRecibir: (c: CompraListaFila) => void;
+  puedeGestionar: boolean;
+  esAdmin: boolean;
 }
 
 function ComprasTable({
@@ -413,6 +427,8 @@ function ComprasTable({
   onEditar,
   onCancelar,
   onRecibir,
+  puedeGestionar,
+  esAdmin,
 }: ComprasTableProps) {
   if (compras.length === 0) {
     return (
@@ -463,6 +479,8 @@ function ComprasTable({
                 onEditar={() => onEditar(c)}
                 onCancelar={() => onCancelar(c)}
                 onRecibir={() => onRecibir(c)}
+                puedeGestionar={puedeGestionar}
+                esAdmin={esAdmin}
               />
             ))}
           </tbody>
@@ -478,6 +496,8 @@ interface ComprasRowProps {
   onEditar: () => void;
   onCancelar: () => void;
   onRecibir: () => void;
+  puedeGestionar: boolean;
+  esAdmin: boolean;
 }
 
 function ComprasRow({
@@ -486,6 +506,8 @@ function ComprasRow({
   onEditar,
   onCancelar,
   onRecibir,
+  puedeGestionar,
+  esAdmin,
 }: ComprasRowProps) {
   // Fecha principal: si está recibida, mostramos fecha_recepcion; si no,
   // fecha_oc. Debajo, la fecha_oc en chico (cuando recibida).
@@ -572,36 +594,53 @@ function ComprasRow({
         <div className="flex justify-end gap-1">
           {c.estado === 'pedida' ? (
             <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onEditar}
-                aria-label={`Editar OC #${c.id}`}
-                title="Editar"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onCancelar}
-                aria-label={`Cancelar OC #${c.id}`}
-                title="Cancelar"
-                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={onRecibir}
-                aria-label={`Recibir OC #${c.id}`}
-              >
-                <Receipt className="h-3.5 w-3.5" />
-                Recibir
-              </Button>
+              {puedeGestionar && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onEditar}
+                    aria-label={`Editar OC #${c.id}`}
+                    title="Editar"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCancelar}
+                    aria-label={`Cancelar OC #${c.id}`}
+                    title="Cancelar"
+                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+              {esAdmin && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onRecibir}
+                  aria-label={`Recibir OC #${c.id}`}
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  Recibir
+                </Button>
+              )}
+              {!puedeGestionar && !esAdmin && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClick}
+                  aria-label={`Ver detalle de compra #${c.id}`}
+                >
+                  Ver
+                </Button>
+              )}
             </>
           ) : (
             <Button

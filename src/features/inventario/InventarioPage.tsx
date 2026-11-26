@@ -37,6 +37,7 @@ export function InventarioPage() {
   const canEdit =
     getPermiso(user, 'inventario', 'editar') ||
     getPermiso(user, 'configuracion', 'editar');
+  const puedeVerCompras = getPermiso(user, 'ordenes_compra', 'ver');
 
   // Tab inicial desde la URL (?tab=reposicion) → deep-link desde la alarma del
   // dashboard. Solo inicializa; el cambio de tab posterior no toca la URL.
@@ -46,6 +47,8 @@ export function InventarioPage() {
     return esTab(t) ? t : 'catalogo';
   });
   const [crearProductoOpen, setCrearProductoOpen] = useState(false);
+  const tabEfectiva: Tab =
+    tab === 'compras' && !puedeVerCompras ? 'catalogo' : tab;
 
   return (
     <div className="space-y-5">
@@ -71,12 +74,16 @@ export function InventarioPage() {
         )}
       </header>
 
-      <TabsBar activa={tab} onChange={setTab} />
+      <TabsBar
+        activa={tabEfectiva}
+        onChange={setTab}
+        tabs={TABS.filter((t) => t.value !== 'compras' || puedeVerCompras)}
+      />
 
-      {tab === 'catalogo' && <CatalogoTab />}
-      {tab === 'movimientos' && <MovimientosTab />}
-      {tab === 'compras' && <ComprasTab />}
-      {tab === 'reposicion' && <ReposicionTab />}
+      {tabEfectiva === 'catalogo' && <CatalogoTab />}
+      {tabEfectiva === 'movimientos' && <MovimientosTab />}
+      {tabEfectiva === 'compras' && <ComprasTab />}
+      {tabEfectiva === 'reposicion' && <ReposicionTab />}
 
       <ProductoFormDialog
         open={crearProductoOpen}
@@ -91,6 +98,7 @@ export function InventarioPage() {
 interface TabsBarProps {
   activa: Tab;
   onChange: (next: Tab) => void;
+  tabs: ReadonlyArray<{ value: Tab; label: string }>;
 }
 
 const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
@@ -100,14 +108,14 @@ const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
   { value: 'reposicion', label: 'Reposición' },
 ];
 
-function TabsBar({ activa, onChange }: TabsBarProps) {
+function TabsBar({ activa, onChange, tabs }: TabsBarProps) {
   return (
     <div
       role="tablist"
       aria-label="Vistas del inventario"
       className="flex w-fit gap-0.5 rounded-md border border-border bg-muted/40 p-0.5"
     >
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const isActive = activa === t.value;
         return (
           <button
