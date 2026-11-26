@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronLeft, FileSpreadsheet, History, Plus, Tag, UtensilsCrossed } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, FileSpreadsheet, History, Plus, Tag, UtensilsCrossed, X } from 'lucide-react';
 import { useSession } from '@/features/auth';
 import { getPermiso } from '@/lib/permisos';
 import { useProductosConStock } from '@/features/configuracion/hooks/useProductosConStock';
@@ -11,6 +11,8 @@ import {
   useCrearMesa,
   useCargarConsumoMesa,
   useQuitarConsumoMesa,
+  useCerrarMesaVacia,
+  type BuffetMesa,
 } from './hooks/useMesasBuffet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +72,8 @@ export function BuffetPage() {
   const crearMesaMutation = useCrearMesa();
   const cargarConsumo = useCargarConsumoMesa();
   const quitarConsumo = useQuitarConsumoMesa();
+  const cerrarMesaVaciaMutation = useCerrarMesaVacia();
+  const [mesaVaciaTarget, setMesaVaciaTarget] = useState<BuffetMesa | null>(null);
 
   const selectedMesa = useMemo(() => {
     if (selectedMesaId === null) return null;
@@ -256,6 +260,18 @@ export function BuffetPage() {
     () => itemsMesa.reduce((sum, i) => sum + i.subtotal, 0),
     [itemsMesa],
   );
+
+  // Cierre directo desde la card de "Mesas abiertas":
+  // vacía → confirma cierre sin cobro; con consumos → abre el cobro.
+  function handleCerrarMesaDesdeCard(mesa: BuffetMesa): void {
+    if (!canEdit) return;
+    if (mesa.consumos.length === 0) {
+      setMesaVaciaTarget(mesa);
+    } else {
+      setSelectedMesaId(mesa.id);
+      setCerrarMesaOpen(true);
+    }
+  }
 
   async function handleCreateMesa(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -468,13 +484,26 @@ export function BuffetPage() {
                             <div className="space-y-2">
                               <div className="flex items-start justify-between gap-2">
                                 <h3 className="font-semibold text-base text-foreground leading-tight">{m.nombre}</h3>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium ${
+                                <div className="flex items-center gap-1.5">
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCerrarMesaDesdeCard(m)}
+                                      title="Cerrar mesa"
+                                      aria-label={`Cerrar ${m.nombre}`}
+                                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium ${
                                   m.consumos.length > 0
                                     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                     : 'bg-muted text-muted-foreground'
                                 }`}>
                                   {m.consumos.length > 0 ? 'Con consumos' : 'Vacía'}
                                 </span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <UtensilsCrossed className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
@@ -544,6 +573,7 @@ export function BuffetPage() {
                       onIncrement={incrementOneMesa}
                       onDecrement={decrementOneMesa}
                       onCerrar={() => setCerrarMesaOpen(true)}
+                      onCerrarVacia={() => setMesaVaciaTarget(selectedMesa)}
                       readOnly={!canEdit}
                     />
                   </div>
@@ -595,6 +625,49 @@ export function BuffetPage() {
           });
         }}
       />
+
+      {/* Cerrar mesa vacía sin registrar venta */}
+      <Dialog
+        open={mesaVaciaTarget !== null}
+        onOpenChange={(open) => { if (!open) setMesaVaciaTarget(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Cerrar {mesaVaciaTarget?.nombre ?? 'mesa'}</DialogTitle>
+            <DialogDescription>
+              La mesa no tiene consumos cargados. Se va a cerrar sin registrar venta.
+            </DialogDescription>
+          </DialogHeader>
+          {cerrarMesaVaciaMutation.isError && (
+            <p className="text-sm text-destructive" role="alert">
+              {cerrarMesaVaciaMutation.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMesaVaciaTarget(null)}
+              disabled={cerrarMesaVaciaMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                if (!mesaVaciaTarget) return;
+                await cerrarMesaVaciaMutation.mutateAsync(mesaVaciaTarget.id);
+                setMesaVaciaTarget(null);
+                setSelectedMesaId(null);
+                setLastSale({ msg: `${mesaVaciaTarget.nombre} cerrada sin cobro.` });
+              }}
+              disabled={cerrarMesaVaciaMutation.isPending}
+            >
+              {cerrarMesaVaciaMutation.isPending ? 'Cerrando…' : 'Cerrar mesa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ImportarStockDialog
         open={importarStockOpen}

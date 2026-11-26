@@ -62,24 +62,26 @@ export function ImportarStockDialog({ open, onOpenChange, onSuccess }: ImportarS
   function handleDescargarPlantilla(e: React.MouseEvent): void {
     e.preventDefault();
 
-    // Headers de la plantilla vacía con los nuevos campos de indumentaria (Talla y Color)
-    const headers = ['Producto', 'Stock', 'Costo', 'Precio', 'Categoria', 'Talla', 'Color'];
+    // Headers de la plantilla vacía: Producto, Codigo, Talle, Color,
+    // Stock, Costo, Precio, Categoria
+    const headers = ['Producto', 'Codigo', 'Talle', 'Color', 'Stock', 'Costo', 'Precio', 'Categoria'];
     const data = [
       headers,
-      ['Ejemplo Remera Bullpadel', 10, 15000, 25000, 'vestimenta', 'M', 'Negro'],
-      ['Ejemplo Bebida Isotónica', 24, 800, 1500, 'bebidas', '', ''],
+      ['Ejemplo Remera Bullpadel', 'REM-001', 'M', 'Negro', 10, 15000, 25000, 'vestimenta'],
+      ['Ejemplo Bebida Isotónica', '', '', '', 24, 800, 1500, 'bebidas'],
     ];
 
     // Crear worksheet con ancho de columnas configurado
     const worksheet = XLSX.utils.aoa_to_sheet(data);
     worksheet['!cols'] = [
       { wch: 32 }, // Producto
+      { wch: 14 }, // Codigo
+      { wch: 10 }, // Talle
+      { wch: 12 }, // Color
       { wch: 10 }, // Stock
       { wch: 12 }, // Costo
       { wch: 12 }, // Precio
       { wch: 16 }, // Categoria
-      { wch: 12 }, // Talla
-      { wch: 14 }, // Color
     ];
 
     // Crear el libro de trabajo (workbook)

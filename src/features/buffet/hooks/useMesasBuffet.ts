@@ -184,6 +184,28 @@ export function useQuitarConsumoMesa() {
   });
 }
 
+export function useCerrarMesaVacia() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, number>({
+    mutationFn: async (mesaId: number) => {
+      const { error } = await supabase
+        .from('buffet_mesas')
+        .update({
+          abierta: false,
+          cerrada_at: new Date().toISOString(),
+          venta_id: null,
+        })
+        .eq('id', mesaId);
+
+      if (error) throw new Error(mapPostgrestError(error));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
+    },
+  });
+}
+
 export interface CerrarMesaInput {
   mesaId: number;
   medioPago: MedioPago;

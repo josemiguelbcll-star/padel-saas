@@ -8,6 +8,7 @@ export interface ProductoStockExcel {
   costo: number | null;
   stock: number;
   hoja: string;
+  codigo?: string | null;
   talla?: string | null;
   color?: string | null;
 }
@@ -56,6 +57,7 @@ interface ColumnMapping {
   costo: number;
   precio: number;
   categoria?: number;
+  codigo?: number;
   talla?: number;
   color?: number;
   categoriaDefault: CategoriaProducto;
@@ -82,6 +84,7 @@ function detectarColumnas(
     let costoIdx = -1;
     let precioIdx = -1;
     let catIdx = -1;
+    let codigoIdx = -1;
     let tallaIdx = -1;
     let colorIdx = -1;
 
@@ -99,6 +102,8 @@ function detectarColumnas(
         precioIdx = c;
       } else if (catIdx === -1 && /^(categoria|categoría|linea|línea|tipo)$/i.test(cellText)) {
         catIdx = c;
+      } else if (codigoIdx === -1 && /^(codigo|código|cod|sku|cod\.?\s*(barra|interno|producto))$/i.test(cellText)) {
+        codigoIdx = c;
       } else if (tallaIdx === -1 && /^(talla|talle|medida|tamaño|tamano|size)$/i.test(cellText)) {
         tallaIdx = c;
       } else if (colorIdx === -1 && /^(color|tono)$/i.test(cellText)) {
@@ -114,6 +119,7 @@ function detectarColumnas(
           costo: costoIdx !== -1 ? costoIdx : (esCocaOSpeed ? 3 : 2),
           precio: precioIdx !== -1 ? precioIdx : 4,
           categoria: catIdx !== -1 ? catIdx : undefined,
+          codigo: codigoIdx !== -1 ? codigoIdx : undefined,
           talla: tallaIdx !== -1 ? tallaIdx : undefined,
           color: colorIdx !== -1 ? colorIdx : undefined,
           categoriaDefault,
@@ -182,6 +188,10 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
 
       const tallaRaw = cols.talla !== undefined ? row[cols.talla] : null;
       const colorRaw = cols.color !== undefined ? row[cols.color] : null;
+      const codigoRaw = cols.codigo !== undefined ? row[cols.codigo] : null;
+      const codigo = typeof codigoRaw === 'string' || typeof codigoRaw === 'number'
+        ? String(codigoRaw).trim() || null
+        : null;
       const talla = typeof tallaRaw === 'string' || typeof tallaRaw === 'number'
         ? String(tallaRaw).trim() || null
         : null;
@@ -203,6 +213,7 @@ export function leerStockExcel(buffer: ArrayBuffer): StockExcelLeido {
         precio,
         costo: costo !== null && costo >= 0 ? costo : null,
         stock,
+        codigo,
         talla,
         color,
         hoja: nombreHoja,

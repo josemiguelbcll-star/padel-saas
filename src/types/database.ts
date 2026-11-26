@@ -1074,6 +1074,8 @@ export interface Producto {
   stock_minimo: number;
   activo: boolean;
   fecha_alta: string;
+  /** Código interno/SKU (opcional, migración 0175). */
+  codigo?: string | null;
   talla?: string | null;
   color?: string | null;
 }
