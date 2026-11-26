@@ -17,6 +17,7 @@ import {
   useCreateProducto,
   useUpdateProducto,
 } from '@/features/configuracion/hooks/useProductos';
+import { useCargarStock } from '@/features/configuracion/hooks/useCargarStock';
 import type {
   CategoriaProducto,
   Linea,
@@ -94,6 +95,7 @@ function defaultStateFor(linea: Linea): ProductoFormState {
     // como NULL en la DB (no como 0), preservando "no cargado" vs "0 real".
     costo: '',
     stock_minimo: '0',
+    stock_inicial: '0',
     activo: true,
     talla: '',
     color: '',
@@ -108,6 +110,7 @@ function productoToFormState(p: Producto): ProductoFormState {
     precio: p.precio.toString(),
     costo: p.costo === null ? '' : p.costo.toString(),
     stock_minimo: p.stock_minimo.toString(),
+    stock_inicial: '0',
     activo: p.activo,
     talla: p.talla ?? '',
     color: p.color ?? '',
@@ -128,13 +131,17 @@ function ProductoFormBody({
   const isEdit = initialValue !== null;
   const createMutation = useCreateProducto();
   const updateMutation = useUpdateProducto();
+  const cargarStockMutation = useCargarStock();
 
   const [state, setState] = useState<ProductoFormState>(
     initialValue ? productoToFormState(initialValue) : defaultStateFor(initialLinea),
   );
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    cargarStockMutation.isPending;
 
   /**
    * Cambio de línea: resetea la categoría a la primera de la nueva
@@ -166,6 +173,7 @@ function ProductoFormBody({
           field === 'precio' ||
           field === 'costo' ||
           field === 'stock_minimo' ||
+          field === 'stock_inicial' ||
           field === 'activo'
         ) {
           fieldErrors[field] = issue.message;
@@ -177,14 +185,25 @@ function ProductoFormBody({
       return;
     }
 
+    // stock_inicial no es columna de `productos`: se consume acá para
+    // registrar el movimiento de inventario inicial después del alta.
+    const { stock_inicial, ...productoData } = parsed.data;
+
     try {
       if (isEdit && initialValue) {
         await updateMutation.mutateAsync({
           id: initialValue.id,
-          changes: parsed.data,
+          changes: productoData,
         });
       } else {
-        await createMutation.mutateAsync(parsed.data);
+        const creado = await createMutation.mutateAsync(productoData);
+        if (stock_inicial && stock_inicial > 0) {
+          await cargarStockMutation.mutateAsync({
+            producto_id: creado.id,
+            cantidad: stock_inicial,
+            observaciones: 'Stock inicial',
+          });
+        }
       }
       onDone();
     } catch (err) {
@@ -208,7 +227,7 @@ function ProductoFormBody({
         <DialogDescription>
           {isEdit
             ? 'Modificá los datos del producto. El stock no se edita acá — para sumar inventario, usá "Cargar stock" desde la tabla.'
-            : 'Agregá un producto al catálogo. El stock inicial se carga después con "Cargar stock".'}
+            : 'Agregá un producto al catálogo. Podés cargar el stock inicial acá o después con "Cargar stock".'}
         </DialogDescription>
       </DialogHeader>
 
@@ -376,29 +395,59 @@ function ProductoFormBody({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="producto-stock-min">Stock mínimo</Label>
-          <Input
-            id="producto-stock-min"
-            type="number"
-            inputMode="numeric"
-            step="1"
-            min="0"
-            value={state.stock_minimo}
-            onChange={(e) =>
-              setState({ ...state, stock_minimo: e.target.value })
-            }
-            disabled={isPending}
-            required
-            aria-invalid={errors.stock_minimo ? true : undefined}
-          />
-          {errors.stock_minimo ? (
-            <p className="text-xs text-destructive">{errors.stock_minimo}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              0 = sin alerta de stock bajo.
-            </p>
+        <div className={`grid gap-4 ${isEdit ? '' : 'sm:grid-cols-2'}`}>
+          {!isEdit && (
+            <div className="space-y-2">
+              <Label htmlFor="producto-stock-inicial">Stock inicial</Label>
+              <Input
+                id="producto-stock-inicial"
+                type="number"
+                inputMode="numeric"
+                step="1"
+                min="0"
+                value={state.stock_inicial}
+                onChange={(e) =>
+                  setState({ ...state, stock_inicial: e.target.value })
+                }
+                disabled={isPending}
+                required
+                aria-invalid={errors.stock_inicial ? true : undefined}
+                placeholder="Ej: 24"
+              />
+              {errors.stock_inicial ? (
+                <p className="text-xs text-destructive">{errors.stock_inicial}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Cuánto stock tenés para arrancar. 0 = sin stock.
+                </p>
+              )}
+            </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="producto-stock-min">Stock mínimo</Label>
+            <Input
+              id="producto-stock-min"
+              type="number"
+              inputMode="numeric"
+              step="1"
+              min="0"
+              value={state.stock_minimo}
+              onChange={(e) =>
+                setState({ ...state, stock_minimo: e.target.value })
+              }
+              disabled={isPending}
+              required
+              aria-invalid={errors.stock_minimo ? true : undefined}
+            />
+            {errors.stock_minimo ? (
+              <p className="text-xs text-destructive">{errors.stock_minimo}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Umbral de la alerta de stock bajo. 0 = sin alerta.
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border p-3">

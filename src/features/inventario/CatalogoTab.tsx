@@ -11,13 +11,23 @@ import {
   Plus,
   Search,
   Settings2,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { Producto, ProductoConStock, Linea } from '@/types/database';
+import { useDeleteProducto } from '@/features/configuracion/hooks/useProductos';
 import { useResumenFinanciero } from '@/features/finanzas/hooks/useResumenFinanciero';
 import { useInventarioProductos } from './hooks/useInventarioProductos';
 import { AjustarStockDialog } from './AjustarStockDialog';
@@ -97,6 +107,9 @@ export function CatalogoTab() {
   const [ajustando, setAjustando] = useState<ProductoConStock | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Producto | null>(null);
+  const deleteMutation = useDeleteProducto();
+  const [toDelete, setToDelete] = useState<ProductoConStock | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleCrearProducto() {
     setEditing(null);
@@ -106,6 +119,26 @@ export function CatalogoTab() {
   function handleEditarProducto(p: ProductoConStock) {
     setEditing(p);
     setFormOpen(true);
+  }
+
+  function requestDelete(p: ProductoConStock): void {
+    setDeleteError(null);
+    setToDelete(p);
+  }
+
+  async function confirmDelete(): Promise<void> {
+    if (!toDelete) return;
+    setDeleteError(null);
+    try {
+      await deleteMutation.mutateAsync(toDelete.id);
+      setToDelete(null);
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos eliminar el producto. Probá de nuevo.',
+      );
+    }
   }
 
   // Debounce de la búsqueda — evita re-renderizar la tabla en cada
@@ -333,6 +366,7 @@ export function CatalogoTab() {
           totalSinFiltros={todos.length}
           onAjustar={(p) => setAjustando(p)}
           onEditar={(p) => handleEditarProducto(p)}
+          onEliminar={requestDelete}
           onCrearProducto={handleCrearProducto}
           canEdit={canEdit}
         />
@@ -359,6 +393,52 @@ export function CatalogoTab() {
         initialValue={editing}
         initialLinea={filtros.linea !== 'todas' ? filtros.linea : 'buffet'}
       />
+
+      {/* Confirmación de eliminación */}
+      <Dialog
+        open={toDelete !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setToDelete(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar producto</DialogTitle>
+            <DialogDescription>
+              ¿Seguro que querés eliminar
+              {toDelete ? ` "${toDelete.nombre}"` : ''}? Esta acción no se puede
+              deshacer. Si el producto tiene movimientos de stock, el sistema
+              te va a pedir que lo desactives en su lugar.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive" role="alert">
+              {deleteError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setToDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmDelete()}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Eliminando…' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -722,6 +802,7 @@ function ProductosTable({
   totalSinFiltros,
   onAjustar,
   onEditar,
+  onEliminar,
   onCrearProducto,
   canEdit,
 }: {
@@ -729,6 +810,7 @@ function ProductosTable({
   totalSinFiltros: number;
   onAjustar: (p: ProductoConStock) => void;
   onEditar: (p: ProductoConStock) => void;
+  onEliminar: (p: ProductoConStock) => void;
   onCrearProducto: () => void;
   canEdit: boolean;
 }) {
@@ -789,6 +871,7 @@ function ProductosTable({
                 p={p}
                 onAjustar={() => onAjustar(p)}
                 onEditar={() => onEditar(p)}
+                onEliminar={() => onEliminar(p)}
                 canEdit={canEdit}
               />
             ))}
@@ -803,11 +886,13 @@ function ProductoRow({
   p,
   onAjustar,
   onEditar,
+  onEliminar,
   canEdit,
 }: {
   p: ProductoConStock;
   onAjustar: () => void;
   onEditar: () => void;
+  onEliminar: () => void;
   canEdit: boolean;
 }) {
   const estado = estadoDe(p);
@@ -904,6 +989,17 @@ function ProductoRow({
             >
               <Settings2 className="h-3.5 w-3.5" />
               Ajustar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEliminar}
+              aria-label={`Eliminar ${p.nombre}`}
+              title="Eliminar producto"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}

@@ -125,6 +125,17 @@ export const productoSchema = z
       .number({ invalid_type_error: 'Ingresá un stock mínimo válido.' })
       .int('El stock mínimo debe ser un número entero.')
       .min(0, 'El stock mínimo no puede ser negativo.'),
+    /**
+     * Stock inicial al crear el producto. NO es columna de `productos`:
+     * el form lo consume para insertar un movimiento de stock después
+     * del alta (fuente='compra_manual'). En edición se ignora.
+     */
+    stock_inicial: z.coerce
+      .number({ invalid_type_error: 'Ingresá un stock inicial válido.' })
+      .int('El stock inicial debe ser un número entero.')
+      .min(0, 'El stock inicial no puede ser negativo.')
+      .optional()
+      .default(0),
     activo: z.boolean(),
     talla: z.string().trim().max(30).optional().nullable(),
     color: z.string().trim().max(50).optional().nullable(),
@@ -148,6 +159,8 @@ export interface ProductoFormState {
   /** String del input. '' (vacío) = no cargado → se guarda como NULL. */
   costo: string;
   stock_minimo: string;
+  /** Solo creación: stock con el que arranca el producto (movimiento inicial). */
+  stock_inicial: string;
   activo: boolean;
   talla: string;
   color: string;

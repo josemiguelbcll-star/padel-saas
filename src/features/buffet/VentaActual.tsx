@@ -21,6 +21,9 @@ interface VentaActualProps {
   onIncrement: (productoId: number) => void;
   onDecrement: (productoId: number) => void;
   onCerrar: () => void;
+  /** Si se provee, cuando el carrito está vacío se muestra un botón para
+   *  cerrar la mesa sin registrar venta (solo aplica a mesas). */
+  onCerrarVacia?: () => void;
   readOnly?: boolean;
 }
 
@@ -41,6 +44,7 @@ export function VentaActual({
   onIncrement,
   onDecrement,
   onCerrar,
+  onCerrarVacia,
   readOnly,
 }: VentaActualProps) {
   const vacio = items.length === 0;
@@ -56,9 +60,22 @@ export function VentaActual({
       </div>
 
       {vacio ? (
-        <p className="py-6 text-center text-xs text-muted-foreground">
-          Vacía. Tocá un producto del catálogo para sumarlo.
-        </p>
+        <>
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            Vacía. Tocá un producto del catálogo para sumarlo.
+          </p>
+          {onCerrarVacia && !readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCerrarVacia}
+              className="w-full"
+              size="sm"
+            >
+              Cerrar mesa sin cobro
+            </Button>
+          )}
+        </>
       ) : (
         <>
           <ul className="space-y-2">
