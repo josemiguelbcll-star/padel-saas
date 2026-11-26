@@ -7,6 +7,7 @@ import {
   Clock,
   Info,
   Lock,
+  Pencil,
   Plus,
   RotateCcw,
   Star,
@@ -26,6 +27,7 @@ import {
 import {
   useActualizarPersonaTurno,
   useAgregarPersonaTurno,
+  useCambiarTitularReserva,
   useQuitarPersonaTurno,
   useReservaJugadores,
   type ReservaJugadorConNombre,
@@ -164,6 +166,7 @@ export function PersonasTurnoSection({
   const agregar = useAgregarPersonaTurno();
   const actualizar = useActualizarPersonaTurno();
   const quitar = useQuitarPersonaTurno();
+  const cambiarTitular = useCambiarTitularReserva();
   const cobrar = useCobrarPersonaTurno();
   const eliminarPago = useEliminarPagoReserva();
 
@@ -172,12 +175,14 @@ export function PersonasTurnoSection({
   const [reloadKeyAgregar, setReloadKeyAgregar] = useState(0);
   const [vinculandoId, setVinculandoId] = useState<number | null>(null);
   const [cobrandoId, setCobrandoId] = useState<number | null>(null);
+  const [cambiandoTitularId, setCambiandoTitularId] = useState<number | null>(null);
   const [showDesglose, setShowDesglose] = useState(false);
 
   const anyPending =
     agregar.isPending ||
     actualizar.isPending ||
     quitar.isPending ||
+    cambiarTitular.isPending ||
     cobrar.isPending ||
     eliminarPago.isPending;
 
@@ -406,6 +411,28 @@ export function PersonasTurnoSection({
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'No pudimos vincular la ficha.',
+      );
+    }
+  }
+
+  async function handleCambiarTitular(
+    value: JugadorSeleccionado | null,
+  ): Promise<void> {
+    if (!value) return;
+    setError(null);
+    try {
+      await cambiarTitular.mutateAsync({
+        reserva_id: reservaId,
+        fecha,
+        jugador_id: value.kind === 'jugador' ? value.jugadorId : null,
+        nombre_libre: value.kind === 'libre' ? value.nombre : null,
+      });
+      setCambiandoTitularId(null);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos cambiar el titular.',
       );
     }
   }
@@ -650,6 +677,15 @@ export function PersonasTurnoSection({
                   onDarPorSaldado={(yaPagado) => handleDarPorSaldado(j.id, yaPagado)}
                   onRestaurarReparto={() => handleRestaurarReparto(j.id)}
                   onQuitar={() => handleQuitar(j.id)}
+                  cambiandoTitularActivo={cambiandoTitularId === j.id}
+                  onPedirCambiarTitular={() => {
+                    setError(null);
+                    setCambiandoTitularId(j.id);
+                    setVinculandoId(null);
+                    setCobrandoId(null);
+                  }}
+                  onCancelarCambiarTitular={() => setCambiandoTitularId(null)}
+                  onSeleccionarTitular={handleCambiarTitular}
                   disabled={anyPending}
                   readOnly={readOnly}
                 />
@@ -1046,6 +1082,10 @@ interface JugadorCardProps {
   onDarPorSaldado: (yaPagado: number) => Promise<void>;
   onRestaurarReparto: () => Promise<void>;
   onQuitar: () => void;
+  cambiandoTitularActivo: boolean;
+  onPedirCambiarTitular: () => void;
+  onCancelarCambiarTitular: () => void;
+  onSeleccionarTitular: (value: JugadorSeleccionado | null) => Promise<void>;
   disabled: boolean;
   readOnly?: boolean;
 }
@@ -1069,6 +1109,10 @@ function JugadorCard({
   onDarPorSaldado,
   onRestaurarReparto,
   onQuitar,
+  cambiandoTitularActivo,
+  onPedirCambiarTitular,
+  onCancelarCambiarTitular,
+  onSeleccionarTitular,
   disabled,
   readOnly,
 }: JugadorCardProps) {
@@ -1147,7 +1191,54 @@ function JugadorCard({
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
+
+        {esTitular && !readOnly && !cambiandoTitularActivo && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onPedirCambiarTitular}
+            disabled={disabled}
+            aria-label={`Cambiar titular (${label})`}
+            title="Cambiar titular de la reserva"
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
+
+      {/* Mini-form: cambiar titular (RPC 0176 — actualiza la fila
+          es_titular in-place, conserva cuota/pagos/repartos) */}
+      {cambiandoTitularActivo && (
+        <div className="space-y-2 rounded-md border border-primary/30 bg-background p-2">
+          <Label className="text-xs">Nuevo titular de la reserva</Label>
+          <JugadorAutocomplete
+            key={`titular-${persona.id}`}
+            id={`titular-${persona.id}`}
+            value={null}
+            onChange={(v) => {
+              void onSeleccionarTitular(v);
+            }}
+            permitirNombreLibre
+            autoFocus
+            disabled={disabled}
+            placeholder="Buscar ficha o tipear un nombre…"
+          />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onCancelarCambiarTitular}
+              disabled={disabled}
+              className="h-7 text-xs"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Badge de cuota fijada / acción de redistribuir */}
       {tieneCuotaFija ? (

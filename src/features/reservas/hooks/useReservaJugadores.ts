@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
 import type { ReservaJugador } from '@/types/database';
+import { RESERVAS_QUERY_KEY_BASE } from './useReservasDelDia';
 
 export const RESERVA_JUGADORES_QUERY_KEY_BASE = 'reserva_jugadores';
 
@@ -173,6 +174,55 @@ export function useActualizarPersonaTurno(): UseMutationResult<
     onSuccess: (_, input) => {
       void queryClient.invalidateQueries({
         queryKey: reservaJugadoresQueryKey(input.reserva_id),
+      });
+    },
+  });
+}
+
+export interface CambiarTitularInput {
+  reserva_id: number;
+  /** Fecha de la reserva — solo para invalidar la query del día. */
+  fecha: string;
+  /** Ficha del nuevo titular, o null si es nombre libre. */
+  jugador_id: number | null;
+  /** Nombre libre del nuevo titular (cuando no hay ficha). */
+  nombre_libre: string | null;
+}
+
+/**
+ * Cambia el titular de una reserva (RPC `fn_cambiar_titular_reserva`,
+ * migración 0176). Actualiza in-place la fila `reserva_jugadores` con
+ * es_titular=true → se conservan su id, la cuota, los pagos por persona
+ * y los consumos repartidos. También actualiza `reservas.jugador_id`
+ * (titular de la grilla/WhatsApp). No se puede sobre una cancelada ni
+ * si el jugador ya está como acompañante del mismo turno.
+ */
+export function useCambiarTitularReserva(): UseMutationResult<
+  unknown,
+  Error,
+  CambiarTitularInput
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<unknown, Error, CambiarTitularInput>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.rpc(
+        'fn_cambiar_titular_reserva',
+        {
+          p_reserva_id: input.reserva_id,
+          p_jugador_id: input.jugador_id,
+          p_nombre_libre: input.nombre_libre,
+        },
+      );
+      if (error) throw new Error(mapPostgrestError(error));
+      return data;
+    },
+    onSuccess: (_, input) => {
+      void queryClient.invalidateQueries({
+        queryKey: reservaJugadoresQueryKey(input.reserva_id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [RESERVAS_QUERY_KEY_BASE, input.fecha],
       });
     },
   });
