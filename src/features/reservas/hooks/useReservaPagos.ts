@@ -40,7 +40,9 @@ export function useReservaPagos(
  * el borrado de cobros ya arqueados (política: solo un admin corrige, con
  * motivo). La RPC valida lo mismo del lado del servidor.
  */
-export function useCajasCerradasDePagos(pagos: ReservaPago[]): Set<number> {
+export function useCajasCerradasDePagos(
+  pagos: ReadonlyArray<{ turno_caja_id?: number | null }>,
+): Set<number> {
   const ids = useMemo(
     () =>
       Array.from(
