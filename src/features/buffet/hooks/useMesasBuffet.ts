@@ -92,44 +92,22 @@ export interface CargarConsumoInput {
 }
 
 export function useCargarConsumoMesa() {
-  const { club } = useSession();
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, CargarConsumoInput>({
+  return useMutation<BuffetMesaConsumo, Error, CargarConsumoInput>({
     mutationFn: async ({ mesaId, productoId, cantidad }) => {
-      if (!club) throw new Error('No hay sesión activa.');
+      // RPC atómica: upsert del consumo + descuento de stock inmediato
+      // (fuente 'mesa_consumo'). Antes era INSERT/UPDATE directo y el
+      // stock recién se movía al cerrar la venta.
+      const { data, error } = await supabase.rpc('fn_cargar_consumo_mesa', {
+        p_mesa_id: mesaId,
+        p_producto_id: productoId,
+        p_cantidad: cantidad,
+      });
 
-      // Verificar si ya existe el producto cargado en la mesa
-      const { data: existing, error: checkError } = await supabase
-        .from('buffet_mesa_consumos')
-        .select('*')
-        .eq('mesa_id', mesaId)
-        .eq('producto_id', productoId)
-        .maybeSingle();
-
-      if (checkError) throw new Error(mapPostgrestError(checkError));
-
-      if (existing) {
-        // Incrementar cantidad
-        const { error: updateError } = await supabase
-          .from('buffet_mesa_consumos')
-          .update({ cantidad: existing.cantidad + cantidad })
-          .eq('id', existing.id);
-
-        if (updateError) throw new Error(mapPostgrestError(updateError));
-      } else {
-        // Insertar consumo
-        const { error: insertError } = await supabase
-          .from('buffet_mesa_consumos')
-          .insert({
-            club_id: club.id,
-            mesa_id: mesaId,
-            producto_id: productoId,
-            cantidad,
-          });
-
-        if (insertError) throw new Error(mapPostgrestError(insertError));
-      }
+      if (error) throw new Error(mapPostgrestError(error));
+      if (!data) throw new Error('No recibimos confirmación del consumo.');
+      return data as BuffetMesaConsumo;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
@@ -148,35 +126,15 @@ export function useQuitarConsumoMesa() {
 
   return useMutation<void, Error, QuitarConsumoInput>({
     mutationFn: async ({ mesaId, productoId, cantidad }) => {
-      const { data: existing, error: fetchError } = await supabase
-        .from('buffet_mesa_consumos')
-        .select('*')
-        .eq('mesa_id', mesaId)
-        .eq('producto_id', productoId)
-        .maybeSingle();
+      // RPC atómica: reduce/elimina el consumo y repone el stock
+      // (fuente 'reposicion_mesa_consumo').
+      const { error } = await supabase.rpc('fn_quitar_consumo_mesa', {
+        p_mesa_id: mesaId,
+        p_producto_id: productoId,
+        p_cantidad: cantidad,
+      });
 
-      if (fetchError) throw new Error(mapPostgrestError(fetchError));
-      if (!existing) return;
-
-      const nuevaCantidad = existing.cantidad - cantidad;
-
-      if (nuevaCantidad <= 0) {
-        // Eliminar fila
-        const { error: deleteError } = await supabase
-          .from('buffet_mesa_consumos')
-          .delete()
-          .eq('id', existing.id);
-
-        if (deleteError) throw new Error(mapPostgrestError(deleteError));
-      } else {
-        // Actualizar con menor cantidad
-        const { error: updateError } = await supabase
-          .from('buffet_mesa_consumos')
-          .update({ cantidad: nuevaCantidad })
-          .eq('id', existing.id);
-
-        if (updateError) throw new Error(mapPostgrestError(updateError));
-      }
+      if (error) throw new Error(mapPostgrestError(error));
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
