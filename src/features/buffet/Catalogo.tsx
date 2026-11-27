@@ -39,6 +39,14 @@ interface CatalogoProps {
   onAddPromo?: (promo: PromoBuffet) => void;
   disabled?: boolean;
   readOnly?: boolean;
+  /**
+   * true = modo mesa: cada alta descuenta stock server-side al instante,
+   * así que `stock_actual` YA refleja lo cargado en la mesa y no hay que
+   * descontar el carrito local para saber cuánto queda disponible.
+   * false/undefined = carrito local (mostrador): el stock no baja hasta
+   * cerrar la venta, y el tope es `carrito >= stock_actual`.
+   */
+  descuentaAlAgregar?: boolean;
 }
 
 /**
@@ -63,6 +71,7 @@ export function Catalogo({
   onAddPromo,
   disabled = false,
   readOnly,
+  descuentaAlAgregar = false,
 }: CatalogoProps) {
   // El filtro de línea vive en el querystring (?linea=buffet|shop)
   // para que los sub-items del sidebar puedan deep-linkear al POS con
@@ -210,6 +219,7 @@ export function Catalogo({
               cartCantidad={cart.get(p.id) ?? 0}
               onAdd={onAdd}
               readOnly={readOnly || disabled}
+              descuentaAlAgregar={descuentaAlAgregar}
             />
           ))}
         </div>
@@ -255,11 +265,14 @@ interface ProductoCardProps {
   cartCantidad: number;
   onAdd: (productoId: number) => void;
   readOnly?: boolean;
+  descuentaAlAgregar?: boolean;
 }
 
-function ProductoCard({ producto, cartCantidad, onAdd, readOnly }: ProductoCardProps) {
+function ProductoCard({ producto, cartCantidad, onAdd, readOnly, descuentaAlAgregar = false }: ProductoCardProps) {
   const noStock = producto.stock_actual <= 0;
-  const atMax = !noStock && cartCantidad >= producto.stock_actual;
+  // En modo mesa el stock ya descuenta lo cargado → stock_actual ES el
+  // disponible y no aplica el tope por carrito (cada + descuenta en vivo).
+  const atMax = !descuentaAlAgregar && !noStock && cartCantidad >= producto.stock_actual;
   const disabled = noStock || atMax || readOnly;
 
   const stockText = noStock

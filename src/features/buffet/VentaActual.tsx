@@ -25,6 +25,12 @@ interface VentaActualProps {
    *  cerrar la mesa sin registrar venta (solo aplica a mesas). */
   onCerrarVacia?: () => void;
   readOnly?: boolean;
+  /**
+   * true = mesa: cada incremento descuenta stock server-side, así que el
+   * tope es `stock_actual <= 0` (no `cantidad >= stock_actual`, que
+   * doble-contaría lo ya cargado en la mesa).
+   */
+  descuentaAlAgregar?: boolean;
 }
 
 /**
@@ -46,6 +52,7 @@ export function VentaActual({
   onCerrar,
   onCerrarVacia,
   readOnly,
+  descuentaAlAgregar = false,
 }: VentaActualProps) {
   const vacio = items.length === 0;
 
@@ -113,7 +120,12 @@ export function VentaActual({
                     variant="outline"
                     size="icon"
                     onClick={() => onIncrement(item.producto.id)}
-                    disabled={item.cantidad >= item.producto.stock_actual || readOnly}
+                    disabled={
+                      readOnly ||
+                      (descuentaAlAgregar
+                        ? item.producto.stock_actual <= 0
+                        : item.cantidad >= item.producto.stock_actual)
+                    }
                     aria-label={`Sumar uno de ${item.producto.nombre}`}
                     className="h-7 w-7"
                   >
