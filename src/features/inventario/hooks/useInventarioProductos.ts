@@ -1,6 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
+import { useSession } from '@/features/auth';
 import type { ProductoConStock } from '@/types/database';
 
 export const INVENTARIO_PRODUCTOS_QUERY_KEY = ['inventario', 'productos'] as const;
@@ -13,8 +14,9 @@ export const INVENTARIO_PRODUCTOS_QUERY_KEY = ['inventario', 'productos'] as con
  * client-side. Volumen típico en buffet/shop: < 200 productos.
  */
 export function useInventarioProductos(): UseQueryResult<ProductoConStock[], Error> {
+  const { club } = useSession();
   return useQuery<ProductoConStock[], Error>({
-    queryKey: INVENTARIO_PRODUCTOS_QUERY_KEY,
+    queryKey: [...INVENTARIO_PRODUCTOS_QUERY_KEY, club?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vw_productos_con_stock')

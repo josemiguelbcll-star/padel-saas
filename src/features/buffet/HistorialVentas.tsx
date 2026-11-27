@@ -13,6 +13,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { useMediosCuentaDefault } from '@/features/configuracion/hooks/useMediosCuentaDefault';
+import { mapCuentaTipoToMedio } from './cuentaMedios';
 import {
   PRODUCTOS_CON_STOCK_QUERY_KEY,
   useProductosConStock,
@@ -117,8 +119,41 @@ export function HistorialVentas() {
   const cuentasQuery = useCuentas();
   const jugadoresQuery = useJugadores();
   const productos = useMemo(() => productosQuery.data ?? [], [productosQuery.data]);
-  const cuentasActivas = (cuentasQuery.data ?? []).filter((cuenta) => cuenta.activa);
+  const todasLasCuentas = useMemo(() => cuentasQuery.data ?? [], [cuentasQuery.data]);
+  const cuentasActivas = useMemo(
+    () => todasLasCuentas.filter((cuenta) => cuenta.activa),
+    [todasLasCuentas],
+  );
   const jugadores = jugadoresQuery.data ?? [];
+
+  const mediosDefaultQuery = useMediosCuentaDefault();
+  const cuentaPorMedio = useMemo(() => {
+    const idsActivos = new Set(cuentasActivas.map((cuenta) => cuenta.id));
+    const mapa = new Map<MedioPago, number>();
+    for (const row of mediosDefaultQuery.data ?? []) {
+      if (idsActivos.has(row.cuenta_id)) mapa.set(row.medio_pago, row.cuenta_id);
+    }
+    return mapa;
+  }, [mediosDefaultQuery.data, cuentasActivas]);
+  const cuentaFallback = useMemo(
+    () =>
+      cuentasActivas.find((c) => c.es_caja_fisica || c.tipo === 'efectivo') ??
+      cuentasActivas[0] ??
+      null,
+    [cuentasActivas],
+  );
+
+  // Todo pago sin cuenta explícita cae en una cuenta del club: primero la
+  // cuenta por defecto configurada para ese medio (Tesorería). El efectivo
+  // además tiene fallback a la caja física (la plata está en el cajón);
+  // el resto de los medios sin default queda sin cuenta, igual que al cobrar.
+  function cuentaEfectivaPago(pago: PagoDraft): number | null {
+    if (pago.medioPago === 'cuenta_corriente') return null;
+    if (pago.cuentaId !== null) return pago.cuentaId;
+    const porDefecto = cuentaPorMedio.get(pago.medioPago);
+    if (porDefecto !== undefined) return porDefecto;
+    return pago.medioPago === 'efectivo' ? (cuentaFallback?.id ?? null) : null;
+  }
 
   // Filtro por rango de fecha/hora (aplica a la tabla y a la descarga CSV).
   const [filtroDesde, setFiltroDesde] = useState('');
@@ -229,7 +264,7 @@ export function HistorialVentas() {
         return {
           medio_pago: pago.medioPago,
           monto,
-          cuenta_id: pago.cuentaId,
+          cuenta_id: cuentaEfectivaPago(pago),
           jugador_id: pago.jugadorId,
         };
       });
@@ -655,24 +690,74 @@ export function HistorialVentas() {
             <div className="space-y-2">
               <Label>Pagos y destino</Label>
               {pagosDraft.map((pago) => (
-                <div key={pago.key} className="grid gap-2 sm:grid-cols-[1fr_130px_1fr_auto]">
+                <div key={pago.key} className="grid gap-2 sm:grid-cols-[1fr_130px_auto]">
                   <select
-                    aria-label="Medio de pago"
+                    aria-label="Destino del cobro"
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={pago.medioPago}
-                    onChange={(event) =>
-                      actualizarPago(pago.key, {
-                        medioPago: event.target.value as MedioPagoVenta,
-                        cuentaId: event.target.value === 'cuenta_corriente' ? null : pago.cuentaId,
-                        jugadorId: event.target.value === 'cuenta_corriente'
-                          ? pago.jugadorId ?? ventaAEditar?.jugador_id ?? null
-                          : null,
-                      })
+                    value={
+                      pago.medioPago === 'cuenta_corriente'
+                        ? 'cc'
+                        : pago.cuentaId !== null
+                          ? `cuenta_${pago.cuentaId}`
+                          : `medio_${pago.medioPago}`
                     }
+                    onChange={(event) => {
+                      const val = event.target.value;
+                      if (val === 'cc') {
+                        actualizarPago(pago.key, {
+                          medioPago: 'cuenta_corriente',
+                          cuentaId: null,
+                          jugadorId: pago.jugadorId ?? ventaAEditar?.jugador_id ?? null,
+                        });
+                      } else if (val.startsWith('cuenta_')) {
+                        const cid = Number(val.replace('cuenta_', ''));
+                        const cuenta = todasLasCuentas.find((c) => c.id === cid);
+                        actualizarPago(pago.key, {
+                          cuentaId: cid,
+                          medioPago: cuenta ? mapCuentaTipoToMedio(cuenta.tipo) : pago.medioPago,
+                        });
+                      } else {
+                        actualizarPago(pago.key, {
+                          medioPago: val.replace('medio_', '') as MedioPagoVenta,
+                          cuentaId: null,
+                        });
+                      }
+                    }}
                   >
-                    {MEDIOS_PAGO.map((medio) => (
-                      <option key={medio} value={medio}>{MEDIO_LABEL[medio]}</option>
-                    ))}
+                    {cuentasActivas.length > 0 && (
+                      <optgroup label="Cuentas del club">
+                        {cuentasActivas.map((cuenta) => (
+                          <option key={cuenta.id} value={`cuenta_${cuenta.id}`}>
+                            {cuenta.nombre}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Otros medios">
+                      <option value="cc">Cuenta corriente (cliente)</option>
+                      {MEDIOS_PAGO.filter((m) => m !== 'cuenta_corriente').map((m) => {
+                        const cuentaResuelta =
+                          cuentaPorMedio.get(m) ??
+                          (m === 'efectivo' ? cuentaFallback?.id : undefined);
+                        const nombreCuenta = cuentaResuelta
+                          ? todasLasCuentas.find((c) => c.id === cuentaResuelta)?.nombre
+                          : null;
+                        return (
+                          <option key={m} value={`medio_${m}`}>
+                            {MEDIO_LABEL[m]}
+                            {nombreCuenta ? ` → ${nombreCuenta}` : ''}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                    {pago.cuentaId !== null &&
+                      !cuentasActivas.some((cuenta) => cuenta.id === pago.cuentaId) && (
+                        <option value={`cuenta_${pago.cuentaId}`}>
+                          {todasLasCuentas.find((cuenta) => cuenta.id === pago.cuentaId)?.nombre ??
+                            `Cuenta #${pago.cuentaId}`}{' '}
+                          (inactiva)
+                        </option>
+                      )}
                   </select>
                   <Input
                     aria-label="Monto del pago"
@@ -682,22 +767,6 @@ export function HistorialVentas() {
                     value={pago.monto}
                     onChange={(event) => actualizarPago(pago.key, { monto: event.target.value })}
                   />
-                  <select
-                    aria-label="Cuenta de destino"
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={pago.cuentaId ?? ''}
-                    disabled={pago.medioPago === 'cuenta_corriente'}
-                    onChange={(event) =>
-                      actualizarPago(pago.key, {
-                        cuentaId: event.target.value === '' ? null : Number(event.target.value),
-                      })
-                    }
-                  >
-                    <option value="">Cuenta predeterminada</option>
-                    {cuentasActivas.map((cuenta) => (
-                      <option key={cuenta.id} value={cuenta.id}>{cuenta.nombre}</option>
-                    ))}
-                  </select>
                   <Button
                     type="button"
                     variant="ghost"
@@ -711,7 +780,7 @@ export function HistorialVentas() {
                   {pago.medioPago === 'cuenta_corriente' && (
                     <select
                       aria-label="Jugador de cuenta corriente"
-                      className="h-9 rounded-md border border-input bg-background px-3 text-sm sm:col-span-4"
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm sm:col-span-3"
                       value={pago.jugadorId ?? ''}
                       onChange={(event) =>
                         actualizarPago(pago.key, {

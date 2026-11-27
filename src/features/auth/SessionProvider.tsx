@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
   aplicarColorMarca,
@@ -76,6 +77,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Ref para preservar el motivo del signOut a través del re-load
   const pendingErrorRef = useRef<SessionError | null>(null);
+  const queryClient = useQueryClient();
+  const prevClubIdRef = useRef<number | null>(null);
+
+  // Cuando cambia el club activo (impersonación, cambio de cuenta, etc.)
+  // hay que vaciar TODA la caché de React Query: muchas query keys no
+  // incluyen club.id y servirían datos del club anterior — incluidos
+  // productos, que es lo que rompía la creación de OCs con "producto no
+  // existe o no pertenece a tu club".
+  useEffect(() => {
+    const clubId = state.club?.id ?? null;
+    if (prevClubIdRef.current !== null && prevClubIdRef.current !== clubId) {
+      queryClient.clear();
+    }
+    prevClubIdRef.current = clubId;
+  }, [state.club?.id, queryClient]);
 
   useEffect(() => {
     let mounted = true;
@@ -167,7 +183,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               await supabase.rpc('fn_impersonar_club_plataforma', {
                 p_club_id: impersonatedId,
               });
-            } catch (_) {
+            } catch {
               // RPC opcional si la migración aún no corrió
             }
 

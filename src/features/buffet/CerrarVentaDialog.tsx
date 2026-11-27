@@ -23,6 +23,7 @@ import {
 } from './hooks/useCerrarVenta';
 import type { BuffetMesa } from './hooks/useMesasBuffet';
 import type { VentaItemEnriquecido } from './VentaActual';
+import { mapCuentaTipoToMedio } from './cuentaMedios';
 import {
   CheckCircle2,
   AlertCircle,
@@ -63,13 +64,6 @@ const MEDIO_PAGO_LABEL: Record<MedioPago, string> = {
   otro: 'Otro',
   mixto: 'Mixto',
 };
-
-function mapCuentaTipoToMedio(tipo: string): MedioPago {
-  if (tipo === 'efectivo') return 'efectivo';
-  if (tipo === 'billetera') return 'mp';
-  if (tipo === 'banco') return 'transferencia';
-  return 'otro';
-}
 
 function calcularPartesIguales(total: number, count: number): number[] {
   if (count <= 0) return [];
