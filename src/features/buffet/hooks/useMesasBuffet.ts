@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
 import { useSession } from '@/features/auth';
+import { PRODUCTOS_CON_STOCK_QUERY_KEY } from '@/features/configuracion/hooks/useProductosConStock';
 import type { MedioPago, Venta } from '@/types/database';
 
 export interface BuffetMesaConsumo {
@@ -111,6 +112,10 @@ export function useCargarConsumoMesa() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
+      // El stock baja en el momento del cargo → refrescar catálogo y
+      // movimientos para que el descuento se vea sin cerrar la venta.
+      void queryClient.invalidateQueries({ queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['inventario'] });
     },
   });
 }
@@ -138,6 +143,8 @@ export function useQuitarConsumoMesa() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['buffet-mesas'] });
+      void queryClient.invalidateQueries({ queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['inventario'] });
     },
   });
 }

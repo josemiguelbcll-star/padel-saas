@@ -111,10 +111,9 @@ export function BuffetPage() {
 
     const faltantes = promo.items.flatMap((item) => {
       const producto = productos.find((candidate) => candidate.id === item.producto_id);
-      const cantidadEnMesa = selectedMesa.consumos
-        .filter((consumo) => consumo.producto_id === item.producto_id)
-        .reduce((total, consumo) => total + consumo.cantidad, 0);
-      const stockDisponible = Math.max(0, (producto?.stock_actual ?? 0) - cantidadEnMesa);
+      // En mesa el stock ya descuenta lo cargado → stock_actual ES lo
+      // disponible; no hay que restar lo que ya está en la mesa.
+      const stockDisponible = Math.max(0, producto?.stock_actual ?? 0);
 
       if (!producto?.activo || stockDisponible < item.cantidad) {
         return [`${producto?.nombre ?? 'Producto inactivo'} (hay ${stockDisponible}, necesita ${item.cantidad})`];
@@ -183,29 +182,48 @@ export function BuffetPage() {
     if (!selectedMesaId) return;
     setPromoMesaError(null);
     setLastSale(null);
-    await cargarConsumo.mutateAsync({
-      mesaId: selectedMesaId,
-      productoId,
-      cantidad: 1,
-    });
+    try {
+      await cargarConsumo.mutateAsync({
+        mesaId: selectedMesaId,
+        productoId,
+        cantidad: 1,
+      });
+    } catch (error) {
+      setPromoMesaError(
+        error instanceof Error ? error.message : 'No se pudo cargar el consumo.',
+      );
+    }
   }
 
   async function decrementOneMesa(productoId: number): Promise<void> {
     if (!selectedMesaId) return;
-    await quitarConsumo.mutateAsync({
-      mesaId: selectedMesaId,
-      productoId,
-      cantidad: 1,
-    });
+    try {
+      await quitarConsumo.mutateAsync({
+        mesaId: selectedMesaId,
+        productoId,
+        cantidad: 1,
+      });
+    } catch (error) {
+      setPromoMesaError(
+        error instanceof Error ? error.message : 'No se pudo quitar el consumo.',
+      );
+    }
   }
 
   async function incrementOneMesa(productoId: number): Promise<void> {
     if (!selectedMesaId) return;
-    await cargarConsumo.mutateAsync({
-      mesaId: selectedMesaId,
-      productoId,
-      cantidad: 1,
-    });
+    setPromoMesaError(null);
+    try {
+      await cargarConsumo.mutateAsync({
+        mesaId: selectedMesaId,
+        productoId,
+        cantidad: 1,
+      });
+    } catch (error) {
+      setPromoMesaError(
+        error instanceof Error ? error.message : 'No se pudo cargar el consumo.',
+      );
+    }
   }
 
   function clearCartMostrador(): void {
@@ -569,6 +587,7 @@ export function BuffetPage() {
                       onAddPromo={(promo) => void addPromoMesa(promo)}
                       disabled={cargarConsumo.isPending || promoMesaLoading}
                       readOnly={!canEdit}
+                      descuentaAlAgregar
                     />
                     <VentaActual
                       items={itemsMesa}
@@ -578,6 +597,7 @@ export function BuffetPage() {
                       onCerrar={() => setCerrarMesaOpen(true)}
                       onCerrarVacia={() => setMesaVaciaTarget(selectedMesa)}
                       readOnly={!canEdit}
+                      descuentaAlAgregar
                     />
                   </div>
                 </div>
