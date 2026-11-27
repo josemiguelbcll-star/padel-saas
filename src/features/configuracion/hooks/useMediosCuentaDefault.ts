@@ -20,8 +20,9 @@ export function useMediosCuentaDefault(): UseQueryResult<
   MedioCuentaDefault[],
   Error
 > {
+  const { club } = useSession();
   return useQuery<MedioCuentaDefault[], Error>({
-    queryKey: MEDIOS_CUENTA_DEFAULT_QUERY_KEY,
+    queryKey: [...MEDIOS_CUENTA_DEFAULT_QUERY_KEY, club?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('medio_cuenta_default')

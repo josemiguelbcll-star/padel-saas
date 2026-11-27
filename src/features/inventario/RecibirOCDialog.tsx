@@ -23,8 +23,12 @@ import {
   MEDIO_PAGO_LABEL,
   MEDIOS_PAGO,
 } from '@/features/finanzas/finanzasSchemas';
+import { useCuentas } from '@/features/configuracion/hooks/useCuentas';
+import { useMediosCuentaDefault } from '@/features/configuracion/hooks/useMediosCuentaDefault';
+import { mapCuentaTipoToMedio } from '@/features/buffet/cuentaMedios';
 import type {
   CondicionFiscalClub,
+  CuentaConSaldo,
   MedioPago,
   ProductoConStock,
 } from '@/types/database';
@@ -113,6 +117,7 @@ interface FormState {
   // Al contado:
   fecha_pago_contado: string;
   medio_pago_contado: MedioPago | '';
+  cuenta_pago_contado: number | null;
   // A plazo:
   anticipo: string;                       // monto del anticipo (string del input)
   cantidad_cuotas: string;                // N de cuotas regulares
@@ -121,6 +126,7 @@ interface FormState {
   pagar_anticipo_al_recibir: boolean;
   fecha_pago_anticipo: string;
   medio_pago_anticipo: MedioPago | '';
+  cuenta_pago_anticipo: number | null;
 }
 
 function makeEmptyItem(): ItemFormState {
@@ -145,12 +151,14 @@ function initialState(): FormState {
     modo_pago: 'al_contado',
     fecha_pago_contado: hoy,
     medio_pago_contado: 'transferencia',
+    cuenta_pago_contado: null,
     anticipo: '0',
     cantidad_cuotas: '3',
     fechas_vencimiento: [],            // se llena cuando admin entra al modo a_plazo
     pagar_anticipo_al_recibir: true,
     fecha_pago_anticipo: hoy,
     medio_pago_anticipo: 'transferencia',
+    cuenta_pago_anticipo: null,
   };
 }
 
@@ -550,6 +558,7 @@ export function RecibirOCDialog({
     let pFechas: string[] = [];
     let pFechaPago: string | null = null;
     let pMedioPago: MedioPago | null = null;
+    let pCuentaId: number | null = null;
 
     if (state.modo_pago === 'al_contado') {
       // 1 cuota total pagada al instante.
@@ -558,6 +567,7 @@ export function RecibirOCDialog({
       pFechas = [state.fecha_recepcion];
       pFechaPago = state.fecha_pago_contado;
       pMedioPago = state.medio_pago_contado as MedioPago;
+      pCuentaId = state.cuenta_pago_contado;
     } else {
       // A plazo: anticipo + N cuotas.
       pAnticipo = anticipoNum;
@@ -569,6 +579,7 @@ export function RecibirOCDialog({
       if (anticipoNum > 0 && state.pagar_anticipo_al_recibir) {
         pFechaPago = state.fecha_pago_anticipo;
         pMedioPago = state.medio_pago_anticipo as MedioPago;
+        pCuentaId = state.cuenta_pago_anticipo;
       }
     }
 
@@ -585,6 +596,7 @@ export function RecibirOCDialog({
           : state.comprobante_numero.trim(),
         fecha_pago: pFechaPago,
         medio_pago: pMedioPago,
+        cuenta_id: pCuentaId,
         anticipo: pAnticipo,
         cantidad_cuotas: pCantidad,
         fechas_vencimiento: pFechas,
@@ -718,9 +730,10 @@ export function RecibirOCDialog({
                 onFechaPagoContadoChange={(v) =>
                   setField('fecha_pago_contado', v)
                 }
-                onMedioPagoContadoChange={(v) =>
-                  setField('medio_pago_contado', v)
-                }
+                onDestinoPagoContadoChange={(medio, cuentaId) => {
+                  setField('medio_pago_contado', medio);
+                  setField('cuenta_pago_contado', cuentaId);
+                }}
                 onAnticipoChange={(v) => setField('anticipo', v)}
                 onCantidadCuotasChange={setCantidadCuotas}
                 onFechaVencimientoChange={setFechaVencimiento}
@@ -730,9 +743,10 @@ export function RecibirOCDialog({
                 onFechaPagoAnticipoChange={(v) =>
                   setField('fecha_pago_anticipo', v)
                 }
-                onMedioPagoAnticipoChange={(v) =>
-                  setField('medio_pago_anticipo', v)
-                }
+                onDestinoPagoAnticipoChange={(medio, cuentaId) => {
+                  setField('medio_pago_anticipo', medio);
+                  setField('cuenta_pago_anticipo', cuentaId);
+                }}
               />
 
               {error && (
@@ -1331,6 +1345,114 @@ function ComprobanteSection({
 // vivo (cuota base + última que absorbe residuo de centavos, espejo
 // exacto del cálculo de fn_recibir_oc).
 
+// Medios válidos para pagar una OC (fn_recibir_oc rechaza cuenta_corriente
+// y mixto — el pago es del club al proveedor, no del cliente).
+const MEDIOS_PAGO_OC = MEDIOS_PAGO.filter(
+  (m) => m !== 'cuenta_corriente' && m !== 'mixto',
+);
+
+interface DestinoPagoSelectProps {
+  id: string;
+  medioPago: MedioPago | '';
+  cuentaId: number | null;
+  cuentasActivas: CuentaConSaldo[];
+  todasLasCuentas: CuentaConSaldo[];
+  cuentaPorMedio: Map<MedioPago, number>;
+  cuentaFallbackId: number | null;
+  disabled: boolean;
+  onChange: (medio: MedioPago | '', cuentaId: number | null) => void;
+}
+
+/**
+ * Selector único "Destino del pago": las cuentas del club (elegir una
+ * define el medio por su tipo) o un medio genérico (la cuenta la resuelve
+ * fn_recibir_oc con medio_cuenta_default). Evita pares contradictorios
+ * medio/cuenta — mismo patrón que CerrarVentaDialog / Corregir venta.
+ */
+function DestinoPagoSelect({
+  id,
+  medioPago,
+  cuentaId,
+  cuentasActivas,
+  todasLasCuentas,
+  cuentaPorMedio,
+  cuentaFallbackId,
+  disabled,
+  onChange,
+}: DestinoPagoSelectProps) {
+  const selectValue =
+    medioPago === ''
+      ? ''
+      : cuentaId !== null
+        ? `cuenta_${cuentaId}`
+        : `medio_${medioPago}`;
+
+  return (
+    <select
+      id={id}
+      value={selectValue}
+      onChange={(e) => {
+        const val = e.target.value;
+        if (val === '') {
+          onChange('', null);
+        } else if (val.startsWith('cuenta_')) {
+          const cid = Number(val.replace('cuenta_', ''));
+          const cuenta = todasLasCuentas.find((c) => c.id === cid);
+          onChange(
+            cuenta ? mapCuentaTipoToMedio(cuenta.tipo) : medioPago,
+            cid,
+          );
+        } else {
+          onChange(
+            val.replace('medio_', '') as MedioPago,
+            null,
+          );
+        }
+      }}
+      disabled={disabled}
+      className={cn(
+        'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+      )}
+    >
+      <option value="">Elegí un destino…</option>
+      {cuentasActivas.length > 0 && (
+        <optgroup label="Cuentas del club">
+          {cuentasActivas.map((c) => (
+            <option key={c.id} value={`cuenta_${c.id}`}>
+              {c.nombre}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      <optgroup label="Otros medios">
+        {MEDIOS_PAGO_OC.map((m) => {
+          const cuentaResuelta =
+            cuentaPorMedio.get(m) ?? (m === 'efectivo' ? cuentaFallbackId : undefined);
+          const nombreCuenta = cuentaResuelta
+            ? todasLasCuentas.find((c) => c.id === cuentaResuelta)?.nombre
+            : null;
+          return (
+            <option key={m} value={`medio_${m}`}>
+              {MEDIO_PAGO_LABEL[m]}
+              {nombreCuenta ? ` → ${nombreCuenta}` : ''}
+            </option>
+          );
+        })}
+      </optgroup>
+      {cuentaId !== null &&
+        !cuentasActivas.some((c) => c.id === cuentaId) && (
+          <option value={`cuenta_${cuentaId}`}>
+            {todasLasCuentas.find((c) => c.id === cuentaId)?.nombre ??
+              `Cuenta #${cuentaId}`}{' '}
+            (inactiva)
+          </option>
+        )}
+    </select>
+  );
+}
+
 interface PagoPlanSectionProps {
   state: FormState;
   montoGasto: number;
@@ -1340,13 +1462,13 @@ interface PagoPlanSectionProps {
   disabled: boolean;
   onModoPagoChange: (m: ModoPago) => void;
   onFechaPagoContadoChange: (v: string) => void;
-  onMedioPagoContadoChange: (v: MedioPago | '') => void;
+  onDestinoPagoContadoChange: (medio: MedioPago | '', cuentaId: number | null) => void;
   onAnticipoChange: (v: string) => void;
   onCantidadCuotasChange: (v: string) => void;
   onFechaVencimientoChange: (idx: number, v: string) => void;
   onPagarAnticipoToggle: (v: boolean) => void;
   onFechaPagoAnticipoChange: (v: string) => void;
-  onMedioPagoAnticipoChange: (v: MedioPago | '') => void;
+  onDestinoPagoAnticipoChange: (medio: MedioPago | '', cuentaId: number | null) => void;
 }
 
 function PagoPlanSection({
@@ -1358,13 +1480,13 @@ function PagoPlanSection({
   disabled,
   onModoPagoChange,
   onFechaPagoContadoChange,
-  onMedioPagoContadoChange,
+  onDestinoPagoContadoChange,
   onAnticipoChange,
   onCantidadCuotasChange,
   onFechaVencimientoChange,
   onPagarAnticipoToggle,
   onFechaPagoAnticipoChange,
-  onMedioPagoAnticipoChange,
+  onDestinoPagoAnticipoChange,
 }: PagoPlanSectionProps) {
   const fiscalNote =
     condicionFiscal === 'responsable_inscripto'
@@ -1377,6 +1499,28 @@ function PagoPlanSection({
   const anticipoVal = Number(state.anticipo);
   const anticipoValido =
     Number.isFinite(anticipoVal) && anticipoVal >= 0 ? anticipoVal : 0;
+
+  const cuentasQuery = useCuentas();
+  const mediosDefaultQuery = useMediosCuentaDefault();
+  const todasLasCuentas = useMemo(() => cuentasQuery.data ?? [], [cuentasQuery.data]);
+  const cuentasActivas = useMemo(
+    () => todasLasCuentas.filter((c) => c.activa),
+    [todasLasCuentas],
+  );
+  const cuentaPorMedio = useMemo(() => {
+    const idsActivos = new Set(cuentasActivas.map((c) => c.id));
+    const mapa = new Map<MedioPago, number>();
+    for (const row of mediosDefaultQuery.data ?? []) {
+      if (idsActivos.has(row.cuenta_id)) mapa.set(row.medio_pago, row.cuenta_id);
+    }
+    return mapa;
+  }, [mediosDefaultQuery.data, cuentasActivas]);
+  const cuentaFallbackId = useMemo(() => {
+    const def =
+      cuentasActivas.find((c) => c.es_caja_fisica || c.tipo === 'efectivo') ??
+      cuentasActivas[0];
+    return def?.id ?? null;
+  }, [cuentasActivas]);
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-card p-3">
@@ -1435,26 +1579,17 @@ function PagoPlanSection({
             <Label htmlFor="rec-medio-contado" className="text-xs">
               Medio <span className="text-destructive">*</span>
             </Label>
-            <select
+            <DestinoPagoSelect
               id="rec-medio-contado"
-              value={state.medio_pago_contado}
-              onChange={(e) =>
-                onMedioPagoContadoChange(e.target.value as MedioPago | '')
-              }
+              medioPago={state.medio_pago_contado}
+              cuentaId={state.cuenta_pago_contado}
+              cuentasActivas={cuentasActivas}
+              todasLasCuentas={todasLasCuentas}
+              cuentaPorMedio={cuentaPorMedio}
+              cuentaFallbackId={cuentaFallbackId}
               disabled={disabled}
-              className={cn(
-                'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-              )}
-            >
-              <option value="">Elegí un medio…</option>
-              {MEDIOS_PAGO.map((m) => (
-                <option key={m} value={m}>
-                  {MEDIO_PAGO_LABEL[m]}
-                </option>
-              ))}
-            </select>
+              onChange={onDestinoPagoContadoChange}
+            />
           </div>
         </div>
       )}
@@ -1538,28 +1673,17 @@ function PagoPlanSection({
                     >
                       Medio
                     </Label>
-                    <select
+                    <DestinoPagoSelect
                       id="rec-medio-anticipo"
-                      value={state.medio_pago_anticipo}
-                      onChange={(e) =>
-                        onMedioPagoAnticipoChange(
-                          e.target.value as MedioPago | '',
-                        )
-                      }
+                      medioPago={state.medio_pago_anticipo}
+                      cuentaId={state.cuenta_pago_anticipo}
+                      cuentasActivas={cuentasActivas}
+                      todasLasCuentas={todasLasCuentas}
+                      cuentaPorMedio={cuentaPorMedio}
+                      cuentaFallbackId={cuentaFallbackId}
                       disabled={disabled}
-                      className={cn(
-                        'flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                        'disabled:cursor-not-allowed disabled:opacity-50',
-                      )}
-                    >
-                      <option value="">Elegí un medio…</option>
-                      {MEDIOS_PAGO.map((m) => (
-                        <option key={m} value={m}>
-                          {MEDIO_PAGO_LABEL[m]}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={onDestinoPagoAnticipoChange}
+                    />
                   </div>
                 </div>
               )}
