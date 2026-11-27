@@ -28,6 +28,8 @@ export interface RecibirOCInput {
   comprobante_numero?: string | null;
   fecha_pago?: string | null;
   medio_pago?: MedioPago | null;
+  /** Cuenta del club desde la que sale el pago (null = default del medio). */
+  cuenta_id?: number | null;
   /**
    * Plan de cuotas (0045). Si "Al contado" puro: anticipo=0,
    * cantidad_cuotas=1, fechas_vencimiento=[fecha_recepcion] + fecha_pago
@@ -83,6 +85,7 @@ export function useRecibirOC(): UseMutationResult<
         p_comprobante_numero: input.comprobante_numero ?? null,
         p_fecha_pago: input.fecha_pago ?? null,
         p_medio_pago: input.medio_pago ?? null,
+        p_cuenta_id: input.cuenta_id ?? null,
         p_anticipo: input.anticipo,
         p_cantidad_cuotas: input.cantidad_cuotas,
         p_fechas_vencimiento: input.fechas_vencimiento,
