@@ -1,6 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError } from '@/lib/dbErrors';
+import { useSession } from '@/features/auth';
 import type { ProductoConStock } from '@/types/database';
 
 export const PRODUCTOS_CON_STOCK_QUERY_KEY_BASE = 'productos_con_stock';
@@ -30,8 +31,9 @@ export function useProductosConStock(): UseQueryResult<
   ProductoConStock[],
   Error
 > {
+  const { club } = useSession();
   return useQuery<ProductoConStock[], Error>({
-    queryKey: PRODUCTOS_CON_STOCK_QUERY_KEY,
+    queryKey: [...PRODUCTOS_CON_STOCK_QUERY_KEY, club?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vw_productos_con_stock')
