@@ -823,3 +823,52 @@ GRANT EXECUTE ON FUNCTION public.fn_corregir_venta(BIGINT, TEXT, JSONB, VARCHAR,
   TO authenticated;
 REVOKE ALL ON FUNCTION public.fn_corregir_venta(BIGINT, TEXT, JSONB, VARCHAR, TEXT, BIGINT, BIGINT, JSONB)
   FROM PUBLIC;
+
+-- ============================================================================
+-- 8. RLS — compras / compra_items
+-- ============================================================================
+-- Las RPC de OC son SECURITY INVOKER: la policy admin-only de 0039 bloqueaba
+-- el INSERT/UPDATE aunque el RPC ya hubiera validado el permiso. Se habilita
+-- el mismo permiso 'ordenes_compra.editar' (has_user_permission ya devuelve
+-- TRUE para admin, plataforma-admin y vendedor configurado).
+--
+-- Además se agrega DELETE en compra_items: fn_actualizar_oc y fn_recibir_oc
+-- borran los items de la OC pedida antes de reinsertar, y la tabla nunca
+-- tuvo GRANT ni policy de DELETE (la edición/recepción fallaba para todos).
+
+DROP POLICY IF EXISTS "compras_insert_solo_admin" ON compras;
+CREATE POLICY "compras_insert_solo_admin"
+ON compras FOR INSERT TO authenticated
+WITH CHECK (
+  club_id = current_club_id()
+  AND has_user_permission('ordenes_compra', 'editar')
+);
+
+DROP POLICY IF EXISTS "compras_update_solo_admin" ON compras;
+CREATE POLICY "compras_update_solo_admin"
+ON compras FOR UPDATE TO authenticated
+USING (
+  club_id = current_club_id()
+  AND has_user_permission('ordenes_compra', 'editar')
+)
+WITH CHECK (
+  club_id = current_club_id()
+  AND has_user_permission('ordenes_compra', 'editar')
+);
+
+DROP POLICY IF EXISTS "compra_items_insert_solo_admin" ON compra_items;
+CREATE POLICY "compra_items_insert_solo_admin"
+ON compra_items FOR INSERT TO authenticated
+WITH CHECK (
+  club_id = current_club_id()
+  AND has_user_permission('ordenes_compra', 'editar')
+);
+
+GRANT DELETE ON compra_items TO authenticated;
+
+CREATE POLICY "compra_items_delete"
+ON compra_items FOR DELETE TO authenticated
+USING (
+  club_id = current_club_id()
+  AND has_user_permission('ordenes_compra', 'editar')
+);

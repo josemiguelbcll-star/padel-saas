@@ -1048,7 +1048,9 @@ export type FuenteMovimientoStock =
   | 'consumo_turno'
   | 'reposicion_consumo'
   | 'consumo_clase'
-  | 'reposicion_consumo_clase';
+  | 'reposicion_consumo_clase'
+  | 'mesa_consumo'
+  | 'reposicion_mesa_consumo';
 
 export interface Producto {
   id: number;

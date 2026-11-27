@@ -36,6 +36,8 @@ const FUENTE_LABEL: Record<FuenteMovimientoStock, string> = {
   reposicion_consumo: 'Quitado de consumo',
   consumo_clase: 'Consumo de clase',
   reposicion_consumo_clase: 'Quitado de consumo de clase',
+  mesa_consumo: 'Consumo de mesa',
+  reposicion_mesa_consumo: 'Quitado de mesa',
 };
 
 const FUENTE_OPTIONS: ReadonlyArray<{ value: FuenteFiltro; label: string }> = [
@@ -50,6 +52,8 @@ const FUENTE_OPTIONS: ReadonlyArray<{ value: FuenteFiltro; label: string }> = [
   { value: 'reposicion_consumo', label: 'Quitado de consumo' },
   { value: 'consumo_clase', label: 'Consumo de clase' },
   { value: 'reposicion_consumo_clase', label: 'Quitado de consumo de clase' },
+  { value: 'mesa_consumo', label: 'Consumo de mesa' },
+  { value: 'reposicion_mesa_consumo', label: 'Quitado de mesa' },
 ];
 
 const dateTimeFmt = new Intl.DateTimeFormat('es-AR', {
@@ -391,9 +395,13 @@ function FuenteChip({ fuente }: { fuente: keyof typeof FUENTE_LABEL }) {
       case 'compra_manual':
       case 'compra_bot_whatsapp':
       case 'reposicion_consumo':
+      case 'reposicion_consumo_clase':
+      case 'reposicion_mesa_consumo':
         return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400';
       case 'venta':
       case 'consumo_turno':
+      case 'consumo_clase':
+      case 'mesa_consumo':
         return 'bg-red-500/10 text-red-700 dark:text-red-400';
       case 'ajuste':
         return 'bg-amber-500/10 text-amber-700 dark:text-amber-400';
